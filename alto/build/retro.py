@@ -376,6 +376,59 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-tour .c{color:#f0c15e;font-weight:400;letter-spacing:.06em;}
 """
 
+# ── the homepage (home_look.py; Art's spec, Luke 2026-10-28 "8A": the homepage follows Classic | Retro): square plates, gold caps, solid dialogs ──
+HOME_CSS = r"""
+  X.alto-home,X.alto-home body{background:#000 !important;}
+  X.alto-home #page-glass{display:none !important;}
+  X.alto-home #sk-frame b{display:none !important;}   /* (the crown's diamond would sit on the Home chip) */
+  X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
+  /* the top row: the Home pill a square chip in gold capitals */
+  X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
+  X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;letter-spacing:.3em;}
+  /* projects: no glass, a fine gold rim, the name in gold capitals */
+  X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}
+  X.alto-home .slab-kicker .slab-rename{border-radius:0;color:#d9ae55;}
+  X.alto-home .home-section-label:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.3em;}
+  X.alto-home .home-section-label .hs-t{opacity:1;}
+  X.alto-home .home-sort:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  X.alto-home .home-sort:hover{color:#f0c15e;}
+  X.alto-home .home-sort-pop:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home .home-sort-pop button{border-radius:0;font-family:var(--rt-f);}
+  /* cards: square, a gold rim, a black plate; the title in capitals; the symbol in gold, very faint; the strip thin with square ends */
+  X.alto-home .course-tile:not(.new-tile):not(#_){background:#070a0f !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X.alto-home .course-tile.live:hover{transform:none;border-color:#d9ae55 !important;}
+  X.alto-home .course-tile .tile-title:not(#_){color:#efe6cf;font-family:var(--rt-f);font-size:15px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;}
+  X.alto-home .course-tile .tile-sub:not(#_){color:#b9b2a0;font-family:var(--rt-f);}
+  @media (max-width:900px){ X.alto-home .course-tile .tile-title:not(#_){font-size:13.5px;letter-spacing:.04em;} }   /* (a small card: the capitals stay whole words) */
+  X.alto-home .tile-emblem:not(#_){color:#d9ae55 !important;opacity:.16;}
+  X.alto-home .course-tile .unit-strip{height:3px;}
+  X.alto-home :is(.priv-sym,.fmt-sym){color:#d9ae55;}
+  X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):not(#_){width:28px;height:28px;border-radius:0;background:#000;border:1px solid rgba(217,174,85,.7);color:#d9ae55;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;}
+  X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):hover{color:#f0c15e;border-color:#d9ae55;}
+  X.alto-home .tile-more{width:32px;height:24px;}
+  X.alto-home .course-tile.new-tile:not(#_),X.alto-home .project-slab.new-project-slab:not(#_){background:transparent !important;border:1px dashed #d9ae55 !important;border-radius:0 !important;color:#d9ae55;text-transform:uppercase;letter-spacing:.14em;font-family:var(--rt-f);}
+  X.alto-home .new-project-note{color:#b9b2a0;}
+  X.alto-home .bin-group .bin-toggle:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  X.alto-home .bin-row:not(#_){background:#070a0f;border:1px solid rgba(217,174,85,.5);border-radius:0;}
+  X.alto-home .bin-row button{border-radius:0;border-color:rgba(217,174,85,.6);color:#d9ae55;background:#000;}
+  /* the corner controls: square chips with a gold rim (the light / dark button is gone: Retro is always dark) */
+  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
+  X.alto-home :is(#search-btn,#info-btn):not(.expanded) :is(#search-glyph,#info-icon){color:#d9ae55;}
+  X.alto-home #search-btn.expanded{background:#000 !important;}
+  X.alto-home #info-btn.expanded:not(#_){background:#05070a !important;}
+  X.alto-home #search-results:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home .search-result{border-radius:0;}
+  X.alto-home .search-result .sr-kind{border-radius:0;border-color:rgba(217,174,85,.6);color:#d9ae55;}
+  X.alto-home #claude-toast:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  /* dialogs: a solid plate, a gold rim, a black scrim: nothing shows through */
+  X.alto-home :is(#account-scrim,#dl-scrim,#nt-scrim,.share-scrim):not(#_){background:rgba(0,0,0,.72);-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home :is(#account-modal,#dl-modal,#nt-modal,.share-menu,#bin-panel):not(#_){background:#05070a !important;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home :is(.acct-title,#bin-panel .bin-head){color:#d9ae55;font-family:var(--rt-f);}
+  X.alto-home :is(#account-modal,#dl-modal,#nt-modal,.share-menu) :is(button,input,select,.nt-kind,.dl-choice,.acct-provider):not(#_){border-radius:0;}
+  X.alto-home :is(.nt-kind,.dl-choice,.share-menu button,.acct-provider):not(#_){border-color:rgba(217,174,85,.5);}
+"""
+
 JS = r"""(function(){
 if(window._altoRetro) return;
 var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null;
@@ -436,7 +489,7 @@ def _slim(src: str) -> str:
 
 def css() -> str:
     """Every format's Retro rules, as the hosted script adds them."""
-    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS
+    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS + HOME_CSS
     return ("@media screen{\n" + _slim(scoped(body, "html.alto-retro")) + "\n}\n"     # (printing: the engine's black on white)
             "@media print{#sk-frame,#sk-mark{display:none !important;}}")
 

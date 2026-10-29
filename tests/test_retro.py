@@ -64,9 +64,15 @@ def test_the_system_keeps_its_own_styles_and_shares_the_frame():
     assert frame in STARS_CSS
 
 
-def test_the_homepage_offers_no_style():
-    head = bg.head_block("alto-bg-home-v1")
-    assert retro.PATH not in head
+def test_the_homepage_offers_the_style_switch():
+    # item 15 (Luke 2026-10-28, "8A"): the homepage follows Classic | Retro like the other formats; the choice is kept
+    # under its own key, never over the background's
+    from alto.build import pages
+    page = pages.build_home([])
+    head = re.search(r'<script id="alto-bg-head">(.*?)</script>', page, re.S).group(1)
+    assert retro.PATH in head and "if(0)" not in head
+    assert "KEY+'-style'" in head.replace(" ", "")
+    assert "html.alto-retro.alto-home #search-btn" in retro.css()
 
 
 def test_the_picker_draws_the_switch_from_the_hosted_library():
