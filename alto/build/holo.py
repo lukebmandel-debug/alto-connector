@@ -92,6 +92,11 @@ HOLO_CSS = r"""
   html.pmin.alto-holo :is(#pmin-find,#hamburger-tab):not(#_):not(#__){border-radius:0 !important;}
   html.pmin.alto-holo #nav-drawer-body .drawer-btn:not(#_):not(#__){border-radius:0 !important;}
   html.pmin.alto-holo.msearch-open :is(#m-search,#m-search-results):not(#_):not(#__){background:var(--ho-bg) !important;}
+  /* light/dark: a square chip with the same rim as its neighbours, not the engine's glowing circle (Art, alto-art-1029-0033, fix 1) */
+  X #mode-toggle:not(#_):not(#__){background:var(--ho-bg) !important;color:var(--ho-ac) !important;border:0 !important;border-radius:0 !important;
+    box-shadow:0 0 0 1px var(--ho-ac),var(--ho-glow) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  /* the palace has no nav items: its empty band is not painted, so the Tour / World / zoom row clears it (Art fix 2) */
+  X.wpal-open #nav:not(#_):not(#__){background:transparent !important;border:0 !important;box-shadow:none !important;}
   @media print{ X :is(#title-bar,#nav,#node-nav-bar){box-shadow:none !important;} }
 """
 
