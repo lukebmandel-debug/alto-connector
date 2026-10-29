@@ -680,7 +680,7 @@ def live_pages(site_dir: Path) -> list[str]:
     return out
 
 
-HOSTED_REF_RE = re.compile(r"(?<![A-Za-z0-9_.-])/((?:retro|world|phone|bldg|gfx|fleet|bart|tex|street|cmap)/[A-Za-z0-9_.-]+-[0-9a-f]{8,12}\.[A-Za-z0-9.]+)")
+HOSTED_REF_RE = re.compile(r"(?<![A-Za-z0-9_.-])/((?:retro|holo|world|phone|bldg|gfx|fleet|bart|tex|street|cmap)/[A-Za-z0-9_.-]+-[0-9a-f]{8,12}\.[A-Za-z0-9.]+)")
 
 
 def hosted_refs(html: str) -> set:

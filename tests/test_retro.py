@@ -58,7 +58,7 @@ def test_every_format_has_its_rules(anchor):
 def test_the_system_keeps_its_own_styles_and_shares_the_frame():
     page = _build("outline", layout="solar")
     head = re.search(r'<script id="alto-bg-head">(.*?)</script>', page, re.S).group(1)
-    assert retro.PATH not in head and "if(0)" in head
+    assert retro.PATH not in head and "OWN=1" in head
     from alto.build.solar_stars import STARS_CSS
     frame = retro.FRAME_CSS.strip().split("\n")[2].strip().replace("X ", "html.alto-stars.sk-retro:not(.mobile) ")
     assert frame in STARS_CSS
@@ -144,7 +144,7 @@ def test_classic_fetches_nothing_and_retro_is_kept_per_timeline(browser, site):
     # chosen in the picker: the switch heads it
     pg.click("#bg-toggle")
     pg.wait_for_selector("#bg-style .bg-segb[data-sty=retro]", timeout=8000)
-    assert pg.eval_on_selector_all("#bg-style .bg-segb", "b => b.map(x => x.textContent)") == ["Classic", "Retro"]
+    assert pg.eval_on_selector_all("#bg-style .bg-segb", "b => b.map(x => x.textContent)") == ["Classic", "Retro", "Holographic"]
     pg.click("#bg-style .bg-segb[data-sty=retro]")
     assert pg.evaluate(_STATE) == [True, True, True, True, "retro"]
     assert pg.get_attribute("#bg-style .bg-segb[data-sty=retro]", "aria-pressed") == "true"
