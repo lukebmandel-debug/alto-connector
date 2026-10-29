@@ -1225,6 +1225,14 @@ function floorKey(m,r){ if(m==='paint') return 'plaster'; if(m==='wood'||m==='pl
   return r&&/^(marble|terrazzo|granite|kasota|tile)$/.test(m)&&(/hall|lobby|court/.test(r.ty)||Math.abs(parea(r.p))>60)?m+'#f':m; }
 function buildRoomShell(G,mb,r){ if(r.isVoid) return; var e=r.l.e, holesF=r.holesF, rings=[r.p].concat(holesF);
   flat(mb,floorKey(r.fm,r),rings,e,true);
+  /* a hairline gap between two traced rooms' floors (0.02-0.25 m) shows the slab's pale edge and the void as a white sliver and a step line: each room's floor reaches half way across it */
+  var Pf=r.p, nf=Pf.length, sgf=parea(Pf)>0?1:-1;
+  for(var fi=0;fi<nf;fi++){ var fa=Pf[fi], fb=Pf[(fi+1)%nf], fdx=fb[0]-fa[0], fdy=fb[1]-fa[1], fL=Math.hypot(fdx,fdy); if(fL<.5) continue;
+    var fnx=fdy/fL*sgf, fny=-fdx/fL*sgf, fmx=(fa[0]+fb[0])/2, fmy=(fa[1]+fb[1])/2, fg=0;
+    if(roomAt(G,r.l.id,fmx+fnx*.01,fmy+fny*.01)) continue;
+    [.04,.08,.12,.18,.25].some(function(d){ var o=roomAt(G,r.l.id,fmx+fnx*d,fmy+fny*d); if(o&&o!==r&&!o.isVoid){ fg=d; return true; } return false; });
+    if(fg){ var fe=fg/2+.01, c0=[fa[0],fa[1],e], c1=[fa[0]+fnx*fe,fa[1]+fny*fe,e], c2=[fb[0]+fnx*fe,fb[1]+fny*fe,e], c3=[fb[0],fb[1],e], q=sgf>0?[c0,c1,c2,c3]:[c0,c3,c2,c1];
+      mb.quad(floorKey(r.fm,r),q,[0,0,1],q.map(function(v){ return [v[0],v[1]]; })); } }
   var cr=[r.p].concat(r.holesC.map(function(h){ return h.p; })).concat(r.ceilHoles||[]), tall=r.ch>7, ck=tall&&r.cm!=='glass'?'coffer':r.cm==='glass'||r.cm==='paint'||r.cm==='terracotta'?'plaster':r.cm;
   if(r.cm==='glass'||(r.lk==='sky'&&!r.ceilHoles)){ var bb=r.bb, rect=Math.abs(parea(r.p))/((bb[2]-bb[0])*(bb[3]-bb[1]))>.92, fx=tall?.3:.14, ix=rect?Math.max(.6,(bb[2]-bb[0])*fx):0, iy=rect?Math.max(.6,(bb[3]-bb[1])*fx):0;
     if(rect&&bb[2]-bb[0]-2*ix>1&&bb[3]-bb[1]-2*iy>1){ var lay=[[bb[0]+ix,bb[1]+iy],[bb[2]-ix,bb[1]+iy],[bb[2]-ix,bb[3]-iy],[bb[0]+ix,bb[3]-iy]];
