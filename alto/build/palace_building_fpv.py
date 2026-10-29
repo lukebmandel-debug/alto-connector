@@ -869,15 +869,15 @@ function onStair(G,x,y){ for(var i=0;i<G.st.length;i++){ var o=G.st[i]; if(x<o.b
 var DISC=[[0,0]].concat([0,1,2,3,4,5,6,7].map(function(i){ return [Math.cos(i*PI/4)*.2,Math.sin(i*PI/4)*.2]; }));
 function supportDisc(G,x,y,fz){ var best=null; for(var i=0;i<DISC.length;i++){ var s=supportAt(G,x+DISC[i][0],y+DISC[i][1],fz); if(s!=null&&(best==null||s>best)) best=s; } return best; }
 function supportAt(G,x,y,fz){ var s=supports(G,x,y), best=-1e9; for(var i=0;i<s.length;i++) if(s[i]<=fz+CFG.step&&s[i]>best) best=s[i]; return best>-1e8?best:null; }
-function blockedAt(G,x,y,fz){ var s=supports(G,x,y); for(var i=0;i<s.length;i++) if(s[i]>fz+CFG.step&&s[i]<fz+CFG.head) return true;
-  var ps=primsNear(G,x,y,CFG.pr+.5), z0=fz+CFG.knee, z1=fz+CFG.head;
-  for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z1<(p.wall?z0+CFG.step+.08-CFG.knee:z0)||p.z0>z1) continue; if(primDist(p,x,y)<CFG.pr) return true; } return false; }
+function blockedAt(G,x,y,fz,gz){ var s=supports(G,x,y); for(var i=0;i<s.length;i++) if(s[i]>fz+CFG.step&&s[i]<fz+CFG.head) return true;
+  var ps=primsNear(G,x,y,CFG.pr+.5), gg=gz==null?fz:gz;
+  for(var j=0;j<ps.length;j++){ var p=ps[j], q=(!p.wall&&p.tag!=null&&G.fxs[p.tag])?fz:gg, z0=q+CFG.knee, z1=q+CFG.head; if(p.z1<(p.wall?z0+CFG.step+.08-CFG.knee:z0)||p.z0>z1) continue; if(primDist(p,x,y)<CFG.pr) return true; } return false; }
 function primDist(p,x,y){ if(p.k==='seg'){ if(p.flat){ var fx=p.bx-p.ax, fy=p.by-p.ay, fl=Math.hypot(fx,fy)||1e-9, qx=x-p.ax, qy=y-p.ay, al=(qx*fx+qy*fy)/fl, lx2=Math.abs(al-fl/2)-fl/2, ly2=Math.abs((qx*fy-qy*fx)/fl)-p.r; return Math.hypot(Math.max(lx2,0),Math.max(ly2,0))+Math.min(Math.max(lx2,ly2),0); } return segD(x,y,p.ax,p.ay,p.bx,p.by)-p.r; } if(p.k==='circ') return Math.hypot(x-p.x,y-p.y)-p.r;
   var dx=x-p.x, dy=y-p.y, lx=Math.abs(dx*p.c+dy*p.s)-p.hx, ly=Math.abs(-dx*p.s+dy*p.c)-p.hy; return Math.hypot(Math.max(lx,0),Math.max(ly,0))+Math.min(Math.max(lx,ly),0); }
 /* push a walker circle out of every primitive it overlaps (a few rounds: sliding along walls falls out of it) */
-function resolve(G,x,y,fz){ var z0=fz+CFG.knee, z1=fz+CFG.head, R=CFG.pr;
+function resolve(G,x,y,fz,gz){ var gg=gz==null?fz:gz, R=CFG.pr;
   for(var it=0;it<4;it++){ var moved=false, ps=primsNear(G,x,y,R+.6);
-    for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z1<(p.wall?z0+CFG.step+.08-CFG.knee:z0)||p.z0>z1) continue; var d=primDist(p,x,y); if(d>=R) continue;
+    for(var j=0;j<ps.length;j++){ var p=ps[j], q=(!p.wall&&p.tag!=null&&G.fxs[p.tag])?fz:gg, z0=q+CFG.knee, z1=q+CFG.head; if(p.z1<(p.wall?z0+CFG.step+.08-CFG.knee:z0)||p.z0>z1) continue; var d=primDist(p,x,y); if(d>=R) continue;
       var e=.002, gx=(primDist(p,x+e,y)-primDist(p,x-e,y))/(2*e), gy=(primDist(p,x,y+e)-primDist(p,x,y-e))/(2*e), gl=Math.hypot(gx,gy)||1;
       x+=gx/gl*(R-d+.001); y+=gy/gl*(R-d+.001); moved=true; }
     if(!moved) break; }
@@ -1592,7 +1592,7 @@ function drawBatch(b,trans,stats){ var gl=S.gl, u=S.pw.u, B=b.built, L=b.light, 
 function levelAt(z){ var G=S.G, l=G.lvs[0]; G.lvs.forEach(function(o){ if(o.e<=z+.6) l=o; }); return l; }
 function locate(){ var G=S.G, fz=S.fz, best=null; G.lvs.forEach(function(l){ if(l.e>fz+.6) return; var r=roomAt(G,l.id,S.x,S.y); if(r&&(!best||l.e>best.l.e)) best=r; });
   if(best&&S.fz>best.ceil) best=null; return best; }
-function colZ(){ return S.air?Math.min(S.fz,S.gnd):S.fz; }        /* furniture and walls are tested from the ground you left: a hop never clears a bench or a rope (and never lands inside one) */
+function colZ(){ return S.air?Math.min(S.fz,S.gnd):S.fz; }        /* walls, rails and cases are tested from the ground you left: a hop never clears them. Low furniture is tested from the feet (blockedAt / resolve): a hop (apex 0.70 m + the 0.35 m knee) clears a bench, a rope or a low plinth; coming down over one, the capsule is pushed out beside it */
 /* the lowest thing over the head at (x,y): a floor or flight above (its slab), the room's ceiling, a lintel or beam */
 function ceilAt(G,x,y,fz){ var c=1e9, s=supports(G,x,y); for(var i=0;i<s.length;i++) if(s[i]>fz+CFG.step+.05&&s[i]-.25<c) c=s[i]-.25;
   G.lvs.forEach(function(l){ if(l.e>fz+.6||l.e<fz-6.5) return; var r=roomAt(G,l.id,x,y); if(r&&!r.isVoid&&r.ceil>fz+.5&&r.ceil<c) c=r.ceil; });
@@ -1615,10 +1615,10 @@ function step(dt,keys){ var G=S.G; keys=keys||S.keys; dt=Math.min(dt,.1); S.dt=d
   var cz=colZ(), dx=S.vx*dt, dy=S.vy*dt, n=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.08)), x0=S.x, y0=S.y;
   for(var i=0;i<n;i++){ var nx=S.x+dx/n, ny=S.y+dy/n;
     if(!okAt(G,nx,ny)){ if(okAt(G,nx,S.y)) ny=S.y; else if(okAt(G,S.x,ny)) nx=S.x; else { S.vx*=.5; S.vy*=.5; break; } }
-    var p=resolve(G,nx,ny,cz); if(!okAt(G,p[0],p[1])) break; S.x=p[0]; S.y=p[1]; }
+    var p=resolve(G,nx,ny,S.fz,cz); if(!okAt(G,p[0],p[1])) break; S.x=p[0]; S.y=p[1]; }
   if(dt>0){ var mv=Math.hypot(S.x-x0,S.y-y0); S.spd=mv/dt; if(mv<Math.hypot(S.vx,S.vy)*dt*.3){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; } }           /* against a wall: no speed stored up */
   /* stuck rescue: inside geometry for 3 frames in a row (a moved prop, a bad spawn) -> the nearest free spot */
-  if(blockedAt(G,S.x,S.y,colZ())){ S.stuckN=(S.stuckN||0)+1; if(S.stuckN>=3){ var fr=freeNear(S.x,S.y,S.fz); S.x=fr[0]; S.y=fr[1]; S.stuckN=0; S.rescues=(S.rescues||0)+1; } } else S.stuckN=0;
+  if(blockedAt(G,S.x,S.y,S.fz,colZ())){ S.stuckN=(S.stuckN||0)+1; if(S.stuckN>=3){ var fr=freeNear(S.x,S.y,S.fz); S.x=fr[0]; S.y=fr[1]; S.stuckN=0; S.rescues=(S.rescues||0)+1; } } else S.stuckN=0;
   /* vertical: ground snap on stairs and small steps, else the hop / fall in sub-steps of at most 5 cm: land on the first support met, bonk the first ceiling */
   var sup=supportDisc(G,S.x,S.y,S.fz); if(sup==null) sup=S.fz;
   if(!S.air&&!S.glide){ if(sup>=S.fz||S.fz-sup<=CFG.step+.02){ S.fz=sup; S.vz=0; S.grounded=true; } else { S.air=true; S.gnd=S.fz; S.vz=0; S.grounded=false; } }

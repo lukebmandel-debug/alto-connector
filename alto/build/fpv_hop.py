@@ -9,7 +9,7 @@ from __future__ import annotations
 
 _HOP_JS = r"""
 var AV=(function(){
-var HOP={v0:3.3, g:13.5, coyote:.1, buffer:.13};                               /* apex 0.40 m, 0.49 s in the air: a natural little hop */
+var HOP={v0:4.35, g:13.5, coyote:.1, buffer:.13};                              /* apex 0.70 m, 0.64 s in the air: with the 0.35 m knee it clears anything up to 1.05 m (a bench, a rope, a low plinth), never a wall or a case */
 function pad(){ var ps=null; try{ ps=navigator.getGamepads?navigator.getGamepads():null; }catch(x){ ps=null; } if(!ps) return null;
   for(var i=0;i<ps.length;i++){ var g=ps[i]; if(!g||!g.connected||!g.axes||g.axes.length<2) continue; var dz=function(v){ v=+v||0; return Math.abs(v)<.18?0:(v-(v>0?.18:-.18))/.82; };
     var b=function(n){ var q=g.buttons&&g.buttons[n]; return !!(q&&(q.pressed||q.value>.5)); };
