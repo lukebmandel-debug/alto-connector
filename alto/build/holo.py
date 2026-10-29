@@ -32,7 +32,7 @@ FOLDER = "holo"
 TOKENS = {
     "dark": {"tx": "#c9fffa", "mu": "#8fc9c6", "ac": "#4ff0e0", "ac2": "#8ffcf2", "bg": "#010a0e", "sf": "#021b21", "sf2": "#06323a", "on": "#00262b",
              "rgb": "79,240,224", "bgrgb": "1,10,14", "sfrgb": "2,27,33", "glow": "0 0 10px rgba(79,240,224,.45)"},
-    "light": {"tx": "#06485c", "mu": "#3f6b78", "ac": "#0a6f8c", "ac2": "#06607c", "bg": "#e9f7fa", "sf": "#fcfeff", "sf2": "#dcf1f6", "on": "#ffffff",
+    "light": {"tx": "#06485c", "mu": "#335f6c", "ac": "#0a6f8c", "ac2": "#06607c", "bg": "#e9f7fa", "sf": "#fcfeff", "sf2": "#dcf1f6", "on": "#ffffff",
               "rgb": "10,111,140", "bgrgb": "233,247,250", "sfrgb": "252,254,255", "glow": "0 0 3px rgba(10,111,140,.1)"},
 }
 # the twelve unit hues of the Atlas (retro's .wu0-.wu11), chosen per theme so each reads on every plate
