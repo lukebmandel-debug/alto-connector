@@ -1,5 +1,5 @@
 """The FPV graphics pass of the museum walk (palace_building_fpv.py, hosted /bldg/), once shared with the city roam
-(retired to _cold-storage/memory-map-fpv). GFX_JS defines `FXG` inside each renderer's closure, the way fpv_avatar.py's AVATAR_JS does; nothing
+(retired to _cold-storage/memory-map-fpv). GFX_JS defines `FXG` inside each renderer's closure, the way fpv_hop.py's HOP_JS does; nothing
 here reaches a page, so page bytes and the page fingerprint stay as they are.
 
 Assets (alto/assets/gfx, every one CC0; sources and licences in alto/assets/gfx/NOTICE): hosted under /gfx/ with the hash of their bytes in the
