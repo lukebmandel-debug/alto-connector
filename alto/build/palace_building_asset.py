@@ -51,8 +51,8 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root svg.bl-svg.bl-drag{cursor:grabbing;}
 #bldg-root .bl-grid{stroke:var(--bl-ink);stroke-opacity:.06;stroke-width:1;vector-effect:non-scaling-stroke;}
 #bldg-root .bl-tube,#bldg-root .bl-sheen{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
-#bldg-root .bl-tube{stroke:var(--bl-ink);stroke-opacity:.92;stroke-width:4.2px;}
-#bldg-root .bl-sheen{stroke:var(--bl-sheen);stroke-width:1.43px;}
+#bldg-root .bl-tube{stroke:var(--bl-ink);stroke-opacity:.92;stroke-width:2.4px;}
+#bldg-root .bl-sheen{stroke:var(--bl-sheen);stroke-width:.7px;}
 #bldg-root .bl-tube.bl-guess{stroke-opacity:.5;stroke-dasharray:9 7;}
 #bldg-root .bl-sheen.bl-guess{stroke-dasharray:9 7;stroke-opacity:.6;}
 #bldg-root .bl-rail{stroke-width:2.2px;stroke-opacity:.7;}
@@ -233,6 +233,76 @@ A.geometry.bounds=function(plan,level){
   return x0===Infinity?null:[x0,y0,x1,y1];
 };
 
+/* PMA plan walls, drawn clean (blueprint only): the 1928 trace gives doubled, crossing, stub-ended strokes. This takes the solid stretches of every wall of a
+   level and the door gaps, and returns one straight stroke per wall line: near-parallel overlapping strokes merged, door gaps cut through whatever lies in them,
+   corners and T joints closed, lone stubs dropped. Pure (no DOM): segs [{a:[x,y], b:[x,y], k:kind}], gaps [[[x,y],[x,y]]], returns [{a, b, k}]. */
+function cleanStrokes(segs, gaps, o){
+  o = o || {};
+  var SNAP = o.snap || .7, ANG = o.ang || .06, JOIN = o.join || .9, STUB = o.stub || 1.0, EPS = 1e-6, PI = Math.PI;
+  function dir(s){ var dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1], l = Math.hypot(dx, dy); return l < EPS ? null : [dx / l, dy / l, l]; }
+  var L = [];
+  segs.forEach(function(s){ var d = dir(s); if(!d || d[2] < .05) return; var ux = d[0], uy = d[1], a = s.a, b = s.b;
+    if(ux < -EPS || (Math.abs(ux) <= EPS && uy < 0)){ ux = -ux; uy = -uy; var t = a; a = b; b = t; }          // every stroke runs "forward" (angle 0..pi)
+    L.push({a: a.slice(), b: b.slice(), k: s.k || 0, ux: ux, uy: uy}); });
+  function dist(p, s){ return Math.abs(-s.uy * (p[0] - s.a[0]) + s.ux * (p[1] - s.a[1])); }
+  function along(p, s){ return s.ux * (p[0] - s.a[0]) + s.uy * (p[1] - s.a[1]); }
+  function angd(x, y){ var d = Math.abs(Math.atan2(x.uy, x.ux) - Math.atan2(y.uy, y.ux)); return Math.min(d, PI - d); }
+  // 1. merge near-parallel, overlapping (or nearly touching) strokes: repeat until stable
+  for(var more = true, guard = 0; more && guard < 20; guard++){
+    more = false;
+    for(var i = 0; i < L.length; i++){
+      for(var j = i + 1; j < L.length; j++){
+        var s = L[i], t = L[j];
+        if(s.k !== t.k || angd(s, t) > ANG) continue;
+        if(dist(t.a, s) > SNAP || dist(t.b, s) > SNAP) continue;
+        var s0 = 0, s1 = along(s.b, s), t0 = along(t.a, s), t1 = along(t.b, s);
+        if(Math.max(t0, t1) < s0 - SNAP || Math.min(t0, t1) > s1 + SNAP) continue;                   // collinear but apart: leave
+        var lo = Math.min(s0, s1, t0, t1), hi = Math.max(s0, s1, t0, t1), ls = s1 - s0, lt = Math.abs(t1 - t0), w = ls / (ls + lt);
+        // the merged line: through the length-weighted middle of the two, at the angle of the longer
+        var ux = s.ux, uy = s.uy, off = (-s.uy * (s.a[0]) + s.ux * (s.a[1])), offT = (-s.uy * ((t.a[0] + t.b[0]) / 2) + s.ux * ((t.a[1] + t.b[1]) / 2));
+        var d = off * w + offT * (1 - w), nx = -uy, ny = ux, base = s.a[0] * ux + s.a[1] * uy;
+        var A = [ (base + lo) * ux + d * nx, (base + lo) * uy + d * ny ], B = [ (base + hi) * ux + d * nx, (base + hi) * uy + d * ny ];
+        L[i] = {a: A, b: B, k: s.k, ux: ux, uy: uy}; L.splice(j, 1); more = true; j--;
+      }
+    }
+  }
+  // 2. door gaps cut through any stroke that runs along them (a gap is the jamb-to-jamb stretch of the wall that holds the door)
+  var out = [];
+  L.forEach(function(s){
+    var cuts = [];
+    gaps.forEach(function(g){ var gx = g[1][0] - g[0][0], gy = g[1][1] - g[0][1], gl = Math.hypot(gx, gy); if(gl < EPS) return;
+      var gs = {ux: gx / gl, uy: gy / gl}; if(angd(s, gs) > .14) return;
+      var d0 = dist(g[0], s), d1 = dist(g[1], s); if(d0 > 1.1 || d1 > 1.1) return;
+      var a0 = along(g[0], s), a1 = along(g[1], s), lo = Math.min(a0, a1), hi = Math.max(a0, a1), ls = along(s.b, s);
+      if(hi < 0 || lo > ls) return; cuts.push([lo, hi]); });
+    cuts.sort(function(p, q){ return p[0] - q[0]; });
+    var pos = 0, ls = along(s.b, s), lockA = false;
+    function piece(t0, t1, la, lb){ if(t1 - t0 < .05) return; out.push({a: [s.a[0] + s.ux * t0, s.a[1] + s.uy * t0], b: [s.a[0] + s.ux * t1, s.a[1] + s.uy * t1], k: s.k, ux: s.ux, uy: s.uy, la: la, lb: lb}); }
+    cuts.forEach(function(c){ if(c[0] > pos) piece(pos, Math.min(c[0], ls), lockA, true); pos = Math.max(pos, c[1]); lockA = true; });
+    if(pos < ls) piece(pos, ls, lockA, false);
+  });
+  // 3. close corners and T joints: a free end within JOIN of another stroke's line is run out (or back) to it, never at a door jamb
+  function onSeg(p, s, tol){ var t = along(p, s), ls = along(s.b, s); return t >= -tol && t <= ls + tol && dist(p, s) <= tol; }
+  out.forEach(function(s, i){
+    ['a', 'b'].forEach(function(end){
+      if(end === 'a' ? s.la : s.lb) return;
+      var p = s[end], best = null;
+      out.forEach(function(t, j){ if(j === i || angd(s, t) < .35) return;
+        var det = s.ux * t.uy - s.uy * t.ux, dx = t.a[0] - p[0], dy = t.a[1] - p[1]; if(Math.abs(det) < 1e-6) return;
+        var ps = (dx * t.uy - dy * t.ux) / det, q = [p[0] + s.ux * ps, p[1] + s.uy * ps];                        // where s's line meets t's
+        var lt = along(t.b, t), at = along(q, t); if(at < -.25 || at > lt + .25) return;
+        if(Math.abs(ps) > JOIN) return; if(onSeg(p, t, .05)) { best = {skip: true}; return; }
+        if(!best || Math.abs(ps) < best.d) best = {q: q, d: Math.abs(ps)}; });
+      if(best && best.q) s[end] = best.q;
+    });
+  });
+  // 4. lone stubs: short strokes with a free end that touches nothing
+  function touches(p, i){ return out.some(function(t, j){ return j !== i && onSeg(p, t, .25); }); }
+  var kept = out.filter(function(s, i){ var l = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]); if(l >= STUB) return true;
+    return (s.la || touches(s.a, i)) && (s.lb || touches(s.b, i)) && l >= .3; });
+  return kept.map(function(s){ return {a: s.a, b: s.b, k: s.k}; });
+}
+
 // ── drawing ──
 function conf(plan,e){ return e.c!=null?e.c:(plan.c!=null?plan.c:1); }
 function tubes(parent,pts,cls,loop){
@@ -259,11 +329,16 @@ function drawLevel(g,id){
     if(tint){ p.setAttribute('class',p.getAttribute('class')+' bl-tint'); p.style.setProperty('--bl-tint',tint); }
     p.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); A.selectRoom(r.id); });
   });
-  // walls
+  // walls: the traced strokes are merged to one line per wall (cleanStrokes), door gaps cut through, corners closed
+  var segs=[], gaps=[];
   (plan.wl||[]).filter(function(w){ return w.l===id; }).forEach(function(w){
-    var guess=conf(plan,w)<=1?' bl-guess':'', rail=w.k==='rail'?' bl-rail':'';
+    var gm=A.geometry.wallSegments(w), kind=(conf(plan,w)<=1?1:0)+(w.k==='rail'?2:0);
+    gm.solid.forEach(function(pts){ for(var i=0;i+1<pts.length;i++) segs.push({a:pts[i],b:pts[i+1],k:kind}); });
+    gm.doors.forEach(function(x){ if(x.pts.length>1) gaps.push([x.pts[0],x.pts[x.pts.length-1]]); });
+  });
+  cleanStrokes(segs,gaps).forEach(function(s){ tubes(gW,[s.a,s.b],((s.k&1)?' bl-guess':'')+((s.k&2)?' bl-rail':''),false); });
+  (plan.wl||[]).filter(function(w){ return w.l===id; }).forEach(function(w){
     var gm=A.geometry.wallSegments(w);
-    gm.solid.forEach(function(pts){ tubes(gW,pts,guess+rail,false); });
     if(w.loop && gm.solid.length===1 && !(w.o||[]).some(function(o){ return o.k!=='window'; })) { /* closed, unbroken: drawn as a loop below */ }
     gm.windows.forEach(function(x){ if(x.pts.length>1) el('path',{d:pathOf(x.pts,false),'class':'bl-win'},gW); });
     gm.doors.forEach(function(x){ if(x.o.k==='door' && x.o.d!=='none' && x.pts.length>1){ var a=x.pts[0], b=x.pts[x.pts.length-1];
@@ -286,7 +361,9 @@ function drawLevel(g,id){
       el('path',{d:'M'+P(a0)+'L'+P(a1)+'M'+P([a1[0]-ux*.8+vx*.5,a1[1]-uy*.8+vy*.5])+'L'+P(a1)+'L'+P([a1[0]-ux*.8-vx*.5,a1[1]-uy*.8-vy*.5]),'class':'bl-stair'},gs);
     }
   });
-  (plan.cols||[]).filter(function(c){ return c.l===id; }).forEach(function(c){
+  var shells=((plan.ex||{}).sh||[]).map(function(x){ return x.p; });
+  (plan.cols||[]).filter(function(c){ return c.l===id; }).filter(function(c){      // a column drawn outside the building is a tracing stray: kept only inside a room or the shell
+    return rooms.some(function(r){ return inside(r.p,c.p); })||shells.some(function(p){ return inside(p,c.p); }); }).forEach(function(c){
     if(c.r!=null) el('circle',{cx:f2(c.p[0]),cy:f2(-c.p[1]),r:c.r,'class':'bl-col'},gX);
     else el('rect',{x:f2(c.p[0]-c.sz[0]/2),y:f2(-c.p[1]-c.sz[1]/2),width:c.sz[0],height:c.sz[1],'class':'bl-col'},gX);
   });
@@ -308,7 +385,6 @@ function drawLevel(g,id){
     var t=el('text',{x:f2(c[0]),y:f2(c[1]-up),'class':'bl-lab'},gL); t.textContent=dec(r.n);
     if(r.no){ var t2=el('text',{x:f2(c[0]),y:f2(c[1]-up+fs*1.25),'class':'bl-lab bl-lab2'},gL); t2.textContent=dec(r.no); }
   });
-  (plan.en||[]).filter(function(e){ return e.l===id; }).forEach(function(e){ entranceMark(gX,e); });
 }
 function ptsBounds(pts){ var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; pts.forEach(function(p){ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }); return [x0,y0,x1,y1]; }
 function insideBand(poly,ux,uy,u){ return true; }

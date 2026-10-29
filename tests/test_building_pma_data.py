@@ -226,7 +226,7 @@ def test_gallery_numbers_are_only_defensible_matches():
     # period rooms: about 45 in the PMA's guide, those that sit in a traced room carry their installation name
     named = [r for r in numbered if r["id"].startswith("l3-") and r["n"] != f"Gallery {r['no']}"]
     assert len(named) >= 10
-    assert ROOMS["l3-s-23"]["no"] == "314" and ROOMS["l3-s-23"]["n"] == "Late Gothic Room"
+    assert ROOMS["l3-s-23"]["no"] == "314" and ROOMS["l3-s-23"]["n"] == "Gallery 314 · Late Gothic Room"      # visitor style (clean_pma_names.py)
 
 
 def test_collection_areas_colour_the_rooms():
