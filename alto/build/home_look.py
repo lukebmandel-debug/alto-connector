@@ -37,7 +37,7 @@ STATIC_STRIP_NEW = "    const strip = unitStrip(c.units, c.fmt);"
 _CLASSIC = """
 /* Q2B: the title keeps clear of the big faded symbol: the symbol's box (132px, turned 6 degrees, 12px past the right edge) and a 12px gap are reserved */
 @media (min-width:901px){
-  .course-tile:not(.new-tile) .tile-title{ margin-right:115px; overflow-wrap:anywhere; }
+  .course-tile:not(.new-tile) .tile-title{ margin-right:115px; overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto; }
   .course-tile.has-more .tile-title{ padding-right:0; }
 }
 html.dark .tile-emblem{ opacity:.22; }
@@ -50,7 +50,7 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .project-slab{ padding:30px 22px 32px; }
   #projects-wrap{ padding-left:16px; padding-right:16px; }
   .course-tile .tile-body{ flex:1; padding:12px 14px 0; }
-  .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:normal; }
+  .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto; }
   /* the card's ⋯ sits beside the title: every line keeps the same short width, so the line spacing stays even */
   .course-tile.has-more .tile-title{ padding-right:28px; }
   .course-tile .tile-sub{ min-height:calc(var(--em) + 20px); font-size:12px; }
@@ -120,7 +120,7 @@ BIN_JS = r"""function drawBin(pages){
 if(!window._altoBinClose){
   window._altoBinClose = 1;
   const shut = () => { if(binOpen){ binOpen = false; drawBin(lastPrivatePages); } };
-  document.addEventListener('click', e => { if(binOpen && binSlab && !binSlab.contains(e.target)) shut(); });
+  document.addEventListener('click', e => { if(binOpen && binSlab && e.target.isConnected && !binSlab.contains(e.target)) shut(); });
   document.addEventListener('keydown', e => { if(e.key === 'Escape') shut(); });
 }
 """
