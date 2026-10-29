@@ -354,7 +354,7 @@ void main(){
     vec3 q2=cross(p2,N), q1=cross(N,p1), T=q2*t1.x+q1*t2.x, Bt=q2*t1.y+q1*t2.y; float im=inversesqrt(max(max(dot(T,T),dot(Bt,Bt)),1e-14));
     vec2 nm=(B.xy*2.-1.)*uMat.w; N=normalize(T*im*nm.x+Bt*im*nm.y+N*(1.+jl*2.));
 #endif
-  } else if(kind<2.5){ vec4 tq=TEX(uA,vT*uUv.xy+uUv.zw); alb=pow(tq.rgb,vec3(2.2)); rough=uMat.y; metal=0.; if(uMat.w>0.) alpha=(1.-smoothstep(uMat.w-.8,uMat.w,dist))*tq.a; }
+  } else if(kind<2.5){ vec4 tq=TEX(uA,vT*uUv.xy+uUv.zw); alb=pow(tq.rgb,vec3(2.2)); rough=uMat.y; metal=0.; if(uMat.w>0.) alpha=(1.-smoothstep(uMat.w-.5,uMat.w,dist))*tq.a; }
   else if(kind<3.5){ alb=uTint.rgb; rough=uMat.y; }
   else { alb=uTint.rgb; rough=.05; metal=0.; }
   /* contact AO from the room's shape */
@@ -418,7 +418,7 @@ FPV_JS = r"""
 if(window.AltoBuildingFPV) return;
 var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__, DVS=__DVS__, DFS=__DFS__;
 /* the Labelled frame (a slot with `fr`): plate size, gap to the frame, label top above the floor, and the distance past which a label has faded out (title under 11 px) */
-var FR={PW:.5, PH:.25, GAP:.10, TOP:1.30, FADE:3.0, CW:256, CH:128, COLS:4};
+var FR={PW:.5, PH:.25, GAP:.10, TOP:1.30, FADE:3.2, CW:256, CH:128, COLS:4};
 var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.85, knee:.35, drop:1.0, minDoor:.9, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900};
 /* the walker is a capsule: radius pr (0.26 m), feet to the top of the head `head` (1.85 m); `drop` is the most it may step down off an edge that is not a stair (higher ledges are walls) */
 var PI=Math.PI, D=typeof document!=='undefined'?document:null;
@@ -1357,7 +1357,7 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='flab'){ m={kind:2,lab:1,fl:1,rough:.9,trans:1,bump:FR.FADE}; }                 /* a framed work's museum label: fades out beyond reading distance */
   else if(base==='walnut'){ m={kind:3,tint:[.17,.1,.062],rough:.5,metal:0}; }
   else if(base==='canvas'||base==='fart'){ var rr=G.rooms[parseInt(String(arg).split('.').pop(),10)], pc=rr&&rr.paint?rr.paint:[.9,.88,.84];            /* an empty canvas: the room's wall tone, 6% darker */
-    m={kind:base==='fart'?2:3,fa:base==='fart'?1:0,tint:[pc[0]*.94,pc[1]*.94,pc[2]*.94],rough:.95,metal:0}; }
+    m={kind:base==='fart'?2:3,fa:base==='fart'?1:0,tint:[pc[0]*.9,pc[1]*.9,pc[2]*.9],rough:.95,metal:0}; }
   else if(base==='art'){ m={kind:2,art:+arg,rough:.6}; }
   else if(base==='glass'){ m={kind:4,tint:[.92,.96,.95],rough:.05,a:.05,trans:1}; }
   else if(base==='glaze'){ m={kind:4,tint:[1,1,1],rough:.05,a:.0,trans:1}; }
