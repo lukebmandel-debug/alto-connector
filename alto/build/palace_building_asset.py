@@ -118,7 +118,7 @@ html.mobile #bldg-root :is(.bl-head,.bl-tabs){top:112px;}
 #bldg-root .bl-go{font:inherit;font-size:13px;height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--bl-accent);background:var(--bl-accent);color:#fff;cursor:pointer;}
 #bldg-root .bl-note{font-size:12px;color:var(--bl-muted);margin-top:6px;}
 #bldg-root .bl-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;font-size:14px;color:var(--bl-muted);pointer-events:none;}
-#bldg-root .bl-foot{left:0;right:0;bottom:0;z-index:3;text-align:center;font-size:10px;line-height:12px;color:var(--bl-muted);padding:3px 10px 4px;background:var(--bl-panel);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;cursor:pointer;}
+#bldg-root .bl-foot{left:0;right:0;bottom:0;z-index:3;text-align:center;font-size:10px;line-height:12px;color:var(--bl-muted);padding:3px 10px 4px;background:var(--bl-panel);overflow:hidden;max-height:28px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;cursor:pointer;}
 #bldg-root .bl-foot:hover{color:var(--bl-text);}
 #bldg-root .bl-credits{left:14px;right:14px;bottom:22px;max-width:640px;max-height:62%;overflow:auto;padding:12px 14px;border-radius:14px;border:1px solid var(--bl-line);font-size:12px;line-height:1.45;
   background:var(--bl-panel);user-select:text;-webkit-user-select:text;}
@@ -395,7 +395,7 @@ function labels(){
   var g=S.gL, rooms=S.labelRooms; if(!g||!rooms||!S.vb||!S.svg) return;
   while(g.firstChild) g.removeChild(g.firstChild);
   var rw=S.svg.getBoundingClientRect().width||S.root.clientWidth||1, k=rw/S.vb[2], px=LAB_PX; if(px<LAB_MIN) return;
-  var items=[];
+  var items=[], sc0=scr();
   rooms.forEach(function(r){
     if(r.gp||!r.n) return;
     var bb=ptsBounds(r.p.map(V)), w=(bb[2]-bb[0])*k, hgt=(bb[3]-bb[1])*k; if(w<px*1.5||hgt<px*1.4) return;
@@ -404,12 +404,14 @@ function labels(){
   });
   items.sort(function(a,b){ return b.pri-a.pri; });
   var placed=[], lh=px*1.18;
+  if(S.chips&&S.chips.length){ var sc=scr();                       // the numbered chips are in the way too: a label never sits under one
+    S.chips.forEach(function(p){ var x=p._a[0]*sc.s+sc.x+(p._o?p._o[0]:0), y=p._a[1]*sc.s+sc.y+(p._o?p._o[1]:0), w=(p._wF||32); placed.push([x-w/2-3,y-3,x+w/2+3,y+25]); }); }
   items.forEach(function(it){
     var r=it.r, maxW=it.w-8, lines=labWrap(dec(r.n),maxW,px), num=r.no?String(r.no):null;
     if(!lines||lines.length*lh>it.h-4){ lines=num&&labWidth(num,px)<=maxW&&lh<=it.h-4?[num]:null; }
     if(!lines) return;
     var tw=0; lines.forEach(function(l){ tw=Math.max(tw,labWidth(l,px)); });
-    var cx=it.c[0]*k, cy=it.c[1]*k-(it.many?px*1.6:0), th=lines.length*lh, box=[cx-tw/2-2,cy-th/2-1,cx+tw/2+2,cy+th/2+1];
+    var cx=it.c[0]*sc0.s+sc0.x, cy=it.c[1]*sc0.s+sc0.y-(it.many?px*1.6:0), th=lines.length*lh, box=[cx-tw/2-2,cy-th/2-1,cx+tw/2+2,cy+th/2+1];
     for(var i=0;i<placed.length;i++){ var q=placed[i]; if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]) return; }
     placed.push(box);
     var t=el('text',{x:f2(it.c[0]),y:f2(it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2),'class':'bl-lab','text-anchor':'middle'},g);
