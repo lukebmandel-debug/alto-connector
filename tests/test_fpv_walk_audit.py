@@ -1,6 +1,6 @@
 """The first-person walks are glitch-free (and trips to cards arrive): tests/fpv_walk/walk_audit.js drives the Memory Blueprint renderer's own walking code (no browser, no GL;
 node) through EVERY passable doorway of a plan, both ways, walking and running, up and down EVERY stair flight, out of and into every entrance
-with traced ground, and hops in every doorway and on every flight; it fails on a door narrower or lower than the walker's capsule, a fall into
+with traced ground, and hops in every doorway and on every flight, and hops at every bench, rope, case, plinth and a sample of walls (only the low ones may be cleared); it fails on a door narrower or lower than the walker's capsule, a fall into
 another floor (or the safety net catching one), a walker stuck in a corner or in geometry. Also: the hop itself (one per press, never through a
 ceiling) .
 
@@ -58,6 +58,12 @@ def test_every_door_and_stair_walks_clean(tmp, name, cards):
     if name == "pma":
         assert r["doors"] >= 170 and r["stairs"] >= 12 and r["stairWalks"] >= 48 and r["entrances"] >= 2
         assert r["hops"] >= 150
+        o = r["obst"]                                       # Luke 2026-10-29, "low obstacles": a hop clears benches and ropes, never a wall, a rail, a case or the 1.1 m plinth
+        k = 0.9 if cards else 1.0                         # with a card sign in every room a few benches are boxed in by a sign: a little slack
+        assert o["bench"]["n"] >= 60 and o["bench"]["cleared"] >= o["bench"]["n"] * k, o["boxed"]
+        assert o["rope"]["n"] >= 8 and o["rope"]["cleared"] >= o["rope"]["n"] * 0.55           # the rest are ropes hung closer than a hop to a wall or a bench
+        assert o["low"]["byWalk"] >= o["low"]["n"] * 0.7 * k and o["low"]["byRun"] >= o["low"]["n"] * 0.9 * k
+        assert o["high"]["n"] >= 20 and o["high"]["cleared"] == 0 and o["wall"]["n"] >= 30 and o["wall"]["cleared"] == 0
     if cards:
         assert r["trips"] >= min(30, r["trips"]) and r["trips"] > 0       # card trips: every one arrived (else a "trip" failure above)
         assert r["tripStuckFade"] <= max(2, r["trips"] // 10)              # rarely stuck on the way (the fade then still gets you there)
@@ -96,7 +102,7 @@ def test_the_hop_is_one_per_press_and_never_through_a_ceiling(tmp):
     out = subprocess.run([NODE, str(tmp / "hop.js"), str(tmp / "fpv.js"), str(p)], capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr[-2000:]
     r = json.loads(out.stdout.strip().splitlines()[-1])
-    assert 0.3 < r["tall"]["apex"] < 0.5 and r["tall"]["held"] == 1 and r["tall"]["again"] == 2 and r["tall"]["landed"]
+    assert 0.6 < r["tall"]["apex"] < 0.8 and r["tall"]["held"] == 1 and r["tall"]["again"] == 2 and r["tall"]["landed"]
     head = fpv.FPV_ASSET.split("head:")[1].split(",")[0]
     assert r["low"]["apex"] <= 2.05 - float(head) and r["low"]["bonks"] >= 1 and r["low"]["landed"]      # a 2.05 m ceiling: the head stops at it
     assert r["tiny"]["apex"] < 1e-6 and r["tiny"]["again"] == 0                                           # no room over the head: no hop at all
@@ -107,4 +113,4 @@ def test_the_first_person_views_carry_no_avatar_and_no_third_person():
     for gone in ("Cherelle Parker", "Zohran Mamdani", "avatarBatch", "setView", "camEye(fw){ var me", "bf-opts", "bf-tag", "alto-fpv-view", "alto-fpv-avatar", "third person", "first / third"):
         assert gone not in js, gone
     assert "(k==='t'||k==='T')" not in js
-    assert "HOP={v0:3.3, g:13.5, coyote:.1, buffer:.13}" in js and "k===' '||c==='Space') n='hop'" in js          # the hop stays
+    assert "HOP={v0:4.35, g:13.5, coyote:.1, buffer:.13}" in js and "k===' '||c==='Space') n='hop'" in js          # the hop stays
