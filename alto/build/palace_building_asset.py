@@ -415,9 +415,20 @@ function labels(){
     for(var i=0;i<placed.length;i++){ var q=placed[i]; if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]) return; }
     placed.push(box);
     var t=el('text',{x:f2(it.c[0]),y:f2(it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2),'class':'bl-lab','text-anchor':'middle'},g);
-    t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth=f2(3/k)+'px';
+    t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth=f2(4/k)+'px';
+    var rp=S.svg.querySelector('[data-room="'+r.id+'"]'), hc=rp?getComputedStyle(rp).fill:'';             // the halo is the room's own fill, so no wall or dash ever runs through the text
+    t.style.stroke=haloColor(hc); t.style.strokeOpacity='.9';
     lines.forEach(function(l,i){ var ts=el('tspan',{x:f2(it.c[0]),dy:i?f2(lh/k):0},t); ts.textContent=l; });
   });
+}
+var haloCv=null, haloCache={};
+function haloColor(fill){ // the room's fill laid over the paper: one opaque colour (a see-through glass fill would let the wall show through the halo)
+  var paper=(getComputedStyle(S.root).getPropertyValue('--bl-paper')||'').trim()||'#f3f1ec', key=paper+'|'+fill; if(haloCache[key]) return haloCache[key];
+  var out=paper;
+  try{ if(!haloCv){ haloCv=document.createElement('canvas'); haloCv.width=haloCv.height=1; } var g=haloCv.getContext('2d');
+    g.clearRect(0,0,1,1); g.fillStyle=paper; g.fillRect(0,0,1,1); if(fill&&fill!=='none'){ g.fillStyle=fill; g.fillRect(0,0,1,1); }
+    var d=g.getImageData(0,0,1,1).data; out='rgb('+d[0]+','+d[1]+','+d[2]+')'; }catch(x){}
+  return haloCache[key]=out;
 }
 function labelsSoon(){ if(labSoon) return; labSoon=requestAnimationFrame(function(){ labSoon=0; labels(); }); }
 function cornerOf(poly){ // the vertex nearest the room's top-left on screen, drawn a little way in
