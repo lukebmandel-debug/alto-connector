@@ -467,8 +467,14 @@ var A=window._altoCraft;                   /* (solar_craft.py, before this on Sy
 function half(){ return de.classList.contains('sk-3d') ? 6 : 35*shipK(); }
 function orbR(W, id, T){ var b=W.B[id], d=b ? b.d : 20, P=b && b.p && W.B[b.p], room=0, c=b ? F.pos(W, id, T) : null;
   function gap(j){ var q=F.pos(W, j, T), g=Math.hypot(c[0]-q[0], c[1]-q[1])-W.B[j].d/2-half()-6; room=room>0 ? Math.min(room, g) : g; }
-  if(P) gap(b.p);                                    /* (its own moons it passes over: the 3D scene lifts it clear) */
-  return A.orbitR(d, half(), room); }
+  if(P) gap(b.p);
+  var r=A.orbitR(d, half(), room);
+  if(plane() && c && P){ var qp=F.pos(W, b.p, T), gp=Math.hypot(c[0]-qp[0], c[1]-qp[1])-P.d/2-4; r=Math.min(r, Math.max(d/2+3, gp)); }     /* (a moon close under its parent: an orbit just clear of the body, the nearest reach of it 4 px off the parent) */
+  if(plane() && c) for(var pass=0;pass<2;pass++) Object.keys(W.B).forEach(function(j){ var k=W.B[j]; if(k.p!==id) return;     /* (the 3D board is one plane: its own moons are not passed over, the orbit keeps clear of each one's band) */
+    var q=F.pos(W, j, T), a=Math.hypot(q[0]-c[0], q[1]-c[1]), m=k.d/2+half()+6, inner=a-m, outer=a+m;
+    if(r>inner && r<outer){ if(inner>=d/2+4) r=inner; else if(!(room>0 && outer>room)) r=outer; } });
+  return r; }
+function plane(){ return de.classList.contains('sk-3d'); }
 function cam(){ return window._altoSolarCam; }
 function pad(){ return (typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0; }
 function ss(x){ x=Math.min(Math.max(x, 0), 1); return x*x*(3-2*x); }
@@ -589,7 +595,7 @@ function fly(from, to, o){
   opt.start=(o && o.start) || A.leave(from, F.pos(W, from, opt.T0), F.pos(W, to, opt.T0), orbR(W, from, opt.T0), W.spin, rk);
   var R=F.plan(S(), from, to, opt); if(!R) return false; W=R.W; rk=Math.min(rk, K.MAX_S/R.D);
   /* from its orbit: a course as a ship would chart it (solar_craft.py); a re-plan, another system: the route */
-  var tr=!(o && o.start) && A.course({W:W, F:F, R:R, opt:opt, from:from, to:to, st:opt.start, v0:Math.hypot(opt.start[2], opt.start[3]), rc:function(id){ return orbR(W, id, opt.T0); }});
+  var tr=!(o && o.start) && A.course({W:W, F:F, R:R, opt:opt, from:from, to:to, st:opt.start, v0:Math.hypot(opt.start[2], opt.start[3]), rc:function(id){ return orbR(W, id, opt.T0); }, plane:plane()});
   if(tr){ R.keys=F.keys(R, opt, tr.at); rk=Math.min(rk, K.MAX_S/R.D); }        /* (the course retimes the flight: at most 5 s on screen still) */
   else tr=A.track({D:R.D, r:orbR(W, to, F.clock(R, R.D)), spin:W.spin, base:function(t){ return F.at(R, t); }, cen:function(t){ return F.pos(W, to, F.clock(R, Math.min(t, R.D))); }});
   A.unpark();

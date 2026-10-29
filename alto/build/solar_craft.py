@@ -494,6 +494,9 @@ function course(o){
      off it; arcs round a sun stay between the orbits they join): a soft barrier R+CLR out, the way bending round it (eased in from the start and out over the last
      orbit, which are as they are; bodies merely passed: the 3D scene lifts the craft over them) */
   var BIG=ca.concat(cb).filter(function(i, j, l){ return (B[i].role==='planet' || B[i].role==='sun') && i!==from && i!==to && l.indexOf(i)===j; }), Tf=.14*D;
+  /* (the 3D board is one plane, Luke 2026-10-28: nothing is flown over, so every body of the system but the two it goes
+     between is gone round the same way: the planets it merely passes, their moons, the other bodies) */
+  if(o.plane) Object.keys(B).forEach(function(i){ if(i!==from && i!==to && B[i].role!=='core' && B[i].si===B[to].si && BIG.indexOf(i)<0) BIG.push(i); });
   /* (eased out over the last stretch, which the approach flies on its own, clear of the bodies) */
   function clear(p, t){ var k=Math.min(ss(t/.3), 1-ss((t-D+Tf)/Tf)); if(k<=0) return p;
     BIG.forEach(function(i){ var c=at(i, t), dx=p[0]-c[0], dy=p[1]-c[1], d=Math.hypot(dx, dy), m=B[i].d/2+CLR, w=CLR*2;
@@ -513,7 +516,7 @@ function course(o){
     e.h=Math.max(.01, Math.min(.15, .35*(e.t1-e.t0), .35*(n.t1-n.t0), .25*Math.min(e.r1, n.r0)/v)); });
   /* (the bodies the approach keeps off: all in the system but the one it goes to and what goes round that, which its
      orbit passes over: the 3D scene lifts the craft over them) */
-  var OB=Object.keys(B).filter(function(i){ if(B[i].role==='core' || B[i].si!==B[to].si) return false; for(var j=i;j;j=B[j].p) if(j===to) return false; return true; });
+  var OB=Object.keys(B).filter(function(i){ if(B[i].role==='core' || B[i].si!==B[to].si || i===to) return false; if(o.plane) return true; for(var j=i;j;j=B[j].p) if(j===to) return false; return true; });   /* (3D: its moons too, its orbit is fitted between them) */
   AP=approach(function(t){ return clear(at3(t), t); }, function(t){ return at(to, t); }, D, r9, s, function(t){ return OB.map(function(i){ var c=at(i, t); return [c[0], c[1], B[i].d/2]; }); });
   function pv(t){ var e=.008, a=at2(Math.max(0, t-e)), b=at2(t+e), k=t+e-Math.max(0, t-e); return [(a[0]+b[0])/2, (a[1]+b[1])/2, (b[0]-a[0])/k, (b[1]-a[1])/k]; }
   return {at:at2, pv:pv, off:off, D:D, r:r9, sg:AP.sg, thr:AP.thr, segs:E.map(function(e){ return e.k+':'+e.f; })};
