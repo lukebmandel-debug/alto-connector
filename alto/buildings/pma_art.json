@@ -641,6 +641,214 @@
     3374,
     4097
    ]
+  },
+  "250-woman-ironing": {
+   "file": "250-woman-ironing.jpg",
+   "title": "Woman Ironing",
+   "artist": "Francois Bonvin",
+   "artist_died": 1887,
+   "date": "1858",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Woman Ironing, by François Bonvin.JPG",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "250",
+   "pma_object": "102735",
+   "orig_px": [
+    2608,
+    3856
+   ]
+  },
+  "252-the-folkestone-boat-boulog": {
+   "file": "252-the-folkestone-boat-boulog.jpg",
+   "title": "The Folkestone Boat, Boulogne",
+   "artist": "Edouard Manet",
+   "artist_died": 1883,
+   "date": "c. 1868-72",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Edouard Manet 091.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "252",
+   "pma_object": "59193",
+   "orig_px": [
+    1024,
+    768
+   ]
+  },
+  "252-marine-in-holland": {
+   "file": "252-marine-in-holland.jpg",
+   "title": "Marine in Holland",
+   "artist": "Edouard Manet",
+   "artist_died": 1883,
+   "date": "1872",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:View in Holland, by Édouard Manet.JPG",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "252",
+   "pma_object": "104451",
+   "orig_px": [
+    3355,
+    2706
+   ]
+  },
+  "252-the-steamboat-seascape-wit": {
+   "file": "252-the-steamboat-seascape-wit.jpg",
+   "title": "The Steamboat, Seascape with Porpoises",
+   "artist": "Edouard Manet",
+   "artist_died": 1883,
+   "date": "1868",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:The Steamboat, Seascape with Porpoises, by Édouard Manet.JPG",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "252",
+   "pma_object": "54675",
+   "orig_px": [
+    2024,
+    1630
+   ]
+  },
+  "255-le-bon-bock": {
+   "file": "255-le-bon-bock.jpg",
+   "title": "Le Bon Bock",
+   "artist": "Edouard Manet",
+   "artist_died": 1883,
+   "date": "1873",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Édouard Manet, French - Le Bon Bock - Google Art Project.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "255",
+   "pma_object": "59213",
+   "orig_px": [
+    4338,
+    4921
+   ]
+  },
+  "255-sappho": {
+   "file": "255-sappho.jpg",
+   "title": "Sappho",
+   "artist": "Arnold Bocklin",
+   "artist_died": 1901,
+   "date": "1862",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Arnold Böcklin - Sappho (1862).jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "255",
+   "pma_object": "102730",
+   "orig_px": [
+    1934,
+    2495
+   ]
+  },
+  "255-nymph-and-satyr": {
+   "file": "255-nymph-and-satyr.jpg",
+   "title": "Nymph and Satyr",
+   "artist": "Arnold Bocklin",
+   "artist_died": 1901,
+   "date": "1871",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Arnold Böcklin - Nymphe und Satyr (1871).jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "255",
+   "pma_object": "102731",
+   "orig_px": [
+    3405,
+    2387
+   ]
+  },
+  "255-apple-market-landerneau-br": {
+   "file": "255-apple-market-landerneau-br.jpg",
+   "title": "Apple Market, Landerneau, Brittany",
+   "artist": "Leon-Augustin Lhermitte",
+   "artist_died": 1925,
+   "date": "c. 1878",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Lhermitte - Landerneau, 1878.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "255",
+   "pma_object": "102973",
+   "orig_px": [
+    1600,
+    1129
+   ]
+  },
+  "259-in-the-luxembourg-gardens": {
+   "file": "259-in-the-luxembourg-gardens.jpg",
+   "title": "In the Luxembourg Gardens",
+   "artist": "John Singer Sargent",
+   "artist_died": 1925,
+   "date": "1879",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:John Singer Sargent, American (active London, Florence, and Paris) - In the Luxembourg Gardens - Google Art Project.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "259",
+   "pma_object": "101764",
+   "orig_px": [
+    5244,
+    3669
+   ]
+  },
+  "259-the-rialto-venice": {
+   "file": "259-the-rialto-venice.jpg",
+   "title": "The Rialto, Venice",
+   "artist": "John Singer Sargent",
+   "artist_died": 1925,
+   "date": "1911",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:John Singer Sargent - The Rialto, Venice (1911).jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "259",
+   "pma_object": "102984",
+   "orig_px": [
+    3072,
+    1847
+   ]
+  },
+  "259-the-young-amphibians": {
+   "file": "259-the-young-amphibians.jpg",
+   "title": "The Young Amphibians",
+   "artist": "Joaquin Sorolla y Bastida",
+   "artist_died": 1923,
+   "date": "1903",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Joaquin Sorolla Ninos A La Orilla Del Mar.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "259",
+   "pma_object": "104425",
+   "orig_px": [
+    4096,
+    3028
+   ]
+  },
+  "259-interior-of-a-tavern": {
+   "file": "259-interior-of-a-tavern.jpg",
+   "title": "Interior of a Tavern",
+   "artist": "Peder Severin Kroyer",
+   "artist_died": 1909,
+   "date": "1886",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:I købmand Winthers butik i Skagen.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "259",
+   "pma_object": "101699",
+   "orig_px": [
+    2362,
+    1761
+   ]
+  },
+  "259-boy-with-toy-soldiers": {
+   "file": "259-boy-with-toy-soldiers.jpg",
+   "title": "Boy with Toy Soldiers",
+   "artist": "Antonio Mancini",
+   "artist_died": 1930,
+   "date": "c. 1876",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Boy with Toy Soldiers.jpg",
+   "source_credit": "Wikimedia Commons (reproduction of a work at the Philadelphia Museum of Art)",
+   "gallery": "259",
+   "pma_object": "283507",
+   "orig_px": [
+    1258,
+    1500
+   ]
   }
  },
  "not_hosted": [
@@ -664,5 +872,23 @@
    "work": "Duchamp, Brancusi, Rivera, Calder, living artists",
    "why": "rights: title cards only, never images"
   }
- ]
+ ],
+ "added_2026_10_29": {
+  "note": "13 more public-domain files for the Labelled-frame wall table (gallery per the cited review in pma_wall.json gallery_sources.grewe2022); Commons API licence label read 2026-10-29 = Public domain; Wikimedia thumbnail 960 px, downscaled to 512 px long side, JPEG q68 (sips)",
+  "keys": [
+   "250-woman-ironing",
+   "252-the-folkestone-boat-boulog",
+   "252-marine-in-holland",
+   "252-the-steamboat-seascape-wit",
+   "255-le-bon-bock",
+   "255-sappho",
+   "255-nymph-and-satyr",
+   "255-apple-market-landerneau-br",
+   "259-in-the-luxembourg-gardens",
+   "259-the-rialto-venice",
+   "259-the-young-amphibians",
+   "259-interior-of-a-tavern",
+   "259-boy-with-toy-soldiers"
+  ]
+ }
 }

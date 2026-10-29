@@ -86,11 +86,13 @@ def _slug(t: str) -> str:
 
 def extra() -> list[dict]:
     out = []
+    art = json.loads(ART.read_text("utf-8"))["images"]
     for gl, title, artist, year, died, obj, cf, px in GREWE:
         rm, pc = GALLERY_ROOMS[gl]
         lic = ("pd" if cf else "pd-no-image") if died < 1956 else "in-copyright"
+        ik = f"{gl}-{_slug(title)}"[:30].rstrip("-")                 # the hosted image's key in pma_art.json (hosted once its Commons file is read as pd)
         out.append({"key": f"{gl}-{_slug(title)}", "rm": rm, "gl": gl, "pc": pc, "kind": "painting", "title": title, "artist": artist, "year": year, "died": died,
-                    "lic": lic, "source": ("https://www.philamuseum.org/objects/" + obj) if obj else None, "commons": cf, "img": None,
+                    "lic": lic, "source": ("https://www.philamuseum.org/objects/" + obj) if obj else None, "commons": cf, "img": ik if (lic == "pd" and ik in art) else None,
                     "px": px, "gs": "grewe2022", "read_on": COMMONS_READ})
     return out
 

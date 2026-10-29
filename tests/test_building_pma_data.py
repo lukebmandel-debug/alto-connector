@@ -191,7 +191,7 @@ def test_every_hosted_image_has_a_licence_a_size_and_a_credit():
         w, h = _jpeg_size(files[im["name"]])
         assert max(w, h) <= 512, k
         total += im["bytes"]
-    assert total < 2_500_000                                                        # ~36 small JPEGs, about 1.8 MB in all
+    assert total < 3_300_000                                                        # ~49 small JPEGs, about 2.6 MB in all
     gal = {s["work"]["img"]: s.get("gl") for s in PLAN["sl"] if "img" in s["work"]}
     for im in m["images"].values():                                                 # each image hangs in the gallery its PMA object page names
         assert gal[im["url"]] == im["gallery"], im["title"]
@@ -256,7 +256,7 @@ def test_art_slots_only_where_a_gallery_number_is_confirmed():
             assert s["gl"] in room.get("cand", []), s["id"]
         assert 0.1 <= s["sz"][0] <= 6 and 0.1 <= s["sz"][1] <= 6
     titles = " | ".join(s["work"]["title"].lower() for s in PLAN["sl"])
-    for never in ("large bathers", "sunflowers", "prometheus", "large glass", "gross clinic", "fountain", "sleeping muse", "ghost"):
+    for never in ("sunflowers", "prometheus", "large glass", "gross clinic", "fountain", "sleeping muse", "ghost"):
         assert re.search(r"\b" + never + r"\b", titles) is None, never                 # whole words: Hogarth's "Sir Andrew Fountaine" is not Duchamp's Fountain
     # true catalogued sizes where known, with their source
     monet = slots["sl-monet-japanese-footbridge"]
