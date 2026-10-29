@@ -438,6 +438,8 @@ function fly(G, now){
   else if(A && A.orbiting()){ id=window._focusedNodeId; var g=id && G.bodies[id]; o=g && A.parked(id, [g.x, g.y]);
     if(o){ p=o.p; v=o.v; m='park'; } else A.unpark(); }              /* (left the close-up: the orbit is over) */
   if(!p){ if(SH.on){ SH.on=false; SH.end=now; SH.m=null; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
+  if(m==='fly'){ var p2=keepOff(G, p, F ? F.from : R && R.from);        /* (a way that would pass through a body goes round its edge instead: one plane, nothing flown over) */
+    if(p2!==p){ if(v && dt>0 && SH.p && SH.m==='fly') v=[(p2[0]-SH.p[0])/dt, (p2[1]-SH.p[1])/dt]; p=p2; } }
   var cr=A ? A.get() : {};
   if(!SH.on){ SH.on=true; SH.hs=null; SH.ht=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.m=null; }
   if(SH.cr!==cr.id){ SH.cr=cr.id; SH.hs=SH.ht=null; }      /* (a new pick shows at once, in orbit too: the ship stays on between flights) */
@@ -446,20 +448,20 @@ function fly(G, now){
   if(v) SH.v+=(Math.hypot(v[0], v[1])-SH.v)*Math.min(1, dt*2);
   SH.th=F && F.thr || null; SH.sg=F && F.sg || 1;            /* (the engines on the way: solar_craft.py thrust()) */
   SH.F=F || null; SH.fx=F && F.fx || null; if(SH.fx && SH.fx.vis<.99) SH.tr=[];      /* (a warp, a jump: solar_craft.py travel; no trail through a jump) */
-  SH.p=[p[0], p[1]]; SH.to=F ? F.to : R ? R.to : id; SH.fr=F ? F.from : R ? R.from : id; SH.al=Math.min(1, SH.al+dt*3); SH.y=lift(G, p);
+  SH.p=[p[0], p[1]]; SH.to=F ? F.to : R ? R.to : id; SH.fr=F ? F.from : R ? R.from : id; SH.al=Math.min(1, SH.al+dt*3); SH.y=lift();
   SH.tr.push([p[0], p[1], now, SH.y]); while(SH.tr.length>2 && now-SH.tr[0][2]>1600) SH.tr.shift();
   return m==='fly' ? SH : null;
 }
-/* the craft's height over the board's plane: a little above it, in the plane its orbits and ways are flown in (Luke,
-   2026-10-25: ships "end up going above"), lifted only where it would pass through a body (one merely passed on the
-   way: its course keeps it off the bodies it goes round, its orbits clear of them): over a sphere 4 px larger than the
-   body, tapering (a cubic, level at its edge) from 4 px inside the body's edge to 4 px outside it, so it never dips
-   into the body and nothing lifts it a few px clear of one */
-function lift(G, p){ var y=K3.Y, m=12;
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], R=g.d/2, h=Math.hypot(g.x-p[0], g.y-p[1]), h0, V, t; if(h>=R+m) return;
-    h0=Math.max(0, R-m); V=Math.sqrt((R+m)*(R+m)-h0*h0);
-    if(h<=h0) y+=Math.sqrt((R+m)*(R+m)-h*h); else { t=(h-h0)/(R+m-h0); y+=(1-t)*(1-t)*(V*(1+2*t)-h0/V*(R+m-h0)*t); } });
-  return y; }
+/* the craft's height over the board's plane: always the same, a little above it, in the plane its orbits and ways are
+   flown in (Luke, 2026-10-25: ships "end up going above"; 2026-10-28: "everything should be on the same plane, even in
+   3D"). It never rises over a body to clear it: solar_craft.py's course keeps its way in that plane clear of every body */
+function lift(){ return K3.Y; }
+/* the way kept 3 px off every body's surface but the one it leaves (it sets off from an orbit round that): where it would
+   cross a body, the nearest point of the edge */
+function keepOff(G, p, skip){ var q=p, k, ch=false;
+  for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ if(id===skip) return; var g=G.bodies[id], mg=g.d/2+3, dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
+    if(d<mg){ if(d<1e-6){ dx=1; dy=0; d=1; } q=[g.x+dx/d*mg, g.y+dy/d*mg]; ch=true; } });
+  return ch ? q : p; }
 /* the model's scale: small and clear on the way (Luke, 2026-10-22: "we don't need the ship to be massive, just clear"),
    smaller still near a small body (about a quarter of its width), so a moon's close-up is not all ship */
 function shipS(G){ var S=K3.S, A=window._altoCraft;
