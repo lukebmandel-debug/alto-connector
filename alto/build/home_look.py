@@ -37,7 +37,7 @@ STATIC_STRIP_NEW = "    const strip = unitStrip(c.units, c.fmt);"
 _CLASSIC = """
 /* Q2B: the title keeps clear of the big faded symbol: the symbol's box (132px, turned 6 degrees, 12px past the right edge) and a 12px gap are reserved */
 @media (min-width:901px){
-  .course-tile:not(.new-tile) .tile-title{ margin-right:115px; overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto; }
+  .course-tile:not(.new-tile) .tile-title{ margin-right:115px; overflow-wrap:break-word; -webkit-hyphens:manual; hyphens:manual; }
   .course-tile.has-more .tile-title{ padding-right:0; }
 }
 html.dark .tile-emblem{ opacity:.22; }
@@ -50,7 +50,7 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .project-slab{ padding:30px 22px 32px; }
   #projects-wrap{ padding-left:16px; padding-right:16px; }
   .course-tile .tile-body{ flex:1; padding:12px 14px 0; }
-  .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto; }
+  .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:normal; -webkit-hyphens:manual; hyphens:manual; }
   /* the card's ⋯ sits beside the title: every line keeps the same short width, so the line spacing stays even */
   .course-tile.has-more .tile-title{ padding-right:28px; }
   .course-tile .tile-sub{ min-height:calc(var(--em) + 20px); font-size:12px; }
@@ -127,6 +127,8 @@ if(!window._altoBinClose){
 
 
 _DASH = r".replace(/ ([\u2014\u2013-]) /g, '\u00a0$1 ')"
+# soft hyphens only inside words of 11+ letters (Constitutional, Philadelphia): a word that fits its line never splits
+_SHY = (r".replace(/[A-Za-z\u00c0-\u024f]{11,}/g, w => w.slice(0,3) + w.slice(3,-3).replace(/([aeiouy])(?=[^aeiouy][aeiouy])/gi, '$1\u00ad') + w.slice(-3))")
 TITLE_OLD = (
     ".tile-title').textContent = c.title;",
     ".tile-title').textContent = it.heading || it.title || 'Shared timeline';",
@@ -135,11 +137,11 @@ TITLE_OLD = (
 
 
 def swap_titles(template: str) -> str:
-    """Bind a dash to the word before it so a title never wraps onto a lone dash."""
+    """Bind a dash to the word before it so a title never wraps onto a lone dash; soft hyphens only in very long words."""
     for old in TITLE_OLD:
         assert template.count(old) == 1, old
         body = old.split("textContent = ")[1].rstrip(";")
-        template = template.replace(old, old.split("textContent = ")[0] + "textContent = String(" + body + ")" + _DASH + ";")
+        template = template.replace(old, old.split("textContent = ")[0] + "textContent = String(" + body + ")" + _DASH + _SHY + ";")
     return template
 
 

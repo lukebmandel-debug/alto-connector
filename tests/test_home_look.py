@@ -32,3 +32,9 @@ def test_the_dead_switch_is_gone_and_retro_has_no_moon_or_cartouche_on_the_homep
 
 def test_titles_bind_the_dash_to_the_word_before_it():
     assert "u00a0$1" in pages.build_home([])
+
+
+def test_only_very_long_title_words_get_soft_hyphens():
+    html = pages.build_home([])
+    assert "{11,}" in html and "u00ad" in html
+    assert "hyphens:auto" not in html and "hyphens:manual" in html
