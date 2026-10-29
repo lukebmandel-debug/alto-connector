@@ -96,7 +96,6 @@ function start(d){
   R.st2={hs:null, bk:0}; R.fin=false;
   if(R.rd){ R.tB=1; R.tE=1.4; }
   if(!dpObs && dp && typeof MutationObserver==='function'){ dpObs=new MutationObserver(function(){ if(chip && dp.classList.contains('visible')) gone(); }); dpObs.observe(dp, {attributes:true, attributeFilter:['class']}); }
-  window.addEventListener('keydown', key, true);
   v.ov.addEventListener('click', function(){ if(performance.now()-R.t0>900) skip(); });
   setTimeout(function(){ if(R && !R.fin && !R.sk){ var b=document.createElement('button'); b.type='button'; b.id='bh-skip'; b.setAttribute('aria-label', 'Skip'); b.title='Skip';
     b.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l6 6-6 6M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -200,7 +199,7 @@ function sky(v, str, now, q){
 }
 
 function finish(){
-  if(!R) return; var v=R.v, d=R.d; R.fin=true; window.removeEventListener('keydown', key, true);
+  if(!R) return; var v=R.v, d=R.d; R.fin=true;
   var P0=R.P0; if(v.ov.parentNode) v.ov.parentNode.removeChild(v.ov); if(R.score.parentNode) R.score.parentNode.removeChild(R.score);
   de.classList.remove('bh-on');
   offer(P0, d); R=null;
@@ -217,10 +216,9 @@ function offer(P0, d){
   var W=c.parentNode.clientWidth || innerWidth, H=c.parentNode.clientHeight || innerHeight, w=c.offsetWidth, h=c.offsetHeight;
   var l=P0[0]+34, tp=P0[1]-h/2; if(l+w>W-16) l=P0[0]-34-w; l=Math.max(16, Math.min(W-w-16, l)); tp=Math.max(70, Math.min(H-h-16, tp));
   c.style.left=Math.round(l)+'px'; c.style.top=Math.round(tp)+'px'; chip._d=d;
-  window.addEventListener('keydown', key, true);
   setTimeout(function(){ try{ go.focus({preventScroll:true}); }catch(e){} }, 30);
 }
-function gone(){ if(chip){ if(chip.parentNode) chip.parentNode.removeChild(chip); chip=null; window.removeEventListener('keydown', key, true); } }
+function gone(){ if(chip){ if(chip.parentNode) chip.parentNode.removeChild(chip); chip=null; } }
 /* "Try again": the same page the quiz was on, the quiz fresh and in view */
 var BACK=null;
 function again(){
@@ -231,6 +229,8 @@ function again(){
     if(box){ if(box._retake) box._retake(); try{ box.scrollIntoView({block:'start'}); }catch(e){} return; }
     if(dp && n++<30) setTimeout(go, 50); else if(dp) dp.scrollTop=b.st||0; })();
 }
+/* (registered here, at load, ahead of the flight's own Esc, which would end a flight and swallow the key: this one answers first) */
+window.addEventListener('keydown', key, true);
 window.addEventListener('alto-quiz-fail', function(e){
   var d=(e && e.detail) || {}; if(R || !eligible() || performance.now()-last<COOL) return;
   BACK={type:window._currentDetailType, id:window._currentDetailId, st:(document.getElementById('detail-page')||{}).scrollTop||0, key:d.key};

@@ -48,6 +48,15 @@ def _take(pg, good, look="stars", style="classic", craft="explorer", reset=True)
     pg.wait_for_timeout(350)
 
 
+def _key(pg, k):
+    pg.bring_to_front()
+    pg.keyboard.press(k)
+
+
+def _esc(pg):
+    _key(pg, "Escape")
+
+
 STATE = "() => JSON.stringify({s: window._altoHole && window._altoHole.state(), bh: !!document.getElementById('bh'), on: document.documentElement.classList.contains('bh-on'), chip: !!document.getElementById('bh-chip'), detail: !!document.querySelector('#detail-page.visible')})"
 
 
@@ -77,7 +86,7 @@ def test_a_failing_score_falls_into_the_black_hole_skips_and_offers_try_again(br
     assert s["bh"] and s["on"] and not s["detail"] and s["s"]["mode"] == "warp" and s["s"]["end"] > 6.5, s      # the chart, the Explorer's warp
     pg.wait_for_timeout(1200)
     assert _st(pg)["s"]["skipBtn"], "a skip target is up within a second or so"
-    pg.keyboard.press("Escape"); pg.wait_for_timeout(700)                          # Esc cuts to the return beat
+    _esc(pg); pg.wait_for_timeout(700)                          # Esc cuts to the return beat
     s = _st(pg); assert s["bh"] or s["chip"], s
     pg.wait_for_timeout(1400)
     s = _st(pg); assert s["chip"] and not s["bh"] and not s["on"], s              # the ship is back, the offer stands
@@ -85,7 +94,7 @@ def test_a_failing_score_falls_into_the_black_hole_skips_and_offers_try_again(br
     assert chip["t"] == "Try again" and chip["l"] >= 16 and chip["r"] <= chip["w"] - 16 and chip["tp"] >= 16 and chip["b"] <= chip["h"] - 16, chip
     rec = pg.evaluate("() => { var o=JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(function(k){ return /-st$/.test(k); })[0])); var k=Object.keys(o.s)[0]; return o.s[k].l; }")
     assert rec["s"] == 1 and rec["n"] == 3, rec                                    # the quiz's own record is intact
-    pg.keyboard.press("Enter"); pg.wait_for_timeout(600)                           # Enter = try again: the page, the quiz fresh
+    _key(pg, "Enter"); pg.wait_for_timeout(600)                           # Enter = try again: the page, the quiz fresh
     s = _st(pg); assert s["detail"] and not s["chip"], s
     fresh = pg.evaluate("() => { var b=document.querySelector('.ast-quiz'); return !!b && !b.querySelector('.asq-res') && b.querySelectorAll('input:checked').length===0; }")
     assert fresh
@@ -100,9 +109,9 @@ def test_esc_dismisses_the_offer_and_every_craft_travels_its_own_way(browser, pa
     for craft, mode in (("halo", "jump"), ("rocket", None)):
         _take(pg, False, craft=craft)
         s = _st(pg); assert s["bh"] and s["s"]["mode"] == mode, (craft, s)
-        pg.keyboard.press("Escape"); pg.wait_for_timeout(2200)
+        _esc(pg); pg.wait_for_timeout(2200)
         assert _st(pg)["chip"]
-        pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+        _esc(pg); pg.wait_for_timeout(200)
         s = _st(pg); assert not s["chip"] and not s["bh"], s
         pg.evaluate("() => showTimeline()")
     pg.context.close()
@@ -113,7 +122,7 @@ def test_in_the_3d_star_chart_too_and_reduced_motion_only_fades(browser, page):
     pg, errs = _open(browser, page, wait=1500)
     _take(pg, False, style="real", craft="halo")
     s = _st(pg); assert s["bh"] and s["s"]["mode"] == "jump", s
-    pg.keyboard.press("Escape"); pg.wait_for_timeout(2400)
+    _esc(pg); pg.wait_for_timeout(2400)
     assert _st(pg)["chip"]
     pg.context.close()
     ctx = browser.new_context(viewport={"width": 1500, "height": 950}, reduced_motion="reduce"); q = ctx.new_page(); e2 = []

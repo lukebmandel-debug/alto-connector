@@ -1558,7 +1558,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # look's graphics (solar_stars.py; off in the System look); then
         # the flights between bodies (solar_fly.py: Star chart look only).
         # Then two-finger scrolling on both axes at natural size (pan2d.py).
-        orders += SOLAR_JS + CRAFT_JS + STARS_JS + FLY_JS + SOLAR3D_JS + HOLE_JS + PAN2D_JS + SOLAR_PAN2D_JS + NAVOPT_JS   # (+ the nav options to try: solar_navopt.py)
+        orders += SOLAR_JS + CRAFT_JS + STARS_JS + HOLE_JS + FLY_JS + SOLAR3D_JS + PAN2D_JS + SOLAR_PAN2D_JS + NAVOPT_JS   # (+ the nav options to try: solar_navopt.py)
     if index_axes:
         orders += ((palace_index_glue() if b.mode == "palace" and not (building_view(b) or world_view(b)) else dx.AXIS_INDEX_GLUE)
                    + dx.axes_config(b, index_axes))
