@@ -1230,7 +1230,11 @@ function buildRoomShell(G,mb,r){ if(r.isVoid) return; var e=r.l.e, holesF=r.hole
   for(var fi=0;fi<nf;fi++){ var fa=Pf[fi], fb=Pf[(fi+1)%nf], fdx=fb[0]-fa[0], fdy=fb[1]-fa[1], fL=Math.hypot(fdx,fdy); if(fL<.5) continue;
     var fnx=fdy/fL*sgf, fny=-fdx/fL*sgf, fmx=(fa[0]+fb[0])/2, fmy=(fa[1]+fb[1])/2, fg=0;
     if(roomAt(G,r.l.id,fmx+fnx*.01,fmy+fny*.01)) continue;
+    var fw=0;
     [.04,.08,.12,.18,.25].some(function(d){ var o=roomAt(G,r.l.id,fmx+fnx*d,fmy+fny*d); if(o&&o!==r&&!o.isVoid){ fg=d; return true; } return false; });
+    if(!fg) [.02,.04,.06,.09,.13,.2,.3].some(function(d){ var xx=fmx+fnx*d, yy=fmy+fny*d; return primsNear(G,xx,yy,.1).some(function(q){ if(!q.wall||q.z0>r.l.e+.5||q.z1<r.l.e+.5||primDist(q,xx,yy)>-.002) return false; fw=d; return true; }); });
+    if(fw&&!fg){ var fe2=fw+.02, w0=[fa[0],fa[1],e], w1=[fa[0]+fnx*fe2,fa[1]+fny*fe2,e], w2=[fb[0]+fnx*fe2,fb[1]+fny*fe2,e], w3=[fb[0],fb[1],e], wq=sgf>0?[w0,w1,w2,w3]:[w0,w3,w2,w1];          /* the floor runs on under a wall that stands a hair beyond its edge */
+      mb.quad(floorKey(r.fm,r),wq,[0,0,1],wq.map(function(v){ return [v[0],v[1]]; })); }
     if(fg){ var fe=fg/2+.01, c0=[fa[0],fa[1],e], c1=[fa[0]+fnx*fe,fa[1]+fny*fe,e], c2=[fb[0]+fnx*fe,fb[1]+fny*fe,e], c3=[fb[0],fb[1],e], q=sgf>0?[c0,c1,c2,c3]:[c0,c3,c2,c1];
       mb.quad(floorKey(r.fm,r),q,[0,0,1],q.map(function(v){ return [v[0],v[1]]; })); } }
   var cr=[r.p].concat(r.holesC.map(function(h){ return h.p; })).concat(r.ceilHoles||[]), tall=r.ch>7, ck=tall&&r.cm!=='glass'?'coffer':r.cm==='glass'||r.cm==='paint'||r.cm==='terracotta'?'plaster':r.cm;
@@ -1247,7 +1251,10 @@ function buildRoomShell(G,mb,r){ if(r.isVoid) return; var e=r.l.e, holesF=r.hole
     mb.qg(floorKey(r.fm,r),[[a[0],a[1],e-.32],[c[0],c[1],e-.32],[c[0],c[1],e],[a[0],a[1],e]],inw,[[0,e-.32],[1,e-.32],[1,e],[0,e]]); } });
   if(r.l.i>0){ var c0=r.ctr, below=!r.voidHole&&G.rooms.some(function(o){ return o.l.e<e&&o.ceil>=e-.6&&pip(o.p,c0[0],c0[1]); });
     if(!below){ flat(mb,r.voidHole?'coffer':'plaster',rings,e-.32,false); var s2=parea(r.p)>0?1:-1;
-      for(var i2=0,n2=r.p.length;i2<n2;i2++){ var a2=r.p[i2], b2=r.p[(i2+1)%n2]; mb.qg('plaster',[[a2[0],a2[1],e-.32],[b2[0],b2[1],e-.32],[b2[0],b2[1],e],[a2[0],a2[1],e]],[(b2[1]-a2[1])*s2,-(b2[0]-a2[0])*s2,0],[[0,0],[1,0],[1,.32],[0,.32]]); } } } }
+      for(var i2=0,n2=r.p.length;i2<n2;i2++){ var a2=r.p[i2], b2=r.p[(i2+1)%n2];
+        var l2=Math.hypot(b2[0]-a2[0],b2[1]-a2[1])||1, mx2=(a2[0]+b2[0])/2+(b2[1]-a2[1])/l2*s2*.04, my2=(a2[1]+b2[1])/2-(b2[0]-a2[0])/l2*s2*.04, nb2=roomAt(G,r.l.id,mx2,my2);
+        if(nb2&&nb2!==r&&!nb2.isVoid) continue;          /* the slab's edge between two rooms' floors is inside the floor: left out, it showed as a white hairline along the join */
+        mb.qg('plaster',[[a2[0],a2[1],e-.32],[b2[0],b2[1],e-.32],[b2[0],b2[1],e],[a2[0],a2[1],e]],[(b2[1]-a2[1])*s2,-(b2[0]-a2[0])*s2,0],[[0,0],[1,0],[1,.32],[0,.32]]); } } } }
 /* a tall room's coffers are real: beams on the 2.1 m grid the coffer texture is drawn on (its rosettes sit in the middle of each bay) */
 function cofferBeams(mb,r,holes){ var bb=r.bb, P=2.1, z=r.ceil, bd=clamp(r.ch*.028,.3,.55), bw=.3, inside=function(x,y){ if(!pip(r.p,x,y)) return false; for(var i=0;i<holes.length;i++) if(pip(holes[i],x,y)) return false; return true; };
   var piece=function(x0,y0,x1,y1){ var mx=(x0+x1)/2, my=(y0+y1)/2, L=Math.hypot(x1-x0,y1-y0)+bw, rot=Math.atan2(y1-y0,x1-x0); if(!(inside(x0,y0)&&inside(x1,y1)&&inside(mx,my))) return;
