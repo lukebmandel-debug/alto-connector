@@ -224,7 +224,7 @@ function offer(P0, d){
     c.style.left=Math.round(l)+'px'; c.style.top=Math.round(tp)+'px';
   }
   place(); c.style.transition='left .25s ease, top .25s ease'; chip._d=d;
-  [250, 600, 1100, 1800].forEach(function(ms){ setTimeout(place, ms); });          /* (the chart is still settling back under it: the card's words land where they land) */
+  var pn=0, pt=setInterval(function(){ if(chip!==c || ++pn>26){ clearInterval(pt); return; } place(); }, 300);          /* (the chart is still settling back under it, the 3D close-up diving in: the card's words land where they land) */
   setTimeout(function(){ try{ go.focus({preventScroll:true}); }catch(e){} }, 30);
 }
 /* where the enlarged card's words are (the union of the text lines drawn inside its circle), or null */

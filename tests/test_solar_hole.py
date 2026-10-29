@@ -64,6 +64,14 @@ def _st(pg):
     return json.loads(pg.evaluate(STATE))
 
 
+def _over(pg):
+    pg.wait_for_timeout(2600)                                                      # (the chart settles back under it; the offer moves clear of the card's words)
+    return pg.evaluate("""() => { var c=document.getElementById('bh-chip'), cb=c.getBoundingClientRect(), q=document.getElementById('node-u1-p1').getBoundingClientRect(), w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, hit=0, seen=0, rg=document.createRange();
+      while((n=w.nextNode())){ if(!/\\S/.test(n.nodeValue) || n.parentNode.closest('#bh-chip,script,style')) continue; rg.selectNodeContents(n);
+        [].forEach.call(rg.getClientRects(), function(k){ if(k.width<1 || k.height<1 || (k.left+k.right)/2<q.left || (k.left+k.right)/2>q.right || (k.top+k.bottom)/2<q.top || (k.top+k.bottom)/2>q.bottom) return; seen++;
+          if(k.left<cb.right && k.right>cb.left && k.top<cb.bottom+7 && k.bottom>cb.top-7) hit++; }); } return [hit, seen]; }""")
+
+
 def test_a_pass_or_a_calm_style_shows_no_black_hole(browser, page):
     pg, errs = _open(browser, page, wait=1500)
     _take(pg, True)
@@ -92,11 +100,7 @@ def test_a_failing_score_falls_into_the_black_hole_skips_and_offers_try_again(br
     s = _st(pg); assert s["chip"] and not s["bh"] and not s["on"], s              # the ship is back, the offer stands
     chip = pg.evaluate("() => { var c=document.getElementById('bh-chip'), r=c.getBoundingClientRect(); return {t:c.textContent.trim(), l:r.left, r:r.right, tp:r.top, b:r.bottom, w:innerWidth, h:innerHeight}; }")
     assert chip["t"] == "Try again" and chip["l"] >= 16 and chip["r"] <= chip["w"] - 16 and chip["tp"] >= 16 and chip["b"] <= chip["h"] - 16, chip
-    pg.wait_for_timeout(1600)                                                      # (the chart settles back under it; the offer moves clear of the card's words)
-    over = pg.evaluate("""() => { var c=document.getElementById('bh-chip'), cb=c.getBoundingClientRect(), q=document.getElementById('node-u1-p1').getBoundingClientRect(), w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, hit=0, seen=0, rg=document.createRange();
-      while((n=w.nextNode())){ if(!/\\S/.test(n.nodeValue) || n.parentNode.closest('#bh-chip,script,style')) continue; rg.selectNodeContents(n);
-        [].forEach.call(rg.getClientRects(), function(k){ if(k.width<1 || k.height<1 || (k.left+k.right)/2<q.left || (k.left+k.right)/2>q.right || (k.top+k.bottom)/2<q.top || (k.top+k.bottom)/2>q.bottom) return; seen++;
-          if(k.left<cb.right && k.right>cb.left && k.top<cb.bottom+7 && k.bottom>cb.top-7) hit++; }); } return [hit, seen]; }""")
+    over = _over(pg)
     assert over[1] > 0 and over[0] == 0, over                                                            # never over the card's words (8 px clear)
     rec = pg.evaluate("() => { var o=JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(function(k){ return /-st$/.test(k); })[0])); var k=Object.keys(o.s)[0]; return o.s[k].l; }")
     assert rec["s"] == 1 and rec["n"] == 3, rec                                    # the quiz's own record is intact
@@ -130,6 +134,7 @@ def test_in_the_3d_star_chart_too_and_reduced_motion_only_fades(browser, page):
     s = _st(pg); assert s["bh"] and s["s"]["mode"] == "jump", s
     _esc(pg); pg.wait_for_timeout(2400)
     assert _st(pg)["chip"]
+    over = _over(pg); assert over[1] > 0 and over[0] == 0, over                  # the 3D card's words too: none under the offer
     pg.context.close()
     ctx = browser.new_context(viewport={"width": 1500, "height": 950}, reduced_motion="reduce"); q = ctx.new_page(); e2 = []
     q.on("pageerror", lambda e: e2.append(str(e))); q.goto(page.as_uri()); q.wait_for_timeout(1500)
