@@ -1229,7 +1229,9 @@ function buildRoomShell(G,mb,r){ if(r.isVoid) return; var e=r.l.e, holesF=r.hole
   var Pf=r.p, nf=Pf.length, sgf=parea(Pf)>0?1:-1;
   for(var fi=0;fi<nf;fi++){ var fa=Pf[fi], fb=Pf[(fi+1)%nf], fdx=fb[0]-fa[0], fdy=fb[1]-fa[1], fL=Math.hypot(fdx,fdy); if(fL<.5) continue;
     var fnx=fdy/fL*sgf, fny=-fdx/fL*sgf, fmx=(fa[0]+fb[0])/2, fmy=(fa[1]+fb[1])/2, fg=0;
-    if(roomAt(G,r.l.id,fmx+fnx*.01,fmy+fny*.01)) continue;
+    var tch=roomAt(G,r.l.id,fmx+fnx*.01,fmy+fny*.01);
+    if(tch){ if(tch!==r&&!tch.isVoid){ var se=.012, d0=[fa[0],fa[1],e], d1=[fa[0]+fnx*se,fa[1]+fny*se,e], d2=[fb[0]+fnx*se,fb[1]+fny*se,e], d3=[fb[0],fb[1],e], dq=sgf>0?[d0,d1,d2,d3]:[d0,d3,d2,d1];          /* floors that meet edge to edge overlap by 1 cm: a T-junction (one long edge against a short one) otherwise leaves a hairline crack the sky shows through */
+        mb.quad(floorKey(r.fm,r),dq,[0,0,1],dq.map(function(v){ return [v[0],v[1]]; })); } continue; }
     var fw=0;
     [.04,.08,.12,.18,.25].some(function(d){ var o=roomAt(G,r.l.id,fmx+fnx*d,fmy+fny*d); if(o&&o!==r&&!o.isVoid){ fg=d; return true; } return false; });
     if(!fg) [.02,.04,.06,.09,.13,.2,.3].some(function(d){ var xx=fmx+fnx*d, yy=fmy+fny*d; return primsNear(G,xx,yy,.1).some(function(q){ if(!q.wall||q.z0>r.l.e+.5||q.z1<r.l.e+.5||primDist(q,xx,yy)>-.002) return false; fw=d; return true; }); });
