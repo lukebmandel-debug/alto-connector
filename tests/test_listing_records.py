@@ -85,7 +85,7 @@ def _home():
 def test_private_chips_show_colours_and_project():
     block = _home()[_home().index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
-    assert "unitStrip(pg.units)" in block
+    assert "unitStrip(pg.units, pg.fmt)" in block
     # "Private" is a page-level label above the group; each box is a project.
     assert "slabGroup('private-group', 'Private')" in block
     assert "byProject(pages, pg => pg.project ||" in block
