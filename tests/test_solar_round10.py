@@ -629,3 +629,22 @@ def test_a_long_flight_is_at_most_five_seconds_and_enter_lands_it(browser, page)
     assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarFlight(true).how]") == ["u2-p1", "landed"]
     pg.context.close()
     assert not errs, errs
+
+
+def test_the_chips_x_never_sits_on_the_first_label_at_820px_in_any_style(browser, page):
+    """PARKED.md (2026-10-28): in the System star chart at an 820px window the little x that winds the chips in
+    overlapped the first row label (Retro's wider labels move the row without resizing the bar, and the x was only
+    placed on load, on a resize and when the bar resized). It now follows a style switch: in all four styles its right
+    edge stays clear of the row's first label."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.set_viewport_size({"width": 820, "height": 700}); pg.wait_for_timeout(800)
+    for look, sty in (("hub", "classic"), ("stars", "classic"), ("stars", "retro"), ("stars", "real"), ("hub", "classic")):
+        pg.evaluate("([l, s]) => { window._altoSolarLook.set(l); window._altoSolarStyle.set(s); }", [look, sty]); pg.wait_for_timeout(1500)
+        pg.evaluate("() => window.enterFocus('u1-p1')"); pg.wait_for_timeout(1400)
+        g = pg.evaluate("""() => { var b=document.getElementById('ct-chips').getBoundingClientRect(), nav=document.getElementById('nav'),
+          f=[].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth; })[0].getBoundingClientRect();
+          return {x:[b.left, b.right], first:[f.left, f.right]}; }""")
+        assert 6 <= g["first"][0] - g["x"][1] <= 11, (look, sty, g)       # clear of it, 8 px before it (Art: about 8 px in every style)
+        pg.evaluate("() => window.exitFocus && window.exitFocus()"); pg.wait_for_timeout(500)
+    pg.context.close()
+    assert not errs, errs
