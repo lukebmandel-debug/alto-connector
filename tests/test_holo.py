@@ -68,7 +68,8 @@ def test_the_sheet_is_retro_re_inked_with_no_gold_and_no_frame():
     for anchor in ("#world .node-card", "#river-svg path", "#detail-page", "#lanes-svg .ln-main", ".pal-svg .pl-tube", "#bldg-root", "#wpal-root", ".lu-chip",
                    "#title-bar", "#nav .nav-btn", "#pmin-find"):
         assert anchor in c, anchor
-    assert "#mode-toggle" not in c                                          # unlike Retro, the light/dark toggle stays
+    assert "#mode-toggle" in c and "#mode-toggle{display:none" not in c     # unlike Retro, the light/dark toggle stays: a square chip (Art, fix 1)
+    assert re.search(r"#mode-toggle[^{]*\{[^}]*border-radius:0", c)
 
 
 # ── what a page carries ─────────────────────────────────────────────────────
