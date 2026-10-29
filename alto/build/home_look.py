@@ -51,9 +51,8 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   #projects-wrap{ padding-left:16px; padding-right:16px; }
   .course-tile .tile-body{ flex:1; padding:12px 14px 0; }
   .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:normal; }
-  /* the card's ⋯ sits beside the first line only: a float keeps that line short and lets the rest run full width */
-  .course-tile.has-more .tile-title{ padding-right:0; }
-  .course-tile.has-more .tile-title::before{ content:''; float:right; width:34px; height:22px; }
+  /* the card's ⋯ sits beside the title: every line keeps the same short width, so the line spacing stays even */
+  .course-tile.has-more .tile-title{ padding-right:28px; }
   .course-tile .tile-sub{ min-height:calc(var(--em) + 20px); font-size:12px; }
   .course-tile .tile-emblem{ width:var(--em); height:var(--em); right:6px; bottom:4px; }
   .course-tile.new-tile{ min-height:132px; }
