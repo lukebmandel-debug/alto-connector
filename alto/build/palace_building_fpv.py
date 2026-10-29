@@ -990,7 +990,9 @@ ITEM.op=function(G,mb,it,b){ var W=it.W, op=it.op, sg=op.sg, ht=W.ht, k=W.m==='p
     if(op.arch){ for(var i=0;i<24;i++){ var u0=a+(c-a)*i/24, u1=a+(c-a)*(i+1)/24; mb.qg(kk,[P(u0,w0,top(u0)),P(u1,w0,top(u1)),P(u1,w1,top(u1)),P(u0,w1,top(u0))],[0,0,-1],[[u0,w0],[u1,w0],[u1,w1],[u0,w1]]); } }
     else mb.quad(kk,[P(a,w0,op.z1),P(c,w0,op.z1),P(c,w1,op.z1),P(a,w1,op.z1)],[0,0,-1],[[a,w0],[c,w0],[c,w1],[a,w1]]); });
   if(z0>W.base+.01) mb.quad(k==='plaster'?'marble':k,[P(a,-ht-.03,z0),P(c,-ht-.03,z0),P(c,ht+.03,z0),P(a,ht+.03,z0)],[0,0,1],[[a,0],[c,0],[c,2*ht],[a,2*ht]]);
-  else if(op.pass) mb.quad(W.k==='ext'||/^(limestone|stone|kasota)$/.test(W.m)||op.ra&&op.ra.wm==='kasota'?'kasota':'marble',[P(a,-ht,z0+.004),P(c,-ht,z0+.004),P(c,ht,z0+.004),P(a,ht,z0+.004)],[0,0,1],[[a,0],[c,0],[c,2*ht],[a,2*ht]]);
+  else if(op.pass&&!(op.ra&&op.ra===op.rb)){          /* a doorway's threshold; a wide opening (a gap between rooms) is floored in the room's own finish, flush, so no pale strip or step line runs through a gallery; the same room on both sides needs none */
+    var wide=c-a>2.5, fr=op.ra||op.rb, tl=wide?.0005:.004;
+    mb.quad(wide&&fr?floorKey(fr.fm,fr):(W.k==='ext'||/^(limestone|stone|kasota)$/.test(W.m)||op.ra&&op.ra.wm==='kasota'?'kasota':'marble'),[P(a,-ht,z0+tl),P(c,-ht,z0+tl),P(c,ht,z0+tl),P(a,ht,z0+tl)],[0,0,1],[[a,0],[c,0],[c,2*ht],[a,2*ht]]); }
   if(op.k==='window'){ var fk='bronze', fw=.055, fd=.035, w2=0; var bar=function(u0,u1,za,zb){ var cx=(u0+u1)/2, p=P(cx,w2,0); box(mb,fk,p[0],p[1],za,u1-u0,fd*2,zb-za,Math.atan2(sg.d[1],sg.d[0])); };
     var zt=op.arch?op.zs:op.z1; bar(a,a+fw,z0,zt); bar(c-fw,c,z0,zt); bar(a,c,z0,z0+fw); if(!op.arch) bar(a,c,zt-fw,zt);
     if(c-a>1.2) bar((a+c)/2-fw/2,(a+c)/2+fw/2,z0,zt); var zm=(z0+zt)/2+(zt-z0)/2*.35; if(zt-z0>1.6) bar(a,c,zm-fw/2,zm+fw/2);
