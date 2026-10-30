@@ -23,6 +23,11 @@ auto_params -> {majors, landmarks, landmark_buildings, diagonals, parks, areas, 
 - diagonals: city_domains.detect + city_avenues.classify: an avenue whose length is mostly "diagonal" pieces
   (off its domain's axes), >= 1.2 km; the 12 longest.
 - transit: route relations in the box (subway / light rail / tram / train), one family per network and colour.
+- far_bank: water at least FAR_GAP_M wide between the city and another shore with a named district on it (water_of).
+- river_names: points on each named river / water area, so the water bands carry their names (river_names_of).
+- layout: the LayoutSpec (city_spec) as data: builder "engine", the other grid domains as children, the shore source
+  ("sea" when a big water body touches the box's edge), the must-parks, the fill budget left to be computed.
+- aliases: {landmark: [alt_name, official_name, ...]} from the landmarks' own tags.
 Nothing here edits the engine: it only picks the parameters the engine already takes.
 """
 from __future__ import annotations
@@ -525,12 +530,20 @@ def areas_of(els, bbox, n_max=120):
     return rows[:n_max]
 
 
-def diagonals_of(m, majors=(), n_max=12, min_len=1200.0):
+def _detect(m, majors=()):
+    """(city_domains.detect(m), city_avenues.classify(...)), or (None, []) for a map the detector cannot read."""
     from . import city_avenues as ca, city_domains
     try:
         det = city_domains.detect(m)
-        recs = ca.classify(m, list(det.domains), majors, ())
-    except Exception:                                   # noqa: BLE001 — a map the detector cannot read: no diagonals
+        return det, ca.classify(m, list(det.domains), majors, ())
+    except Exception:                                   # noqa: BLE001
+        return None, []
+
+
+def diagonals_of(m, majors=(), n_max=12, min_len=1200.0, det=None):
+    """det: _detect()'s answer when the caller already has it."""
+    det, recs = det or _detect(m, majors)
+    if det is None:
         return []
     tot = {}
     for r in recs:
@@ -582,6 +595,265 @@ def transit_of(els):
     return out[:16]
 
 
+# ── water, layout and aliases: the fields a hand-made preset (NYC) set and the generic path never did ──────────────
+WATER_CELL = 50.0                 # m: the raster the far-bank test reads the water on (it looks for WIDE water only)
+FAR_GAP_M = 230.0                 # m: water at least this wide between the city and the other shore (the river band's width)
+FAR_REACH_M = 2000.0              # m: a named district on the other shore this close to the water makes the far bank matter
+FAR_MIN_KM2 = 0.5                 # km2: a smaller piece of land across the water is an island, not a far bank
+SEA_KM2 = 4.0                     # km2: water this big touching the box's edge is a sea / lake body drawn at the glass edge
+RIVER_NAME_STEP = 1500.0          # m: a river's name is sampled this often along its line
+WATER_KINDS = ("river", "canal", "lake", "reservoir", "lagoon", "oxbow", "harbour", "bay", "basin", "stream")
+ALIAS_TAGS = ("alt_name", "official_name", "short_name", "old_name", "loc_name", "name:en")
+
+
+class _Raster:
+    """The map's water on a WATER_CELL raster (m px are metres x scale), its land and water components (4-connected)."""
+
+    def __init__(self, m, cell=WATER_CELL):
+        sc = m.get("scale") or 1.0
+        self.c = cell * sc
+        self.nx = max(1, int(math.ceil((m.get("W") or 0) / self.c)))     # cells inside the map only: a ring of dry cells
+        self.ny = max(1, int(math.ceil((m.get("H") or 0) / self.c)))     # past its edge would join the banks round the water
+        nx, ny, c = self.nx, self.ny, self.c
+        self.wet = [bytearray(nx) for _ in range(ny)]
+        for r in m.get("water") or []:
+            pts = list(zip(r[0::2], r[1::2]))
+            if len(pts) < 3:
+                continue
+            ys = [q[1] for q in pts]
+            for j in range(max(0, int(min(ys) // c)), min(ny, int(max(ys) // c) + 1)):
+                y = (j + .5) * c
+                xs = sorted(x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(pts, pts[-1:] + pts[:-1])
+                            if (y0 > y) != (y1 > y))
+                for a, b in zip(xs[::2], xs[1::2]):
+                    for i in range(max(0, int(math.ceil(a / c - .5))), min(nx, int(math.floor(b / c - .5)) + 1)):
+                        self.wet[j][i] = 1
+        self.land_id, self.land_n = self._label(0)
+        self.water_id, self.water_n = self._label(1)
+
+    def _label(self, val):
+        nx, ny = self.nx, self.ny
+        comp = [[-1] * nx for _ in range(ny)]
+        sizes = []
+        for j in range(ny):
+            for i in range(nx):
+                if self.wet[j][i] == val and comp[j][i] < 0:
+                    cid, n, st = len(sizes), 0, [(i, j)]
+                    comp[j][i] = cid
+                    while st:
+                        a, b = st.pop()
+                        n += 1
+                        for p, q in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                            if 0 <= p < nx and 0 <= q < ny and self.wet[q][p] == val and comp[q][p] < 0:
+                                comp[q][p] = cid
+                                st.append((p, q))
+                    sizes.append(n)
+        return comp, sizes
+
+    def at(self, x, y):
+        i, j = int(x // self.c), int(y // self.c)
+        return (i, j) if 0 <= i < self.nx and 0 <= j < self.ny else None
+
+    def gap(self, a, b):
+        """m: the narrowest water between land components a and b (a breadth-first walk over the wet cells from a's shore),
+        or None when no water joins them."""
+        nx, ny, L = self.nx, self.ny, self.land_id
+        dist = [[-1] * nx for _ in range(ny)]
+        front = []
+        for j in range(ny):
+            for i in range(nx):
+                if L[j][i] == a:
+                    for p, q in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                        if 0 <= p < nx and 0 <= q < ny and self.wet[q][p] and dist[q][p] < 0:
+                            dist[q][p] = 1
+                            front.append((p, q))
+        k = 0
+        while front:
+            k += 1
+            nxt = []
+            for i, j in front:
+                for p, q in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                    if not (0 <= p < nx and 0 <= q < ny):
+                        continue
+                    if L[q][p] == b:
+                        return k * self.c
+                    if self.wet[q][p] and dist[q][p] < 0:
+                        dist[q][p] = k + 1
+                        nxt.append((p, q))
+            front = nxt
+        return None
+
+    def shore_dist(self, x, y, cid, reach):
+        """m from (x, y) to the nearest wet cell, looked for within `reach` m (None beyond)."""
+        o = self.at(x, y)
+        if o is None:
+            return None
+        r = int(reach // self.c) + 1
+        best = None
+        for j in range(max(0, o[1] - r), min(self.ny, o[1] + r + 1)):
+            for i in range(max(0, o[0] - r), min(self.nx, o[0] + r + 1)):
+                if self.wet[j][i]:
+                    d = math.hypot(i - o[0], j - o[1]) * self.c
+                    if best is None or d < best:
+                        best = d
+        return best if best is not None and best <= reach else None
+
+
+def water_of(m, areas=(), bbox=None) -> dict:
+    """Rules doc 2.2 and 2.3, from the map alone: {"far_bank": bool, "shore": "sea" | "rivers", "why": text}.
+    far_bank: the box faces another shore across water at least FAR_GAP_M wide AND that shore has a named district
+    within FAR_REACH_M of the water (Brooklyn, Cambridge) -> keep it; else the water is the city's glass edge.
+    shore "sea": a water body of SEA_KM2 or more touching the box's edge (a lake or the ocean: one sea body)."""
+    from .. import palace_map as pm
+    if not m.get("water"):
+        return {"far_bank": False, "shore": "rivers", "why": "no water"}
+    R = _Raster(m)
+    nx, ny, c2 = R.nx, R.ny, (R.c / (m.get("scale") or 1.0)) ** 2
+    # the city: the land component the streets stand on
+    votes = {}
+    for s in m.get("streets") or []:
+        p = s.get("p") or []
+        for i in range(0, len(p) - 3, 2):
+            o = R.at((p[i] + p[i + 2]) / 2, (p[i + 1] + p[i + 3]) / 2)
+            if o is not None and not R.wet[o[1]][o[0]]:
+                cid = R.land_id[o[1]][o[0]]
+                votes[cid] = votes.get(cid, 0.0) + math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1])
+    main = max(votes, key=votes.get) if votes else None
+    edge = set()
+    for i in range(nx):
+        edge |= {R.water_id[0][i], R.water_id[ny - 1][i]}
+    for j in range(ny):
+        edge |= {R.water_id[j][0], R.water_id[j][nx - 1]}
+    big = [k for k in edge if k >= 0 and R.water_n[k] * c2 >= SEA_KM2 * 1e6]
+    shore = "sea" if big else "rivers"
+    if main is None:
+        return {"far_bank": False, "shore": shore, "why": "no streets on land"}
+    bb = bbox or m.get("bbox")
+    sc = m.get("scale") or 1.0
+    for a in areas or ():
+        if not bb or a.get("rank", 4) > 3:
+            continue
+        x, y = pm.project(a["lat"], a["lon"], bb, sc)
+        o = R.at(x, y)
+        if o is None or R.wet[o[1]][o[0]]:
+            continue
+        cid = R.land_id[o[1]][o[0]]
+        if cid == main or R.land_n[cid] * c2 < FAR_MIN_KM2 * 1e6:
+            continue
+        if R.shore_dist(x, y, cid, FAR_REACH_M * sc) is None:
+            continue
+        g = R.gap(main, cid)
+        if g is not None and g >= FAR_GAP_M * sc:
+            return {"far_bank": True, "shore": shore, "why": "%s across %d m of water" % (a["name"], round(g / sc))}
+    return {"far_bank": False, "shore": shore, "why": "no named district across wide water"}
+
+
+def _unproject(x, y, bbox, scale=1.0):
+    s, w, n, _e = bbox
+    kx = math.cos(math.radians((s + n) / 2)) * 111320 * scale
+    return n - y / (110574 * scale), w + x / kx
+
+
+def river_names_of(m, els=(), bbox=None, n_max=24) -> list:
+    """[[name, lat, lon]] points on the named water (city_water.hints_of names each band by the nearest): every
+    RIVER_NAME_STEP m along each named river line, and the middle of each named water area in the box."""
+    bb = bbox or m.get("bbox")
+    if not bb:
+        return []
+    sc = m.get("scale") or 1.0
+    out = []
+    for r in m.get("rivers") or []:
+        n = r.get("n")
+        p = r.get("p") or []
+        if not n or len(p) < 4:
+            continue
+        acc, nxt = 0.0, 0.0
+        for i in range(0, len(p) - 2, 2):
+            seg = math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1])
+            while seg > 0 and nxt <= acc + seg:
+                t = (nxt - acc) / seg
+                la, lo = _unproject(p[i] + t * (p[i + 2] - p[i]), p[i + 1] + t * (p[i + 3] - p[i + 1]), bb, sc)
+                out.append([n, round(la, 4), round(lo, 4)])
+                nxt += RIVER_NAME_STEP * sc
+            acc += seg
+    for e in els or ():
+        t = e.get("tags") or {}
+        n = t.get("name")
+        if not n or e.get("type") == "node" or not (t.get("natural") in ("bay", "strait") or t.get("water") in WATER_KINDS):
+            continue                                    # (not a fountain, a pool or a pond)
+        ll = _latlon(e)
+        if _in(bb, ll):
+            out.append([n, round(ll[0], 4), round(ll[1], 4)])
+    seen, rows = set(), []
+    for r in out:
+        k = (r[0], r[1], r[2])
+        if k not in seen:
+            seen.add(k)
+            rows.append(r)
+    return rows[:n_max]
+
+
+def aliases_of(els, names) -> dict:
+    """{landmark name: [other names OSM gives it]} (alt_name, official_name, short_name, old_name, loc_name, name:en),
+    so a user's "Sears Tower" or "John Hancock Center" finds the building OSM calls Willis Tower / 875 N Michigan."""
+    want = {str(n).lower(): n for n in names or ()}
+    out = {}
+    for e in els or ():
+        t = e.get("tags") or {}
+        n = t.get("name")
+        if not n or n.lower() not in want:
+            continue
+        al = out.setdefault(want[n.lower()], [])
+        for k in ALIAS_TAGS:
+            for v in str(t.get(k) or "").split(";"):
+                v = v.strip()
+                if v and v.lower() != n.lower() and v not in al:
+                    al.append(v)
+    return {k: v for k, v in out.items() if v}
+
+
+def must_parks_of(els, m, parks, bbox) -> list:
+    """The named parks a lattice would swallow and people know (a wikidata entry), smaller than palace_parks.AUTO_HA
+    (the big ones are drawn anyway): the lattice keeps their cells (city_manhattan.PARKS was Battery Park's)."""
+    from .palace_parks import AUTO_HA
+    sc = (m.get("scale") or 1.0) ** 2
+    area = {}
+    for p in m.get("parks", []):
+        if p.get("n"):
+            area[p["n"].lower()] = area.get(p["n"].lower(), 0.0) + sum(_ring_area(r) for r in p.get("r") or []) / sc
+    known = {str(p).lower() for p in parks or ()}
+    out = []
+    for e in els or ():
+        t = e.get("tags") or {}
+        n = t.get("name")
+        if n and n.lower() in known and t.get("leisure") in ("park", "garden") and t.get("wikidata") and _in(bbox, _latlon(e)) \
+                and area.get(n.lower(), 0.0) < AUTO_HA * 1e4:
+            out.append(n)
+    return sorted(set(out), key=lambda n: [str(p).lower() for p in parks].index(n.lower()))
+
+
+def layout_of(m, place, det=None, recs=(), shore="rivers", must_parks=(), river_names=()) -> dict:
+    """The city's LayoutSpec (city_spec) as data: builder "engine" (the generic engine's own lattices; only a preset
+    can name a fixed root-axes layout like Manhattan's), the grid domains other than the root as its children (their
+    angle off the root and the avenues on their seams), the shore source, must-parks, a computed fill budget."""
+    from .city_spec import LayoutSpec, Child
+    kids = []
+    if det is not None:
+        grids = [d for d in det.domains if d.kind == "grid"]
+        if grids:
+            root = max(grids, key=lambda d: d.area)
+            for d in sorted(grids, key=lambda d: -d.area):
+                if d is root:
+                    continue
+                rel = (math.degrees(d.theta - root.theta) + 45) % 90 - 45
+                hinges = sorted({r["n"] for r in recs for pc in r["pieces"]
+                                 if pc["kind"] == "seam" and d.id in (pc.get("seam") or ())})
+                kids.append(Child(region=("domain", d.id), angle=round(rel, 1), hinges=tuple(hinges)))
+    slug = re.sub(r"[^a-z0-9]+", "-", str(place).lower()).strip("-") or "city"
+    return LayoutSpec(name=slug, builder="engine", children=tuple(kids), shore=shore, must_parks=tuple(must_parks),
+                      fill_budget=None, river_names=tuple(tuple(r) for r in river_names)).to_dict()
+
+
 def auto_params(raw, bbox, place, m=None, n_landmarks=16) -> dict:
     """Everything a preset holds, from raw OSM (the engine's fetch merged with discover()) alone."""
     from .. import palace_map as pm
@@ -606,6 +878,14 @@ def auto_params(raw, bbox, place, m=None, n_landmarks=16) -> dict:
     stn = [n for n in stations_of(els, bbox) if n.lower() not in tower_names and n.lower() not in {x[1].lower() for x in lms}]
     blds += [{"name": n} for n in stn]                  # the main-line stations are landmark buildings too (art: stations)
     landmarks = list(dict.fromkeys([n for _s, n, _l, _e in lms] + [t["name"] for t in towers] + stn))
+    det = _detect(m, majors)
+    wat = water_of(m, areas, bbox)
+    rnames = river_names_of(m, els, bbox)
+    mp = must_parks_of(els, m, parks, bbox)
     return {"place": place, "bbox": [round(v, 5) for v in bbox], "majors": majors, "landmarks": landmarks,
-            "landmark_buildings": blds, "diagonals": diagonals_of(m, majors), "parks": parks, "areas": areas,
-            "rail_lines": [], "transit": transit_of(els), "auto": True}
+            "landmark_buildings": blds, "diagonals": diagonals_of(m, majors, det=det), "parks": parks, "areas": areas,
+            "rail_lines": [], "transit": transit_of(els), "auto": True,
+            # rules doc 11 (1): what a hand-made preset set and the generic path never did
+            "far_bank": wat["far_bank"], "river_names": rnames,
+            "layout": layout_of(m, place, det[0], det[1], wat["shore"], mp, rnames),
+            "aliases": aliases_of(els, landmarks + [b["name"] for b in blds])}

@@ -31,6 +31,7 @@ anchored as a delta from the previous record (local lattice units of q px):
 """
 from __future__ import annotations
 
+import json
 import math
 from bisect import bisect_right
 
@@ -46,6 +47,13 @@ QUANT = (1, 2, 2, 3)              # local px per stored unit, levels 1..4 (about
 INSET = 12.0                      # px between a footprint and its block's streets (the lots' own front gap)
 BUDGET_MANHATTAN = 150_000        # Manhattan's own layout (city_manhattan.py): what the page has left once the other four boroughs are drawn (page ~935 KB)
 BUDGET_CHARS = 118_000            # packed fill_z: the page embeds it and a private page is stored gzipped under 976 KB; the civ-pro palace's page was 943 KB with 116 kB of fill, and a kB of fill costs .75 kB of page
+# the budget computed from the page (rules doc 8 and 11 (5)): what the stored page has left for fill once its fixed part and the map
+# are counted, the user's own headroom kept back. A layout spec's own fill_budget (NYC's 150_000) wins.
+PAGE_CAP = 976_000                # B: the private page's working cap (private_shell.MAX_PAGE_BYTES less the margin everyone quotes)
+PAGE_HEADROOM = 60_000            # B: room kept for the user's own content (a 6-section palace of 100 buildings)
+PAGE_FIXED = 520_000              # B stored: a palace page with an empty city (scripts, styles, art): measured on 1.9.189
+FILL_PAGE_COST = 0.75             # B of stored page per packed fill char
+BUDGET_MIN = 40_000               # packed chars: never less (the towers alone)
 REACH_LADDER = (1.5, 2.0, 2.5, 3.0, 4.0, 6.0)    # km past the districts tried after REACH_KM while the packed fill fits the budget, then the whole city
 REACH_KM = 1.0                    # the user's reach (districts + this): the lattice of building tiles is anchored on it, and past it the size budget drops levels (fill_for)
 B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
@@ -937,11 +945,24 @@ def counts(fill) -> list:
     return list(fill.get("c") or [0, 0, 0, 0])
 
 
+def budget(m, blocks=None) -> int:
+    """Packed fill chars this page can carry: the layout spec's own fill_budget when it has one (city_spec; NYC 150_000), else
+    (PAGE_CAP - PAGE_HEADROOM - PAGE_FIXED - the map's own stored bytes) / FILL_PAGE_COST, between BUDGET_MIN and BUDGET_MANHATTAN."""
+    from .city_spec import resolve
+    spec = resolve(m.get("layout"))
+    if spec is not None and spec.fill_budget:
+        return int(spec.fill_budget)
+    import gzip
+    data = json.dumps({"map": m, "blocks": blocks or []}, separators=(",", ":"), default=str).encode("utf-8")
+    left = PAGE_CAP - PAGE_HEADROOM - PAGE_FIXED - len(gzip.compress(data, 6, mtime=0))
+    return int(max(BUDGET_MIN, min(BUDGET_MANHATTAN, left / FILL_PAGE_COST)))
+
+
 def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline: bool = False, ships_out=None):
     """set_up's step: fetch the footprints round the user's districts and pack them; None when there are none.
 
     The reach grows step by step (the districts + REACH_KM, then REACH_LADDER, then the whole city) while the packed fill stays
-    inside BUDGET_CHARS: the page carries fill_z as it is and a private page is stored gzipped under 976 KB (mcp_server:
+    inside budget() (BUDGET_CHARS was the constant): the page carries fill_z as it is and a private page is stored gzipped under 976 KB (mcp_server:
     MAX_PAGE_BYTES), so on a page that is already big the whole city does not fit, and the largest reach that does is kept. Every
     level inside the reach; past it only the towers (level 1) of the tiles fetched. Only the tiles a step needs are fetched, nearest
     first, so a cold city is not fetched whole for a fill that will not take it."""
@@ -949,6 +970,7 @@ def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline
     box = reach(districts, bbox)
     best, ships_done = None, False
     man = m.get("layout") == "manhattan"
+    cap = budget(m, blocks)
     for km in [REACH_KM] + [k for k in REACH_LADDER if k > REACH_KM] + [None]:
         core = reach(districts, bbox, km) if km is not None else None
         cover = core or tuple(float(v) for v in bbox)
@@ -969,7 +991,7 @@ def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline
         if raw.get("missing"):
             f["missing"] = raw["missing"]
         z = pack(f)
-        if best is not None and len(z) > (BUDGET_MANHATTAN if m.get("layout") == "manhattan" else BUDGET_CHARS):
+        if best is not None and len(z) > cap:
             break                                      # the one before is the largest that fits
         best = z
         if core is not None and core == reach(districts, bbox, REACH_KM) and not districts:
