@@ -60,7 +60,7 @@ FPV_CSS = r"""
 #bf-root .bf-sheet{position:absolute;left:16px;right:16px;bottom:96px;max-width:520px;margin:0 auto;padding:14px 16px 13px;border-radius:14px;background:rgba(246,243,236,.96);color:#1c1b18;border:1px solid #c9c2b0;
   font-family:Georgia,'Times New Roman',serif;box-shadow:0 6px 28px rgba(0,0,0,.35);transform:translateY(12px);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;}
 #bf-root .bf-sheet.on{opacity:1;transform:none;pointer-events:auto;}
-#bf-root .bf-sheet b{display:block;font-size:17px;font-style:italic;font-weight:600;line-height:1.25;} #bf-root .bf-sheet span{display:block;font-size:14px;line-height:1.35;} #bf-root .bf-sheet i{display:block;font:12px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#5a564d;font-style:normal;margin-top:6px;}
+#bf-root .bf-sheet b{display:block;font-size:17px;font-style:italic;font-weight:600;line-height:1.25;} #bf-root .bf-sheet span{display:block;font-size:14px;line-height:1.35;} #bf-root .bf-sheet i{display:block;font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#38352e;font-style:normal;margin-top:6px;font-size:14px;}
 #bf-root kbd{font:600 11px ui-monospace,Menlo,monospace;padding:1px 5px;border-radius:4px;border:1px solid rgba(255,255,255,.55);margin-right:7px;}
 #bf-root .bf-toast{left:50%;top:18px;transform:translateX(-50%);text-align:center;font-size:15px;font-weight:600;opacity:0;transition:opacity .7s;pointer-events:none;
   max-width:70vw;padding:9px 18px;}
@@ -418,6 +418,7 @@ FPV_JS = r"""
 if(window.AltoBuildingFPV) return;
 var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__, DVS=__DVS__, DFS=__DFS__;
 /* the Labelled frame (a slot with `fr`): plate size, gap to the frame, label top above the floor, and the distance past which a label has faded out (title under 11 px) */
+var CANV=.85;
 var FR={PW:.5, PH:.25, GAP:.10, TOP:1.30, FADE:3.2, CW:256, CH:128, COLS:4};
 var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.85, knee:.35, drop:1.0, minDoor:.9, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900};
 /* the walker is a capsule: radius pr (0.26 m), feet to the top of the head `head` (1.85 m); `drop` is the most it may step down off an edge that is not a stair (higher ledges are walls) */
@@ -1215,7 +1216,7 @@ ITEM.slot=function(G,mb,it,b){ var s=it.s, r=it.room, n=it.n, d=it.d, W=s.sz[0],
 /* where a framed work's label hangs: right of the frame (`lb` r), left (l) or below it (b); on a phone always below, centred, 1.25x */
 function touchy(){ return !!(window.matchMedia&&matchMedia('(pointer:coarse)').matches); }
 function frGeom(s,e,cz){ var t=touchy(), k=t?1.25:1, PW=FR.PW*k, PH=FR.PH*k, hw=s.sz[0]/2, hh=s.sz[1]/2, side=t?'b':(s.lb||'r'), u, top;
-  if(side==='r'){ u=hw+FR.GAP+PW/2; top=e+FR.TOP; } else if(side==='l'){ u=-(hw+FR.GAP+PW/2); top=e+FR.TOP; } else { u=t?0:hw-PW/2; top=Math.min(e+FR.TOP,cz-hh-.07); }
+  if(side==='r'){ u=hw+FR.GAP+PW/2; top=e+FR.TOP; } else if(side==='l'){ u=-(hw+FR.GAP+PW/2); top=e+FR.TOP; } else { u=t?(s.lu||0):hw-PW/2; top=Math.min(e+FR.TOP,cz-hh-.07); }
   return {u:u, z:top-PH/2, PW:PW, PH:PH}; }
 function frLabel(mb,b,it,o,n,d,cz){ var g=frGeom(it.s,it.room.l.e,cz), idx=b.fl.length, cx=idx%FR.COLS, cy=Math.floor(idx/FR.COLS), H=b.flH, u0=cx/FR.COLS, u1=(cx+1)/FR.COLS, v1=1-cy*FR.CH/H, v0=1-(cy+1)*FR.CH/H;
   var F=function(u,w,z){ return [o[0]+d[0]*u+n[0]*w,o[1]+d[1]*u+n[1]*w,z]; }; b.fl.push(it);
@@ -1357,7 +1358,7 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='flab'){ m={kind:2,lab:1,fl:1,rough:.9,trans:1,bump:FR.FADE}; }                 /* a framed work's museum label: fades out beyond reading distance */
   else if(base==='walnut'){ m={kind:3,tint:[.17,.1,.062],rough:.5,metal:0}; }
   else if(base==='canvas'||base==='fart'){ var rr=G.rooms[parseInt(String(arg).split('.').pop(),10)], pc=rr&&rr.paint?rr.paint:[.9,.88,.84];            /* an empty canvas: the room's wall tone, 6% darker */
-    m={kind:base==='fart'?2:3,fa:base==='fart'?1:0,tint:[pc[0]*.9,pc[1]*.9,pc[2]*.9],rough:.95,metal:0}; }
+    m={kind:base==='fart'?2:3,fa:base==='fart'?1:0,tint:[pc[0]*CANV,pc[1]*CANV,pc[2]*CANV],rough:1,metal:0}; }
   else if(base==='art'){ m={kind:2,art:+arg,rough:.6}; }
   else if(base==='glass'){ m={kind:4,tint:[.92,.96,.95],rough:.05,a:.05,trans:1}; }
   else if(base==='glaze'){ m={kind:4,tint:[1,1,1],rough:.05,a:.0,trans:1}; }
@@ -1519,7 +1520,8 @@ function flabel(g,x,y,w,h,it){ var s=it.s, wk=wkOf(s), d=S.data||{}, nid=nodeFor
   var f2=Math.min(fs*.82,h*.15); y0+=f2*1.28; if(wk.a){ g.font=Math.round(f2)+'px '+F; g.fillText(fit(wk.a,Math.round(f2)+'px '+F),x+pad,y0); y0+=f2*1.2; }
   if(wk.d){ g.font=Math.round(f2)+'px '+F; g.fillText(fit(wk.d,Math.round(f2)+'px '+F),x+pad,y0); y0+=f2*1.2; }
   if(n){ var f3=f2*.82, t3=n.n+'  '+dec(n.t); g.font='500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'; g.fillText(fit(t3,'500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'),x+pad,y0+f3*.2); }
-  else if(wk.cl&&wk.lic==='pd'){ var f4=h*.075; g.fillStyle='#5a564d'; g.font=Math.round(f4)+'px -apple-system,Helvetica,Arial,sans-serif'; g.fillText(fit(wk.cl,Math.round(f4)+'px -apple-system,Helvetica,Arial,sans-serif'),x+pad,y+h-pad*.8); }
+  else if(wk.cl&&wk.lic==='pd'){ var cf=Math.round(f2)+'px '+F, cl0=String(wk.cl), cands=[cl0, cl0.replace(/^Public domain,? via /,'Public domain \u00b7 '), cl0.split(/[,\u00b7]/)[0]], ct=cands.find(function(t){ g.font=cf; return g.measureText(t).width<=mw; })||fit(cands[2],cf);
+    g.fillStyle='#38352e'; g.font=cf; g.fillText(ct,x+pad,Math.min(y0+f2*.1,y+h-pad*.8)); }
   g.restore(); }
 function frAtlas(G,b){ if(!b.fl.length) return null; var W=FR.CW*FR.COLS, H=b.flH, cv=D.createElement('canvas'); cv.width=W; cv.height=H; var g=cv.getContext('2d'); if(!g) return null;
   b.fl.forEach(function(it,i){ flabel(g,(i%FR.COLS)*FR.CW,Math.floor(i/FR.COLS)*FR.CH,FR.CW,FR.CH,it); });

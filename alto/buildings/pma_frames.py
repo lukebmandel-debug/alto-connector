@@ -5,7 +5,8 @@
   * a row with no slot yet (the works named in a cited review of the reinstalled galleries) is hung on a free stretch of wall in its room, clear of doors and corners.
 Frame fields written on the slot (`fr`: the renderer paints the Labelled-frame look only for slots that have it):
   fr  "g" warm gilt moulding (work dated before 1900) | "w" dark walnut (1900 onward)
-  lb  where the label hangs: "r" right of the frame, "l" left of it, "b" below it (when neither side has room)
+  lb  where the label hangs: "r" right of the frame, "l" left of it, "b" below it (when neither side has room or solid wall behind it)
+  lu  (phone only, optional) how far the centred label below the frame slides (m, viewer's right) to stay on solid wall
   work.lic  "pd" (the real picture hangs once /bart/ serves it; until then the empty canvas) | anything else: the empty canvas only; work.cl  the credit line of a hung picture.
 A work is never given an image here; `work.img` stays what the plan or pma_art.json says (see pma_wall.json for the licence rule).
 """
@@ -20,6 +21,7 @@ HERE = Path(__file__).resolve().parent
 WALL = HERE / "pma_wall.json"
 
 PLATE_W = 0.50          # the label plate's width (m); the renderer's FR.PW
+PHONE_PW = 0.625        # the same plate on a phone (1.25x)
 GAP = 0.10              # frame edge to label
 CLEAR = 0.40            # least clearance from a door or a corner (spec: 40 cm)
 BETWEEN = 0.12          # least air between one work's extent and the next
@@ -100,6 +102,36 @@ def _on_edge(s: dict, e: dict) -> bool:
     return abs(off - 0.05) < 0.2 and -0.01 <= along <= e["L"] + 0.01 and (math.cos(fc) * e["n"][0] + math.sin(fc) * e["n"][1]) > 0.95
 
 
+def _wall_segs(plan: dict, level: str) -> list:
+    out = []
+    for w in plan["wl"]:
+        if w["l"] != level or w.get("k") == "rail":
+            continue
+        pts = w["p"] + ([w["p"][0]] if w.get("loop") else [])
+        for a, b in zip(pts, pts[1:]):
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L > 0:
+                out.append((a, b, L, (w.get("t") or 0.2) / 2 + 0.5))
+    return out
+
+
+def _solid(segs: list, e: dict, lo: float, hi: float) -> bool:
+    """True when a plate spanning lo..hi (viewer's-right coordinate along edge e) has wall behind its whole width, ends and middle."""
+    for u in (lo, (lo + hi) / 2, hi):
+        t = u * e["s"]
+        px, py = e["a"][0] + e["dir"][0] * t, e["a"][1] + e["dir"][1] * t
+        if not any(_behind(sg, px, py) for sg in segs):
+            return False
+    return True
+
+
+def _behind(sg: tuple, px: float, py: float) -> bool:
+    a, b, L, tol = sg
+    along = ((px - a[0]) * (b[0] - a[0]) + (py - a[1]) * (b[1] - a[1])) / L
+    off = abs((px - a[0]) * (b[1] - a[1]) - (py - a[1]) * (b[0] - a[0])) / L
+    return -0.01 <= along <= L + 0.01 and off <= tol
+
+
 def merge(plan: dict, unplaced: list | None = None) -> dict:
     rows = [r for r in wall_rows() if r.get("kind") == "painting"]
     from .pma_art import manifest
@@ -107,6 +139,7 @@ def merge(plan: dict, unplaced: list | None = None) -> dict:
     rooms = {r["id"]: r for r in plan["rm"]}
     by_id = {s["id"]: s for s in plan["sl"]}
     doors = {}
+    walls = {}
     for r in rows:
         s = by_id.get(slot_id(r["key"]))
         if s is None:
@@ -191,6 +224,19 @@ def merge(plan: dict, unplaced: list | None = None) -> dict:
                 hw = s["sz"][0] / 2
                 right_ok = u + hw + GAP + PLATE_W <= u1 - CLEAR + 1e-6
                 left_ok = u - hw - GAP - PLATE_W >= u0 + CLEAR - 1e-6
+                segs = walls.setdefault(rooms[rid]["l"], _wall_segs(plan, rooms[rid]["l"]))
+                if _solid(segs, e, u, u) and not _solid(segs, e, u - hw, u + hw):                           # the frame itself hangs past a wall's end: slide it back onto the wall
+                    for k in range(1, 27):
+                        sh = next((x for x in (-k * 0.05, k * 0.05) if _solid(segs, e, u + x - hw, u + x + hw)), None)
+                        if sh is not None:
+                            s["p"] = [round(s["p"][0] + e["dir"][0] * sh * e["s"], 2), round(s["p"][1] + e["dir"][1] * sh * e["s"], 2)]
+                            u += sh
+                            break
+                on_wall = _solid(segs, e, u, u)                                                            # a frame with no wall data behind it (open galleries) keeps the old rule
+                if on_wall and right_ok and not _solid(segs, e, u + hw + GAP, u + hw + GAP + PLATE_W):     # the plate would hang in an opening or past a wall's end
+                    right_ok = False
+                if on_wall and left_ok and not _solid(segs, e, u - hw - GAP - PLATE_W, u - hw - GAP):
+                    left_ok = False
                 for o in plan["sl"]:
                     if o is s or o["rm"] != rid or "sz" not in o or not _on_edge(o, e):
                         continue
@@ -209,6 +255,14 @@ def merge(plan: dict, unplaced: list | None = None) -> dict:
                         if uc < u and uc + dh + CLEAR > u - hw - GAP - PLATE_W:
                             left_ok = False
                 s["lb"] = "r" if right_ok else "l" if left_ok else "b"
+                s.pop("lu", None)
+                half = PHONE_PW / 2                                                                         # the phone hangs the label below, centred: slide it onto solid wall when the centre has none
+                if on_wall and not _solid(segs, e, u - half, u + half):
+                    for k in range(1, int(hw / 0.05) + 1):
+                        sh = next((x for x in (-k * 0.05, k * 0.05) if _solid(segs, e, u + x - half, u + x + half)), None)
+                        if sh is not None:
+                            s["lu"] = round(sh, 2)
+                            break
                 break
     return plan
 
