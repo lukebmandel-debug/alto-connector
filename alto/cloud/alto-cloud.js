@@ -1439,6 +1439,8 @@
     '.acct-terms{display:flex;gap:10px;align-items:flex-start;text-align:left;font-size:12.5px;line-height:1.5;color:var(--text);margin:0 0 12px;cursor:pointer}' +
     '.acct-terms input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--text)}' +
     '.acct-terms a,.acct-legal a{color:inherit;text-decoration:underline;text-underline-offset:2px}' +
+    // phone tap targets (Art, 30 Oct): the whole checkbox row and the links under the button are 44 px tall (its own commit, ships only after Luke has seen the phone shots)
+    '@media (pointer:coarse),(max-width:768px){.acct-terms{min-height:44px;align-items:center;margin-bottom:6px}.acct-legal a{display:inline-flex;align-items:center;min-height:44px;padding:0 6px}}' +
     '.acct-legal{font-size:11px;letter-spacing:.04em;color:var(--muted);margin-top:12px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}' +
     // Art 30 Oct: the plate the text sits on is near-opaque (the muted lines clear 4.5:1 on it, both themes); the waiting button stays the main button, text >= 3:1
     '#account-modal{background:var(--surface,#fff);background:color-mix(in srgb,var(--surface,#fff) 90%,transparent)}' +

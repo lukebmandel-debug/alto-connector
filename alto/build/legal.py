@@ -61,6 +61,7 @@ a{color:var(--ac)} strong{font-weight:700}
 nav,footer{max-width:680px;margin:0 auto;padding:0 20px;font:14px/1.6 system-ui,sans-serif}
 nav{padding-top:20px} footer{padding-bottom:40px;color:var(--mu);border-top:1px solid var(--ln);margin-top:32px;padding-top:14px}
 footer a{margin-right:14px}
+@media (pointer:coarse),(max-width:768px){nav a,footer a{display:inline-flex;align-items:center;min-height:44px}}
 """
 # the look follows the person's choice: light/dark is read from what Alto already keeps (alto-theme-v1). The homepage has no Retro style yet; when it does, add its key here
 HEAD_JS = ("try{var d=document.documentElement;if(localStorage.getItem('alto-theme-v1')==='dark')d.classList.add('dark');}catch(e){}")
