@@ -242,6 +242,8 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-help{right:16px;top:64px;width:min(330px,calc(100% - 32px));display:block;white-space:normal;line-height:1.5;font-size:12.5px;padding:12px 14px;}
 #wpal-root .wp-help kbd{font:inherit;font-weight:700;border:1px solid var(--w-edge);border-radius:5px;padding:0 5px;}
 #wpal-root.wp-mmon .wp-list{bottom:178px;}
+/* the key opens above its toggle in the bottom-right row (key_toggle.py, Luke's pick A): while it is open the minimap beside it steps aside */
+html:has(.key-pop.wk.open) #wpal-root .wp-mm{opacity:0;visibility:hidden;pointer-events:none;}
 html:is(.mobile,.alto-editing) #wpal-root :is(.wp-nav,.wp-mm,.wp-mmtip,.wp-help){display:none !important;}
 html.alto-retro #wpal-root :is(.wp-hk,.wp-help kbd,.wp-mm):not(#_){border-radius:0;}
 html.alto-retro #wpal-root .wp-nav .wp-btn.r:not(#_){border:0;}html.alto-retro #wpal-root .wp-nav .wp-btn.r.on:not(#_){background:#d9ae55;color:#000;}
