@@ -10,6 +10,7 @@ decides whether unrelated tests see a working `uid()`.
 That is a test-ordering bug waiting to happen, so reset it around every test
 rather than remembering to do it in each one.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -120,3 +121,22 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
     # The store is a module-level singleton; a test that swapped it in must
     # not leak that store into the next test's assertions.
     srv.set_store(None)
+
+
+# ── CI-only skips ────────────────────────────────────────────────────────────────────────────────────────────────
+# Only when ALTO_CI=1 (set by .github/workflows/tests-full.yml). A normal local run never reads this list. Each entry is a node-id
+# prefix and ONE reason; only a test that needs something a hosted runner does not have goes here (a GPU, a private fixture), and only
+# with evidence from a CI log. A test that merely failed on CI is not skipped: it is looked at.
+CI_SKIPS = (
+    ("tests/test_solar_camera.py::test_a_flight_a_dive_and_a_zoom_out_keep_the_eye_and_the_ship_clear",
+     "counts more than 100 animation frames of a flight; the runner has no GPU and records about 11 (tests-full run 41073176698)"),
+)
+
+
+def pytest_collection_modifyitems(config, items):
+    if os.environ.get("ALTO_CI") != "1":
+        return
+    for item in items:
+        for prefix, why in CI_SKIPS:
+            if item.nodeid.startswith(prefix):
+                item.add_marker(pytest.mark.skip(reason="CI: " + why))

@@ -3,7 +3,7 @@ name: tests-full
 # The full test run on GitHub's own machines, so the Mac that builds Alto does not have to run it.
 # Read-only by construction: no secrets, no cloud login, a read-only token, nothing here can publish, tag or deploy.
 # A push to a working branch (alto-*) runs it; so does a manual dispatch (Actions tab, or: gh workflow run tests-full.yml --ref <branch>).
-# Branches named alto-ci-* do not start it on push (that is the branch this file is developed on); dispatch still works there.
+# On branches named alto-tests-full-calib* the macOS WebKit job also runs, on push. Branches named alto-ci-* do not start it on push (that is the branch this file is developed on); dispatch still works there.
 # Results: the job summary (passed / failed / skipped, the ten slowest tests, the skip list) and the JUnit + log artifacts (7 days).
 
 on:
@@ -27,16 +27,17 @@ env:
   PYTHONUTF8: "1"
   ALTO_STORE: local
   PYTHONDONTWRITEBYTECODE: "1"
+  ALTO_CI: "1"
 
 jobs:
   linux:
-    name: linux shard ${{ matrix.shard }} of 12
+    name: linux shard ${{ matrix.shard }} of 6
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -58,7 +59,7 @@ jobs:
         run: python packaging/stage_engine.py
       - name: Pick this shard's test files
         env:
-          SHARDS: "12"
+          SHARDS: "6"
           SHARD: ${{ matrix.shard }}
         run: |
           python - <<'PY' > shard-files.txt
@@ -82,7 +83,7 @@ jobs:
             done ) &
           MON=$!
           trap 'kill $MON 2>/dev/null || true' EXIT
-          python -m pytest $(cat shard-files.txt) -n 2 -v -p no:cacheprovider -rfEs --durations=10 --timeout=300 --timeout-method=thread \
+          python -m pytest $(cat shard-files.txt) -n 2 -v -p no:cacheprovider -k "not webkit" -rfEs --durations=10 --timeout=300 --timeout-method=thread \
             -o junit_family=xunit2 --junitxml=junit-linux-${{ matrix.shard }}.xml 2>&1 | tee pytest-linux-${{ matrix.shard }}.log
       - name: Keep the results
         if: always()
@@ -96,14 +97,14 @@ jobs:
           retention-days: 7
 
   macos-webkit:
-    name: macos webkit shard ${{ matrix.shard }} of 4
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_webkit }}
+    name: macos webkit shard ${{ matrix.shard }} of 6
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.macos_webkit) || startsWith(github.ref_name, 'alto-tests-full-calib') }}
     runs-on: macos-14
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -118,14 +119,14 @@ jobs:
       - name: Install the project and the test tools
         run: |
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist playwright
+          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist pytest-timeout playwright
       - name: Install WebKit
         run: python -m playwright install webkit
       - name: Stage the engine templates
         run: python packaging/stage_engine.py
       - name: Pick this shard's WebKit test files
         env:
-          SHARDS: "4"
+          SHARDS: "6"
           SHARD: ${{ matrix.shard }}
         run: |
           python - <<'PY' > shard-files.txt
@@ -142,7 +143,15 @@ jobs:
       - name: Run the tests
         run: |
           set -o pipefail
-          python -m pytest $(cat shard-files.txt) -n 3 -q -p no:cacheprovider -rfEs --durations=10 \
+          # Every 15 s, print memory pressure and the five biggest processes (names only).
+          ( while true; do
+              echo "[monitor $(date -u +%H:%M:%S)]"; vm_stat | head -5 | sed 's/^/[monitor] /'
+              ps -Ao pid,rss,pcpu,comm -m | head -6 | sed 's/^/[monitor] /'
+              sleep 15
+            done ) &
+          MON=$!
+          trap 'kill $MON 2>/dev/null || true' EXIT
+          python -m pytest $(cat shard-files.txt) -k "webkit" -n 2 -v -p no:cacheprovider -rfEs --durations=10 --timeout=300 --timeout-method=thread \
             -o junit_family=xunit2 --junitxml=junit-macos-${{ matrix.shard }}.xml 2>&1 | tee pytest-macos-${{ matrix.shard }}.log
       - name: Keep the results
         if: always()
