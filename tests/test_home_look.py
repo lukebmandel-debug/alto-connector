@@ -38,3 +38,47 @@ def test_only_very_long_title_words_get_soft_hyphens():
     html = pages.build_home([])
     assert "{11,}" in html and "u00ad" in html
     assert "hyphens:auto" not in html and "hyphens:manual" in html
+
+
+# ── regression (6cbb529): unitStrip read a top-level const that was not set yet when the first card was drawn,
+# so a timeline with no unit colours killed the whole homepage script (search never wired up). ──
+import pytest
+
+try:
+    from playwright import sync_api as pw
+except ImportError:                                  # CI has no Playwright: the browser test skips
+    pw = None
+
+
+def test_the_accent_map_is_not_a_top_level_const_read_before_it_is_set():
+    p = _page()
+    a = p.index("function unitStrip(units, fmt){")
+    assert a < p.index("const HOME_FMT_ACCENT") < p.index("const ok =", a)       # declared inside the function, before it is used
+
+
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_a_timeline_with_no_unit_colours_does_not_crash_the_homepage(tmp_path, engine):
+    page = pages.build_home([{"name": "Law", "pid": "p", "courses": [
+        {"title": "No units", "href": "a.html", "sub": "0 units", "courseId": "a", "units": []},
+        {"title": "No key", "href": "b.html", "sub": "0 units", "courseId": "b"},
+        {"title": "Two", "href": "c.html", "sub": "2 units", "courseId": "c", "units": ["#4a9eff", "#f43f5e"]}]}])
+    f = tmp_path / "h.html"
+    f.write_text(page, encoding="utf-8")
+    errs = []
+    with pw.sync_playwright() as p:
+        try:
+            b = getattr(p, engine).launch()
+        except Exception as e:                       # that engine is not installed here
+            pytest.skip(str(e)[:80])
+        pg = b.new_page()
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(f.as_uri())
+        pg.wait_for_timeout(600)
+        tiles = pg.evaluate("document.querySelectorAll('.course-tile:not(.new-tile) .unit-strip span').length")
+        pg.click("#search-btn")
+        pg.wait_for_timeout(300)
+        opened = pg.evaluate("document.getElementById('search-btn').classList.contains('expanded')")
+        b.close()
+    assert errs == []
+    assert tiles >= 4 and opened                     # the empty ones got their one accent segment, and search is wired
