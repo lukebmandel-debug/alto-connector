@@ -52,6 +52,40 @@ def _main_piece(rivers, name):
     return best
 
 
+def _channel_line(rivers, name, tol=30.0):
+    """A named river's pieces joined end to end (OSM splits a river into many ways): the longest course."""
+    ways = [_pairs(r["p"]) for r in rivers if r.get("n") == name and len(r.get("p") or ()) >= 4]
+    chains = []
+    while ways:
+        ch = list(ways.pop(0))
+        grew = True
+        while grew:
+            grew = False
+            for k, w in enumerate(ways):
+                if math.dist(w[0], ch[-1]) < tol:
+                    ch += w[1:]
+                elif math.dist(w[-1], ch[0]) < tol:
+                    ch = w[:-1] + ch
+                elif math.dist(w[-1], ch[-1]) < tol:
+                    ch += w[::-1][1:]
+                elif math.dist(w[0], ch[0]) < tol:
+                    ch = w[::-1][:-1] + ch
+                else:
+                    continue
+                ways.pop(k)
+                grew = True
+                break
+        chains.append(ch)
+    return max(chains, key=_len, default=None)
+
+
+def river_line(m, name):
+    """The real line a page river band is drawn from: a named channel's whole course (m["channels"]), else its longest
+    piece."""
+    keep = {str(n).lower() for n in m.get("channels") or ()}
+    return _channel_line(m.get("rivers", []), name) if str(name).lower() in keep else _main_piece(m.get("rivers", []), name)
+
+
 def resample(pts, step=STEP):
     """Points evenly `step` apart along the polyline (the last one is kept)."""
     if len(pts) < 2:
@@ -95,8 +129,8 @@ def smooth(pts, sigma=SIGMA, step=STEP):
     return out
 
 
-def run_off(pts, d=RUN_OFF, step=STEP):
-    """The course carried straight on past both ends, along the way it was heading."""
+def run_off(pts, d=RUN_OFF, step=STEP, ends=(True, True)):
+    """The course carried straight on past both ends (or only the `ends` given), along the way it was heading."""
     if len(pts) < 3:
         return pts
 
@@ -105,17 +139,22 @@ def run_off(pts, d=RUN_OFF, step=STEP):
         return ((b[0] - a[0]) / L, (b[1] - a[1]) / L)
     t0 = tangent(pts[min(len(pts) - 1, 6)], pts[0])
     t1 = tangent(pts[max(0, len(pts) - 7)], pts[-1])
-    head = [(pts[0][0] + t0[0] * s, pts[0][1] + t0[1] * s) for s in range(int(d), 0, -int(step))]
-    tail = [(pts[-1][0] + t1[0] * s, pts[-1][1] + t1[1] * s) for s in range(int(step), int(d) + 1, int(step))]
+    head = [(pts[0][0] + t0[0] * s, pts[0][1] + t0[1] * s) for s in range(int(d), 0, -int(step))] if ends[0] else []
+    tail = [(pts[-1][0] + t1[0] * s, pts[-1][1] + t1[1] * s) for s in range(int(step), int(d) + 1, int(step))] if ends[1] else []
     return head + list(pts) + tail
 
 
-def course(pts, sigma=SIGMA):
-    """A river's centre line carried onto the grid -> its smooth course, run off the ends."""
+def course(pts, sigma=SIGMA, ends=(True, True)):
+    """A river's centre line carried onto the grid -> its smooth course, run off the ends (those in `ends`: a channel's end
+    at a confluence or a lake inside the box stops there)."""
     c = resample(pts, STEP)
     c = smooth(c, sigma)
     c = smooth(c, sigma * .45)          # a second, light pass takes the last wobble out of the stretched bends
-    return run_off(c)
+    if not ends[0]:
+        c[0] = tuple(pts[0])            # the end it stops at stays where it is (the branches meet at one point)
+    if not ends[1]:
+        c[-1] = tuple(pts[-1])
+    return run_off(c, ends=ends)
 
 
 def _flat(pts):

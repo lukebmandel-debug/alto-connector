@@ -204,6 +204,8 @@ class Lattice:
         return True if self.clip is None else inside(self.clip, x, y)
 
     own = False                    # True: a lattice segment is drawn only beside a drawn cell (city_engine.DomLattice)
+    holes = {}                     # {cell: park}: the cells a big park covers (rules doc 5): no block, no line through them ...
+    keep = frozenset()             # ... but these (fam, k, park): a line whose real street runs through that park (Columbus Drive)
 
     def seg_in(self, a, b):
         """The parts of page segment ab inside the domain's region: [(t0, t1), ...]."""
@@ -253,6 +255,7 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
     majors = set(majors)
     through = set(through)
     root = (abs(lat.a) < 1e-9) if root is None else root
+    parks = lat.holes if isinstance(lat.holes, dict) else {}       # (city_manhattan's _Lat keeps its own set of holes)
     nx, ny = len(lat.xg) - 1, len(lat.yg) - 1
 
     def name(fam, k):
@@ -265,6 +268,9 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
         for i in range(nx):
             if (i, j) in lat.lm_cells:
                 cells[(i, j)] = "lm"
+                continue
+            if (i, j) in parks:
+                cells[(i, j)] = "park"
                 continue
             p = lat.cell_poly(i, j)
             f = lat.frac(p, i, j)
@@ -331,6 +337,14 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
             return (k - 1, m) in drawn or (k, m) in drawn
         return (m, k - 1) in drawn or (m, k) in drawn
 
+    def park_mid(fam, k, m):
+        """The park on both sides of a segment, or None."""
+        if not parks:
+            return None
+        sides = ((k - 1, m), (k, m)) if fam == "v" else ((m, k - 1), (m, k))
+        pk = {parks.get(s_) for s_ in sides}
+        return pk.pop() if len(pk) == 1 and None not in pk else None
+
     def lm_side(fam, k, m):
         sides = ((k - 1, m), (k, m)) if fam == "v" else ((m, k - 1), (m, k))
         return any(s in lat.lm_cells for s in sides)
@@ -352,7 +366,10 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
                     continue
                 a, b = lat.seg(fam, k, m)
                 ivs = lat.seg_in(a, b)
-                if lat.own and not covered(fam, k, m) and not lm_side(fam, k, m):
+                in_park = park_mid(fam, k, m)
+                if in_park and (fam, k, in_park) not in lat.keep:
+                    ivs = []                               # no line through a park, unless its real street crosses it
+                elif lat.own and not covered(fam, k, m) and not lm_side(fam, k, m) and not in_park:
                     ivs = []
                 if not ivs:
                     pieces.append(None)
