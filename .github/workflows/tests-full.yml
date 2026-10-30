@@ -83,7 +83,7 @@ jobs:
             done ) &
           MON=$!
           trap 'kill $MON 2>/dev/null || true' EXIT
-          python -m pytest $(cat shard-files.txt) -n 2 -v -p no:cacheprovider -k "not webkit" --reruns 1 -rfEs --durations=10 --timeout=300 --timeout-method=thread \
+          python -m pytest $(cat shard-files.txt) -n 2 -v -p no:cacheprovider -k "not webkit" --reruns 1 -rfEs --durations=10 --timeout=120 --timeout-method=thread \
             -o junit_family=xunit2 --junitxml=junit-linux-${{ matrix.shard }}.xml 2>&1 | tee pytest-linux-${{ matrix.shard }}.log
       - name: Keep the results
         if: always()
