@@ -31,3 +31,12 @@ The traced 1928 plates leave rooms with no way in: the level 2 and 3 pavilions, 
 - **Room use:** an office onto its corridor, two halves of one 1928 room.
 
 Also: level G's own doorways were being pruned (its rooms were never checked as room boundaries), and the Forum stair landed in the void above the Forum. It is now one straight flight that lands on level 1 past the Forum's north edge, with its position still assumed. `tests/fpv_walk/reach_audit.js` checks that every room stays reachable.
+
+## 2026-10-29 labelled frames (Luke: "On 2, I think A.")
+
+Every painting in the wall table (`pma_wall.json`, 69 of its 83 rows; the 13 Constantine tapestries and the wampum belt keep their own look) hangs in its gallery as a framed canvas with a museum label (`pma_frames.py` merges the table into `pma.plan()`; the plan file itself is untouched):
+- **Public-domain row with a hosted image (49):** the real picture, in its frame. 13 more files were added today for the works named in the cited review of galleries 250, 252, 255, 259 (Wikimedia thumbnail at 960 px, Commons API licence label read as "Public domain" on 2026-10-29, downscaled to 512 px long side, JPEG q68; `pma_art.json` `added_2026_10_29`). They load lazily from `/bart/` with the room's batch; until one arrives, and always for a work that is in copyright, unknown or has no free file yet (20 works), the frame holds an empty wall-tone canvas.
+- **Frame:** warm gilt before 1900, dark walnut from 1900 (the first year in the work's date), thin moulding when no canvas side reaches 60 cm, wide otherwise; canvas centre 1.5 m above the floor; hung 40 cm or more from a door or corner.
+- **Label:** right of the frame (left, then below, when the wall has no room), top edge 1.30 m above the floor, 50 x 25 cm plate: title (italic, semi-bold), artist, year, plus the Alto card's line when the work anchors one, or the credit line of a hung picture. It fades out beyond about 3 m (where its type would fall under 11 px) and is not drawn for a plain gallery plaque.
+- **Placement:** works with no slot yet are given a free stretch of wall in the room their gallery number maps to, with an ASSUMED size (long side 0.85 m, proportions from the Commons file; 0.62 x 0.78 m with none) marked `sb: assumed`. 19 of the 32 are in rooms that only hold their gallery's label point (`pc: cand`).
+- **Phone (proposal):** label 1.25x, below the frame, centred; a tap on a frame or its label opens a bottom sheet with title, artist, year and credit.
