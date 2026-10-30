@@ -213,9 +213,17 @@ BOSTON = {
 
 DC = {
     "place": "Washington, D.C.",
+    # the box: the core of L'Enfant's plan, about 7.8 x 6.7 km, the National Mall and the Capitol at its middle: west to
+    # Georgetown and the Potomac, east past Lincoln Park to the Anacostia, north to Florida Avenue (the old Boundary
+    # Street) and U Street, south to the Navy Yard and East Potomac Park. The Potomac is the city's edge (wide, west and
+    # south): Virginia across it is not drawn (palace_map's wide-river rule), nor its stations and highways.
     "area": "L'Enfant's city: the National Mall and the Capitol, Downtown, Foggy Bottom and the Georgetown edge, "
             "Dupont and Logan Circles, Capitol Hill, Navy Yard and the Anacostia River",
     "bbox": [38.865, -77.072, 38.925, -76.982],
+    # short in the box, but real water: the Anacostia (east) and the Washington Channel (between the Southwest Waterfront
+    # and East Potomac Park); Rock Creek is long enough to be drawn anyway
+    "channels": ["Anacostia River", "Washington Channel"],
+    "layout": {"name": "dc", "builder": "engine", "must_parks": ["National Mall"]},
     "majors": [*_q("Pennsylvania Avenue", quads=("Northwest", "Southeast")),
                *_q("Constitution Avenue", quads=("Northwest", "Northeast")),
                *_q("Independence Avenue", quads=("Southwest", "Southeast")),
@@ -242,7 +250,9 @@ DC = {
                   "Supreme Court of the United States", "Smithsonian Institution Building", "National Air and Space Museum",
                   "National Museum of Natural History", "National Gallery of Art", "John F. Kennedy Center for the Performing Arts",
                   "Ford's Theatre", "Dupont Circle", "Watergate Complex", "Nationals Park", "Capital One Arena",
-                  "U.S. National Archives", "Eisenhower Executive Office Building"],
+                  "U.S. National Archives", "Eisenhower Executive Office Building", "National Museum of American History",
+                  "National Museum of African American History and Culture", "E. Barrett Prettyman Federal Courthouse",
+                  "Old City Hall"],
     "landmark_buildings": [
         {"name": "United States Capitol", "label": "the Capitol", "floors": 5, "height_m": 88},
         {"name": "White House"},
@@ -254,6 +264,12 @@ DC = {
         {"name": "Washington Union Station", "label": "Union Station"},
         {"name": "Smithsonian Institution Building", "label": "the Castle"},
         {"name": "U.S. National Archives", "label": "National Archives"},
+        {"name": "National Air and Space Museum", "label": "Air and Space Museum"},
+        {"name": "National Museum of Natural History", "label": "Natural History Museum"},
+        {"name": "National Museum of American History", "label": "American History Museum"},
+        # two of the three courthouses (the Supreme Court is above): OSM's own names
+        {"name": "E. Barrett Prettyman Federal Courthouse", "label": "Prettyman Courthouse"},
+        {"name": "Old City Hall", "label": "DC Court of Appeals"},
     ],
     "diagonals": [*_q("Pennsylvania Avenue", quads=("Northwest", "Southeast")),
                   *_q("Massachusetts Avenue", quads=("Northwest", "Northeast", "Southeast")),
@@ -264,7 +280,8 @@ DC = {
                   *_q("New Jersey Avenue", quads=("Northwest", "Southeast")), "Delaware Avenue Northeast",
                   "Delaware Avenue Southwest", "Louisiana Avenue Northwest", "Indiana Avenue Northwest",
                   "North Carolina Avenue Southeast", "South Carolina Avenue Southeast", "Kentucky Avenue Southeast",
-                  "Potomac Avenue Southeast", "Florida Avenue Northwest", "Florida Avenue Northeast"],
+                  "Potomac Avenue Southeast", "Florida Avenue Northwest", "Florida Avenue Northeast",
+                  "Maine Avenue Southwest"],
     "parks": ["National Mall", "The Ellipse", "Lafayette Square", "Constitution Gardens", "West Potomac Park",
               "East Potomac Park", "Dupont Circle", "Logan Circle", "Thomas Circle", "Scott Circle", "Farragut Square",
               "McPherson Square", "Franklin Square", "Mount Vernon Square", "Judiciary Square", "Stanton Park",

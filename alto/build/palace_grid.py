@@ -58,6 +58,14 @@ def numbered(name: str) -> bool:
     return bool(_NUM.match(n)) or n.lower().startswith("front ")
 
 
+_LETTER = re.compile(r"^[A-Z] Street\b")
+
+
+def lettered(name: str) -> bool:
+    """Washington's lettered streets (A to W Street): its grid rows, as the numbered streets are its columns."""
+    return bool(_LETTER.match(norm(name)))
+
+
 # ── geometry helpers ───────────────────────────────────────────────────────
 def _pairs(flat):
     return [(flat[i], flat[i + 1]) for i in range(0, len(flat) - 1, 2)]
