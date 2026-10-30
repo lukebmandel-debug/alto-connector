@@ -50,7 +50,7 @@ ring, a docking port: the plan's station is always one), a lumpy asteroid (its s
 or a comet (an icy nucleus, its coma and two soft tails away from its sun). A plan's look (black hole, comet, asteroid)
 is honoured as in 2D: a black hole is a black horizon with a photon rim, a hot accretion disc and a glow. No night side
 goes black (a cool fill of about 8% and a soft rim towards the camera); close up, any other body nearer the camera than
-the enlarged one, or larger on screen than its disc, fades away; small bodies keep their colour (a satellite far off a
+the enlarged one, or larger on screen than its disc (its parent planet only when in front), fades away; small bodies keep their colour (a satellite far off a
 coloured glint).
 """
 
@@ -419,7 +419,7 @@ function frame(){
   for(var k=0;k<4;k++){ VPm[k*4]+=cam.ox*VPm[k*4+3]; VPm[k*4+1]+=cam.oy*VPm[k*4+3]; }         /* (the lens shifted: the aim drawn where the disc is) */
   /* close up, what fades: judged against the enlarged body (the one left, on the way out), coming in with the dive; "larger" against the disc it is diving to */
   var fi=LK ? LK.id : tw && tw.leave, gf=fi && G.bodies[fi], qf=gf && proj(W(gf)), pt=tw ? Math.min(1, (now-tw.t0)/tw.ms) : 1;
-  FC=qf ? {id:fi, x:qf.x, y:qf.y, w:qf.w, rp:gf.d/2*qf.s, rd:LK && cin.rp || gf.d/2*qf.s, k:LK ? (tw && !tw.leave ? sm(.1, .5, pt) : 1) : 1-sm(0, .45, pt)} : null;
+  FC=qf ? {id:fi, par:gf.p && G.bodies[gf.p] && G.bodies[gf.p].role!=='sun' ? gf.p : null, x:qf.x, y:qf.y, w:qf.w, rp:gf.d/2*qf.s, rd:LK && cin.rp || gf.d/2*qf.s, k:LK ? (tw && !tw.leave ? sm(.1, .5, pt) : 1) : 1-sm(0, .45, pt)} : null;
   gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   stars(); lines(G); spheres(G); objs(G, now); craft3(G, now); halos(G); fx(G, now); glows(G); labels(G, r);
@@ -533,10 +533,11 @@ function size(){ var c=document.getElementById('canvas'); if(!c) return; var r=c
 function stars(){ var p=P.s; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform3fv(p.u.E, EYE); attr(p, 'p', P.sp, 3); attr(p, 'z', P.sz, 1);
   gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.POINTS, 0, P.sn2); dis(p); }
 function dis(p){ Object.keys(p.a).forEach(function(k){ if(p.a[k]>=0) gl.disableVertexAttribArray(p.a[k]); }); }
-/* close up, a body nearer the camera than the enlarged one (where it would cover it), larger on screen than its disc, nearly as large and beside it, or over the disc at all, fades */
+/* close up, a body nearer the camera than the enlarged one (where it would cover it), larger on screen than its disc, nearly as large and beside it, or over the disc at all, fades;
+   its parent planet only when it is nearer the camera and over the disc (Luke, 2026-10-30: "When coming into orbit of something, the parent planet disappears") */
 var FC=null;
 function fade(id, q, rp){ if(!FC || id===FC.id || !q) return 1;
-  var d=Math.hypot(q.x-FC.x, q.y-FC.y), k=rp/FC.rd, a=Math.max(sm(.9, 1.2, k), sm(.65, .9, k)*(1-sm(rp+FC.rd*.9, rp+FC.rd*1.5, d)), 1-sm(rp+FC.rd*.85, rp+FC.rd*1.1, d), sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, d)));
+  var d=Math.hypot(q.x-FC.x, q.y-FC.y), k=rp/FC.rd, a=id===FC.par ? sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, d)) : Math.max(sm(.9, 1.2, k), sm(.65, .9, k)*(1-sm(rp+FC.rd*.9, rp+FC.rd*1.5, d)), 1-sm(rp+FC.rd*.85, rp+FC.rd*1.1, d), sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, d)));
   return 1-a*FC.k; }
 function spheres(G){
   var p=P.b, M0=null, LT=[]; gl.useProgram(p.p); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
@@ -683,6 +684,9 @@ function labels(G, r){
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
     e.setAttribute('data-go', id);
     e.children[0].textContent=H[id].map(function(d){ return (NHT[d] || NHD[d])[0]; }).join(''); e.children[1].textContent=NHT[H[id][0]] ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
+  /* a body behind another, its centre covered by a nearer one that is drawn: no name (Art 2026-10-30: "Case 2" over the planet) */
+  function hid(id, q){ return Object.keys(G.bodies).some(function(k){ var o=BOD[k], p; if(k===id || !o || (o.fa<.5 && k!==f) || !(p=proj(W(G.bodies[k])))) return false;
+    return p.w<q.w && Math.hypot(p.x-q.x, p.y-q.y)<G.bodies[k].d/2*p.s; }); }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   var BX=[], NM=[], PL=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */
   function free(x, y, w, h){ if(BX.some(function(a){ return x<a[2] && x+w>a[0] && y<a[3] && y+h>a[1]; })) return false; BX.push([x, y, x+w, y+h]); return true; }
@@ -691,7 +695,7 @@ function labels(G, r){
   Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f || (o.fa<.5 && !H[id])) return;     /* (a faded body's name goes, its hint stays) */
     var inside=q && q.x>r.left && q.x<r.right && q.y>r.top && q.y<r.bottom, rp=q ? g.d/2*q.s : 0;
     if(H[id]){ PL.push({id:id, q:q, rp:rp}); return; }     /* (the pills: laid out together below, clear of the disc, the bodies and each other) */
-    if(!inside || rp<(g.role==='planet' ? 1.2 : g.role==='sun' ? .5 : 3)) return;
+    if(!inside || rp<(g.role==='planet' ? 1.2 : g.role==='sun' ? .5 : 3) || hid(id, q)) return;
     NM.push({id:id, x:q.x, y:q.y+rp+4, rk:({sun:0, planet:1, moon:2}[g.role]||3)*1e4-rp, m:g.role!=='planet' && g.role!=='sun'}); });
   var PP=window._altoSolarPills, fc=f && document.getElementById('node-'+f), fr=fc && (fc.querySelector('.node-card')||fc).getBoundingClientRect();
   if(PL.length && PP){ var obs=[], WB=PP.bounds(); WB.x1=Math.min(WB.x1, r.right-16);

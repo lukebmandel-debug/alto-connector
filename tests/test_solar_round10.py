@@ -282,7 +282,7 @@ def test_an_enlarged_body_is_its_globe_close_up(browser, page):
 def test_3d_small_bodies_are_varied_real_objects_and_nothing_blocks_the_close_up(browser, page):
     """Luke (2026-10-22): an enlarged satellite was a blank grid sphere beside a giant black moon. Moons cycle six kinds by their
     order under their planet; the satellite level is a satellite, station, asteroid or comet, neighbours never alike; a plan's
-    look is honoured; close up, a body in front of the enlarged one (or bigger on screen than its disc) fades away."""
+    look is honoured; close up, a body in front of the enlarged one (or bigger on screen than its disc, but not its parent) fades away."""
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     S = pg.evaluate("() => { var N=window._ALTO_SOLAR.nodes, g=window._altoSolarGeo().bodies, o={}; Object.keys(g).forEach(function(id){ o[id]={role:g[id].role, p:g[id].p}; }); return o; }")
     planet = [i for i in S if S[i]["role"] == "planet"][-1]
@@ -305,12 +305,67 @@ def test_3d_small_bodies_are_varied_real_objects_and_nothing_blocks_the_close_up
     pg.wait_for_timeout(2400)
     q = pg.evaluate("""id => { var G=window._altoSolarGeo().bodies, P=window._altoSolar3D, f=P.project(id), F=P.fades(), rf=G[id].d/2*f.s, out=[];
       Object.keys(G).forEach(function(k){ var p=P.project(k); if(k===id || !p) return; var r=G[k].d/2*p.s, d=Math.hypot(p.x-f.x, p.y-f.y);
-        if(r>rf*1.25 || (p.w<f.w*.93 && d<r+rf*1.1)) out.push([k, F[k]==null ? 1 : F[k]]); }); return {lock:P.closeup().lock, out:out}; }""", sat)
+        if((r>rf*1.25 && k!==G[id].p) || (p.w<f.w*.93 && d<r+rf*1.1)) out.push([k, F[k]==null ? 1 : F[k]]); }); return {lock:P.closeup().lock, out:out}; }""", sat)   # (its parent: only when in front, 2026-10-30)
     assert q["lock"] == sat and all(f < .1 for _, f in q["out"]), q
     pg.keyboard.press("Escape"); pg.wait_for_timeout(1400)
     assert pg.evaluate("() => Object.keys(window._altoSolar3D.fades()).length") == 0                     # all back on the way out
     pg.context.close()
     assert not errs, errs
+
+
+# Luke, 2026-10-30 (L-1030-142055): "When coming into orbit of something, the parent planet disappears"
+PARENT = """id => { var G=window._altoSolarGeo().bodies, P=window._altoSolar3D, f=P.project(id), p=P.project(G[id].p), F=P.fades(), rf=G[id].d/2*f.s;
+  var r=G[G[id].p].d/2*p.s, d=Math.hypot(p.x-f.x, p.y-f.y);
+  return {lock:P.closeup().lock, par:G[id].p, fa:F[G[id].p]==null ? 1 : F[G[id].p], front:p.w<f.w*.93 && d<r+rf*1.1, big:r/rf}; }"""
+
+
+def test_3d_in_orbit_of_a_moon_or_satellite_its_parent_planet_stays_in_view(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pytest.skip("no WebGL in this browser")
+    S = pg.evaluate("() => { var g=window._altoSolarGeo().bodies, o={}; Object.keys(g).forEach(function(id){ o[id]={role:g[id].role, p:g[id].p}; }); return o; }")
+    kids = [i for i in S if S[i]["role"] in ("moon", "sat") and S.get(S[i]["p"], {}).get("role") == "planet"][:3]
+    assert kids, S
+    seen = []
+    for i in kids:
+        pg.evaluate("id => window.enterFocus(id)", i)
+        pg.wait_for_function("id => window._altoSolar3D.closeup().lock===id && !window._altoSolar3D.closeup().moving", arg=i, timeout=20000)
+        pg.wait_for_timeout(600)
+        seen.append((i, pg.evaluate(PARENT, i)))
+    pg.context.close()
+    assert not errs, errs
+    behind = [(i, q) for i, q in seen if not q["front"]]
+    assert behind, seen                                                       # (the case Luke saw: the planet behind its moon, bigger on screen)
+    assert all(q["fa"] > .9 for _, q in behind), behind                       # it stays; only a planet between the camera and the disc may fade
+
+
+# Art, 2026-10-30 (alto-art-1030-2000-b): a moon hidden behind its planet kept its name floating over the planet
+HIDDEN_NAMES = """() => { var G=window._altoSolarGeo().bodies, P=window._altoSolar3D, F=P.fades(), by={}, out=[], named=0;
+  Object.keys(G).forEach(function(k){ var n=document.getElementById('node-'+k), lb=n && n.querySelector('.sol-lbl'); by[(lb && lb.getAttribute('data-l')) || (n && n.getAttribute('data-title')) || '']=k; });
+  [].forEach.call(document.querySelectorAll('#sk3d-l > b'), function(e){ if(e.style.display==='none') return; var id=by[e.textContent], q=id && P.project(id); if(!q) return; named++;
+    Object.keys(G).forEach(function(k){ var p=P.project(k); if(k===id || !p || (F[k]!=null && F[k]<.5)) return;
+      if(p.w<q.w && Math.hypot(p.x-q.x, p.y-q.y)<G[k].d/2*p.s) out.push([e.textContent, id, 'behind', k]); }); });
+  return {named:named, hidden:out}; }"""
+
+
+def test_3d_a_body_hidden_behind_another_shows_no_name(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pytest.skip("no WebGL in this browser")
+    seen = []
+    for i in ("u1-p1-m1", "u1-p1-m2", "u1-p3-m1"):
+        pg.evaluate("id => window.enterFocus(id)", i)
+        pg.wait_for_function("id => window._altoSolar3D.closeup().lock===id && !window._altoSolar3D.closeup().moving", arg=i, timeout=20000)
+        pg.wait_for_timeout(900)
+        seen.append((i, pg.evaluate(HIDDEN_NAMES)))
+    pg.context.close()
+    assert not errs, errs
+    assert any(q["named"] for _, q in seen), seen                            # (names were read: the check is not empty)
+    assert all(not q["hidden"] for _, q in seen), seen
 
 
 def test_the_3d_scene_is_small_and_on_system_pages_only():
