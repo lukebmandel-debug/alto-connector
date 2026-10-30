@@ -29,6 +29,7 @@ import base64
 import lzma
 import gzip
 import json
+import copy
 import math
 import re
 
@@ -51,7 +52,7 @@ from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
                "buildings", "parks", "areas", "portals", "scale", "data_z", "made", "transit", "preset",
-               "fill_z", "banners", "boroughs"}      # boroughs: what New York's full boroughs drew (city_outer_lattice.nyc); banners: giant words across a river (palace_areas.py); fill_z: the simulated buildings (palace_fillin.py; absent = off)
+               "fill_z", "banners", "boroughs", "gate", "invented"}      # gate: the city gate's verdict on a city a user's Claude or the editor made ({pass, score, draft, failing}); invented: an invented city's spec (city_invent.py); boroughs: what New York's full boroughs drew (city_outer_lattice.nyc); banners: giant words across a river (palace_areas.py); fill_z: the simulated buildings (palace_fillin.py; absent = off)
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -443,8 +444,9 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
            cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
            raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
            far_bank: bool = False, fill: bool = False, city_tiles: bool = True, layout=None, river_names=None,
-           channels=None) -> dict:
-    """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
+           channels=None, plan=None) -> dict:
+    """plan: an invented city's map (city_invent.invent_city: the dict build_map would make), drawn instead of a fetched
+    one; nothing is fetched. lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
     neighbourhood names drawn label-only, [{name, lat, lon, rank 1-4}] (palace_areas; omitted: Philadelphia's own).
@@ -464,6 +466,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     from .palace_areas import check_areas, default_areas
     areas = default_areas(place, bbox) if areas is None else areas
     check_areas(areas)
+    if plan is not None:
+        raw = {"elements": []}
     if raw is None and (tiled or offline):
         from .city_setup import fetch_city
         raw = fetch_city(tuple(bbox), cache_dir=cache_dir, names=landmarks or None, offline=offline)
@@ -473,8 +477,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     if far_bank:
         pm.FAR_BANK_SHARE = -1.0                      # palace_map keeps a far bank holding more than this share
     try:
-        m = pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None,
-                         landmarks=landmarks or None)
+        m = copy.deepcopy({k: v for k, v in plan.items() if k != "plan"}) if plan is not None else \
+            pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None, landmarks=landmarks or None)
     finally:
         pm.FAR_BANK_SHARE = share
     # a landmark found both as an outline and as a point (a station node beside
