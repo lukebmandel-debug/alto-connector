@@ -177,7 +177,7 @@ def test_the_cluster_and_deep_levels():
 
 def test_the_renderer_enlarges_hops_and_follows_the_engine():
     js = pw.WORLD_ASSET
-    for seam in ("A.hop=function", "wp-enl", "giveBack()", "search-flash", "ent-dimmed", "CONNECTIONS", "alto-editing", "_featuredNodeId"):
+    for seam in ("A.hop=function", "wp-enl", "giveBack()", "search-flash", "ent-dimmed", "CONNECTIONS", "_featuredNodeId"):
         assert seam in js, seam
     assert "html.detail-open #wpal-root{visibility:hidden" in js                    # a card's page never shows the map through it
     assert "html.alto-bg:not(.alto-bg-map) #wpal-root{background:none;}" in js       # a picked background is the sea
@@ -230,7 +230,8 @@ def test_the_page_grows_by_a_few_kilobytes_only():
 
 def test_the_city_and_building_pages_are_untouched_by_the_world_branch():
     city, _ = built(palace_view="city")
-    assert "_ALTO_WORLD" not in city and "altoLoadWorld" not in city and "wpal" not in city
+    assert "_ALTO_WORLD" not in city and "altoLoadWorld" not in city and "wpal-root{" not in city and "AltoWorld" not in city
+    # (the edit layer's shared CSS names #wpal-root since editing stays in the Atlas, 2026-10-29; no Atlas code comes with it)
 
 
 # ── the tool ─────────────────────────────────────────────────────────────────
