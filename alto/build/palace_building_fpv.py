@@ -418,7 +418,7 @@ FPV_JS = r"""
 if(window.AltoBuildingFPV) return;
 var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__, DVS=__DVS__, DFS=__DFS__;
 /* the Labelled frame (a slot with `fr`): plate size, gap to the frame, label top above the floor, and the distance past which a label has faded out (title under 11 px) */
-var CANV=.85;
+var CANV=.60;
 var FR={PW:.5, PH:.25, GAP:.10, TOP:1.30, FADE:3.2, CW:256, CH:128, COLS:4};
 var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.85, knee:.35, drop:1.0, minDoor:.9, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900};
 /* the walker is a capsule: radius pr (0.26 m), feet to the top of the head `head` (1.85 m); `drop` is the most it may step down off an edge that is not a stair (higher ledges are walls) */
