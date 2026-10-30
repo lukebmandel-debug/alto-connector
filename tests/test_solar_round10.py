@@ -341,6 +341,33 @@ def test_3d_in_orbit_of_a_moon_or_satellite_its_parent_planet_stays_in_view(brow
     assert all(q["fa"] > .9 for _, q in behind), behind                       # it stays; only a planet between the camera and the disc may fade
 
 
+# Art, 2026-10-30 (alto-art-1030-2000-b): a moon hidden behind its planet kept its name floating over the planet
+HIDDEN_NAMES = """() => { var G=window._altoSolarGeo().bodies, P=window._altoSolar3D, F=P.fades(), by={}, out=[], named=0;
+  Object.keys(G).forEach(function(k){ var n=document.getElementById('node-'+k), lb=n && n.querySelector('.sol-lbl'); by[(lb && lb.getAttribute('data-l')) || (n && n.getAttribute('data-title')) || '']=k; });
+  [].forEach.call(document.querySelectorAll('#sk3d-l > b'), function(e){ if(e.style.display==='none') return; var id=by[e.textContent], q=id && P.project(id); if(!q) return; named++;
+    Object.keys(G).forEach(function(k){ var p=P.project(k); if(k===id || !p || (F[k]!=null && F[k]<.5)) return;
+      if(p.w<q.w && Math.hypot(p.x-q.x, p.y-q.y)<G[k].d/2*p.s) out.push([e.textContent, id, 'behind', k]); }); });
+  return {named:named, hidden:out}; }"""
+
+
+def test_3d_a_body_hidden_behind_another_shows_no_name(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pytest.skip("no WebGL in this browser")
+    seen = []
+    for i in ("u1-p1-m1", "u1-p1-m2", "u1-p3-m1"):
+        pg.evaluate("id => window.enterFocus(id)", i)
+        pg.wait_for_function("id => window._altoSolar3D.closeup().lock===id && !window._altoSolar3D.closeup().moving", arg=i, timeout=20000)
+        pg.wait_for_timeout(900)
+        seen.append((i, pg.evaluate(HIDDEN_NAMES)))
+    pg.context.close()
+    assert not errs, errs
+    assert any(q["named"] for _, q in seen), seen                            # (names were read: the check is not empty)
+    assert all(not q["hidden"] for _, q in seen), seen
+
+
 def test_the_3d_scene_is_small_and_on_system_pages_only():
     import gzip
     from alto.build import blocks
