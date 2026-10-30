@@ -11,7 +11,8 @@ direction chevrons, a dotted arc handing one unit to the next; a place opens int
 Tour steps the route (◀ ▶, the arrow keys). Classic and Retro (retro.FORMAT_CSS styles #wpal-root); no first-person view. Text is only ever
 written with textContent.
 
-SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId) (enlarges it), hop(±1), tour(i), tourMode(on?) (the Tour switch; no argument reads it), unit(a), world(), view() -> {cx, cy, k}, on(event, fn)
+SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId) (enlarges it), hop(±1), tour(i), tourMode(on?) (the Tour switch; no argument reads it), unit(a), world(), view() -> {cx, cy, k}, plane() (a paper plane
+is flying a Tour leg), on(event, fn)
 ('ready' when the map is drawn, 'select', 'land' when a flight ends).
 """
 from __future__ import annotations
@@ -81,6 +82,16 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
   display:block !important;animation:none !important;zoom:1.18;}
 #wpal-root .wp-enl > .node > .node-card{position:relative !important;left:auto !important;top:auto !important;transform:none !important;scale:none !important;margin:0 !important;
   animation:none !important;opacity:1 !important;}
+/* the paper plane on a Tour leg (Luke 2026-10-29: "i like the paper plane instead of airliner"; Art's sheet): a flat Alto glyph, one stroke
+   weight, round caps and joins, ink in Classic and gold in Retro, a thin dotted contrail; the camera holds origin and destination in view */
+#wpal-root .wp-plane path{fill:var(--w-card);stroke:var(--w-text);stroke-width:1.5px;stroke-linecap:round;stroke-linejoin:round;}
+#wpal-root .wp-plane path.f{fill:none;}
+#wpal-root .wp-trail{fill:none;stroke:var(--w-text);stroke-width:1.6px;stroke-linecap:round;stroke-dasharray:.1 6;opacity:.55;transition:opacity .4s;}
+#wpal-root .wp-trail.wp-gone{opacity:0;}
+#wpal-root .wp-pulse{fill:none;stroke:var(--u);stroke-width:2px;animation:wp-pulse .45s cubic-bezier(.2,.7,.2,1) forwards;}
+@keyframes wp-pulse{from{r:6px;opacity:.9;}to{r:26px;opacity:0;}}
+html.alto-retro #wpal-root .wp-plane path:not(#_){fill:#0b0d12;stroke:#d9ae55;}html.alto-retro #wpal-root .wp-plane path.f:not(#_){fill:none;}
+html.alto-retro #wpal-root .wp-trail:not(#_){stroke:#d9ae55;}
 @media (prefers-reduced-motion: reduce){#wpal-root :is(.wp-enl,.wp-card){transition:opacity .15s linear;}#wpal-root :is(.wp-enl,.wp-card).wp-grow{scale:1;transition:none;}
   #wpal-root .wp-ghost{transition:opacity .15s linear;}#wpal-root .wp-ghost.wp-fold{scale:1;}}
 #wpal-root .wp-rel{fill:none;stroke:var(--u);stroke-width:1.8px;stroke-dasharray:5 5;stroke-linecap:round;opacity:.85;}
@@ -446,13 +457,45 @@ A.select=function(id,opts){
   var pl=placed(id)?id:placeOf(id); if(!pl) return; opts=opts||{};
   S.cur=id; S.ua=null; rels(id);
   if(S.cl&&S.cl.id===pl&&!S.anim){ swapEnl(id); tourBar(); place(); emit('select',id); return; }      // a card of the cluster that is open
+  var from=S.sel&&placed(S.sel)?S.sel:null; planeStop();
   S.sel=pl; var n=N(pl); closeCluster(true);
   focus(n.a,n.c,pl); tourBar();
   var v=placeView(pl);
   var land=function(){ if(S.sel===pl&&S.cur===id&&!(S.cl&&S.cl.id===pl)) openCluster(pl,null,id); };
+  if(opts.leg&&S.tour&&from&&from!==pl&&!opts.instant&&!reduced()&&planeHop(from,pl,v,land)){ emit('select',id); return; }
   if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=v.k; apply(); settle(); land(); } else fly(v.cx,v.cy,v.k,land,land);
   emit('select',id);
 };
+// ── the paper plane (a Tour leg; Art's sheet, notes atlas-build (b)) ──
+// 0-0.3 s the card it leaves folds into its pin and the plane winds up there; then it flies the route's arc (nose on the arc's screen
+// tangent, a little lift mid-route, a dotted contrail) while the camera holds origin and destination together; a landing pulse, then the
+// camera settles on the place and the card grows out of its marker. A hop under ~120 px keeps the plain hand-off; a click, Esc, Enter or
+// the next hop goes straight to the landing.
+function planeHop(from,to,v,land){
+  var a=N(from), b=N(to), sa=scr(a.x,a.y), sb=scr(b.x,b.y); if(Math.hypot(sb[0]-sa[0],sb[1]-sa[1])<120) return false;
+  var sq=seq(), back=sq.indexOf(to)<sq.indexOf(from), Q=quad([a.x,a.y],[b.x,b.y],back?-.22:.22), bb=[Math.min(a.x,b.x,Q.c[0]),Math.min(a.y,b.y,Q.c[1]),Math.max(a.x,b.x,Q.c[0]),Math.max(a.y,b.y,Q.c[1])];
+  var f=fitBox(bb,phone()?36:110), kf=Math.min(f.k,v.k), I=inset();
+  var fits=[sa,sb].every(function(q){ return q[0]>I.l+30&&q[0]<S.vw-I.r-30&&q[1]>I.t+30&&q[1]<S.vh-I.b-30; });
+  if(!fits) fly(f.cx,f.cy,kf);                                                 // the frame: both ends in view (the camera does not follow)
+  var g=el('g',{'class':'wp-plane'},S.ovPlane), tr=el('path',{'class':'wp-trail'},S.ovPlane);
+  el('path',{d:'M11 0 L-9 -8 L-4 0 L-9 8 Z'},g); el('path',{'class':'f',d:'M-4 0 L11 0'},g);
+  var L=Math.hypot(sb[0]-sa[0],sb[1]-sa[1]), dur=clamp(900+420*Math.log2(1+L/300),1000,1800), W=300;
+  var P=S.plane={g:g,tr:tr,a:[a.x,a.y],c:Q.c,b:[b.x,b.y],t0:performance.now(),dur:dur,W:W,to:to,v:v,land:land,raf:0};
+  var at=function(t){ var u=1-t; return [u*u*P.a[0]+2*u*t*P.c[0]+t*t*P.b[0],u*u*P.a[1]+2*u*t*P.c[1]+t*t*P.b[1]]; };
+  (function step(now){ if(S.plane!==P) return; var e=now-P.t0-W, t=clamp(e/dur,0,1), m=e<0?0:mj(t);
+    var p=scr.apply(null,at(m)), q=scr.apply(null,at(Math.min(1,m+.01))), r=e<0?0:Math.atan2(q[1]-p[1],q[0]-p[0]);
+    if(e<0){ var p1=scr.apply(null,at(.02)); r=Math.atan2(p1[1]-p[1],p1[0]-p[0]); }
+    var sc=(e<0?.6+.4*mj(clamp((now-P.t0)/W,0,1)):1)*(1+.15*Math.sin(Math.PI*t));                 // (wind-up at the pin; lift mid-route)
+    g.setAttribute('transform','translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate('+(r*180/Math.PI).toFixed(1)+') scale('+sc.toFixed(3)+')');
+    var d=''; for(var i=0;i<=24;i++){ var w=scr.apply(null,at(m*i/24)); d+=(i?'L':'M')+w[0].toFixed(1)+' '+w[1].toFixed(1); } tr.setAttribute('d',d);
+    if(t<1) P.raf=requestAnimationFrame(step); else planeLand(P); })(P.t0);
+  return true; }
+function planeLand(P){ if(S.plane!==P) return; S.plane=null; P.g.remove(); var tr=P.tr; tr.classList.add('wp-gone'); setTimeout(function(){ tr.remove(); },450);
+  var pin=S.pins[P.to]; if(pin){ var c=el('circle',{'class':'wp-pulse '+ucls(N(P.to).a),cx:pin.x.toFixed(1),cy:pin.y.toFixed(1),r:6},S.ovPlane); setTimeout(function(){ c.remove(); },500); }
+  fly(P.v.cx,P.v.cy,P.v.k,P.land,P.land); }
+function planeSkip(){ var P=S.plane; if(!P) return; planeStop(); stop(); S.cx=P.v.cx; S.cy=P.v.cy; S.k=P.v.k; apply(); settleSoon(); P.land(); emit('land',S.sel); }
+function planeStop(){ var P=S.plane; if(!P) return; S.plane=null; cancelAnimationFrame(P.raf); P.g.remove(); P.tr.remove(); }
+A.plane=function(){ return !!S.plane; };
 function rels(id){ S.rel=[]; if(typeof CONNECTIONS==='undefined') return; var seen={}, n=N(id);
   try{ CONNECTIONS.forEach(function(c){ var o=c[0]===id?c[1]:c[1]===id?c[0]:null, m=o&&N(o); if(!m||n.par===o||m.par===id) return;
     var p=placeOf(o); if(p&&!seen[p]){ seen[p]=1; S.rel.push(p); } }); }catch(x){} }
@@ -563,10 +606,10 @@ function cluster(){
 }
 
 // ── tour, hops, units, the whole world ──
-A.tour=function(i){ var s=live(); if(!s.length) return; A.select(s[((i%s.length)+s.length)%s.length]); };
+A.tour=function(i){ var s=live(); if(!s.length) return; A.select(s[((i%s.length)+s.length)%s.length],{leg:1}); };
 // the arrow keys and ◀ ▶: the next card on the route that the reader's filters show
 A.hop=function(d){ var all=seq(), n=all.length; if(!n) return; var i=all.indexOf(S.cur); if(i<0) i=d>0?-1:n;
-  for(var k=1;k<=n;k++){ var j=((i+d*k)%n+n)%n; if(!S.out[all[j]]) return A.select(all[j]); } };
+  for(var k=1;k<=n;k++){ var j=((i+d*k)%n+n)%n; if(!S.out[all[j]]) return A.select(all[j],{leg:S.tour}); } };
 A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1e9,-1e9];
   (u.st||[]).filter(placed).forEach(function(id){ var n=N(id), b=S.bb[n.c]||[n.x,n.y,n.x,n.y]; bb=[Math.min(bb[0],n.x,b[0]),Math.min(bb[1],n.y,b[1]),Math.max(bb[2],n.x,b[2]),Math.max(bb[3],n.y,b[3])]; });
   if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(true); S.ua=a; S.sel=u.hub||null; S.cur=u.hub||null; if(u.hub) rels(u.hub); else S.rel=[]; focus(a,null,null); tourBar();
@@ -720,7 +763,8 @@ function bindInput(){
   // a drag pans from anywhere on the map, a pin or a name too (not from a card or a panel); it takes the pointer once it is a drag, so a
   // tap on a pin is still the pin's
   var mine=function(t){ return t===svg||!(t.closest&&t.closest('.wp-bar,.wp-list,.wp-enl,.wp-card,.wk,.key-pop')); };
-  root.addEventListener('pointerdown',function(e){ if(!mine(e.target)||e.button>0) return; stop(); var q=cp(e.clientX,e.clientY); S.ptr[e.pointerId]={x:q[0],y:q[1]};
+  root.addEventListener('pointerdown',function(e){ if(S.plane&&e.button===0&&!(e.target.closest&&e.target.closest('.wp-bar,.wp-list'))){ planeSkip(); return; }
+    if(!mine(e.target)||e.button>0) return; stop(); var q=cp(e.clientX,e.clientY); S.ptr[e.pointerId]={x:q[0],y:q[1]};
     if(e.target===svg) try{ svg.setPointerCapture(e.pointerId); }catch(x){}
     S.dragged=false; S.down={x:e.clientX,y:e.clientY}; last=mid(); root.classList.add('wp-drag'); });
   root.addEventListener('pointermove',function(e){ if(!S.ptr[e.pointerId]) return; var q=cp(e.clientX,e.clientY); S.ptr[e.pointerId]={x:q[0],y:q[1]};
@@ -741,6 +785,7 @@ function bindInput(){
     else if(e.key==='ArrowRight'){ e.preventDefault(); A.hop(1); }
     else if(e.key==='ArrowLeft'){ e.preventDefault(); A.hop(-1); }
     else if((e.key==='t'||e.key==='T')&&!e.metaKey&&!e.ctrlKey&&!e.altKey){ A.tourMode(!S.tour); }
+    else if((e.key==='Escape'||e.key==='Enter')&&S.plane){ e.preventDefault(); planeSkip(); }
     else if(e.key==='Escape'){ if(S.cl||S.cur) unfocus(); else if(S.sel!=null) A.world(); }      // Esc shrinks the card; again, the whole world
     else if(e.key==='+'||e.key==='='){ zoomAt(1.5,S.vw/2,S.vh/2); } else if(e.key==='-'){ zoomAt(1/1.5,S.vw/2,S.vh/2); } });
   window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); });
@@ -808,7 +853,7 @@ A.mount=function(data){
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
   S.ov=el('svg',{'class':'wp-ov'},root); S.ovRel=el('g',null,S.ov);
-  S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
+  S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov); S.ovPlane=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail(); watchPage();

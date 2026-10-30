@@ -107,7 +107,7 @@ def test_the_arrows_hop_card_by_card_past_a_filtered_card(browser, origin):
         page.evaluate("AltoWorld.select('erie')")
         _settle(page)
         page.keyboard.press("ArrowRight")
-        _settle(page)
+        _settle(page, 2800)                                                     # (a Tour leg may fly the paper plane: ~2.4 s)
         assert page.evaluate(ENL) == "erie1"                                    # Arequipa, the card under Erie
         page.evaluate("document.querySelector('#world #node-hanna .node-card').classList.add('dimmed')")      # a filter hides Hanna
         _settle(page, 300)
@@ -115,7 +115,7 @@ def test_the_arrows_hop_card_by_card_past_a_filtered_card(browser, origin):
         page.evaluate("AltoWorld.select('erie1')")
         _settle(page)
         page.keyboard.press("ArrowRight")
-        _settle(page)
+        _settle(page, 2800)
         assert page.evaluate(ENL) == "byrd"
         assert not errors
     finally:
