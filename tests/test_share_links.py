@@ -281,7 +281,7 @@ def test_a_shared_title_is_not_parsed_as_markup():
     homepage that somebody else controls."""
     block = _home()[_home().index("function drawShared("):]
     block = block[:block.index("\n}\n")]
-    assert ".tile-title').textContent = it.heading || it.title" in block
+    assert ".tile-title').textContent = String(it.heading || it.title" in block     # textContent, via String(...).replace(...) for hyphen breaks
 
 
 def test_a_kept_share_can_be_removed():
