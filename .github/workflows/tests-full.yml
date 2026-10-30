@@ -70,6 +70,7 @@ jobs:
                   print(f)
           PY
           echo "files in this shard: $(wc -l < shard-files.txt)"
+          [ -s shard-files.txt ] || { echo "empty shard"; exit 1; }
       - name: Run the tests
         run: |
           set -o pipefail
@@ -129,6 +130,7 @@ jobs:
                   print(f)
           PY
           echo "files in this shard: $(wc -l < shard-files.txt)"
+          [ -s shard-files.txt ] || { echo "empty shard"; exit 1; }
       - name: Run the tests
         run: |
           set -o pipefail
