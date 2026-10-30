@@ -93,3 +93,11 @@ def test_client_code_touches_only_known_top_level_collections():
     found = _client_top_level()
     assert "users" in found and "shares" in found
     assert found <= ALLOWED_TOP, found - ALLOWED_TOP
+
+
+def test_connect_page_says_who_gets_access():
+    """It hands this computer the account's sign-in: the page must say so."""
+    from alto.build.connect_page import connect_page
+    html = connect_page()
+    assert "is asking for full access" in html and "(port ' + port + ')" in html
+    assert "Continue only if you just asked Claude" in html

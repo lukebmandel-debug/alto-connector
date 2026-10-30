@@ -75,8 +75,9 @@ _JS = r"""
     }
     var who = c.user && (c.user.email || c.user.displayName);
     show('<h1>Connect Alto</h1>' +
-         '<p>Alto on your computer is asking to use your account, so Claude can ' +
-         'open and edit your projects there. Your timelines stay in your account.</p>' +
+         '<p>Alto on this computer (port ' + port + ') is asking for full access ' +
+         'to your account, so Claude can open and edit your projects there. ' +
+         'Continue only if you just asked Claude to sign Alto in.</p>' +
          '<button id="go"></button><p class="muted" id="st"></p>');
     var btn = document.getElementById('go'), st = document.getElementById('st');
     btn.textContent = who ? 'Connect as ' + who : 'Continue with Google';

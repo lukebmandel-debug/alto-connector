@@ -1363,6 +1363,61 @@
   // onAuthStateChanged reports a completed redirect on its own.
   getRedirectResult(auth).catch(() => {});
 
+  /* ── whose local data this is ───────────────────────────────────────────
+     Highlights, notes, reports and the rest are kept in this browser first
+     and merged into the signed-in account. On a computer more than one
+     person uses, that merge must only ever take an account's own data: the
+     uid the data belongs to is recorded beside it, data recorded for another
+     account is removed rather than merged, and data with no recorded owner
+     (made signed out, or before this record existed) is merged only if the
+     person signing in says it is theirs. ─────────────────────────────────── */
+  const OWNER_KEY = 'alto-local-owner-v1';
+  const UNCLAIMED_KEY = 'alto-local-unclaimed-v1';
+  const _perAccount = k => /^alto-(hl|rp|doc)-|^alto-cloud-meta-v3|^alto-share-v1:/.test(k)
+    || k === SORT_KEY || k === HBG_KEY;
+  function _localKeys() {
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && _perAccount(k)) out.push(k);
+      }
+    } catch (e) {}
+    return out;
+  }
+  function _clearLocal() {
+    for (const k of _localKeys()) { try { localStorage.removeItem(k); } catch (e) {} }
+  }
+  function _adoptLocal(user) {
+    let owner = null;
+    try { owner = origGet(OWNER_KEY); } catch (e) {}
+    if (owner === user.uid) return;
+    const data = _localKeys().filter(k => !/^alto-cloud-meta-v3/.test(k));
+    if (owner) {
+      _clearLocal();                                  // another account's
+    } else if (data.length) {
+      let mine = false;
+      try {
+        mine = window.confirm('This browser has highlights or notes that were saved while ' +
+          'nobody was signed in. Add them to ' + (user.email || 'this account') + '?\n\n' +
+          'Choose Cancel if they are not yours: they will be set aside and not added.');
+      } catch (e) {}
+      if (!mine) {
+        const keep = {};
+        for (const k of data) { try { keep[k] = localStorage.getItem(k); } catch (e) {} }
+        try { origSet(UNCLAIMED_KEY, JSON.stringify(keep)); } catch (e) {}
+        _clearLocal();
+      } else {
+        // Sync bookkeeping from before the record existed is not evidence of
+        // whose the data is; let this account's first sync start clean.
+        for (const k of _localKeys()) if (/^alto-cloud-meta-v3/.test(k)) { try { localStorage.removeItem(k); } catch (e) {} }
+      }
+    }
+    try { origSet(OWNER_KEY, user.uid); } catch (e) {}
+    meta = loadMeta();
+  }
+  let _lastUid = null;
+
   let unsubUser = null, unsubMain = null, unsubRp = null;
 
   // Listeners on this timeline's cloud record; called at sign-in, and again by
@@ -1470,6 +1525,8 @@
   }
 
   onAuthStateChanged(auth, (user) => {
+    // Before anything can sync: this browser's data must be this account's.
+    if (user) _adoptLocal(user);
     cloud.user = user || null;
     // Pages draw from what this browser remembers until this is set; after it,
     // cloud.user is the truth, including a null that means signed out.
@@ -1496,6 +1553,10 @@
       subscribeTl(user);
       _migrateShares(user.uid).catch(e => console.warn('[AltoCloud] shares', e));
     } else {
+      // Signing out leaves nothing of the account behind for whoever signs
+      // in next, and reloads so no open page still holds it in memory.
+      const was = _lastUid;
+      if (was) { _clearLocal(); try { localStorage.removeItem(OWNER_KEY); } catch (e) {} }
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
       // Cached listings and pages belong to the account that just left.
       try { localStorage.removeItem('alto-pages-cache-v1'); } catch (e) {}
@@ -1503,7 +1564,9 @@
       // and so do the backgrounds it imported (their copies in this browser)
       try { localStorage.removeItem('alto-bg-lib-v1'); indexedDB.deleteDatabase('alto-bg-lib'); } catch (e) {}
       if (typeof window.renderAccount === 'function') { try { window.renderAccount(); } catch (e) {} }
+      if (was) { try { location.reload(); } catch (e) {} }
     }
+    _lastUid = user ? user.uid : null;
   });
 
   _resolveReady();
