@@ -463,9 +463,11 @@ _FIT_SLAB_NEW = (
     "html.vw-unzoomed:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / var(--alto-zoom, 0.8))) !important; }\n"
     "html.is-blink:not(.mobile) #summary-wrap.open,\n"
     "html.vw-unzoomed:not(.mobile) #summary-wrap.open{\n"
-    "  max-height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
-    "  height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
+    "  max-height:calc(100vh / var(--alto-zoom, 0.8) - var(--nav-bottom, 104px)) !important;\n"
+    "  height:calc(100vh / var(--alto-zoom, 0.8) - var(--nav-bottom, 104px)) !important;\n"
     "}")
+# (the Overview opens at the nav's foot, --nav-bottom, not at 104px: less a fixed 104px it stopped short of the
+#  window's foot and the cards showed under it, Luke 2026-10-30)
 
 # ── Safari 26+ renders the timeline at 80% of the window ────────────────────
 # Safari 26 adopted standardized CSS zoom, the model Chrome moved to earlier:
