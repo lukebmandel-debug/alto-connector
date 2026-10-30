@@ -1958,7 +1958,8 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
                              parks=parks, areas=areas, portals=portals, transit=transit,
                              tiled=tiled, preset=pid if (pre or auto_info) else None,
-                             far_bank=far_bank, layout=layout, river_names=river_names, fill=True)
+                             far_bank=far_bank, layout=layout, river_names=river_names,
+                             channels=pre.get("channels") if pre else None, fill=True)
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass

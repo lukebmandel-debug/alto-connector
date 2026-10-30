@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from alto.build import city_engine, city_gate, city_manhattan as cm, city_setup as cs, city_spec, palace_fillin, palace_grid  # noqa: E402
+from alto.build import city_coast, city_engine, city_gate, city_manhattan as cm, city_setup as cs, city_spec, palace_fillin, palace_grid  # noqa: E402
 
 from test_city_manhattan import city  # noqa: E402,F401 — the synthetic Manhattan (a fixture)
 
@@ -200,3 +200,41 @@ def test_labels_overlap_at_the_whole_city_zoom(chi):
          {"n": "Far Away", "x": 3000, "y": 9000, "r": 1}, {"n": "Tiny Place", "x": 3000, "y": 3000, "r": 3}]
     st, _msg, data = city_gate.g_labels(dict(g, landmarks=[]), a)
     assert st == "fail" and data["overlaps"] == [("Near North Side", "River North")]
+    st, _msg, data = city_gate.g_labels(dict(g, landmarks=[_lm("Tower A", 3000, 9200), _lm("Tower B", 3050, 9200)]), a[2:3])
+    assert st == "fail" and data["under_landmark"][0][0] == "Far Away" and data["landmark_pairs"] == [("Tower A", "Tower B")]
+
+
+# ── city_coast on synthetic data ───────────────────────────────────────────
+def _way(i, pts, **tags):
+    return {"type": "way", "id": i, "tags": tags, "geometry": [{"lat": la, "lon": lo} for la, lo in pts]}
+
+
+def test_a_shore_crossing_the_box_closes_on_the_side_without_streets():
+    bbox = (41.0, -87.10, 41.02, -87.06)
+    shore = [_way(1, [(40.99, -87.075), (41.01, -87.077)], _shore="lake"), _way(2, [(41.03, -87.072), (41.01, -87.077)], _shore="lake")]
+    W, H = 3360, 2211
+    streets = [{"n": "Inland Street", "p": [100, 100 + 100 * k, 1500, 100 + 100 * k]} for k in range(15)]
+    rings = city_coast.sea_rings({"elements": shore}, bbox, W, H, 1.0, streets)
+    assert len(rings) == 1
+    xs = rings[0][0::2]
+    assert min(xs) > 1800 and max(xs) == W                  # the lake: from the shore to the east edge, none of the city
+    rings2 = city_coast.sea_rings({"elements": [_way(3, [(40.99, -87.075), (41.03, -87.075)], natural="coastline")]}, bbox, W, H)
+    assert max(rings2[0][0::2]) == W                         # a coastline keeps its land on the left: the water east
+
+
+def test_an_island_inside_the_box_is_land():
+    bbox = (41.0, -87.10, 41.02, -87.06)
+    isl = [_way(1, [(41.005, -87.09), (41.005, -87.08), (41.015, -87.08), (41.005, -87.09)], natural="coastline")]
+    assert city_coast.sea_rings({"elements": isl}, bbox, 3360, 2211) == []
+
+
+# ── the transit stub trim ──────────────────────────────────────────────────
+def test_track_past_a_stop_that_was_not_drawn_is_cut_a_block_past_the_last_one():
+    from alto.build.palace_transit import _trim_stubs
+    out = {"stops": [{"n": "A", "x": 0, "y": 0}, {"n": "B", "x": 500, "y": 0}],
+           "lines": [{"id": "l", "p": [[0, 0, 500, 0, 2500, 0]], "s": [0, 1], "b": [[0, 1]]}]}
+    _trim_stubs(out, 200.0)
+    assert out["lines"][0]["p"][0][-2:] == [700.0, 0.0]
+    short = {"stops": out["stops"], "lines": [{"id": "l", "p": [[0, 0, 500, 0, 900, 0]], "s": [0, 1]}]}
+    _trim_stubs(short, 200.0)
+    assert short["lines"][0]["p"][0] == [0, 0, 500, 0, 900, 0]          # two blocks on: within the audit's three

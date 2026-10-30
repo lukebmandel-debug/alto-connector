@@ -442,7 +442,8 @@ def check_portals(portals) -> list:
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
            cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
            raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
-           far_bank: bool = False, fill: bool = False, city_tiles: bool = True, layout=None, river_names=None) -> dict:
+           far_bank: bool = False, fill: bool = False, city_tiles: bool = True, layout=None, river_names=None,
+           channels=None) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
@@ -455,7 +456,9 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     Charles) instead of cutting it away as the city's edge (palace_map's wide-river rule). city_tiles: the detail past the districts
     (+ about 1.5 km) goes to hosted tiles the page loads as it is zoomed in (palace_tiles.py), and the fill-in covers the whole city.
     layout: the city's LayoutSpec (city_spec: a dict, or a registered name; the NYC preset's is "manhattan" whatever is passed);
-    river_names: [[name, lat, lon]] points on the named water, each water band named by the nearest (city_water.hints_of)."""
+    river_names: [[name, lat, lon]] points on the named water, each water band named by the nearest (city_water.hints_of);
+    channels: the rivers drawn whatever their length (Chicago's three branches). A layout whose shore is "sea" gets its lake
+    or sea from the shore's own OSM ways (city_coast)."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
     from .palace_areas import check_areas, default_areas
@@ -490,6 +493,15 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
         m["layout"] = layout
     if river_names:
         m["river_names"] = [list(r) for r in river_names]
+    if channels:
+        m["channels"] = list(channels)
+    from .city_spec import resolve as _resolve
+    if getattr(_resolve(layout), "shore", "") == "sea" and preset != "nyc":
+        try:                                             # a lake or the sea at the glass edge (city_coast: Lake Michigan)
+            from . import city_coast
+            city_coast.attach(m, city_coast.fetch(tuple(bbox), cache_dir=cache_dir, offline=offline))
+        except Exception:                                # noqa: BLE001 — a busy Overpass: the city without its lake, as before
+            pass
     if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
         from .city_manhattan import LAYOUT
         from . import city_outer_lattice                 # ... and every street of the other boroughs, from the cached tiles

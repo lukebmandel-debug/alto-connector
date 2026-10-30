@@ -139,9 +139,20 @@ def park_shapes(g):
     return shape(g.get("parks") or [], gr.get("xg") or [], gr.get("yg") or [])
 
 
-def g_parks(g, named=(), must=()):
+def _real_through(m, street, park, cache={}):
+    """Does the real street (by its normalised name) run through the real park (by its drawn name)? Then a drawn line
+    through it is the real city's (Columbus Drive through Grant Park), not the lattice's: city_engine._park_streets' rule."""
+    from .city_engine import _park_streets
+    from .palace_parks import short_name
+    key = id(m)
+    if cache.get("k") != key:
+        cache.update(k=key, v={short_name(n).lower(): v for n, v in _park_streets(m).items()})
+    return street in cache["v"].get(str(park).lower(), ())
+
+
+def g_parks(g, named=(), must=(), m=None):
     """G16: every must-park drawn (fail), the preset's named parks drawn (warn); no street runs through a park's green
-    (fail); no landmark card stands in a park (warn)."""
+    (fail) unless the real street runs through the real park (m given); no landmark card stands in a park (warn)."""
     try:
         shaped = park_shapes(g)
     except Exception as e:                                  # noqa: BLE001
@@ -156,6 +167,8 @@ def g_parks(g, named=(), must=()):
     miss = [n for n in named or () if not has(n) and n not in miss_must]
     through = []
     for s in g.get("streets") or []:
+        if not (s.get("L") or s.get("d")):
+            continue                                        # (the rest of g["streets"] is the hover / walking graph, not drawn)
         pts = _pairs(s.get("p") or [])
         for pk in shaped:
             for r in pk.get("r") or []:
@@ -170,12 +183,14 @@ def g_parks(g, named=(), must=()):
                     run += sum(L / k for i in range(k) if _inside(r, x0 + (x1 - x0) * (i + .5) / k, y0 + (y1 - y0) * (i + .5) / k))
                 if run > 30:
                     through.append((s.get("n") or "", pk.get("n"), round(run)))
+    real = [t for t in through if m is not None and t[0] and _real_through(m, t[0], t[1])]
+    through = [t for t in through if t not in real]
     on = [(l.get("n"), pk.get("n")) for l in g.get("landmarks") or [] if "x" in l for pk in shaped
           for r in pk.get("r") or [] if _inside(r, l["x"], l["y"])]
     st = "fail" if miss_must or through else ("warn" if miss or on else "ok")
-    msg = "%d parks drawn; must-parks missing %d, named missing %d; %d streets through a park; %d landmarks on a park" % (
-        len(shaped), len(miss_must), len(miss), len(through), len(on))
-    return st, msg, {"missing_must": miss_must, "missing": miss[:20], "through": through[:20], "on": on[:10]}
+    msg = "%d parks drawn; must-parks missing %d, named missing %d; %d streets through a park (%d more the real street does too); " \
+          "%d landmarks on a park" % (len(shaped), len(miss_must), len(miss), len(through), len(real), len(on))
+    return st, msg, {"missing_must": miss_must, "missing": miss[:20], "through": through[:20], "real": real[:20], "on": on[:10]}
 
 
 def g_landmarks(g):
@@ -203,28 +218,27 @@ def _text_box(x, y, text, fs, z, spacing, up=0.0):
 
 
 def g_labels(g, areas=None):
-    """G18: at the whole-city zoom (the city fitted to a VIEW screen) no two of the rank-1 names and the landmark names
-    overlap (the page would hide one), and none runs off the glass. Sizes as the page's CSS sets them (lblFS)."""
+    """G18: at the whole-city zoom (the city fitted to a VIEW screen) no two rank-1 names overlap, and no landmark name
+    covers one (the page would hide the area name: palace_areas yields to landmarks); none runs off the glass. Landmark
+    names that meet each other are only reported: the page shows the higher-priority one by design. Sizes as the page's
+    CSS sets them (lblFS)."""
     W, H = float(g.get("W") or 1), float(g.get("H") or 1)
     z = min(VIEW[0] / W, VIEW[1] / H)
-    labs = []
-    for a in areas if areas is not None else g.get("areas") or []:
-        if (a.get("r") or 2) == 1:
-            labs.append(("area", a["n"], _text_box(a["x"], a["y"], a["n"].upper(), max(9.0, min(13.0, 7.5 + 5 * z)), z, .09)))
-    for l in g.get("landmarks") or []:
-        if "x" in l:
-            labs.append(("landmark", l.get("n") or "", _text_box(l["x"], (l.get("box") or [0, l["y"]])[1], l.get("n") or "",
-                                                                 11.5, z, .01)))
-    hits = []
-    for i in range(len(labs)):
-        a = labs[i][2]
-        for k, n, b in labs[i + 1:]:
-            if min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1]):
-                hits.append((labs[i][1], n))
-    off = [n for _k, n, b in labs if b[0] < 0 or b[1] < 0 or b[2] > W or b[3] > H]
-    st = "fail" if hits else ("warn" if off else "ok")
-    return st, "%d top names at the whole-city zoom (x%.3f): %d overlapping pairs, %d off the glass" % (
-        len(labs), z, len(hits), len(off)), {"overlaps": hits[:20], "off": off[:10]}
+    top = [(a["n"], _text_box(a["x"], a["y"], a["n"].upper(), max(9.0, min(13.0, 7.5 + 5 * z)), z, .09))
+           for a in (areas if areas is not None else g.get("areas") or []) if (a.get("r") or 2) == 1]
+    lms = [(l.get("n") or "", _text_box(l["x"], (l.get("box") or [0, l["y"]])[1], l.get("n") or "", 11.5, z, .01))
+           for l in g.get("landmarks") or [] if "x" in l]
+
+    def hit(a, b):
+        return min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1])
+    tt = [(top[i][0], n) for i in range(len(top)) for n, b in top[i + 1:] if hit(top[i][1], b)]
+    tl = [(n, ln) for n, a in top for ln, b in lms if hit(a, b)]
+    ll = [(lms[i][0], n) for i in range(len(lms)) for n, b in lms[i + 1:] if hit(lms[i][1], b)]
+    off = [n for n, b in top if b[0] < 0 or b[1] < 0 or b[2] > W or b[3] > H]
+    st = "fail" if tt or tl else ("warn" if off else "ok")
+    return st, "%d top names at the whole-city zoom (x%.3f): %d overlap each other, %d under a landmark name, %d off the glass" \
+        " (%d landmark-name pairs meet: the page shows one)" % (len(top), z, len(tt), len(tl), len(off), len(ll)), \
+        {"overlaps": tt[:20], "under_landmark": tl[:20], "off": off[:10], "landmark_pairs": ll[:20]}
 
 
 def g_page(page):
@@ -279,7 +293,7 @@ def gate(g, m, blocks=None, preset=None, aliases=None, page=None, tiles=None, ti
                      {n: rep["checks"][n].get("data") for n in names if rep["checks"].get(n, {}).get("data")})
     rows["G10"] = run(lambda: city_highways.report(g, m)) if g.get("hw") else ("ok", "no highways drawn", {})
     rows["G15"] = run(lambda: g_dry_land(g, blocks, preset.get("channels") or ()))
-    rows["G16"] = run(lambda: g_parks(g, preset.get("parks") or (), spec.must_parks if spec else ()))
+    rows["G16"] = run(lambda: g_parks(g, preset.get("parks") or (), spec.must_parks if spec else (), m))
     rows["G17"] = run(lambda: g_landmarks(g))
     rows["G18"] = run(lambda: g_labels(g, areas))
     if page:
@@ -401,7 +415,8 @@ def run_city(pid, cache, fetch=False, fill=False, log=print) -> dict:
         return palace.set_up(pre["place"], list(bbox), districts=dists, majors=pre["majors"], landmarks=names, cache_dir=cache,
                              raw=copy.deepcopy(raw), diagonals=pre["diagonals"], buildings=blds, parks=pre["parks"],
                              areas=pre["areas"], transit=pre.get("transit"), preset=pid, far_bank=bool(pre.get("far_bank")),
-                             layout=pre.get("layout"), river_names=pre.get("river_names"), fill=fill, offline=not fetch)
+                             layout=pre.get("layout"), river_names=pre.get("river_names"), channels=pre.get("channels"),
+                             fill=fill, offline=not fetch)
     palace_grid.grid, palace_tiles.cut = grid, cut
     try:
         t0 = time.time()
@@ -412,7 +427,10 @@ def run_city(pid, cache, fetch=False, fill=False, log=print) -> dict:
     finally:
         palace_grid.grid, palace_tiles.cut = g0, cut0
     d1, d2 = palace.unpack(pal["data_z"]), palace.unpack(pal2["data_z"])
-    same = {"same": d1 == d2, **({} if d1 == d2 else {"why": "data_z differs"})}
+    for d in (d1, d2):                                   # the engine's wall-clock timings are a stamp, not the city
+        (d["map"].get("engine") or {}).pop("t", None)
+    diff = sorted(k for k in set(d1["map"]) | set(d2["map"]) if d1["map"].get(k) != d2["map"].get(k))
+    same = {"same": d1 == d2, **({} if d1 == d2 else {"why": "map keys %s%s" % (diff, "" if d1["blocks"] == d2["blocks"] else ", blocks")})}
     page = page_bytes(pal)
     tiles = dict(stats, base_gz=page.pop("base_gz", None))
     from .palace_areas import layout as area_layout

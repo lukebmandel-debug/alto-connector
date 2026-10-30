@@ -84,13 +84,15 @@ def _cells_of(runs):
     return {(i, j) for i0, j0, i1, j1 in runs for i in range(i0, i1) for j in range(j0, j1)}
 
 
-def pick(m: dict, mp, xg, yg, names=(), blocked=(), wet=None) -> list:
+def pick(m: dict, mp, xg, yg, names=(), blocked=(), wet=None, first=()) -> list:
     """The major parks of the map m (real map px) as cells of the grid.
 
     names: parks to draw whatever their size; the rest are major when they cover
     AUTO_HA hectares or more (m px are metres). blocked: cells that belong to
-    something else (landmark buildings)."""
+    something else (landmark buildings). first: the must-parks (a layout spec's): they claim their cells before
+    any other, so a bigger park around them (Grant Park round Millennium Park) cannot swallow them."""
     want = [re.sub(r"\s+", " ", n.strip().lower()) for n in names or ()]
+    must = {re.sub(r"\s+", " ", n.strip().lower()) for n in first or ()}
     groups: dict = {}
     for pk in m.get("parks", []):
         n = (pk.get("n") or "").strip()
@@ -105,7 +107,7 @@ def pick(m: dict, mp, xg, yg, names=(), blocked=(), wet=None) -> list:
             area += abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(q, q[1:] + q[:1]))) / 2
         named = n.lower() in want or short_name(n).lower() in want
         if named or (area >= AUTO_HA * 1e4 and not _SKIP.search(n)):
-            cand.append((0 if named else 1, -area, n, rings, named))
+            cand.append((-1 if n.lower() in must else (0 if named else 1), -area, n, rings, named))
     cand.sort(key=lambda c: c[:3])                   # the asked-for ones claim their blocks first
     taken = set(blocked)
     out = []
