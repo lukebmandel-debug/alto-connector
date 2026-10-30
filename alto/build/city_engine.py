@@ -774,7 +774,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                 else:
                     pc["pts"] = best
     av_recs = [r for r in recs if any(pc["kind"] == "diagonal" and pc["dom"] in by_id for pc in r["pieces"])]
-    _real_order(av_recs, m, lats, names_by)
+    _real_order(av_recs, m, lats, names_by, lines)
     try:
         avs = city_avenues.draw(av_recs, list(tdoms.values()), nodes, sl)
     except Exception as ex:                                       # noqa: BLE001  (an avenue never fails a build)
@@ -1466,10 +1466,16 @@ def _park_streets(m):
     return out
 
 
-def _real_order(recs, m, lats, names_by):
+def _real_order(recs, m, lats, names_by, lines=None):
     """Each forced diagonal piece's real crossings, for city_avenues._order_split: pc["rx"] = {(fam, local lattice coord):
     arc length (real px) along the piece where the real avenue crosses the real street that names that lattice line} (the
     order city_report.c_order checks, which the lattice lines' averaged positions can reverse for crossings ~50 m apart)."""
+    alt = {}                      # a line two quadrant names share is named per span later (_span_names): try every name
+    for L in (lines or {}).values():
+        for fam in ("v", "h"):
+            for l in L[fam]:
+                if l.get("alt") and l.get("n"):
+                    alt.setdefault(norm(l["n"]), set()).update(norm(a) for a in l["alt"])
     real_by = {}
     for st in m.get("streets", []):
         if st.get("n") and not st.get("t"):
@@ -1491,23 +1497,30 @@ def _real_order(recs, m, lats, names_by):
                     if not n or k >= len(grid):
                         continue
                     best = None
-                    for Q, qb in real_by.get(norm(n), ()):
+                    for Q, qb in [x for nn in {norm(n)} | alt.get(norm(n), set()) for x in real_by.get(nn, ())]:
                         if qb[2] < bb[0] or qb[0] > bb[2] or qb[3] < bb[1] or qb[1] > bb[3]:
                             continue
                         acc = 0.0
                         for a, b in zip(P, P[1:]):
+                            L = math.dist(a, b)
                             for c, d in zip(Q, Q[1:]):
                                 h = city_avenues._xpt(a, b, c, d)
                                 if h is not None:
                                     t = acc + math.dist(a, h)
                                     best = t if best is None else min(best, t)
-                            acc += math.dist(a, b)
+                            for e in (Q[0], Q[-1]):        # a street that ends on the avenue (O Street at Vermont Avenue)
+                                if L > 1e-9 and _segd(e, a, b) <= T_JOIN:
+                                    u = max(0.0, min(1.0, ((e[0] - a[0]) * (b[0] - a[0]) + (e[1] - a[1]) * (b[1] - a[1])) / (L * L)))
+                                    t = acc + u * L
+                                    best = t if best is None else min(best, t)
+                            acc += L
                     if best is not None:
                         want[(fam, round(grid[k], 1))] = best
             if len(want) >= 2:
                 pc["rx"] = want
 
 
+T_JOIN = 3.0            # real px: a street ending this near an avenue's resampled course meets it
 PARK_INSET = 3.0        # page px: a line this close to a park's edge runs along it (its framing street), not through it
 
 
