@@ -25,6 +25,7 @@ import math
 import re
 
 from .city_lattice import Lattice, emit, inside as ring_inside, centroid, seg_in_poly, clip_convex, flat, landmark
+from .city_spec import LayoutSpec, Child
 from .city_types import Domain
 from .palace_grid import Mapping, norm, _pairs
 
@@ -68,6 +69,19 @@ FAR = [("New Jersey", "w", .45), ("Brooklyn", "e", .88), ("Queens", "e", .42)]  
 BRIDGES = ("Brooklyn Bridge", "Manhattan Bridge", "Williamsburg Bridge", "Ed Koch Queensboro Bridge")
 # parks every New Yorker knows that are under palace_parks.AUTO_HA (Luke, 2026-10-22: "I feel like Battery Park is missing")
 PARKS = ("Battery Park",)
+_HINGES = ("6th Avenue", "Avenue of the Americas", "West 14th Street", "14th Street", "West Houston Street",
+           "East Houston Street", "Houston Street")
+
+# the same, as data (city_spec.LayoutSpec): the NYC preset's layout, the first spec; build() reads every value below
+# from the spec it is given, so another city of fixed avenues x numbered streets is a new spec, not new code
+NYC = LayoutSpec(
+    name=LAYOUT, builder="axes", root_axes=tuple((a, tuple(ns), tuple(tuple(r) for r in ren)) for a, ns, ren in AVENUES),
+    hinge_axis=AVENUES[SIXTH][0], base_row=0, row_alias=tuple(sorted(ROW_ALIAS.items())),
+    major_rows=tuple(sorted(MAJOR_ROWS)),
+    children=(Child(region=("west_of", AVENUES[SIXTH][0], 14, 0), hinges=_HINGES, cap=(14, 14)),       # the Village
+              Child(region=("south_of", 0), hinges=_HINGES, cap=(26, 30), tip_rows=True)),             # Lower Manhattan
+    shore="raster", shore_cell_m=CELL, must_parks=PARKS, fill_budget=150_000,
+    river_names=(), far=tuple(FAR), bridges=BRIDGES)
 
 
 def applies(m) -> bool:
@@ -386,10 +400,11 @@ class _DomMap:
         return self.page(*self.loc(x, y))
 
 
-def _numbered(n):
+def _numbered(n, alias=None):
     k = (n or "").strip().lower()
-    if k in ROW_ALIAS:
-        return ROW_ALIAS[k]
+    alias = ROW_ALIAS if alias is None else alias
+    if k in alias:
+        return alias[k]
     mm = _NUM.match(k)
     return int(mm.group(1)) if mm else None
 
@@ -402,13 +417,19 @@ def _row_name(num):
 
 
 # ── build ───────────────────────────────────────────────────────────────────
-def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> dict:
-    parks = tuple(parks or ()) + tuple(p for p in PARKS if p not in (parks or ()))
+def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(), spec=None) -> dict:
+    spec = spec or NYC                                             # the layout as data (city_spec.LayoutSpec)
+    axes, alias = spec.root_axes, spec.alias()
+    kids = {c.region[0]: c for c in spec.children}
+    vil_c, low_c = kids.get("west_of"), kids.get("south_of")
+    base = spec.base_row
+    vtop = vil_c.region[2] if vil_c else None                      # the Village's north row (14th St)
+    parks = tuple(parks or ()) + tuple(p for p in spec.must_parks if p not in (parks or ()))
     segs = [(x0, y0, x1, y1, s.get("n") or "") for s in m.get("streets", []) for x0, y0, x1, y1 in _segs(s["p"])]
     land = Land(m)
     # the island: the land component the avenues stand on
     votes = {}
-    av_names = {n for _l, ns, _r in AVENUES for n in ns}
+    av_names = {n for _l, ns, _r in axes for n in ns}
     for x0, y0, x1, y1, n in segs:
         if n in av_names:
             c = land.cid((x0 + x1) / 2, (y0 + y1) / 2)
@@ -429,7 +450,7 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
     tr = _Turn(th, cx, cy)
     # columns: each avenue's length-weighted median turned x (its near-vertical pieces only)
     cols = []
-    for label, names, ren in AVENUES:
+    for label, names, ren in axes:
         pos = []
         for x0, y0, x1, y1, n in av_segs:
             if n in names:
@@ -441,18 +462,18 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
             cols.append((_wmedian(pos), label, ren))
     cols.sort()
     xr = [c[0] for c in cols]
-    six = next((k for k, c in enumerate(cols) if c[1] == "6th Avenue"), None)
+    six = next((k for k, c in enumerate(cols) if c[1] == spec.hinge_axis), None)
     # rows: every numbered street (east of 6th Ave below 14th St: the Village's own streets carry numbers too)
     rows = {}
     for x0, y0, x1, y1, n in msegs:
-        num = _numbered(n)
+        num = _numbered(n, alias)
         if num is None:
             continue
         a, b = tr(x0, y0), tr(x1, y1)
         L = math.hypot(b[0] - a[0], b[1] - a[1])
         if L < 5 or abs(b[1] - a[1]) > .3 * L:
             continue
-        if num < 14 and num != 0 and six is not None and (a[0] + b[0]) / 2 < xr[six]:
+        if vil_c and num < vtop and num != base and six is not None and (a[0] + b[0]) / 2 < xr[six]:
             continue
         rows.setdefault(num, []).append(((a[1] + b[1]) / 2, L, min(a[0], b[0]), max(a[0], b[0])))
     # the box's north edge crosses the grid on a slant (the avenues lean 29 degrees): the grid stops at the last street
@@ -477,9 +498,9 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
         if len(run) > len(best):
             best = run
     rws = best
-    if 0 not in [n for _y, n in rws]:
-        raise ValueError("manhattan: no Houston Street")
-    rws = [t for t in rws if t[1] >= 0]
+    if base not in [n for _y, n in rws]:
+        raise ValueError("%s: no base row %d" % (spec.name, base))
+    rws = [t for t in rws if t[1] >= base]
     yr = [t[0] for t in rws]
     row_num = [t[1] for t in rws]
     xg = [i * CWM for i in range(len(xr))]
@@ -509,8 +530,8 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
     yH = oy + yg[-1]                                                # Houston St on the page
     ytop = oy
     x6 = ox + xg[six]
-    j14 = row_num.index(14) if 14 in row_num else None
-    y14 = oy + yg[j14] if j14 is not None else yH - 14 * CHM
+    j14 = row_num.index(vtop) if vtop in row_num else None
+    y14 = oy + yg[j14] if j14 is not None else yH - (vtop or 0) * CHM
 
     # 2. the shore: the island's west and east edge every 20 m along the turned frame, piers off, smoothed, on the page
     pts = land.cells(isl)
@@ -527,7 +548,7 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
     # never lies more than SHORE_M beyond where Manhattan's own streets (avenues, numbered streets, downtown's) end
     slo, shi = [None] * nb, [None] * nb
     for x0, y0, x1, y1, n in msegs:
-        if not (n in av_names or _numbered(n) is not None or tr(x0, y0)[1] > yr[-1]):
+        if not (n in av_names or _numbered(n, alias) is not None or tr(x0, y0)[1] > yr[-1]):
             continue
         for x, y in ((x0, y0), (x1, y1)):
             u, v = tr(x, y)
@@ -574,28 +595,28 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
         return [tr.back(u0, v0), tr.back(u1, v0), tr.back(u1, v1), tr.back(u0, v1)]
     U0, U1 = min(p[0] for p in tp) - 2000, max(p[0] for p in tp) + 2000
     V0, V1 = vmin - 2000, vmax + 2000
-    yrH, yr14 = yr[-1], (yr[j14] if j14 is not None else yr[-1] - 14 * 80)
+    yrH, yr14 = yr[-1], (yr[j14] if j14 is not None else yr[-1] - (vtop or 0) * 80)
     # the real polygons the domains own (no overlap: a point belongs to exactly one)
     polys = {0: [tr.back(U0, V0), tr.back(U1, V0), tr.back(U1, yrH), tr.back(xr[six], yrH), tr.back(xr[six], yr14),
                  tr.back(U0, yr14)],
              1: real_rect(U0, yr14, xr[six], yrH), 2: real_rect(U0, yrH, U1, V1)}
-    skip_v = {norm(n) for n in ("6th Avenue", "Avenue of the Americas", "West 14th Street", "14th Street",
-                                "West Houston Street", "East Houston Street", "Houston Street")}
+    skip_v = {norm(n) for n in spec.hinge_names()}
     child = {}
-    for did, rng, cap in ((1, vil_ring, (14, 14)), (2, low_ring, (26, 30))):
-        if len(rng) < 3:
+    for did, rng, kid in ((1, vil_ring, vil_c), (2, low_ring, low_c)):
+        if kid is None or len(rng) < 3:
             continue
+        cap = kid.cap
         rp = polys[did]
         dsegs = [s for s in msegs if ring_inside(rp, (s[0] + s[2]) / 2, (s[1] + s[3]) / 2)]
         rel = _angle_mode(dsegs, th)
-        rel = max(-30.0, min(30.0, rel))
+        rel = max(-kid.clamp, min(kid.clamp, rel)) if kid.angle is None else kid.angle
         thd = th + math.radians(rel)
         trd = _Turn(thd, cx, cy)
         L = _pick(dsegs, trd, cap_v=cap[0], cap_h=cap[1], skip=skip_v)
         lv, lh = L.get("v", []), L.get("h", [])
         if len(lv) < 3 or len(lh) < 3:
             continue
-        if did == 2:
+        if kid.tip_rows:
             # the Battery: no street crosses it, so the even spread would squeeze its 400 m south of the last street
             # into the half-block margin; unnamed rows at downtown's own street spacing carry the grid on to the tip
             tipv = max((trd(x, y)[1] for x, y in pts if ring_inside(rp, x, y)), default=lh[-1][0])
@@ -625,7 +646,7 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
     if lo_s:                                                        # the grid's top edge: Manhattan goes on north of it
         shore_real += [tr.back(lo_s[0] + (hi_s[0] - lo_s[0]) * t / 12, yr[0]) for t in range(13)]
     root_names = {"v": [c[1] for c in cols], "h": [_row_name(n) for n in row_num]}
-    maj = {norm(n) for n in majors or ()} | {norm(c[1]) for c in cols} | {norm(_row_name(n)) for n in row_num if n in MAJOR_ROWS}
+    maj = {norm(n) for n in majors or ()} | {norm(c[1]) for c in cols} | {norm(_row_name(n)) for n in row_num if n in spec.major_rows}
     lat_root = _Lat(dom_root, xg, yg, root_ring, notches=[notch])
     doms, lats, maps = [dom_root], {0: lat_root}, {0: root_m}
     for did, c in child.items():
@@ -650,7 +671,8 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
         outs[d.id] = emit(lat, names={k: [norm(n) for n in v] for k, v in names.items()}, majors=dm, root=(d.id == 0),
                           seams=seams[d.id], lots=True)
     return _finish(m, doms, lats, maps, outs, cols, row_num, rootmap, ring, west, east, ytop, yH, land, isl, tr,
-                   majors, diagonals, park_cells, landmarks_out, lm_cells, outer=outer, shore_real=shore_real, org=(ox, oy))
+                   majors, diagonals, park_cells, landmarks_out, lm_cells, outer=outer, shore_real=shore_real, org=(ox, oy),
+                   spec=spec)
 
 
 def _split_y(p, yc):
@@ -676,7 +698,7 @@ def _split_y(p, yc):
 
 
 def _finish(m, doms, lats, maps, outs, cols, row_num, rootmap, ring, west, east, ytop, yH, land, isl, tr,
-            majors, diagonals, park_cells, landmarks_out, lm_cells, outer=None, shore_real=(), org=(OX, OY)):
+            majors, diagonals, park_cells, landmarks_out, lm_cells, outer=None, shore_real=(), org=(OX, OY), spec=None):
     tiles, edges, tq, te, streets, blocks = [], [], [], [], [], []
     for did in sorted(outs):
         o = outs[did]
@@ -757,7 +779,7 @@ def _finish(m, doms, lats, maps, outs, cols, row_num, rootmap, ring, west, east,
     H = int(max(p[1] for p in ring) + 2400)
     return _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, ring, west, east, ytop, yH,
                            W, H, land, isl, tr, rootmap, cols, row_num, majors, park_cells, landmarks_out, lm_cells,
-                           outer=outer, shore_real=shore_real, org=org)
+                           outer=outer, shore_real=shore_real, org=org, spec=spec or NYC)
 
 
 def _root_lots(lat, i, j):
@@ -806,7 +828,8 @@ def _offset(line, d):
 
 def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, ring, west, east, ytop, yH, W, H,
                     land, isl, tr, rootmap, cols, row_num, majors, park_cells, landmarks_out, lm_cells, outer=None,
-                    shore_real=(), org=(OX, OY)):
+                    shore_real=(), org=(OX, OY), spec=None):
+    spec = spec or NYC
     from .city_engine import _dom_out
     from types import SimpleNamespace
     # the water: one body, the Hudson west of the island, the East River east of it, the harbour below its tip;
@@ -866,7 +889,7 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
     for rv in river:
         rv["p"] = [round(v, 1) for v in rv["p"]]
     # bridges over the East River: the real bridge's landing on the island, straight across the band to the far bank
-    for bn in (BRIDGES if outer is None else ()):
+    for bn in (spec.bridges if outer is None else ()):
         real = [s for s in m.get("streets", []) if (s.get("n") or "").startswith(bn)]
         if not real:
             continue
@@ -896,7 +919,7 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
     g["land"] = land_rings
     g["ghost"] = _ghost(w_out, e_out, top, org)
     g["far"] = []                                                   # the boroughs' names on their faint banks
-    for n, side, share in (FAR if outer is None else ()):
+    for n, side, share in (spec.far if outer is None else ()):
         y = top + share * (tipy - top)
         line = wl if side == "w" else el_
         x = min(line, key=lambda p: abs(p[1] - y))[0]
@@ -906,7 +929,7 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
         def man(x, y):                                              # real -> page on Manhattan's own lattices
             own = [d for d in doms if ring_inside(d.poly, x, y)]
             return maps[(own[0] if own else doms[0]).id](x, y)
-        _the_rest(g, outer, org, shore_real, ring, sea, tipy, streets, te, park_cells, man, m.get("streets", ()))
+        _the_rest(g, outer, org, shore_real, ring, sea, tipy, streets, te, park_cells, man, m.get("streets", ()), spec.bridges)
         W, H = g["W"], g["H"]
     g["blocks"] = blocks
     # transit on the drawn domains
@@ -1043,7 +1066,7 @@ def _hull(pts):
     return lo[:-1] + up[:-1]
 
 
-def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells, man=None, mstreets=()):
+def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells, man=None, mstreets=(), bridges=BRIDGES):
     """The other four boroughs and upper Manhattan, lighter (city_boroughs.Outer): their main roads (trunk and primary
     as named heavy lines, secondary as minor ones, bridges with decks), big parks, borough and neighbourhood names, and
     the real water of the whole city as one shape around them; no faint far-bank grid then."""
@@ -1067,7 +1090,7 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
     if man is not None:                                             # an East River bridge the outer roads lack (the Manhattan
         from .city_boroughs import _merge                           # Bridge's span): from the island's own streets, each point
         have = {s_["n"] for s_ in streets if s_.get("o")}           # by the mapping that draws its ground
-        for bn in BRIDGES:
+        for bn in bridges:
             if any(h.startswith(norm(bn)) for h in have):
                 continue
             ways = [(bn, _pairs(s_["p"])) for s_ in mstreets if (s_.get("n") or "").startswith(bn)]

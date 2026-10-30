@@ -442,7 +442,7 @@ def check_portals(portals) -> list:
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
            cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
            raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
-           far_bank: bool = False, fill: bool = False, city_tiles: bool = True) -> dict:
+           far_bank: bool = False, fill: bool = False, city_tiles: bool = True, layout=None, river_names=None) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
@@ -453,7 +453,9 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     the transit reader. preset: the city preset's id (or "auto" for the generic set-up), kept for the record.
     far_bank: keep the land across a wide river (Brooklyn and Queens facing Manhattan, Cambridge across the
     Charles) instead of cutting it away as the city's edge (palace_map's wide-river rule). city_tiles: the detail past the districts
-    (+ about 1.5 km) goes to hosted tiles the page loads as it is zoomed in (palace_tiles.py), and the fill-in covers the whole city."""
+    (+ about 1.5 km) goes to hosted tiles the page loads as it is zoomed in (palace_tiles.py), and the fill-in covers the whole city.
+    layout: the city's LayoutSpec (city_spec: a dict, or a registered name; the NYC preset's is "manhattan" whatever is passed);
+    river_names: [[name, lat, lon]] points on the named water, each water band named by the nearest (city_water.hints_of)."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
     from .palace_areas import check_areas, default_areas
@@ -484,6 +486,10 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     m["landmarks"] = [l for l in lms if l.get("r") or not any(
         o.get("r") and math.hypot(o["x"] - l["x"], o["y"] - l["y"]) < 260 and alike(o.get("n") or "", l.get("n") or "")
         for o in lms)]
+    if layout and preset != "nyc":                       # a layout spec (city_spec): the engine's lattices plus what data decides
+        m["layout"] = layout
+    if river_names:
+        m["river_names"] = [list(r) for r in river_names]
     if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
         from .city_manhattan import LAYOUT
         from . import city_outer_lattice                 # ... and every street of the other boroughs, from the cached tiles

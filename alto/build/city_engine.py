@@ -259,7 +259,17 @@ def multi(det) -> bool:
 
 
 # ── the pipeline ────────────────────────────────────────────────────────────
-def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(), free_share=None) -> dict:
+def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(), free_share=None, spec=None) -> dict:
+    """spec: a city_spec.LayoutSpec (or its dict / name). builder "axes" is a fixed root-axes layout (the NYC preset:
+    city_manhattan draws it, det unused); builder "engine" is this engine on the detected domains, the spec adding its
+    must-parks (a park the lattice would swallow keeps its cells) and its name to g["engine"]["layout"]."""
+    from .city_spec import resolve
+    lspec = resolve(spec)
+    if lspec is not None and lspec.builder == "axes":
+        from . import city_manhattan
+        return city_manhattan.build(m, majors, diagonals, rail_specs, lm_specs, parks, spec=lspec)
+    if lspec is not None:
+        parks = tuple(parks or ()) + tuple(p for p in lspec.must_parks if p not in (parks or ()))
     T = {}
     free_share = FREE_SHARE if free_share is None else free_share
     t0 = time.time()
@@ -987,7 +997,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                    "seams": [{"a": sm.a, "b": sm.b, "kind": sm.kind, "avenue": sm.avenue, "phi": round(sm.phi, 2),
                               "hinges": len(sm.hinge)} for sm in sl],
                    **({"water": [{k: (round(v, 1) if isinstance(v, float) else v) for k, v in r.items()} for r in water_rep]} if water_rep else {}),
-                   "t": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in T.items()}}
+                   "t": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in T.items()},
+                   **({"layout": lspec.name} if lspec is not None else {})}
     return g
 
 

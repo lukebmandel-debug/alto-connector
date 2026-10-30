@@ -1915,6 +1915,10 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     cache = Path.home() / ".cache" / "alto" / "osm"
     cache.mkdir(parents=True, exist_ok=True)
     auto_info = None
+    # the water and layout fields (city_setup.auto_params / the preset's): keep a far bank, name the water, the layout spec
+    far_bank = bool(pre and pre.get("far_bank"))
+    layout = pre.get("layout") if pre else None
+    river_names = pre.get("river_names") if pre else None
     osm_mark = palace_map.overpass_mark()             # the reply says which Overpass servers answered (map_source)
     try:
         if not pre and auto and any(v is None for v in (majors, landmarks, landmark_buildings, diagonals, parks,
@@ -1933,6 +1937,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             if areas is None and not default_areas(place, bbox):
                 areas = ap["areas"]
             transit = ap["transit"] if transit is None else transit
+            far_bank, layout, river_names = bool(ap.get("far_bank")), ap.get("layout"), ap.get("river_names")
             auto_info = {k: len(ap[k]) for k in ("majors", "landmarks", "landmark_buildings", "diagonals", "parks",
                                                  "areas", "transit")}
         court_info = _courthouses(doc, brief, place, pid if pre else None, bbox, cache, subject, landmark_buildings)
@@ -1953,7 +1958,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
                              parks=parks, areas=areas, portals=portals, transit=transit,
                              tiled=tiled, preset=pid if (pre or auto_info) else None,
-                             far_bank=bool(pre and pre.get("far_bank")), fill=True)
+                             far_bank=far_bank, layout=layout, river_names=river_names, fill=True)
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass
