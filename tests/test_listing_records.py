@@ -129,14 +129,20 @@ def test_a_private_share_link_is_handed_over_after_the_write():
 def test_shells_allow_the_native_share_sheet():
     # The share shell frames its page, so the frame has to pass the permission
     # on. A private page is written into the top-level window and has it anyway.
-    assert 'allow="clipboard-write; clipboard-read; web-share"' in share_shell()
+    # A shared page is someone else's, so it may write the clipboard, not read it.
+    assert 'allow="clipboard-write; web-share"' in share_shell()
     assert "<iframe" not in private_shell()
 
 
 def test_shells_hand_a_find_link_to_the_framed_page():
-    for s in (private_shell(), share_shell()):
-        assert "window.__altoQuery={hash:" in s
-        assert "'\\\\u003c'" in s, "a hash must not be able to close the script tag"
+    s = private_shell()
+    assert "window.__altoQuery={hash:" in s
+    assert "'\\\\u003c'" in s, "a hash must not be able to close the script tag"
+    # The share shell hands it over in the sandboxed frame's start-up config.
+    s = share_shell()
+    assert "var cfg = { hash: HANDOFF," in s
+    assert "window.__altoQuery = cfg.hash ? { hash: cfg.hash } : undefined;" in s
+    assert "JSON.stringify(cfg).replace(/</g, '\\\\u003c')" in s, "a hash must not be able to close the script tag"
 
 
 def test_the_private_shell_opens_from_cache_for_the_same_account_only():
