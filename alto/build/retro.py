@@ -174,7 +174,8 @@ BOARD_CSS = r"""
   X:is(.bldg-open,.wpal-open) #sk-frame i{display:none;}  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
-  X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
+  X #page-bg:not(#_),X.alto-bg #page-bg:not(#_),X.alto-bg.mobile.rw #page-bg:not(#_){background:#000 !important;filter:none !important;}   /* (a saved background's own `html.alto-bg #page-bg` rule has the same weight: with .alto-bg here Retro wins whatever loads last) */
+  X #page-bg::before,X #page-bg::after{display:none !important;}
   X #glass-slab{background:none !important;box-shadow:none !important;border-color:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* the units: no glass bars; a fine gold rule, the unit's name in spaced capitals, its numeral in thin gold */
   X:not(.alto-lanes) #world .phase-band:not(#_){background:none !important;border:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}

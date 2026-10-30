@@ -88,3 +88,52 @@ def test_a_timeline_with_no_unit_colours_does_not_crash_the_homepage(tmp_path, e
         srv.shutdown()
     assert errs == []
     assert tiles >= 4 and opened                     # the empty ones got their one accent segment, and search is wired
+
+
+# ── regression: a saved background scene painted its top colour (a flat blue) over Retro's black on the homepage ──
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_retro_stays_black_over_a_saved_background(tmp_path, engine):
+    import functools, http.server, threading
+    from alto.build import retro
+    (tmp_path / "h.html").write_text(pages.build_home([]), encoding="utf-8")
+    name, js = retro.retro_asset()
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.startswith("/retro/"):
+                b = js.encode()
+                self.send_response(200); self.send_header("Content-Type", "application/javascript")
+                self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+            else:
+                super().do_GET()
+        def log_message(self, *a): pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(H, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    out = {}
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception as e:
+                pytest.skip(str(e)[:80])
+            for width in (1440, 390):                                    # a computer and a phone
+                pg = b.new_page(viewport={"width": width, "height": 900})
+                url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
+                pg.goto(url)
+                pg.evaluate("""()=>{localStorage.setItem('alto-bg-home-v1', JSON.stringify({v:'cosmic-cliffs',t:1}));
+                                    localStorage.setItem('alto-bg-home-v1-style','retro');}""")
+                pg.goto(url)
+                pg.wait_for_timeout(1500)
+                out[width] = pg.evaluate("""()=>({retro:document.documentElement.classList.contains('alto-retro'),
+                    bg:document.documentElement.classList.contains('alto-bg'),
+                    page:getComputedStyle(document.getElementById('page-bg')).backgroundColor,
+                    html:getComputedStyle(document.documentElement).backgroundColor})""")
+                pg.close()
+            b.close()
+    finally:
+        srv.shutdown()
+    for width, r in out.items():
+        assert r["retro"] and r["bg"], (width, r)                      # the case under test is really on
+        assert r["page"] == "rgb(0, 0, 0)" and r["html"] == "rgb(0, 0, 0)", (width, r)
