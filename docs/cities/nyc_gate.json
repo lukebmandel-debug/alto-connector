@@ -111,9 +111,10 @@
      "Battery Park"
     ],
     "on": [],
+    "real": [],
     "through": []
    },
-   "msg": "0 parks drawn; must-parks missing 1, named missing 0; 0 streets through a park; 0 landmarks on a park",
+   "msg": "0 parks drawn; must-parks missing 1, named missing 0; 0 streets through a park (0 more the real street does too); 0 landmarks on a park",
    "rule": "parks",
    "status": "fail",
    "w": 3
@@ -129,10 +130,12 @@
   },
   "G18": {
    "data": {
+    "landmark_pairs": [],
     "off": [],
-    "overlaps": []
+    "overlaps": [],
+    "under_landmark": []
    },
-   "msg": "0 top names at the whole-city zoom (x0.039): 0 overlapping pairs, 0 off the glass",
+   "msg": "0 top names at the whole-city zoom (x0.039): 0 overlap each other, 0 under a landmark name, 0 off the glass (0 landmark-name pairs meet: the page shows one)",
    "rule": "labels",
    "status": "ok",
    "w": 4
@@ -341,11 +344,11 @@
   "input": "tests/fixtures/cities/manhattan.json.gz (street/water fixture: no landmarks, parks or transit)",
   "layout": "manhattan (city_spec.NYC)",
   "preset": "nyc",
-  "unchanged": "palace_grid.grid on this fixture hashes 334b3e50a5e1edc1 on v1.9.189 and on alto-city-core (tests/test_city_core.py pins it); G16/G17 fail here only because the fixture carries no parks or landmarks; G19-G22 need a full NYC build (five-borough fetch), not run in the cloud"
+  "unchanged": "palace_grid.grid on this fixture hashes 334b3e50a5e1edc1 on v1.9.189 and on alto-city-core / alto-city-chicago (tests/test_city_core.py pins it); G16/G17 fail here only because the fixture carries no parks or landmarks; G19-G22 need a full NYC build (five-borough fetch), not run in the cloud"
  },
  "fail": [
   "G5 side of river/seam: side: 392 of 6551 points on the wrong side (6551 lots checked)",
-  "G16 parks: 0 parks drawn; must-parks missing 1, named missing 0; 0 streets through a park; 0 landmarks on a park",
+  "G16 parks: 0 parks drawn; must-parks missing 1, named missing 0; 0 streets through a park (0 more the real street does too); 0 landmarks on a park",
   "G17 landmarks: 0 landmarks drawn (8-24); 0 card overlaps"
  ],
  "pass": false,

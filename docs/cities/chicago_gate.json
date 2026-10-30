@@ -1,0 +1,758 @@
+{
+ "blind_audit": null,
+ "checks": {
+  "G1": {
+   "data": {
+    "domains": {
+     "domains": [
+      {
+       "a": 0.0,
+       "id": 0,
+       "kind": "grid",
+       "km2": 27.64,
+       "legacy": false,
+       "theta": -1.1
+      }
+     ],
+     "free_share": 0.0,
+     "root_km2": 27.64
+    }
+   },
+   "msg": "domains: 1 domains (grid -1.1\u00b0 27.6 km\u00b2)",
+   "rule": "domains sane",
+   "status": "ok",
+   "w": 3
+  },
+  "G10": {
+   "data": {
+    "problems": [],
+    "roads": {
+     "hw0": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 57.2,
+      "n": "Kennedy Expressway",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "I-90",
+      "river_x": 0,
+      "river_x_real": 0,
+      "stray": 1.31,
+      "stray90": 0.5,
+      "tunnels": 1,
+      "turns": 2,
+      "x": 6,
+      "x_off_line": 0,
+      "x_on_street": 6,
+      "x_real": 6
+     },
+     "hw1": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 22.1,
+      "n": "Eisenhower Expressway",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "I-290",
+      "river_x": 1,
+      "river_x_real": 1,
+      "stray": 0.99,
+      "stray90": 0.98,
+      "tunnels": 1,
+      "turns": 1,
+      "x": 4,
+      "x_off_line": 0,
+      "x_on_street": 4,
+      "x_real": 4
+     },
+     "hw2": {
+      "bridges": 1,
+      "fill_blocks": 42.6,
+      "len_blocks": 63.0,
+      "n": "South DuSable Lake Shore Drive",
+      "octi": 1.0,
+      "parts": 2,
+      "ref": "US-41",
+      "river_x": 1,
+      "river_x_real": 1,
+      "stray": 1.28,
+      "stray90": 0.85,
+      "tunnels": 0,
+      "turns": 4,
+      "x": 3,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 6
+     }
+    },
+    "warnings": [
+     "US-41: 1 of 3 interchanges not on a crossing street"
+    ]
+   },
+   "msg": "3 highways, 0 problems, 1 warnings (I-90 2 turns stray 1.3 x 6/6, I-290 1 turns stray 1.0 x 4/4, US-41 4 turns stray 1.3 x 3/6)",
+   "rule": "highways",
+   "status": "warn",
+   "w": 4
+  },
+  "G11": {
+   "data": {
+    "cut": {
+     "cut": 0,
+     "share": 0.0,
+     "total": 1674
+    }
+   },
+   "msg": "cut: 0 of 1674 blocks cut or open (0.0%)",
+   "rule": "cut blocks",
+   "status": "ok",
+   "w": 3
+  },
+  "G12": {
+   "data": {
+    "size": {
+     "H": 13990,
+     "W": 8860,
+     "kb": 17.9,
+     "ratio": 0.48
+    }
+   },
+   "msg": "size: 8860x13990 px, 138 streets, 18 kB packed (0.48x Philadelphia 1.9.78 per km\u00b2)",
+   "rule": "data size per km2",
+   "status": "ok",
+   "w": 3
+  },
+  "G13": {
+   "msg": "overlap: one page region",
+   "rule": "page overlap",
+   "status": "ok",
+   "w": 3
+  },
+  "G14": {
+   "data": {
+    "fronts": {
+     "bad": []
+    }
+   },
+   "msg": "spacing: no landmark pairs to compare; fronts: 21 landmark fronts; 0 over 1.0 block from the line of the street they stand on",
+   "rule": "landmark spacing / fronts",
+   "status": "ok",
+   "w": 6
+  },
+  "G15": {
+   "data": {
+    "bands": {
+     "Chicago River": 100,
+     "North Branch Chicago River": 100,
+     "South Branch Chicago River": 100
+    },
+    "missing": [],
+    "thin": [],
+    "wet": []
+   },
+   "msg": "0 points in water (-); 3 bands, 0 under 40 px; channels missing: none",
+   "rule": "dry land",
+   "status": "ok",
+   "w": 5
+  },
+  "G16": {
+   "data": {
+    "missing": [
+     "Northerly Island",
+     "Polk Bros Park"
+    ],
+    "missing_must": [],
+    "on": [],
+    "real": [
+     [
+      "Columbus Drive",
+      "Grant Park",
+      2140
+     ],
+     [
+      "Roosevelt Road",
+      "Grant Park",
+      460
+     ],
+     [
+      "18th Street",
+      "Ping Tom Memorial Park",
+      220
+     ]
+    ],
+    "through": []
+   },
+   "msg": "14 parks drawn; must-parks missing 0, named missing 2; 0 streets through a park (3 more the real street does too); 0 landmarks on a park",
+   "rule": "parks",
+   "status": "warn",
+   "w": 3
+  },
+  "G17": {
+   "data": {
+    "overlaps": []
+   },
+   "msg": "15 landmarks drawn (8-24); 0 card overlaps",
+   "rule": "landmarks",
+   "status": "ok",
+   "w": 4
+  },
+  "G18": {
+   "data": {
+    "landmark_pairs": [
+     [
+      "Willis Tower",
+      "Dirksen Courthouse"
+     ],
+     [
+      "Willis Tower",
+      "Union Station"
+     ],
+     [
+      "Trump Tower",
+      "Merchandise Mart"
+     ],
+     [
+      "Daley Center",
+      "City Hall\u2013County Building"
+     ],
+     [
+      "Dirksen Courthouse",
+      "Union Station"
+     ]
+    ],
+    "off": [],
+    "overlaps": [],
+    "under_landmark": []
+   },
+   "msg": "3 top names at the whole-city zoom (x0.064): 0 overlap each other, 0 under a landmark name, 0 off the glass (5 landmark-name pairs meet: the page shows one)",
+   "rule": "labels",
+   "status": "ok",
+   "w": 4
+  },
+  "G19": {
+   "data": {
+    "buildings": 100,
+    "stored": 540756
+   },
+   "msg": "stored page 528 KB with 100 buildings (fail > 976 KB, warn > 900 KB)",
+   "rule": "page bytes",
+   "status": "ok",
+   "w": 6
+  },
+  "G2": {
+   "data": {
+    "phantom": {
+     "lines": 89,
+     "low": 17,
+     "median": 0.434,
+     "share": 0.191,
+     "unnamed": 2,
+     "worst": [
+      [
+       0.0,
+       "(unnamed)",
+       38.6
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       39.5
+      ],
+      [
+       0.0,
+       "Elston Avenue",
+       67.2
+      ],
+      [
+       0.07,
+       "20th Place",
+       42.1
+      ],
+      [
+       0.1,
+       "Maple Street",
+       41.0
+      ],
+      [
+       0.11,
+       "Wacker Drive",
+       67.2
+      ],
+      [
+       0.14,
+       "19th Place",
+       42.1
+      ],
+      [
+       0.16,
+       "9th Street",
+       35.1
+      ],
+      [
+       0.16,
+       "Fairbanks Court",
+       47.4
+      ],
+      [
+       0.17,
+       "Armour Street",
+       67.2
+      ],
+      [
+       0.17,
+       "Balbo Drive",
+       41.0
+      ],
+      [
+       0.18,
+       "Sedgwick Street",
+       67.2
+      ],
+      [
+       0.19,
+       "Washburne Avenue",
+       39.8
+      ],
+      [
+       0.21,
+       "Maxwell Street",
+       41.0
+      ],
+      [
+       0.24,
+       "Pearson Street",
+       42.1
+      ]
+     ]
+    }
+   },
+   "msg": "phantom: 17 of 89 lattice lines (19%) are under 25% real (median coverage 0.43)",
+   "rule": "phantom lines",
+   "status": "ok",
+   "w": 6
+  },
+  "G20": {
+   "data": {
+    "base_gz": 83229,
+    "bytes": 39781,
+    "max": 3183,
+    "tiles": 33
+   },
+   "msg": "base 81 KB gz (max 350); 33 tiles, largest 3 KB gz (max 64); 38 KB gz in all",
+   "rule": "tiles",
+   "status": "ok",
+   "w": 3
+  },
+  "G21": {
+   "data": {
+    "overpass": {
+     "note": "every OpenStreetMap answer came from the local cache",
+     "requests": 0,
+     "served_by": {}
+    },
+    "set_up_s": 13.6,
+    "source": "cache"
+   },
+   "msg": "set_up 13.6 s from the cache (warn > 60 s); map from cache",
+   "rule": "build time",
+   "status": "ok",
+   "w": 2
+  },
+  "G22": {
+   "data": {
+    "same": true
+   },
+   "msg": "two builds give identical map data",
+   "rule": "determinism",
+   "status": "ok",
+   "w": 3
+  },
+  "G3": {
+   "data": {
+    "displacement": {
+     "n": 64,
+     "over": 0,
+     "rel_median": 1.17,
+     "unmatched": [],
+     "worst": [
+      [
+       1.47,
+       "Merchandise Mart",
+       "landmark"
+      ],
+      [
+       1.43,
+       "Monroe",
+       "stop"
+      ],
+      [
+       1.43,
+       "Jackson",
+       "stop"
+      ],
+      [
+       1.02,
+       "Cermak-Chinatown",
+       "stop"
+      ],
+      [
+       0.94,
+       "Clark/Lake",
+       "stop"
+      ],
+      [
+       0.86,
+       "Clark/Lake",
+       "stop"
+      ],
+      [
+       0.83,
+       "Merchandise Mart",
+       "stop"
+      ],
+      [
+       0.83,
+       "Harold Washington Library-State/Van Buren",
+       "stop"
+      ],
+      [
+       0.82,
+       "LaSalle/Van Buren",
+       "stop"
+      ],
+      [
+       0.82,
+       "LaSalle",
+       "stop"
+      ],
+      [
+       0.81,
+       "Washington/Wells",
+       "stop"
+      ],
+      [
+       0.81,
+       "Quincy",
+       "stop"
+      ]
+     ]
+    }
+   },
+   "msg": "displacement: 64 points; 0 over 1.5 blocks, worst 1.47 (Merchandise Mart)",
+   "rule": "landmark/stop displacement",
+   "status": "warn",
+   "w": 6
+  },
+  "G4": {
+   "data": {
+    "order": {
+     "avenues": [],
+     "stops": []
+    }
+   },
+   "msg": "order: 0 stop-order swaps; 0 of 6 avenues cross streets out of order",
+   "rule": "order",
+   "status": "ok",
+   "w": 6
+  },
+  "G5": {
+   "data": {
+    "side": {
+     "bad": [],
+     "n_bad": 0
+    }
+   },
+   "msg": "side: 0 of 6686 points on the wrong side (6626 lots checked)",
+   "rule": "side of river/seam",
+   "status": "ok",
+   "w": 8
+  },
+  "G6": {
+   "data": {
+    "cross_seam": {
+     "bad": []
+    },
+    "seam_fidelity": {
+     "seams": []
+    }
+   },
+   "msg": "seam_fidelity: no seams; tjoin: no lines end on a seam; cross_seam: 0 non-hinge lines cross a seam",
+   "rule": "seams",
+   "status": "ok",
+   "w": 6
+  },
+  "G7": {
+   "data": {
+    "ends": {
+     "examples": [],
+     "free_dead_ends": 0,
+     "n": 0,
+     "overhang": 4,
+     "overhang_examples": [
+      [
+       "Balbo Drive",
+       8750,
+       8750
+      ],
+      [
+       "Roosevelt Road",
+       8750,
+       10100
+      ],
+      [
+       "Lake Shore Drive",
+       7070,
+       70
+      ],
+      [
+       "Elston Avenue",
+       1070,
+       70
+      ]
+     ]
+    }
+   },
+   "msg": "ends: 0 line ends land on nothing inside the grid; 4 run past its edge",
+   "rule": "dangling ends",
+   "status": "warn",
+   "w": 5
+  },
+  "G8": {
+   "data": {
+    "avenues": {
+     "avenues": {
+      "Blue Island Avenue": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 4286,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Elston Avenue": {
+       "bends": [
+        1
+       ],
+       "dangling": 0,
+       "len": 2808,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Kingsbury Street": {
+       "bends": [
+        1
+       ],
+       "dangling": 0,
+       "len": 6204,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Lake Shore Drive": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 5810,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Milwaukee Avenue": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 6571,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Ogden Avenue": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 4826,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Upper Wacker Drive": {
+       "bends": [
+        1
+       ],
+       "dangling": 0,
+       "len": 3770,
+       "non_octi": 0,
+       "pieces": 1
+      }
+     },
+     "bad": []
+    }
+   },
+   "msg": "avenues: 7 avenues; 0 break the rules",
+   "rule": "avenues",
+   "status": "ok",
+   "w": 3
+  },
+  "G9": {
+   "data": {
+    "transit": {
+     "lines": {
+      "blue": {
+       "blocks": 52.7,
+       "length": 13436,
+       "stops": [
+        9,
+        9
+       ],
+       "stray": 1.5,
+       "stray90": 0.84,
+       "turns": 16
+      },
+      "brown": {
+       "blocks": 35.6,
+       "length": 9085,
+       "stops": [
+        9,
+        9
+       ],
+       "stray": 0.56,
+       "stray90": 0.55,
+       "turns": 6
+      },
+      "green": {
+       "blocks": 44.1,
+       "length": 11246,
+       "stops": [
+        7,
+        7
+       ],
+       "stray": 0.92,
+       "stray90": 0.92,
+       "turns": 3
+      },
+      "metra2": {
+       "blocks": 25.7,
+       "length": 6564,
+       "stops": [
+        3,
+        3
+       ],
+       "stray": 0.79,
+       "stray90": 0.57,
+       "turns": 8
+      },
+      "nictd": {
+       "blocks": 14.7,
+       "length": 3750,
+       "stops": [
+        3,
+        3
+       ],
+       "stray": 1.0,
+       "stray90": 0.52,
+       "turns": 2
+      },
+      "orange": {
+       "blocks": 31.8,
+       "length": 8096,
+       "stops": [
+        8,
+        8
+       ],
+       "stray": 0.9,
+       "stray90": 0.89,
+       "turns": 5
+      },
+      "pink": {
+       "blocks": 44.9,
+       "length": 11460,
+       "stops": [
+        10,
+        10
+       ],
+       "stray": 0.5,
+       "stray90": 0.44,
+       "turns": 4
+      },
+      "purple": {
+       "blocks": 36.1,
+       "length": 9208,
+       "stops": [
+        9,
+        9
+       ],
+       "stray": 0.55,
+       "stray90": 0.42,
+       "turns": 5
+      },
+      "red": {
+       "blocks": 56.5,
+       "length": 14414,
+       "stops": [
+        9,
+        9
+       ],
+       "stray": 0.95,
+       "stray90": 0.62,
+       "turns": 7
+      }
+     },
+     "problems": []
+    }
+   },
+   "msg": "transit: 0 transit problems (blue 16 turns stray 1.5, brown 6 turns stray 0.6, green 3 turns stray 0.9, orange 5 turns stray 0.9, pink 4 turns stray 0.5, purple 5 turns stray 0.6, red 7 turns stray 0.9, metra2 8 turns stray 0.8, nictd 2 turns stray 1.0)",
+   "rule": "transit",
+   "status": "ok",
+   "w": 6
+  }
+ },
+ "city": {
+  "bbox": [
+   41.853,
+   -87.668,
+   41.91,
+   -87.595
+  ],
+  "engine": {
+   "domains": 1,
+   "layout": "chicago",
+   "path": "v2",
+   "seams": []
+  },
+  "place": "Chicago",
+  "preset": "chicago"
+ },
+ "fail": [],
+ "pass": true,
+ "ran": [
+  "G1",
+  "G2",
+  "G3",
+  "G4",
+  "G5",
+  "G6",
+  "G7",
+  "G8",
+  "G9",
+  "G10",
+  "G11",
+  "G12",
+  "G13",
+  "G14",
+  "G15",
+  "G16",
+  "G17",
+  "G18",
+  "G19",
+  "G20",
+  "G21",
+  "G22"
+ ],
+ "score": 90.8,
+ "skipped": [],
+ "warn": [
+  "G3 landmark/stop displacement: displacement: 64 points; 0 over 1.5 blocks, worst 1.47 (Merchandise Mart)",
+  "G7 dangling ends: ends: 0 line ends land on nothing inside the grid; 4 run past its edge",
+  "G10 highways: 3 highways, 0 problems, 1 warnings (I-90 2 turns stray 1.3 x 6/6, I-290 1 turns stray 1.0 x 4/4, US-41 4 turns stray 1.3 x 3/6)",
+  "G16 parks: 14 parks drawn; must-parks missing 0, named missing 2; 0 streets through a park (3 more the real street does too); 0 landmarks on a park"
+ ]
+}
