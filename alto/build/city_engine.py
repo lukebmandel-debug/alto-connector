@@ -634,7 +634,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     # 7b. emit every domain: complete lines, T-joins on its seams, hinge lines through, blocks with lots
     av_names = {norm(sm.avenue) for sm in sl if sm.avenue}
     heavy = majors_n | av_names
-    lats, outs, through_all = {}, {}, {}
+    lats, outs, through_all, names_by = {}, {}, {}, {}
     for sm in sl:
         for h in sm.hinge:
             if isinstance(h, dict):
@@ -657,6 +657,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         thr = {(f, k - (i0 if f == "v" else j0)) for f, k in through_all.get(did, ())}
         lat.keep = {(f, k, pk) for f in ("v", "h") for k, n in enumerate(names[f]) if n
                     for pk in set(lat.holes.values()) if norm(n) in park_streets.get(pk, ())}
+        names_by[did] = names
         outs[did] = emit(lat, names, heavy, thr, root=abs(lat.a) < 1e-9, wet=wet, seams=seam_segs.get(did, ()))
     T["emit"] = time.time() - t0 - sum(v for v in T.values() if isinstance(v, float))
 
@@ -773,6 +774,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                 else:
                     pc["pts"] = best
     av_recs = [r for r in recs if any(pc["kind"] == "diagonal" and pc["dom"] in by_id for pc in r["pieces"])]
+    _real_order(av_recs, m, lats, names_by)
     try:
         avs = city_avenues.draw(av_recs, list(tdoms.values()), nodes, sl)
     except Exception as ex:                                       # noqa: BLE001  (an avenue never fails a build)
@@ -1462,6 +1464,48 @@ def _park_streets(m):
                         acc[n] = acc.get(n, 0.0) + L / k
         out.setdefault(pk["n"], set()).update(n for n, v in acc.items() if v >= run)
     return out
+
+
+def _real_order(recs, m, lats, names_by):
+    """Each forced diagonal piece's real crossings, for city_avenues._order_split: pc["rx"] = {(fam, local lattice coord):
+    arc length (real px) along the piece where the real avenue crosses the real street that names that lattice line} (the
+    order city_report.c_order checks, which the lattice lines' averaged positions can reverse for crossings ~50 m apart)."""
+    real_by = {}
+    for st in m.get("streets", []):
+        if st.get("n") and not st.get("t"):
+            P = _pairs(st["p"])
+            xs, ys = [q[0] for q in P], [q[1] for q in P]
+            real_by.setdefault(norm(st["n"]), []).append((P, (min(xs), min(ys), max(xs), max(ys))))
+    for r in recs:
+        if not r.get("forced"):
+            continue
+        for pc in r["pieces"]:
+            if pc["kind"] != "diagonal" or pc["dom"] not in lats or pc["dom"] not in names_by:
+                continue
+            lat, nm, P = lats[pc["dom"]], names_by[pc["dom"]], pc["pts"]
+            xs, ys = [q[0] for q in P], [q[1] for q in P]
+            bb = (min(xs), min(ys), max(xs), max(ys))
+            want = {}
+            for fam, grid in (("v", lat.xg), ("h", lat.yg)):
+                for k, n in enumerate(nm.get(fam) or ()):
+                    if not n or k >= len(grid):
+                        continue
+                    best = None
+                    for Q, qb in real_by.get(norm(n), ()):
+                        if qb[2] < bb[0] or qb[0] > bb[2] or qb[3] < bb[1] or qb[1] > bb[3]:
+                            continue
+                        acc = 0.0
+                        for a, b in zip(P, P[1:]):
+                            for c, d in zip(Q, Q[1:]):
+                                h = city_avenues._xpt(a, b, c, d)
+                                if h is not None:
+                                    t = acc + math.dist(a, h)
+                                    best = t if best is None else min(best, t)
+                            acc += math.dist(a, b)
+                    if best is not None:
+                        want[(fam, round(grid[k], 1))] = best
+            if len(want) >= 2:
+                pc["rx"] = want
 
 
 PARK_INSET = 3.0        # page px: a line this close to a park's edge runs along it (its framing street), not through it
