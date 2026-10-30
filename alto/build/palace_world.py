@@ -67,9 +67,13 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
 #wpal-root .wp-card.wp-dim{opacity:.35;}
 /* an enlarged card is the timeline's own card, borrowed from the hidden board while it shows (its chips, highlights, filters and edits
    come with it; a click on it opens its page, as everywhere in Alto) */
-#wpal-root .wp-enl{position:absolute;left:0;top:0;pointer-events:auto;z-index:4;transform-origin:50% 100%;
-  transition:opacity .28s cubic-bezier(.25,.2,.4,1),scale .32s cubic-bezier(.25,.2,.4,1);}
-#wpal-root .wp-enl.wp-grow{opacity:0;scale:.55;}
+#wpal-root .wp-enl{position:absolute;left:0;top:0;pointer-events:auto;z-index:4;transform-origin:50% 100%;}
+/* a Tour stop (Art's option B "Hand-off", 2026-10-29): the card a stop leaves folds into its own pin (220 ms) and the next grows out of its
+   marker, starting just before the map stops; the origin of both is their pin, set every frame, so they ride it */
+#wpal-root :is(.wp-enl,.wp-card){transition:opacity .3s cubic-bezier(.25,.2,.4,1),scale .78s cubic-bezier(.2,.75,.25,1);}
+#wpal-root :is(.wp-enl,.wp-card).wp-grow{opacity:0;scale:.12;transition:none;}
+#wpal-root .wp-ghost{position:absolute;left:0;top:0;pointer-events:none;z-index:3;transition:opacity .22s ease-in,scale .22s cubic-bezier(.5,0,.75,0);}
+#wpal-root .wp-ghost.wp-fold{opacity:0;scale:.06;}
 #wpal-root .wp-enl.kid{transform-origin:50% 50%;z-index:5;}
 #wpal-root .wp-enl.s-down{transform-origin:50% 0;}#wpal-root .wp-enl.s-left{transform-origin:100% 50%;}#wpal-root .wp-enl.s-right{transform-origin:0 50%;}
 #wpal-root .wp-enl > .node{position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;
@@ -77,7 +81,8 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
   display:block !important;animation:none !important;zoom:1.18;}
 #wpal-root .wp-enl > .node > .node-card{position:relative !important;left:auto !important;top:auto !important;transform:none !important;scale:none !important;margin:0 !important;
   animation:none !important;opacity:1 !important;}
-@media (prefers-reduced-motion: reduce){#wpal-root .wp-enl{transition:none;}}
+@media (prefers-reduced-motion: reduce){#wpal-root :is(.wp-enl,.wp-card){transition:opacity .15s linear;}#wpal-root :is(.wp-enl,.wp-card).wp-grow{scale:1;transition:none;}
+  #wpal-root .wp-ghost{transition:opacity .15s linear;}#wpal-root .wp-ghost.wp-fold{scale:1;}}
 #wpal-root .wp-rel{fill:none;stroke:var(--u);stroke-width:1.8px;stroke-dasharray:5 5;stroke-linecap:round;opacity:.85;}
 #wpal-root .wp-reld{fill:var(--u);stroke:var(--w-pin);stroke-width:1.5px;}
 #wpal-root .wp-relh{fill:none;stroke:transparent;stroke-width:16px;pointer-events:stroke;cursor:pointer;}
@@ -264,16 +269,18 @@ function apply(){ if(S.mmBox) mmBox();
 function setView(cx,cy,k){ var kmin=S.kW*(phone()?.35:.6), kmax=S.kW*60; S.k=clamp(k,kmin,kmax); S.cx=clamp(cx,-1100,1100); S.cy=clamp(cy,-560,560); apply(); settleSoon(); }
 function zoomAt(f,sx,sy){ S.zt=performance.now(); var p=wld(sx,sy), k=clamp(S.k*f,S.kW*(phone()?.35:.6),S.kW*60); S.cx=p[0]-(sx-S.vw/2)/k; S.cy=p[1]-(sy-S.vh/2)/k; S.k=k; stop(); apply(); settleSoon(); }
 function stop(){ if(S.anim){ cancelAnimationFrame(S.anim.raf); S.anim=null; } }
-function fly(cx,cy,k,done){
-  stop(); var c0=[S.cx,S.cy,S.k], d=Math.hypot(cx-c0[0],cy-c0[1]), kmin=Math.min(c0[2],k);
-  var far=d*kmin/Math.max(S.vw,1), ms=reduced()?0:clamp(480+260*Math.log2(1+far)+90*Math.abs(Math.log2(k/c0[2])),480,1400);
-  var dip=far>1.1?Math.log(Math.max((S.vw*.85)/(d*kmin),.08)):0;       // a long flight rises first, so the reader sees where it goes
-  if(!ms){ S.cx=cx; S.cy=cy; S.k=k; apply(); settleSoon(); if(done) done(); return; }
-  var t0=performance.now(), l0=Math.log(c0[2]), l1=Math.log(k);
+function fly(cx,cy,k,done,early){
+  stop(); var c0=[S.cx,S.cy,S.k], d=Math.hypot(cx-c0[0],cy-c0[1]), kmin=Math.min(c0[2],k), l0=Math.log(c0[2]), l1=Math.log(k);
+  var far=d*kmin/Math.max(S.vw,1), dip=far>1.1&&!phone()?Math.log(Math.max((S.vw*.85)/(d*kmin),.08)):0;       // a long flight rises first (not on a phone)
+  var cap=1875*d*Math.exp((l0+l1)/2+dip)/(1.4*Math.max(S.vw,1));            // min-jerk's peak speed is 1.875 d/T: kept under 1.4 widths a second
+  var ms=reduced()?0:clamp(Math.max(480+260*Math.log2(1+far)+90*Math.abs(l1-l0)/Math.LN2,cap),480,phone()?1500:1100);
+  if(!ms){ S.cx=cx; S.cy=cy; S.k=k; apply(); settleSoon(); if(early) early(); if(done) done(); return; }
+  var t0=performance.now(), pre=early?Math.max(0,ms-200):-1;
   var A0={raf:0}; S.anim=A0;
   (function step(now){
     var t=clamp((now-t0)/ms,0,1), e=mj(t);
     S.cx=c0[0]+(cx-c0[0])*e; S.cy=c0[1]+(cy-c0[1])*e; S.k=Math.exp(l0+(l1-l0)*e+dip*4*e*(1-e)); apply();
+    if(pre>=0&&now-t0>=pre&&S.anim===A0){ pre=-1; early(); }
     if(t<1&&S.anim===A0) A0.raf=requestAnimationFrame(step); else if(S.anim===A0){ S.anim=null; settleSoon(); if(done) done(); emit('land',S.sel); }
   })(t0);
 }
@@ -368,7 +375,7 @@ function place(){
     var d='M'+A0.x.toFixed(1)+' '+A0.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+P.x.toFixed(1)+' '+P.y.toFixed(1);
     el('path',{d:d,'class':'wp-rel'},g); el('path',{d:d,'class':'wp-relh','data-to':to},g);
     el('circle',{cx:P.x.toFixed(1),cy:P.y.toFixed(1),r:4.5,'class':'wp-reld'},g); });
-  cluster();
+  cluster(); (S.ghosts||[]).forEach(gpos);
 }
 function band(was,v,lo,hi){ return was?v>=lo:v>=hi; }
 function off(e,on){ e.classList.toggle('wp-off',!on); }
@@ -441,11 +448,11 @@ A.select=function(id,opts){
   var pl=placed(id)?id:placeOf(id); if(!pl) return; opts=opts||{};
   S.cur=id; S.ua=null; rels(id);
   if(S.cl&&S.cl.id===pl&&!S.anim){ swapEnl(id); tourBar(); place(); emit('select',id); return; }      // a card of the cluster that is open
-  S.sel=pl; var n=N(pl); closeCluster();
+  S.sel=pl; var n=N(pl); closeCluster(true);
   focus(n.a,n.c,pl); tourBar();
   var v=placeView(pl);
-  var land=function(){ if(S.sel===pl&&S.cur===id) openCluster(pl,null,id); };
-  if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=v.k; apply(); settle(); land(); } else fly(v.cx,v.cy,v.k,land);
+  var land=function(){ if(S.sel===pl&&S.cur===id&&!(S.cl&&S.cl.id===pl)) openCluster(pl,null,id); };
+  if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=v.k; apply(); settle(); land(); } else fly(v.cx,v.cy,v.k,land,land);
   emit('select',id);
 };
 function rels(id){ S.rel=[]; if(typeof CONNECTIONS==='undefined') return; var seen={}, n=N(id);
@@ -457,7 +464,7 @@ function focus(a,cid,id){
   [].forEach.call(S.gArcs.children,function(g){ g.classList.toggle('wp-on',+g.getAttribute('data-u')===a); });
   for(var k in S.pins){ S.pins[k].el.classList.toggle('wp-in',N(k).a===a); S.pins[k].el.classList.toggle('wp-on',k===id); }
 }
-function unfocus(){ closeCluster(); S.sel=null; S.cur=null; S.ua=null; S.rel=[]; focus(null,null,null); tourBar(); place(); }
+function unfocus(){ closeCluster(true); S.sel=null; S.cur=null; S.ua=null; S.rel=[]; focus(null,null,null); tourBar(); place(); }
 // the timeline's own card, borrowed from the board while it is enlarged and given back after (the board keeps its order)
 function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.classList.remove('wp-bnode');
   if(B.par&&B.par.isConnected&&document.getElementById(n.id)===n) B.par.insertBefore(n,B.nxt&&B.nxt.parentNode===B.par?B.nxt:null); else n.remove(); }
@@ -465,17 +472,29 @@ function enlarge(id,kid){
   var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
   giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
   S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); whereLine(id,'wp-where',w);
-  void w.offsetWidth; w.classList.remove('wp-grow'); return w;
+  return w;
 }
 // where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
 function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
   var n=N(p), cn=dec((D().names||{})[n.c]||''), pl=dec(n.pl||''); if(n.k==='country'||!pl) return cn||pl; return pl+(cn&&pl!==cn?', '+cn:''); }
 function pinIcon(p){ var s=el('svg',{viewBox:'-8 -16 16 17','aria-hidden':'true'},p); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z'},s); return s; }
 function whereLine(id,cls,p){ var t=where(id); if(!t) return null; var d=h('div',{'class':cls},p); pinIcon(d); h('span',null,d,t); d.title=t; return d; }
-function closeCluster(){ if(!S.cl) return; giveBack(); els(S.cl).forEach(function(e){ e.remove(); }); S.list.hidden=true; S.cl=null; S.ovLinks.innerHTML=''; }
+function closeCluster(fold){ if(!S.cl) return; var C=S.cl; if(fold) els(C).forEach(function(e){ ghost(e,C.id,C.at); }); giveBack(); els(C).forEach(function(e){ e.remove(); }); S.list.hidden=true; S.cl=null; S.ovLinks.innerHTML=''; }
+// a copy of a card (no ids: the card itself goes back to the board) folding into its pin, riding it while the map moves
+function ghost(e,id,at){ if(!e||!e.isConnected||e._x==null) return; var g=e.cloneNode(true); g.removeAttribute('data-id');
+  [].forEach.call(g.querySelectorAll('[id]'),function(x){ x.removeAttribute('id'); }); g.removeAttribute('id');
+  g.className=e.className.replace(/\bwp-(grow|hint)\b/g,'')+' wp-ghost'; [].forEach.call(g.querySelectorAll('.wp-hk'),function(x){ x.remove(); });
+  var P=anchorOf({id:id,at:at}); if(!P) return; var G={el:g,id:id,at:at,dx:e._x-P.x,dy:e._y-P.y}; S.ghosts=(S.ghosts||[]).concat([G]);
+  S.lCards.insertBefore(g,S.lCards.firstChild); gpos(G); void g.offsetWidth; g.classList.add('wp-fold');
+  setTimeout(function(){ g.remove(); S.ghosts=S.ghosts.filter(function(x){ return x!==G; }); },reduced()?200:280); }
+function gpos(G){ var P=anchorOf({id:G.id,at:G.at}); if(!P) return; var x=P.x+G.dx, y=P.y+G.dy;
+  G.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)'; G.el.style.transformOrigin=P.x.toFixed(1)+'px '+P.y.toFixed(1)+'px'; }
+// a card that stands by its pin grows out of it (the next frame, once its place and origin are set)
+function grow(list){ var g=list.filter(function(e){ return e&&e.classList.contains('wp-grow'); }); if(!g.length) return; void g[0].offsetWidth;
+  requestAnimationFrame(function(){ g.forEach(function(e){ e.classList.remove('wp-grow'); }); }); }
 function els(C){ return [C.main].concat(C.cards.map(function(K){ return K.el; })); }
 function card(id,main){
-  var n=N(id), c=h('div',{'class':'wp-card '+ucls(n.a)+(main?' main':'')+(S.out[id]?' wp-dim':''),role:'button',tabindex:'0','data-id':id},S.lCards);
+  var n=N(id), c=h('div',{'class':'wp-card wp-grow '+ucls(n.a)+(main?' main':'')+(S.out[id]?' wp-dim':''),role:'button',tabindex:'0','data-id':id},S.lCards);
   var ha=hubUnit(id);
   h('div',{'class':'n'},c,ha>=0?'Unit '+(ha+1)+' · '+(D().u[ha].reg||[]).join(', '):dec(n.n||'')+(main&&n.pl?' · '+dec(n.pl):''));
   h('h4',null,c,dec(n.t||''));
@@ -494,16 +513,17 @@ function openCluster(id,at,enl){
     if(enl!==id) cards.push({id:enl,el:enlarge(enl,true),extra:1}); }
   else kids.forEach(function(c){ cards.push({id:c,el:c===enl?enlarge(c,true):card(c,false)}); });
   S.cl={id:id,main:main,cards:cards,k:S.k,boxes:[],at:at||null,enl:enl};
-  layoutCluster(); place(); labels(); navSync();
+  layoutCluster(); place(); labels(); navSync(); grow(els(S.cl));
 }
 function swapEnl(id){
-  var C=S.cl; if(!C||C.enl===id) return; giveBack();
-  var put=function(K,big){ var nid=K?K.id:C.id, e=big?enlarge(nid,!!K):card(nid,!K), old=K?K.el:C.main; old.replaceWith(e); if(K) K.el=e; else C.main=e; };
+  var C=S.cl; if(!C||C.enl===id) return;
   var rec=function(x){ for(var i=0;i<C.cards.length;i++) if(C.cards[i].id===x) return C.cards[i]; return null; };
+  var was=C.enl===C.id?C.main:(rec(C.enl)||{}).el; ghost(was,C.id,C.at); giveBack();         // the card it leaves folds into the pin
+  var put=function(K,big){ var nid=K?K.id:C.id, e=big?enlarge(nid,!!K):card(nid,!K), old=K?K.el:C.main; old.replaceWith(e); if(K) K.el=e; else C.main=e; };
   if(C.enl===C.id) put(null,false); else { var K0=rec(C.enl); if(K0&&K0.extra){ K0.el.remove(); C.cards.splice(C.cards.indexOf(K0),1); } else if(K0) put(K0,false); }
   if(id===C.id) put(null,true);
   else { var K=rec(id); if(K) put(K,true); else { K={id:id,el:enlarge(id,true),extra:1,c:[Math.min(S.vw*.28,320),0]}; C.cards.push(K); } }
-  C.enl=id; place(); labels(); navSync();
+  C.enl=id; place(); labels(); navSync(); grow(els(C));
 }
 function layoutCluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C), I=inset();
@@ -534,11 +554,11 @@ function cluster(){
   var I=inset(), links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh);
   var mx=clamp(mb[0],8,Math.max(8,S.vw-8-mw)), my=clamp(mb[1],8,Math.max(8,S.vh-8-mh));     // the place's own card beside its pin
-  C.main.style.transform='translate('+mx.toFixed(1)+'px,'+my.toFixed(1)+'px)';
+  C.main.style.transform='translate('+mx.toFixed(1)+'px,'+my.toFixed(1)+'px)'; C.main._x=mx; C.main._y=my; var org=P.x.toFixed(1)+'px '+P.y.toFixed(1)+'px'; C.main.style.transformOrigin=org;
   C.boxes=[[mx,my,mx+mw,my+mh]];
   C.cards.forEach(function(K){ var w=K.el.offsetWidth, hh=K.el.offsetHeight, x=P.x+K.c[0]-w/2, y=P.y+K.c[1]-hh/2;
     if(K.el.classList.contains('wp-enl')){ x=clamp(x,I.l,Math.max(I.l,S.vw-I.r-w)); y=clamp(y,I.t,Math.max(I.t,S.vh-I.b-hh)); }
-    K.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)'; C.boxes.push([x,y,x+w,y+hh]);
+    K.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)'; K.el._x=x; K.el._y=y; K.el.style.transformOrigin=org; C.boxes.push([x,y,x+w,y+hh]);
     var q=[clamp(P.x,x,x+w),clamp(P.y,y,y+hh)], Q=quad([P.x,P.y],q,.1), g=el('g',{'class':ucls(N(C.id).a)},links);
     el('path',{d:'M'+P.x.toFixed(1)+' '+P.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+q[0].toFixed(1)+' '+q[1].toFixed(1),'class':'wp-link'},g);
     el('circle',{cx:q[0].toFixed(1),cy:q[1].toFixed(1),r:3.5,'class':'wp-dot'},g); });
@@ -551,11 +571,11 @@ A.hop=function(d){ var all=seq(), n=all.length; if(!n) return; var i=all.indexOf
   for(var k=1;k<=n;k++){ var j=((i+d*k)%n+n)%n; if(!S.out[all[j]]) return A.select(all[j]); } };
 A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1e9,-1e9];
   (u.st||[]).filter(placed).forEach(function(id){ var n=N(id), b=S.bb[n.c]||[n.x,n.y,n.x,n.y]; bb=[Math.min(bb[0],n.x,b[0]),Math.min(bb[1],n.y,b[1]),Math.max(bb[2],n.x,b[2]),Math.max(bb[3],n.y,b[3])]; });
-  if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(); S.ua=a; S.sel=u.hub||null; S.cur=u.hub||null; if(u.hub) rels(u.hub); else S.rel=[]; focus(a,null,null); tourBar();
+  if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(true); S.ua=a; S.sel=u.hub||null; S.cur=u.hub||null; if(u.hub) rels(u.hub); else S.rel=[]; focus(a,null,null); tourBar();
   var I=inset(), v=fitBox(bb,phone()?20:60), k=Math.min(v.k,S.kW*14), mh=u.hub?(phone()?150:260):0;
   v.cy-=mh/2/k;                                                               // room above the region for its own card
-  var land=function(){ if(u.hub&&S.sel===u.hub) openCluster(u.hub,[(bb[0]+bb[2])/2,bb[1]]); };
-  if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=k; apply(); settle(); land(); } else fly(v.cx,v.cy,k,land); emit('select',u.hub||null); };
+  var land=function(){ if(u.hub&&S.sel===u.hub&&!(S.cl&&S.cl.id===u.hub)) openCluster(u.hub,[(bb[0]+bb[2])/2,bb[1]]); };
+  if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=k; apply(); settle(); land(); } else fly(v.cx,v.cy,k,land,land); emit('select',u.hub||null); };
 // the Tour switch: off, the bar goes, nothing is dimmed and the map stays where the reader is (free to pan, zoom and fly anywhere; the
 // arrow keys pan); on, it starts from the card the reader is on, or the first stop
 A.tourMode=function(v){ if(v==null) return S.tour; S.tour=!!v; try{ localStorage.setItem('alto-world-tour',S.tour?'on':'off'); }catch(x){}
