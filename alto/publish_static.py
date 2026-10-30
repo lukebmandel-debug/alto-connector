@@ -428,7 +428,7 @@ def firebase_configured() -> tuple[str, str, str] | None:
     return None
 
 
-def _security_headers(site_dir: Path | None = None) -> list[dict]:
+def _security_headers(site_dir: Path | None = None, site: str | None = None) -> list[dict]:
     """CSP and friends for the published site.
 
     `'unsafe-inline'` in script-src is unavoidable and deliberate: the engine is
@@ -437,8 +437,10 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     blast radius: no third-party script origins, no plugins, no framing, no form
     posts, and no <base> rewriting.
     """
+    own = (" https://%s.web.app" % site) if site and _FB_NAME.fullmatch(site) else ""
+
     def build(form_action: str) -> str:
-        return _csp(form_action)
+        return _csp(form_action, own)
     csp = build("'none'")
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
@@ -446,19 +448,23 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir))
 
 
-def _csp(form_action: str) -> str:
+def _csp(form_action: str, own: str = "") -> str:
+    """`own` is " https://<site>.web.app" or "". WebKit does not match 'self' inside a sandboxed (opaque-origin) frame, so the shared-page
+    frame, which inherits this policy, could not load the hosted palace scripts and data in Safari. Naming the site's own origin beside
+    'self' fixes that and grants nothing new: the frame's origin is opaque (no storage, cookies or sign-in), and a cross-origin READ
+    still needs the Access-Control-Allow-Origin header, which only the public hashed folders carry."""
     return "; ".join([
         "default-src 'self'",
         # gstatic serves the Firebase SDK; apis.google.com serves the gapi
         # loader signInWithPopup injects — without it Google sign-in (and so
         # cross-device sync) is dead on every published page.
         # 'wasm-unsafe-eval' lets WebAssembly compile (the FPV's Basis texture transcoder, build/fpv_gfx.py) and nothing else: no eval(), no new Function.
-        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https://*.googleusercontent.com",
-        "font-src 'self' data:",
+        "script-src 'self'" + own + " 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com",
+        "style-src 'self'" + own + " 'unsafe-inline'",
+        "img-src 'self'" + own + " data: blob: https://*.googleusercontent.com",
+        "font-src 'self'" + own + " data:",
         # Firestore + Identity Toolkit, which alto-cloud.js talks to directly.
-        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com "
+        "connect-src 'self'" + own + " https://*.googleapis.com https://*.firebaseio.com "
         "wss://*.firebaseio.com https://*.firebaseapp.com" + _tile_src(),
         # The Google sign-in popup's helper frame, on the project's authDomain:
         # *.firebaseapp.com by default, or this site itself when authDomain is
@@ -650,7 +656,7 @@ def deploy_site(site_dir: Path) -> str:
                      # Same idea for private timelines: any account's page
                      # opens from any of its sites (see regenerate_site).
                      {"source": "/pv/**", "destination": "/pv/index.html"}],
-        "headers": _security_headers(site_dir)}}
+        "headers": _security_headers(site_dir, site)}}
     cfg_json["firestore"] = {"rules": rules_out.name}
     if (site_dir.parent / "storage.rules").exists():
         cfg_json["storage"] = {"rules": "storage.rules"}

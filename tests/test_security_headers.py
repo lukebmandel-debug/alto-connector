@@ -79,3 +79,40 @@ def test_a_sandboxed_share_can_fetch_the_hosted_palace_files():
     assert world and any_origin in world[0]["headers"]
     retro = [r for r in ps._security_headers(None) if r.get("source") == "/retro/**"]
     assert retro and any_origin not in retro[0]["headers"]
+
+
+# ── the site's own origin beside 'self' (WebKit does not match 'self' in a sandboxed, opaque-origin frame) ─────────────────────────────
+_FETCH_DIRECTIVES = ("script-src", "style-src", "img-src", "font-src", "connect-src")
+
+
+def test_the_sites_own_origin_is_named_once_in_every_fetch_directive_that_has_self():
+    import alto.publish_static as ps
+    csp = _csp(ps._security_headers(None, "luke-alto"))
+    for name in _FETCH_DIRECTIVES:
+        toks = _directive(csp, name).split(" ")[1:]
+        assert "'self'" in toks and toks.count("https://luke-alto.web.app") == 1, name
+
+
+def test_without_a_site_the_policy_is_byte_for_byte_what_it_was():
+    import alto.publish_static as ps
+    assert _csp(ps._security_headers(None)) == _csp(ps._security_headers(None, None)) == ps._csp("'none'")
+    assert "web.app" not in _csp(ps._security_headers(None))
+
+
+def test_a_bad_site_name_adds_nothing():
+    import alto.publish_static as ps
+    base = _csp(ps._security_headers(None))
+    for bad in ("", "Luke-Alto", "x.evil.com", "a b", "luke-alto.web.app/x", "ab", "-lead", "a;script-src *", "luke-alto\nfoo", "luke-alto\n"):
+        assert _csp(ps._security_headers(None, bad)) == base, repr(bad)
+
+
+def test_naming_the_origin_opens_nothing_else():
+    import alto.publish_static as ps
+    csp = _csp(ps._security_headers(None, "alto-timelines"))
+    plain = _csp(ps._security_headers(None))
+    assert csp.replace(" https://alto-timelines.web.app", "") == plain         # the ONLY difference is that origin, five times
+    assert csp.count("https://alto-timelines.web.app") == len(_FETCH_DIRECTIVES)
+    assert "*" not in _directive(csp, "script-src").replace("https://*.", "")
+    assert _directive(csp, "frame-ancestors") == "frame-ancestors 'none'"
+    assert _directive(csp, "object-src") == "object-src 'none'"
+    assert _directive(csp, "form-action") == "form-action 'none'"
