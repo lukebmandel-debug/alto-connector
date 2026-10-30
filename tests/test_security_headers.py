@@ -45,3 +45,25 @@ def test_html_and_js_are_revalidated_on_every_load():
     assert cache[0]["source"] == "**"
     val = next(h["value"] for h in cache[0]["headers"] if h["key"] == "Cache-Control")
     assert val == "no-cache"
+
+
+def _directive(csp, name):
+    return next(d for d in csp.split("; ") if d.split(" ")[0] == name)
+
+
+def test_sign_in_frames_may_come_from_the_site_itself():
+    """authDomain may be the site itself (<site>.web.app), whose /__/auth/
+    iframe the popup flow needs; without 'self' that frame is blocked."""
+    assert _directive(_csp(_security_headers()), "frame-src").split(" ")[1:] == \
+        ["'self'", "https://*.firebaseapp.com"]
+
+
+def test_the_rest_of_the_policy_stays_as_strict():
+    csp = _csp(_security_headers())
+    assert _directive(csp, "default-src") == "default-src 'self'"
+    assert _directive(csp, "object-src") == "object-src 'none'"
+    assert _directive(csp, "base-uri") == "base-uri 'self'"
+    assert _directive(csp, "form-action") == "form-action 'none'"
+    assert _directive(csp, "frame-ancestors") == "frame-ancestors 'none'"
+    assert "'unsafe-eval'" not in csp and " * " not in csp + " "
+    assert "data:" not in _directive(csp, "frame-src")
