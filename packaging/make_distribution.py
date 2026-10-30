@@ -509,7 +509,8 @@ def build_site(ident: dict, files: list[dict],
 
     privacy = SITE / "privacy"
     privacy.mkdir(exist_ok=True)
-    shutil.copy2(ROOT / "alto" / "privacy.html", privacy / "index.html")
+    from alto.build import legal
+    (privacy / "index.html").write_text(legal.page("privacy"), encoding="utf-8")
 
     (SITE / "firebase.json").write_text(json.dumps({
         "hosting": {
