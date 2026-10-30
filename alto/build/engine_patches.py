@@ -1774,7 +1774,7 @@ _ALIGN_NEW = (
     "    var dock = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--np-dock')) || 0;\n"
     "    var modeR = 30 + epW + dock;                    // 30 = the corner inset (24px VISUAL)\n"
     "    var rightCSS  = mtOff ? modeR : modeR + COLLAPSED_H + MARGIN;\n"
-    "    var bottomCSS = 30;\n"
+    "    var bottomCSS = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--alto-row-b')) || 24;   // the shared foot line, beside the account toggle\n"
     "    mt.style.setProperty('right',  modeR + 'px', 'important');\n"
     "    mt.style.setProperty('bottom', bottomCSS + 'px', 'important');\n"
     "    if(ep) ep.style.setProperty('right', (30 + dock) + 'px', 'important');\n")
@@ -1784,9 +1784,9 @@ _ALIGN_HOOK_NEW = (
     "  new MutationObserver(alignInfo).observe(document.documentElement, {attributes:true, attributeFilter:['class']});\n"
     + _ALIGN_HOOK_OLD)
 _INFO_FB_OLD = "html:not(.mobile) #info-btn{ bottom:24px !important; right:96px !important; top:auto !important; }"
-_INFO_FB_NEW = "html:not(.mobile) #info-btn{ bottom:30px !important; right:78px !important; top:auto !important; }"
+_INFO_FB_NEW = "html:not(.mobile) #info-btn{ bottom:var(--alto-row-b, 24px) !important; right:78px !important; top:auto !important; }"
 _SB_FB_OLD = "position:fixed; bottom:24px; right:144px; z-index:300;"
-_SB_FB_NEW = "position:fixed; bottom:30px; right:125px; z-index:300;"
+_SB_FB_NEW = "position:fixed; bottom:var(--alto-row-b, 24px); right:125px; z-index:300;"
 # The magnifier is the homepage's, exactly: the same 20-unit drawing at the same
 # 1.8 stroke (the engine's own 2.25 was a heavier line, and a 0.3/-0.3 view-box nudge
 # that the homepage never had). Drawn 20px in the 35px circle, centred by

@@ -68,7 +68,7 @@ def test_never_on_a_phone_or_in_print():
     assert "html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}" in MANUAL_CSS
     assert "html.mobile .alto-edit-pill.in-page{display:flex;}" in MANUAL_CSS
     assert "(phone ? '' : '<button type=\"button\" class=\"aep-half aep-claude\"" in MANUAL_JS
-    assert "#alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:30px;" in MANUAL_CSS
+    assert "#alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:var(--alto-row-b,24px);" in MANUAL_CSS
     js = dx.EDIT_TILE
     assert "nav-drawer" not in js and "drawer-edit-btn" not in js
     assert "world.appendChild(tile)" not in js

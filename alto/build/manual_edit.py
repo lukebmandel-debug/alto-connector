@@ -170,7 +170,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   /* the edit toggle: a split pill in the corner, where light/dark used to be — build with
      Claude on the left, edit by hand on the right. On a phone, a pencil-only
      pill at the foot of a page. While editing, the editing bar takes its place. */
-  #alto-edit-pill{position:fixed;bottom:30px;right:30px;z-index:310;height:35px;display:inline-flex;align-items:stretch;
+  #alto-edit-pill{position:fixed;bottom:var(--alto-row-b,24px);right:30px;z-index:310;height:35px;display:inline-flex;align-items:stretch;
     border-radius:17.5px;background:var(--card-glass-bg);border:1px solid var(--card-glass-border);color:var(--muted);
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
     box-shadow:0 10px 26px var(--node-rest-shadow),inset 0 0 0 .5px var(--card-glass-rim);}
@@ -200,7 +200,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing .alto-edit-pill.in-page,html.printing .alto-edit-pill.in-page{display:none !important;}
 
   /* the editing bar, at the foot of the screen */
-  #alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:30px;z-index:330;display:none;align-items:center;gap:10px;
+  #alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:var(--alto-row-b,24px);z-index:330;display:none;align-items:center;gap:10px;
     height:38px;padding:0 6px 0 16px;border-radius:19px;background:#7a4b00;color:#fff;font:14px Georgia,serif;letter-spacing:.05em;
     box-shadow:0 6px 20px rgba(0,0,0,.25);white-space:nowrap;}
   html.dark #alto-edit-exit{background:#5a3a08;box-shadow:0 6px 20px rgba(0,0,0,.55);}
