@@ -239,6 +239,7 @@ def test_the_bars_follow_the_top_bar_rule(browser, site):
     assert pg.evaluate("document.documentElement.classList.contains('ct-on')")
     assert css("#title-bar", "backgroundColor") in clear and css("#nav", "backgroundColor") in clear
     assert css("#title-text", "backgroundColor") not in clear            # the name keeps its own solid plate instead
+    assert css("#glass-slab", "borderTopWidth") == "0px"                  # no unit-colour sheet running up under the cleared bars
     pg.evaluate("document.documentElement.classList.add('detail-open')")
     pg.wait_for_timeout(300)
     assert not pg.evaluate("document.documentElement.classList.contains('ct-on')")

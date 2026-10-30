@@ -65,6 +65,8 @@ HOLO_CSS = r"""
   X:not(.ct-on):not(.alto-home.alto-clear-top) :is(#title-bar,#nav,#node-nav-bar):not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;}
   X:not(.ct-on):not(.alto-home.alto-clear-top) #title-bar:not(#_):not(#__){border-bottom:1px solid rgba(var(--ho-rgb),.5) !important;box-shadow:var(--ho-glow) !important;}
   X:is(.ct-on,.alto-home.alto-clear-top) :is(#title-text,.nav-group-label):not(#_):not(#__){background:var(--ho-bg) !important;box-shadow:0 0 0 6px var(--ho-bg) !important;border-radius:0 !important;}
+  /* no unit-colour sheet, like Retro: clear_top.py's sheet reaching up past the window's top (#glass-slab's 1200px top border) is undone */
+  X.alto-clear-top #glass-slab:not(#_):not(#__){margin-top:0 !important;border-top-width:0 !important;}
   X #title-text:not(#_){color:var(--ho-tx) !important;font-weight:500 !important;}
   /* the cards: a square wireframe plate lit from its edge */
   X #world .node-card:not(#_){border:1px solid rgba(var(--ho-rgb),.62) !important;border-radius:0 !important;
