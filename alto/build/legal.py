@@ -6,6 +6,7 @@ The pages are hosted / static (publish_static writes /privacy/, /terms/ and /cre
 subset the drafts use: # title, ## heading, - bullets, **bold**, [links](url), paragraphs, and the first italic line as a note.
 """
 import html
+import json
 import re
 from pathlib import Path
 
@@ -53,11 +54,11 @@ CSS = """
 :root{--bg:#f0efea;--tx:#1a1a2e;--mu:#5a5a70;--ac:#4a3ab0;--ln:rgba(26,26,46,.18)}
 html.dark{--bg:#10111a;--tx:#ecebf4;--mu:#a6a6bb;--ac:#a99cff;--ln:rgba(236,235,244,.2)}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.65 Georgia,serif}
-main{max-width:720px;margin:0 auto;padding:40px 20px 24px}
+main{max-width:680px;margin:0 auto;padding:40px 20px 24px}
 h1{font-size:26px;letter-spacing:.02em;margin:0 0 6px} h2{font-size:18px;margin:1.8em 0 .4em}
 p,li{margin:.5em 0} ul{padding-left:1.3em} .note{color:var(--mu);font-size:14px}
 a{color:var(--ac)} strong{font-weight:700}
-nav,footer{max-width:720px;margin:0 auto;padding:0 20px;font:14px/1.6 system-ui,sans-serif}
+nav,footer{max-width:680px;margin:0 auto;padding:0 20px;font:14px/1.6 system-ui,sans-serif}
 nav{padding-top:20px} footer{padding-bottom:40px;color:var(--mu);border-top:1px solid var(--ln);margin-top:32px;padding-top:14px}
 footer a{margin-right:14px}
 """
@@ -73,9 +74,39 @@ def footer_links(current: str = "") -> str:
     return "".join('<a href="/%s/"%s>%s</a>' % (k, cur if k == current else "", html.escape(n)) for k, (_, n) in PAGES.items())
 
 
+def _url(u: str) -> str:
+    return u.replace("(", "%28").replace(")", "%29").replace(" ", "%20")
+
+
+def _generated_credits() -> str:
+    """The credit lines that come from the registries themselves (the background catalogue and the PMA art list), so a page can never name a
+    photo or painting the app does not carry, or miss one it does: written as the same small markdown as the file above."""
+    from . import backgrounds_catalog as cat
+    out = ["## Background photographs",
+           "The photographs behind the pages (the Background picker), from Wikimedia Commons. Each is public domain, CC0 or CC BY; the name links to its Commons page."]
+    for sc in cat.SCENES:
+        for k in ("d", "l"):
+            p = sc[k]
+            out.append("- **[%s](%s)**, %s. %s." % (p["name"].replace("[", "(").replace("]", ")"), _url(p["url"]), p["by"], p["lic"]))
+    out.append("The colours and patterns in the same picker are Alto's own.")
+    try:
+        art = json.loads((LEGAL.parent / "buildings" / "pma_art.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        art = None
+    if art:
+        out += ["## Paintings in the Memory Blueprint",
+                "Public-domain reproductions of works in the Philadelphia Museum of Art, from Wikimedia Commons (works whose artist died before 1956); the title links to its Commons page."]
+        for im in art["images"].values():
+            out.append("- **[%s](%s)**, %s (%s). %s." % (im["title"].replace("[", "(").replace("]", ")"), _url(im["commons"]), im["artist"], im["date"], im["licence"]))
+    return "\n".join(out) + "\n"
+
+
 def page(key: str) -> str:
     fname, name = PAGES[key]
-    title, body = render_body((LEGAL / fname).read_text(encoding="utf-8"))
+    md = (LEGAL / fname).read_text(encoding="utf-8")
+    if key == "credits":
+        md += _generated_credits()
+    title, body = render_body(md)
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="color-scheme" content="light dark"><title>{html.escape(title or name)}</title><script>{HEAD_JS}</script><style>{CSS}</style></head><body>'
             f'<nav><a href="/">&larr; Alto</a></nav><main><h1>{html.escape(title or name)}</h1><p class="note">Version {html.escape(version())}</p>{body}</main>'

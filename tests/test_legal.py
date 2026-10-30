@@ -43,6 +43,13 @@ def test_three_pages_render_from_the_markdown_with_the_one_version():
     assert "__ALTO" not in "".join(pages.values())
     assert "only you can see your own account" not in pages["privacy"]      # held until IT's security sign-off
     assert not (ROOT / "alto" / "legal" / "storage-notice.md").exists()
+    cr = pages["credits"]                                            # the registries themselves are credited: every background photo, every hosted painting
+    from alto.build import backgrounds_catalog as cat
+    for sc in cat.SCENES:
+        for k in ("d", "l"):
+            assert sc[k]["name"] in cr and sc[k]["lic"] in cr
+    assert "Natural Earth" in cr and "Poly Haven" in cr and "Apache License 2.0" in cr and "Portrait of Yarrow Mamout" in cr
+    assert 'href="https://commons.wikimedia.org/wiki/File:Portrait_of_Yarrow_Mamout_%28Muhammad_Yaro%29' in cr    # parentheses in a Commons URL survive
 
 
 def test_the_markdown_is_escaped_and_small():

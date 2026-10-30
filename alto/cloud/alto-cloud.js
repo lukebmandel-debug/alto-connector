@@ -1440,7 +1440,9 @@
     '.acct-terms input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--text)}' +
     '.acct-terms a,.acct-legal a{color:inherit;text-decoration:underline;text-underline-offset:2px}' +
     '.acct-legal{font-size:11px;letter-spacing:.04em;color:var(--muted);margin-top:12px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}' +
-    '#account-modal .acct-provider:disabled{opacity:.45;cursor:not-allowed}' +
+    // Art 30 Oct: the plate the text sits on is near-opaque (the muted lines clear 4.5:1 on it, both themes); the waiting button stays the main button, text >= 3:1
+    '#account-modal{background:var(--surface,#fff);background:color-mix(in srgb,var(--surface,#fff) 90%,transparent)}' +
+    '#account-modal .acct-provider:disabled{opacity:1;color:var(--muted);background:transparent;cursor:not-allowed}' +
     '#alto-terms-scrim{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,12,20,.62)}' +
     '#alto-terms-card{max-width:380px;width:100%;box-sizing:border-box;padding:22px;border-radius:14px;background:var(--surface,#fff);color:var(--text,#1a1a2e);border:1px solid var(--btn-border,rgba(0,0,0,.2));font-family:inherit}' +
     '#alto-terms-card h2{margin:0 0 8px;font-size:15px;letter-spacing:.16em;text-transform:uppercase;font-weight:500}' +
