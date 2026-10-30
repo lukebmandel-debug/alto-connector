@@ -1,0 +1,223 @@
+name: tests-full
+
+# The full test run on GitHub's own machines, so the Mac that builds Alto does not have to run it.
+# Read-only by construction: no secrets, no cloud login, a read-only token, nothing here can publish, tag or deploy.
+# A push to a working branch (alto-*) runs it; so does a manual dispatch (Actions tab, or: gh workflow run tests-full.yml --ref <branch>).
+# Branches named alto-ci-* do not start it on push (that is the branch this file is developed on); dispatch still works there.
+# Results: the job summary (passed / failed / skipped, the ten slowest tests, the skip list) and the JUnit + log artifacts (7 days).
+
+on:
+  push:
+    branches: ["alto-*", "!alto-ci-*"]
+  workflow_dispatch:
+    inputs:
+      macos_webkit:
+        description: "Also run the WebKit-marked tests on macOS (real Safari engine build). Off by default."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-full-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+  ALTO_STORE: local
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  linux:
+    name: linux shard ${{ matrix.shard }} of 6
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+      - name: Install the project and the test tools
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist playwright
+      - name: Install the browsers (Chromium and WebKit) with their system libraries
+        run: python -m playwright install --with-deps chromium webkit
+      - name: Stage the engine templates
+        run: python packaging/stage_engine.py
+      - name: Pick this shard's test files
+        env:
+          SHARDS: "6"
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY' > shard-files.txt
+          import glob, os
+          n, i = int(os.environ["SHARDS"]), int(os.environ["SHARD"])
+          files = sorted(glob.glob("tests/test_*.py"), key=lambda p: (-os.path.getsize(p), p))
+          for k, f in enumerate(files):
+              if k % n == i:
+                  print(f)
+          PY
+          echo "files in this shard: $(wc -l < shard-files.txt)"
+      - name: Run the tests
+        run: |
+          set -o pipefail
+          python -m pytest $(cat shard-files.txt) -n 4 -q -p no:cacheprovider -rfEs --durations=10 \
+            -o junit_family=xunit2 --junitxml=junit-linux-${{ matrix.shard }}.xml 2>&1 | tee pytest-linux-${{ matrix.shard }}.log
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: tests-full-linux-${{ matrix.shard }}
+          path: |
+            junit-linux-${{ matrix.shard }}.xml
+            pytest-linux-${{ matrix.shard }}.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  macos-webkit:
+    name: macos webkit shard ${{ matrix.shard }} of 4
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_webkit }}
+    runs-on: macos-14
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+      - name: Install the project and the test tools
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist playwright
+      - name: Install WebKit
+        run: python -m playwright install webkit
+      - name: Stage the engine templates
+        run: python packaging/stage_engine.py
+      - name: Pick this shard's WebKit test files
+        env:
+          SHARDS: "4"
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY' > shard-files.txt
+          import glob, os
+          n, i = int(os.environ["SHARDS"]), int(os.environ["SHARD"])
+          files = [p for p in glob.glob("tests/test_*.py") if "webkit" in open(p, encoding="utf-8", errors="replace").read().lower()]
+          files.sort(key=lambda p: (-os.path.getsize(p), p))
+          for k, f in enumerate(files):
+              if k % n == i:
+                  print(f)
+          PY
+          echo "files in this shard: $(wc -l < shard-files.txt)"
+      - name: Run the tests
+        run: |
+          set -o pipefail
+          python -m pytest $(cat shard-files.txt) -n 3 -q -p no:cacheprovider -rfEs --durations=10 \
+            -o junit_family=xunit2 --junitxml=junit-macos-${{ matrix.shard }}.xml 2>&1 | tee pytest-macos-${{ matrix.shard }}.log
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: tests-full-macos-${{ matrix.shard }}
+          path: |
+            junit-macos-${{ matrix.shard }}.xml
+            pytest-macos-${{ matrix.shard }}.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  report:
+    name: summary and file guard
+    needs: [linux, macos-webkit]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflows
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: tests-full-*
+          path: results
+          merge-multiple: true
+        continue-on-error: true
+      - name: Write the job summary
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, collections
+          import xml.etree.ElementTree as ET
+          rows, fails, skips, times = [], [], collections.defaultdict(list), []
+          tot = collections.Counter()
+          for f in sorted(glob.glob("results/junit-*.xml")):
+              try:
+                  root = ET.parse(f).getroot()
+              except ET.ParseError:
+                  rows.append((f.split("/")[-1], "unreadable", "", "", "", ""))
+                  continue
+              c = collections.Counter()
+              secs = 0.0
+              for case in root.iter("testcase"):
+                  name = f'{case.get("classname", "")}::{case.get("name", "")}'
+                  t = float(case.get("time") or 0)
+                  secs += t
+                  times.append((t, name))
+                  sk, bad = case.find("skipped"), case.find("failure") if case.find("failure") is not None else case.find("error")
+                  if sk is not None:
+                      c["skipped"] += 1
+                      skips[(sk.get("message") or "").strip()[:160]].append(name)
+                  elif bad is not None:
+                      c["failed"] += 1
+                      fails.append((name, (bad.get("message") or bad.text or "").strip().splitlines()[:1]))
+                  else:
+                      c["passed"] += 1
+              tot.update(c)
+              rows.append((f.split("/")[-1], c["passed"], c["failed"], c["skipped"], f"{secs / 60:.1f}", ""))
+          print("## tests-full")
+          print(f"**passed {tot['passed']}  failed {tot['failed']}  skipped {tot['skipped']}**  ({len(rows)} result files)\n")
+          print("| file | passed | failed | skipped | test-minutes |\n|---|---|---|---|---|")
+          for r in rows:
+              print("| " + " | ".join(str(x) for x in r[:5]) + " |")
+          print("\n### Failures")
+          for name, msg in fails[:80]:
+              print(f"- `{name}` {msg[0][:200] if msg else ''}")
+          if not fails:
+              print("none")
+          print("\n### Slowest 10")
+          for t, name in sorted(times, reverse=True)[:10]:
+              print(f"- {t:.1f}s `{name}`")
+          print("\n### Skips by reason")
+          for reason, names in sorted(skips.items(), key=lambda kv: -len(kv[1])):
+              print(f"<details><summary>{len(names)} x {reason or '(no reason)'}</summary>\n")
+              for n in names[:200]:
+                  print(f"- `{n}`")
+              print("\n</details>")
+          PY
+      - name: Fail if this workflow file contains anything it must never contain
+        run: |
+          f=.github/workflows/tests-full.yml
+          if grep -nEi 'secret[s]\.|secret[s]:|pull_request_targe[t]|workflow_ru[n]|id-toke[n]|environmen[t]:|firebas[e]|gclou[d]|git pus[h]|git ta[g]|gh releas[e]' "$f"; then
+            echo "::error::$f contains a forbidden string (listed above)"
+            exit 1
+          fi
+          echo "guard: clean"
