@@ -663,7 +663,7 @@ function lanesRoom(world){
   var c=document.getElementById('canvas'); if(!c || !c.clientHeight) return null;
   var r=c.getBoundingClientRect(), k=(r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1, ch=c.clientHeight, t=16, b=ch-16, q;
   var vis=function(e){ if(!e) return null; var x=e.getBoundingClientRect(); return (x.width && x.height && getComputedStyle(e).display!=='none') ? x : null; };
-  if((q=vis(document.getElementById('key-toggle'))) && q.bottom>r.top) t=Math.max(t, (q.bottom-r.top)/k+12);
+  if((q=vis(document.getElementById('key-toggle'))) && q.bottom>r.top && q.top<r.top+ch/2) t=Math.max(t, (q.bottom-r.top)/k+12);
   if((q=vis(document.getElementById('lanes-nav'))) && q.top<r.bottom) b=Math.min(b, (q.top-r.top)/k-14);
   else b=Math.min(b, ch-(de.classList.contains('phone-whole') ? PHONE_RAIL : RAIL));
   var wo=0, e=world; while(e && e!==c){ wo+=e.offsetTop; e=e.offsetParent; }
