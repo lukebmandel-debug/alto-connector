@@ -113,8 +113,8 @@ def stage_package(server: Path) -> None:
         out.mkdir(parents=True, exist_ok=True)
         for f in sorted(src_dir.glob(pattern)):
             shutil.copy2(f, out / f.name)
-    for extra in ("interview_guide.md", "privacy.html", "firestore.rules",
-                  "storage.rules"):
+    for extra in ("interview_guide.md", "privacy.html", "storage.rules",
+                  "firestore.rules"):
         shutil.copy2(ROOT / "alto" / extra, server / "alto" / extra)
     if not (server / "alto" / "engine" / "timeline_template.html").exists():
         raise SystemExit(

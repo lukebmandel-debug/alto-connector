@@ -22,4 +22,4 @@ def test_every_client_request_is_denied():
 
 def test_the_rules_travel_with_every_install():
     assert '"storage.rules"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"storage.rules")' in (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
+    assert '"storage.rules",' in (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
