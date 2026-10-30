@@ -67,3 +67,15 @@ def test_the_rest_of_the_policy_stays_as_strict():
     assert _directive(csp, "frame-ancestors") == "frame-ancestors 'none'"
     assert "'unsafe-eval'" not in csp and " * " not in csp + " "
     assert "data:" not in _directive(csp, "frame-src")
+
+
+def test_a_sandboxed_share_can_fetch_the_hosted_palace_files():
+    """A shared page runs in an opaque origin, so fetch and crossOrigin images need the header on every hashed file a palace reads."""
+    from alto import publish_static as ps
+    any_origin = {"key": "Access-Control-Allow-Origin", "value": "*"}
+    rules = (ps._cmap_rules(["b-0123456789ab.json", "t-0123456789.json"]) + ps._bldg_rules(["plan-0123456789ab.json"]))
+    assert rules and all(any_origin in r["headers"] for r in rules)
+    world = [r for r in ps._security_headers(None) if r.get("source") == "/world/**"]
+    assert world and any_origin in world[0]["headers"]
+    retro = [r for r in ps._security_headers(None) if r.get("source") == "/retro/**"]
+    assert retro and any_origin not in retro[0]["headers"]

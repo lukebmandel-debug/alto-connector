@@ -510,6 +510,7 @@ def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=
         # A hosted palace script (the fleet, the Retro style, ...) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
+            *([_ANY_ORIGIN] if f == "world" else []),
         ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
         # bldg: the Memory Blueprint's renderers and plans, one literal immutable rule per file that exists: a plan a page names before the
         # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
@@ -546,7 +547,7 @@ def _gfx_names(site_dir) -> list:
 def _gfx_rules(names) -> list:
     from .build.fpv_gfx import FOLDER, NAME_RE
     return [{"source": "/%s/%s" % (FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if NAME_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if NAME_RE.match(n)]
 
 
 def _art_names(site_dir) -> list:
@@ -557,6 +558,9 @@ def _art_names(site_dir) -> list:
     d = Path(site_dir) / ART_FOLDER
     return sorted(p.name for p in d.iterdir() if p.is_file() and ART_RE.match(p.name)) if d.is_dir() else []
 
+
+# A shared page runs in a sandboxed frame (share_shell.py), an opaque origin: its fetches of these hashed public files are cross-origin.
+_ANY_ORIGIN = {"key": "Access-Control-Allow-Origin", "value": "*"}
 
 BLDG_RE = re.compile(r"^(palace-building-(fpv-)?[0-9a-f]{10}\.js|plan-[0-9a-f]{12}\.json)$")
 
@@ -571,13 +575,13 @@ def _bldg_names(site_dir) -> list:
 
 def _bldg_rules(names) -> list:
     return [{"source": "/bldg/%s" % n, "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if BLDG_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if BLDG_RE.match(n)]
 
 
 def _art_rules(names) -> list:
     from .buildings.pma_art import ART_FOLDER, ART_RE
     return [{"source": "/%s/%s" % (ART_FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if ART_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if ART_RE.match(n)]
 
 
 def _cmap_names(site_dir) -> list:
@@ -597,12 +601,12 @@ def _cmap_rules(names) -> list:
     day is the longest a browser may remember that."""
     from .build import palace_tiles
     rules = [{"source": "/%s/%s" % (palace_tiles.FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if palace_tiles.BASE_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if palace_tiles.BASE_RE.match(n)]
     if any(palace_tiles.TILE_RE.match(n) for n in names):
         rules.append({"regex": "^/%s/t-[0-9a-f]{10}\\.json$" % palace_tiles.FOLDER, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=86400"},
             # the tiles are shared geography, fetched by the palaces of other sites (palace_tiles.tile_host)
-            {"key": "Access-Control-Allow-Origin", "value": "*"}]})
+            _ANY_ORIGIN]})
     return rules
 
 
