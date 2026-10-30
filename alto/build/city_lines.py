@@ -21,6 +21,7 @@ domain's turned frame (real px turned by -theta about `center`), exactly what pa
 from __future__ import annotations
 
 import math
+import re
 
 from .palace_grid import CW, CH, SNAP_DEG, _dp, _pairs, norm, numbered, lettered, Mapping
 
@@ -134,7 +135,8 @@ def candidates(streets, theta, center, majors=(), must=()):
                 # stations and addresses name (P4: the Market-Frankford jog between Spring Garden and Girard)
                 rank = lambda z: (z.get("k", 9) != 0, z["must"], z["major"], z["len"])          # noqa: E731
                 keep, drop = (q, l) if rank(q) >= rank(l) else (l, q)
-                if drop["n"] != keep["n"]:      # one line, two names (Washington's I Street Northwest / Northeast)
+                if drop["n"] != keep["n"] and _base(drop["n"]) == _base(keep["n"]):
+                    # one street, two quadrant names on one line (Washington's I Street Northwest / Northeast)
                     keep["alt"] = sorted(set(keep.get("alt") or [keep["n"]]) | set(drop.get("alt") or [drop["n"]]))
                 keep["spans"] = sorted(keep["spans"] + drop["spans"])
                 keep["bridges"] += drop["bridges"]
@@ -213,6 +215,13 @@ def _must_names(domain, avenues, must):
                 if av.get("n") or av.get("name"):
                     out.add(norm(av.get("n") or av.get("name")))
     return out
+
+
+_QUAD = re.compile(r"\s+(Northwest|Northeast|Southwest|Southeast|North|South|East|West|NW|NE|SW|SE)$")
+
+
+def _base(n):
+    return _QUAD.sub("", n or "")
 
 
 def _diagonal_names(domain, avenues):
