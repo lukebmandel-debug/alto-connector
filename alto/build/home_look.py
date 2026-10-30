@@ -163,7 +163,10 @@ BIN_CSS = """
   box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim); }
 #bin-btn:hover, #bin-btn.open{ border-color:var(--muted); color:var(--text); }
 #bin-btn svg{ display:block; }
-@media (min-width:641px){ #bin-btn{ zoom:var(--alto-zoom, 0.8); } #bin-panel{ zoom:var(--alto-zoom, 0.8); } }
+@media (min-width:641px){ #bin-btn{ zoom:var(--alto-zoom, 0.8); } #bin-panel{ zoom:var(--alto-zoom, 0.8); }
+  /* flat beside the account photo, which has none (Luke: "trash icon is not in line with other toggles"; the drop shadow under it
+     read as the bin sitting lower; Art, 2026-10-30): the right-hand row keeps its shadows */
+  #bin-btn{ box-shadow:inset 0 0 0 0.5px var(--card-glass-rim); } }
 #bin-panel{ position:fixed; left:24px; bottom:calc(24px + 35px + 12px); z-index:320; width:360px; max-width:calc(100vw - 32px); max-height:min(520px, 62vh);
   overflow-y:auto; padding:14px 14px 10px; border-radius:12px; color:var(--text);
   background:rgba(252,252,255,.95); border:1px solid var(--glass-slab-border);
