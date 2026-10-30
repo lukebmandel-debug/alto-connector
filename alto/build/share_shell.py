@@ -66,8 +66,44 @@ button[disabled]{opacity:.55;cursor:default}
 @media (max-width:640px){#pill{left:10px;bottom:10px}}
 """
 
+# Runs first inside the sandboxed frame, as a function source called with the
+# shell's cfg. The frame's own origin is opaque, so the browser's storage would
+# throw there; the page gets in-memory stand-ins instead, seeded from cfg, and
+# its localStorage is handed back to the shell (debounced) to keep. Navigation
+# goes to the shell as a message: the frame cannot reach window.parent.
+_BRIDGE = """function(cfg){
+  window.__altoQuery = cfg.hash ? { hash: cfg.hash } : undefined;
+  function area(data, changed){
+    var s = {
+      getItem: function(k){ k = String(k); return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[String(k)] = String(v); if(changed) changed(); },
+      removeItem: function(k){ delete data[String(k)]; if(changed) changed(); },
+      clear: function(){ for(var k in data) delete data[k]; if(changed) changed(); },
+      key: function(i){ var ks = Object.keys(data); return i < ks.length ? ks[i] : null; }
+    };
+    Object.defineProperty(s, 'length', { get: function(){ return Object.keys(data).length; } });
+    return s;
+  }
+  var data = {};
+  try{ var d = JSON.parse(cfg.store || '{}'); if(d && typeof d === 'object') for(var k in d) if(typeof d[k] === 'string') data[k] = d[k]; }catch(e){}
+  if(cfg.theme && !('alto-theme-v1' in data)) data['alto-theme-v1'] = String(cfg.theme);
+  var t = null;
+  function keep(){
+    clearTimeout(t);
+    t = setTimeout(function(){
+      try{ parent.postMessage({ t: 'store', v: JSON.stringify(data) }, cfg.origin); }catch(e){}
+    }, 300);
+  }
+  try{ Object.defineProperty(window, 'localStorage', { value: area(data, keep), configurable: true }); }catch(e){}
+  try{ Object.defineProperty(window, 'sessionStorage', { value: area({}, null), configurable: true }); }catch(e){}
+  function go(u){ try{ parent.postMessage({ t: 'go', u: String(u) }, cfg.origin); }catch(e){} }
+  // The page's own shim assigns __altoGo after this; that assignment is ignored.
+  try{ Object.defineProperty(window, '__altoGo', { get: function(){ return go; }, set: function(){}, configurable: false }); }catch(e){}
+}"""
+
 _JS = """
 (function(){
+  var BRIDGE = __BRIDGE__;
   // Which share is this? Only the URL knows, and the URL is the capability.
   var KEY = (location.pathname.replace(/\\/+$/, '').split('/').pop() || '');
   var gate = document.getElementById('gate'),
@@ -80,29 +116,56 @@ _JS = """
     show('<h1>' + (head || 'Shared timeline') + '</h1><p>' + msg + '</p>');
   }
 
+  // The shared page is someone else's HTML, so it runs in a sandboxed frame
+  // (sandbox="allow-scripts", no allow-same-origin): an opaque origin with
+  // no access to this site's storage, cookies, IndexedDB or this window.
+  // What it needs from here is handed over at render time, and the two
+  // things it can ask for (navigate, keep its own storage) arrive as
+  // messages checked below.
+  //
   // #find=<node> from the owner's homepage search: a srcdoc frame has no hash
   // of its own, so hand it to the page's __altoHash() through __altoQuery.
-  // Same hand-off as the private shell.
   var HANDOFF = location.hash || '';
   var lastHtml = '';
+  // A reader's highlights in a share live under ONE key per share, written
+  // only by the message handler below; the frame can never name any other.
+  var STORE_KEY = 'alto-share-v1:' + KEY, STORE_CAP = 400000;
+  function stored(){
+    try{ var v = localStorage.getItem(STORE_KEY) || '{}'; JSON.parse(v); return v; }
+    catch(e){ return '{}'; }
+  }
+  function theme(){
+    try{ return localStorage.getItem('alto-theme-v1') || ''; }catch(e){ return ''; }
+  }
   function render(pageHtml){
     gate.classList.add('off');
     stage.classList.add('on');
     lastHtml = pageHtml;
-    var i = HANDOFF ? pageHtml.indexOf('<head>') : -1;
-    if(i >= 0){
-      pageHtml = pageHtml.slice(0, i + 6) + '<script>window.__altoQuery={hash:' +
-        JSON.stringify(HANDOFF).replace(/</g, '\\\\u003c') + '};<\\/script>' +
-        pageHtml.slice(i + 6);
-      HANDOFF = '';
-      try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
-    }
+    var cfg = { hash: HANDOFF, store: stored(), theme: theme(), origin: location.origin };
+    HANDOFF = '';
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    var boot = '<script>(' + BRIDGE + ')(' +
+      JSON.stringify(cfg).replace(/</g, '\\\\u003c') + ');<\\/script>';
+    var i = pageHtml.indexOf('<head>');
+    pageHtml = i >= 0 ? pageHtml.slice(0, i + 6) + boot + pageHtml.slice(i + 6)
+                      : boot + pageHtml;
     stage.srcdoc = pageHtml;
     // Already kept by this account? Give the homepage its colours and search
     // terms. Does nothing for a share that was never saved.
     var c = window.AltoCloud;
     if(c && c.user && c.refreshShared) c.refreshShared(KEY, lastHtml).catch(function(){});
   }
+
+  window.addEventListener('message', function(e){
+    // Only the frame this shell rendered; its origin is opaque ("null").
+    if(!stage.contentWindow || e.source !== stage.contentWindow) return;
+    var m = e.data;
+    if(!m || typeof m !== 'object') return;
+    if(m.t === 'go' && typeof m.u === 'string') window.__altoSwap(m.u);
+    else if(m.t === 'store' && typeof m.v === 'string' && m.v.length <= STORE_CAP){
+      try{ JSON.parse(m.v); localStorage.setItem(STORE_KEY, m.v); }catch(err){}
+    }
+  });
 
   function unrender(){
     stage.classList.remove('on');
@@ -295,10 +358,10 @@ def shell(cloud_version: str = "") -> str:
         '<title>Alto</title>\n'
         f'<style>{_CSS}</style>\n'
         '</head><body>\n'
-        '<iframe id="stage" title="Alto" '
-        'allow="clipboard-write; clipboard-read; web-share"></iframe>\n'
+        '<iframe id="stage" title="Alto" sandbox="allow-scripts" '
+        'allow="clipboard-write; web-share"></iframe>\n'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
-        f'<script>{_JS}</script>\n'
+        f'<script>{_JS.replace("__BRIDGE__", _BRIDGE)}</script>\n'
         f'<script type="module" src="{src}"></script>\n'
         '</body></html>\n'
     )
