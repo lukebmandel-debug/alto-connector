@@ -111,13 +111,12 @@ def test_the_footer_carries_the_credits_and_the_key(browser):
     page, errors = _open(browser, _html())
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
-        foot = page.inner_text("#bldg-root .bl-foot")
-        assert "OpenStreetMap contributors" in foot and "Architectural Forum" in foot and "ODbL" in foot
         assert page.locator("#bldg-root .bl-credits").is_hidden()
-        page.click("#bldg-root .bl-foot")
+        page.click("#bldg-root .bl-dock [aria-label^='Key and credits']")                 # (B "One dock": the key and the credits are a sheet above the dock; the strip along the bottom is the phone's)
         box = page.inner_text("#bldg-root .bl-credits")
+        assert "OpenStreetMap contributors" in box and "Architectural Forum" in box and "ODbL" in box
         for want in ("Key", "Credits", "Wikimedia Commons", "PMA visitor map", "American Art 1650-1850", "basement = level 1"):
-            assert want in box, want
+            assert want.lower() in box.lower(), want         # (the headings are set in capitals)
         page.evaluate("AltoBuilding.selectRoom('l3-n-italian')")
         info = page.inner_text("#bldg-root .bl-info")
         assert "Italian Renaissance Gallery" in info and "European Art 1500-1850" in info and "350" in info and "re-partitioned" in info
@@ -132,7 +131,7 @@ def test_the_phone_layout_keeps_the_footer_and_tabs(browser):
     page, errors = _open(browser, _html(), width=390, height=780)
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
-        assert page.locator("#bldg-root .bl-foot").is_visible() and page.locator("#bldg-root .bl-tab").count() == 5
+        assert page.locator("#bldg-root .bl-dock").is_visible() and page.locator("#bldg-root .bl-tab").count() == 5
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
         assert errors == []
     finally:
