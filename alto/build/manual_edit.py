@@ -263,9 +263,9 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   .aed-sc button[data-x="del"]:hover,.aed-tc button[data-x="del"]:hover{color:#dc2626;border-color:#dc2626;}
   #summary-inner > .aed-blk{position:relative;}
   #summary-inner > .aed-blk > .aed-sc{position:absolute;right:-4px;top:-14px;margin:0;}
-  html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-16px;z-index:3;opacity:0;transition:opacity .15s;}
+  html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-24px;z-index:3;opacity:0;transition:opacity .15s;}
   html.alto-editing .adt-card:hover .aed-tc,html.alto-editing .adt-card:focus-within .aed-tc{opacity:1;}
-  html.alto-editing .amt-i:not(.adt-card) .aed-tc{display:flex;position:absolute;right:2px;top:-28px;z-index:6;opacity:0;transition:opacity .15s;margin:0;}
+  html.alto-editing .amt-i:not(.adt-card) .aed-tc{display:flex;position:absolute;right:2px;top:-36px;z-index:6;opacity:0;transition:opacity .15s;margin:0;}
   html.alto-editing .amt-i:not(.adt-card):hover .aed-tc,html.alto-editing .amt-i:not(.adt-card):focus-within .aed-tc{opacity:1;}
   html.alto-editing .amt-flag,html.alto-editing .amt-box{overflow:visible;text-overflow:clip;}
   html.alto-editing .amt .adt-scroll{cursor:default;}
