@@ -240,7 +240,8 @@ _HOME_LEGAL = (
     '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Map data &copy; OpenStreetMap contributors (ODbL)</a></footer>'
     '<style>#home-legal{position:relative;z-index:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:-104px 0 0;padding:0 20px 34px;'
     'font:11px/1.6 system-ui,sans-serif;letter-spacing:.06em;color:var(--muted,#6a6a80)}'
-    '#home-legal a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}#home-legal a:hover,#home-legal a:focus-visible{border-bottom-color:currentColor}</style>')
+    '#home-legal a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}#home-legal a:hover,#home-legal a:focus-visible{border-bottom-color:currentColor}'
+    '@media (max-width:768px){#home-legal{margin-top:0;padding-bottom:150px}}</style>')
 
 HOME_BG_KEY = "alto-bg-home-v1"
 # The homepage's title bar without its glass on a computer, as on every timeline (clear_top.py; Luke, 2026-10-22: "get rid
