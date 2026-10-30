@@ -1441,7 +1441,10 @@
     '.acct-terms a,.acct-legal a{color:inherit;text-decoration:underline;text-underline-offset:2px}' +
     '.acct-legal{font-size:11px;letter-spacing:.04em;color:var(--muted);margin-top:12px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}' +
     // Art 30 Oct: the plate the text sits on is near-opaque (the muted lines clear 4.5:1 on it, both themes); the waiting button stays the main button, text >= 3:1
-    '#account-modal{background:var(--surface,#fff);background:color-mix(in srgb,var(--surface,#fff) 90%,transparent)}' +
+    'html:not(.alto-retro) #account-modal{background:var(--surface,#fff) !important;background:color-mix(in srgb,var(--surface,#fff) 90%,transparent) !important}' +
+    // Retro: a square gold box, as the rest of Retro's controls
+    'html.alto-retro .acct-terms input{-webkit-appearance:none;appearance:none;display:grid;place-content:center;border:1px solid #d9ae55;border-radius:0;background:transparent}' +
+    'html.alto-retro .acct-terms input:checked::before{content:"";width:10px;height:10px;background:#d9ae55}' +
     '#account-modal .acct-provider:disabled{opacity:1;color:var(--muted);background:transparent;cursor:not-allowed}' +
     '#alto-terms-scrim{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,12,20,.62)}' +
     '#alto-terms-card{max-width:380px;width:100%;box-sizing:border-box;padding:22px;border-radius:14px;background:var(--surface,#fff);color:var(--text,#1a1a2e);border:1px solid var(--btn-border,rgba(0,0,0,.2));font-family:inherit}' +
