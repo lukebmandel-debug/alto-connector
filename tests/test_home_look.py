@@ -63,22 +63,28 @@ def test_a_timeline_with_no_unit_colours_does_not_crash_the_homepage(tmp_path, e
         {"title": "No units", "href": "a.html", "sub": "0 units", "courseId": "a", "units": []},
         {"title": "No key", "href": "b.html", "sub": "0 units", "courseId": "b"},
         {"title": "Two", "href": "c.html", "sub": "2 units", "courseId": "c", "units": ["#4a9eff", "#f43f5e"]}]}])
-    f = tmp_path / "h.html"
-    f.write_text(page, encoding="utf-8")
+    (tmp_path / "h.html").write_text(page, encoding="utf-8")
+    import functools, http.server, threading
+    quiet = type("Q", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a, **k: None})
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(quiet, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()     # over http, not file://: WebKit blocks file:// fetches of the cards' pages
     errs = []
-    with pw.sync_playwright() as p:
-        try:
-            b = getattr(p, engine).launch()
-        except Exception as e:                       # that engine is not installed here
-            pytest.skip(str(e)[:80])
-        pg = b.new_page()
-        pg.on("pageerror", lambda e: errs.append(str(e)))
-        pg.goto(f.as_uri())
-        pg.wait_for_timeout(600)
-        tiles = pg.evaluate("document.querySelectorAll('.course-tile:not(.new-tile) .unit-strip span').length")
-        pg.click("#search-btn")
-        pg.wait_for_timeout(300)
-        opened = pg.evaluate("document.getElementById('search-btn').classList.contains('expanded')")
-        b.close()
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception as e:                       # that engine is not installed here
+                pytest.skip(str(e)[:80])
+            pg = b.new_page()
+            pg.on("pageerror", lambda e: errs.append(str(e)))
+            pg.goto(f"http://127.0.0.1:{srv.server_address[1]}/h.html")
+            pg.wait_for_timeout(600)
+            tiles = pg.evaluate("document.querySelectorAll('.course-tile:not(.new-tile) .unit-strip span').length")
+            pg.click("#search-btn")
+            pg.wait_for_timeout(300)
+            opened = pg.evaluate("document.getElementById('search-btn').classList.contains('expanded')")
+            b.close()
+    finally:
+        srv.shutdown()
     assert errs == []
     assert tiles >= 4 and opened                     # the empty ones got their one accent segment, and search is wired
