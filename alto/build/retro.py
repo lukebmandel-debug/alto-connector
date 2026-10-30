@@ -35,14 +35,24 @@ FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-
 # ── shared with the Star chart (solar_stars.RETRO_CSS splices these in; `X ` is the style's own selector) ──
 FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo", "bottom
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:4px;right:4px;top:3px;bottom:calc(3px + env(safe-area-inset-bottom,0px));}
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:calc(4px / var(--alto-zoom,.8));right:calc(4px / var(--alto-zoom,.8));top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));}
   X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
-  X #sk-frame i{position:absolute;width:46px;height:46px;border:0 solid #d9ae55;opacity:.8;}
-  X #sk-frame i:nth-child(1){left:0;top:0;border-width:1.5px 0 0 1.5px;} X #sk-frame i:nth-child(2){right:0;top:0;border-width:1.5px 1.5px 0 0;}
-  X #sk-frame i:nth-child(3){left:0;bottom:0;border-width:0 0 1.5px 1.5px;} X #sk-frame i:nth-child(4){right:0;bottom:0;border-width:0 1.5px 1.5px 0;}
-  X #sk-frame i::after{content:'';position:absolute;width:7px;height:7px;background:#d9ae55;transform:rotate(45deg);}
-  X #sk-frame i:nth-child(1)::after{left:8px;top:8px;} X #sk-frame i:nth-child(2)::after{right:8px;top:8px;}
-  X #sk-frame i:nth-child(3)::after{left:8px;bottom:8px;} X #sk-frame i:nth-child(4)::after{right:8px;bottom:8px;}
+  /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page";
+     the corners (Art's pick, option B): chamfered 45deg x 16px, so a rounded window cannot clip a corner point. Drawn as four straight gradient lines that stop 16px short
+     of each corner and the four <i>'s diagonals; every length is whole real px under the page zoom) */
+  X #sk-frame{--fz:var(--alto-zoom,.8);--fc:calc(16px / var(--fz));--ft:calc(1px / var(--fz));--fg:rgba(217,174,85,.8);
+    background:linear-gradient(var(--fg),var(--fg)) var(--fc) 0/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,linear-gradient(var(--fg),var(--fg)) var(--fc) 100%/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,
+      linear-gradient(var(--fg),var(--fg)) 0 var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat,linear-gradient(var(--fg),var(--fg)) 100% var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat;}
+  X #sk-frame i{position:absolute;width:var(--fc);height:var(--fc);}
+  X #sk-frame i:nth-child(1){left:0;top:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(2){right:0;top:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(3){left:0;bottom:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(4){right:0;bottom:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  /* (Art, 2026-10-28: the right rail and the X box sat on the frame's line, and the two bottom rows on different baselines: the rail and the X stand
+     inside the line, the left row rides the right row's baseline; all in whole real px, so the zoom doesn't blur them) */
+  X:not(.mobile):not(.detail-open) #tab-rail:not(#_){right:calc(6px / var(--alto-zoom,.8)) !important;}
+  X:not(.mobile):not(.detail-open) #ct-chips:not(#_){margin-left:calc(4px / var(--alto-zoom,.8));}
+  X:not(.mobile) :is(#account-btn,#pal-ctl):not(#_){bottom:30px !important;}
   X #sk-frame b{position:absolute;left:50%;top:31px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
     background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
   X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}
@@ -76,7 +86,7 @@ CHROME_CSS = r"""
   X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border-color:transparent !important;}
   X.detail-open :is(#title-bar,#nav,#node-nav-bar):not(#_){background:#000 !important;border-bottom:1px solid rgba(217,174,85,.35) !important;}
   X :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,X :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X #nav .nav-btn:not(#_){background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+  X #nav .nav-btn:not(#_){background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-size:10px !important;}
   X #nav .nav-btn:hover,X #nav .nav-btn.active{border-color:#d9ae55 !important;color:#d9ae55 !important;}
   X #nav .nav-btn :is(.nav-chip-count){color:#d9ae55 !important;background:transparent !important;}
@@ -113,10 +123,12 @@ CHROME_CSS = r"""
      place between the clef and the wordmark (Luke, 2026-10-22: "put it where Torts -- System would be, then eliminate that in retro
      mode because we already have the title at the bottom of the page"); a detail page, a narrow window and the horizontal timeline have
      no cartouche: there the name stays and the crown goes back to the very top */
-  @media (min-width:901px){ X:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:hidden !important;} }
-  @media (max-width:900px){ X #sk-frame b:not(#_){top:0;} }
+  /* (Luke, 2026-10-28: "don't try to squeeze in the title there underneath it. It kind of mushes it together": the crown stands alone, at every width and on the horizontal timeline too) */
+  X:not(.detail-open):not(.mobile) #title-bar #title-text:not(#_){visibility:hidden !important;}
   /* the rest of a detail page (Luke, 2026-10-22: "detail pages are the worst"): its back button, the page's chips, the study blocks' buttons */
-  X #desk-back:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
+  X:not(.mobile) #desk-back:not(#_){translate:0 7.6px;}   /* (Luke: "always centered with the alto glyph": the clef drops 8px in Retro, so Back drops with it) */
+  X:is(.mobile,.phone-whole) #detail-back-fixed:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #desk-back:not(#_){font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.14em;font-size:12px;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #detail-page .char-chip:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
   X #detail-page .ast-btn.pri:not(#_){background:#d9ae55 !important;color:#000 !important;}
@@ -143,7 +155,7 @@ CHROME_CSS = r"""
   X #fw-seg button:not(#_){border-radius:0 !important;background:transparent !important;color:#b9b2a0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
   X #fw-seg button[aria-selected="true"]:not(#_){background:#d9ae55 !important;color:#000 !important;}
   /* the filter's chips: square tabs, gold when on */
-  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
+  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
     font-family:var(--rt-f) !important;letter-spacing:.06em;}
   X .ef-chip:not(#_):hover{border-color:#d9ae55 !important;}
   X .ef-chip:is(.active,[aria-pressed=true]):not(#_){background:#d9ae55 !important;color:#000 !important;border-color:#d9ae55 !important;}
@@ -169,9 +181,8 @@ BOARD_CSS = r"""
   X:not(.alto-stars) #sk-mark{bottom:28px;font-size:12px;letter-spacing:.5em;padding:9px 4px 9px 16px;background:#000;font-family:var(--rt-f);text-transform:uppercase;}
   X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
   X.alto-lanes #sk-mark{display:none !important;}
-  X.alto-lanes #sk-frame b:not(#_){top:0;}   /* (the horizontal timeline has no cartouche: its name stays, the crown above it) */
-  @media (max-width:900px){ X #sk-mark{display:none !important;} X #title-text:not(#_){letter-spacing:.22em;font-size:13px;} }   /* (a narrow window: the name fits, no cartouche) */
-  X:is(.bldg-open,.wpal-open) #sk-frame i{display:none;}  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  @media (max-width:900px){ X #sk-mark{display:none !important;} }   /* (a narrow window: no cartouche) */
+  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
   X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
@@ -232,6 +243,41 @@ FORMAT_CSS = r"""
   X .lanes-unit:not(#_){background:none !important;box-shadow:none !important;border-color:rgba(217,174,85,.13) !important;}
   X :is(.lanes-tag,.ln-main-tag,.lanes-past,.lu-chip):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.16em;}
+  X .lanes-flag:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;max-width:34ch;}
+  X .lanes-box:not(#_){background:rgba(0,0,0,.8) !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
+  X .lanes-box .lb-g svg{stroke:#d9ae55;}
+  X #lanes-svg .ln-bstub{stroke:#d9ae55 !important;opacity:.55;}
+  X.phone-whole .lanes-box:not(#_){font-size:11px;letter-spacing:.08em;}
+  X .lanes-bchip:not(#_){background:none !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X .lanes-flag-n:not(#_){max-width:none !important;letter-spacing:.04em;}
+  X .lanes-flaglist:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X .lanes-fchip:not(#_){background:none !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X.phone-whole .lanes-flag:not(#_){letter-spacing:.08em;font-size:11px;max-width:19ch;}
+  X #lanes-svg .ln-fpole{stroke:#d9ae55 !important;stroke-width:1.5;opacity:.45 !important;}
+  X #lanes-svg .ln-fdia{fill:#d9ae55 !important;stroke:#000 !important;}
+  X #lanes-svg .ln-fera{fill:#d9ae55 !important;opacity:.4 !important;}
+  /* the mini timeline in a detail page (subtree.py, layout "timeline"): a black band with a gold rim, square gold-rimmed events */
+  X .amt:not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X .amt :is(.adt-bar,.adt-scroll):not(#_){border-color:rgba(217,174,85,.35) !important;}
+  X .amt .adt-name:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.26em;}
+  X .amt :is(.amt-ev,.amt-chip,.amt-flag,.amt-box,.amt-nav):not(#_){background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X .amt .amt-box:not(#_){border-style:dashed !important;color:rgba(217,174,85,.85) !important;text-transform:uppercase;letter-spacing:.1em;}
+  X .amt .amt-flag:not(#_){color:#d9ae55 !important;text-transform:uppercase;letter-spacing:.14em;}
+  X .amt .amt-when:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.12em;}
+  X .amt .adt-t:not(#_){font-family:var(--rt-f) !important;}
+  X .amt :is(.amt-axis,.amt-tick,.amt-con,.amt-pole):not(#_){stroke:#d9ae55 !important;}
+  X .amt .amt-con:not(#_){opacity:.6;}
+  X .amt .amt-dot:not(#_){fill:#d9ae55 !important;stroke:#000 !important;}
+  X .amt .amt-era:not(#_){fill:#d9ae55 !important;opacity:.5 !important;stroke:#d9ae55;stroke-width:1;stroke-opacity:.8;}
+  X .amt :is(.adt-btn,.adt-chip):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;font-size:11px !important;text-transform:uppercase;letter-spacing:.12em;}
+  X .amt .amt-tl:not(#_){fill:#d9ae55 !important;font-family:var(--rt-f);letter-spacing:.1em;}
+  X .amt .amt-fade.l:not(#_){background:linear-gradient(90deg,#000 55%,transparent) !important;}
+  X .amt .amt-fade.r:not(#_){background:linear-gradient(270deg,#000 55%,transparent) !important;}
+  X .amt .amt-row:not(#_)::before{border-top-color:rgba(217,174,85,.6) !important;}
   X #lanes-nav:not(#_),X #lanes-nav *:not(svg *){background-color:transparent;}
   X #lanes-nav:not(#_){background:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;color:#d9ae55 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #lanes-ov-sky{background:#000 !important;}

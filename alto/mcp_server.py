@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.185"
+__version__ = "1.9.188"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1054,6 +1054,14 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       (§D-World; set_up_world places the cards the notes tie to a place). The Star chart is not a
       Memory Palace: it is the default look of a System (hub_look above),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
+      time_flags?: [{id, label, at?, to?, node?, color?}] (lanes only: flags
+      pinned to a point in story time on the time axis: `at` a date/number
+      like a node's `when`, `to` ends an era, `node` pins to an event; not
+      cards. Change them later with set_lines),
+     box_tags?: [{id, label, glyph?, on?, at?, node?, side?}] (lanes only: plain
+      labelled boxes on the board, not nodes: no page, no step. `on` 'axis'
+      (default) | 'main' | a line id; `at` a date/number or `node` an event;
+      change them later with set_lines),
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
       labelled past detour of the main line, e.g. "Ten years earlier". Change
@@ -1419,6 +1427,13 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     from its parent, `link` = a page of this timeline the step opens,
     `sections` = a small page of its own; see the guide's "Decision trees
     inside a page". Only when the student wants one.
+    The same `tree` with `layout: "timeline"` is a MINI HORIZONTAL TIMELINE
+    inside the page instead: no parents, items in reading order, each
+    `{id, title, when?, text?, tag?, tone?, link?, sections?, kind?, to?,
+    side?}`; `kind: "flag"` (a pennant on the axis, `to` = where its era ends)
+    or `"box"` (a dashed caption) need a `when` and nothing else; dated items
+    are placed to scale, undated ones evenly; see the guide's "Mini timelines
+    inside a page". Only when the student wants one.
     A section may instead carry flash cards or a quiz, drawn inside it: `cards:
     {cards: [{front, back}], shuffle?, label?}` or `quiz: {questions: [{q,
     choices: [2-8 strings], answer: <index of the right choice, or a list of
@@ -1682,7 +1697,8 @@ def _with_destinations(portals, tid: str, place: str):
 @mcp.tool(title="Set lines and flashbacks", annotations=RW)
 @accounted
 def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None = None,
-              main_line: str | None = None) -> dict:
+              main_line: str | None = None, time_flags: list[dict] | None = None,
+              box_tags: list[dict] | None = None) -> dict:
     """A horizontal timeline's (mode 'lanes') lines and flashbacks, replacing
     the stored ones (§D-Lanes).
 
@@ -1691,6 +1707,20 @@ def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None
     'main'). flashbacks: [{id, label}] — each a labelled past detour of the
     main line ("Ten years earlier"); omit to keep the stored ones, [] to
     remove them all. main_line: the main line's label; omit to keep it.
+    time_flags: [{id, label, at?, to?, node?, color?}] — flags pinned to a
+    point in story time along the time axis (a pennant on a pole; not a
+    card, no page). `at`: a date or number written like an event's `when`
+    ("1852-06", "500 BC", "Day 3"); `to` ends an era that starts at `at`;
+    `node`: an event id, to pin it where that event sits (needed when the
+    events have no dates, or the flag is a label like "The war years").
+    Omit to keep the stored ones, [] to remove them all.
+    box_tags: [{id, label, glyph?, on?, at?, node?, side?}] — plain labelled
+    boxes on the board that are NOT nodes (no page, no step, no click): a
+    dashed caption. `on`: 'axis' (default, sits above the time axis), 'main'
+    or a line id (beside that line); `at` (a date or number like an event's
+    `when`) or `node` (an event: it sits beside it) says where along the
+    story; `side` 'above'|'below' of its line; `glyph` a name from the glyph
+    library. Omit to keep the stored ones, [] to remove them all.
     Then mark events with add_nodes: `present` (who is on the page),
     `flash` (which flashback), `line` (a character's own event off the
     page). Refused, with the reason, while an event still names a line or
@@ -1707,6 +1737,14 @@ def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None
         brief["flashbacks"] = [dict(x) if isinstance(x, dict) else x for x in flashbacks]
         if not brief["flashbacks"]:
             brief.pop("flashbacks")
+    if time_flags is not None:
+        brief["time_flags"] = [dict(x) if isinstance(x, dict) else x for x in time_flags]
+        if not brief["time_flags"]:
+            brief.pop("time_flags")
+    if box_tags is not None:
+        brief["box_tags"] = [dict(x) if isinstance(x, dict) else x for x in box_tags]
+        if not brief["box_tags"]:
+            brief.pop("box_tags")
     if main_line is not None:
         brief["main_line"] = str(main_line)
     st = get_store()
@@ -1722,7 +1760,9 @@ def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None
     doc["brief"] = brief
     st.put_timeline(uid(), timeline_id, doc)
     return {"ok": True, "lines": [x["id"] for x in b.lines],
-            "flashbacks": [x["id"] for x in b.flashbacks or []], "warnings": warnings}
+            "flashbacks": [x["id"] for x in b.flashbacks or []],
+            "time_flags": [x["id"] for x in b.time_flags or []],
+            "box_tags": [x["id"] for x in b.box_tags or []], "warnings": warnings}
 
 
 @mcp.tool(title="Set up a Memory Map", annotations=RW)

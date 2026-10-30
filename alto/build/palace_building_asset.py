@@ -558,7 +558,7 @@ function footer(){
 function brand(){
   if(!A.plan) return; var nm=A.plan.kind==='museum'?'Memory Blueprint':'Memory Blueprint';
   var set=function(sel,pre){ [].forEach.call(document.querySelectorAll(sel),function(e){ e.innerHTML=pre+MUSEUM_ICON+nm; }); };
-  set('#desk-back .db-label',''); set('#nav-timeline','\u21a9 '); set('#drawer-timeline-btn .drawer-label','');
+  set('#nav-timeline','\u21a9 '); set('#drawer-timeline-btn .drawer-label','');
   [].forEach.call(document.querySelectorAll('#desk-back'),function(e){ e.setAttribute('aria-label','Back to the '+nm); e.title='Back to the '+nm; });
 }
 function nomsg(t){ if(!S.msg){ S.msg=h('div',{'class':'bl-msg'},S.root); } S.msg.textContent=t; }

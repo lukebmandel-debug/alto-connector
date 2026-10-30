@@ -261,3 +261,17 @@ def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
     pg.evaluate(_PINCH, [195, 400, 260, 60])
     pg.wait_for_timeout(500)
     assert abs(pg.evaluate("window._altoPhone.ov.s") - s0) < 1e-6                 # never smaller than the phone's width
+
+
+def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_clef(pg, site):
+    _go(pg, site + "/lanes.html")
+    pg.evaluate("() => { var id=(window.NODE_ORDER||NODES_SRC.map(n=>n.id))[0]; window.showDetail('node', id); }")
+    pg.wait_for_timeout(1200)
+    r = pg.evaluate("""() => { var b=document.getElementById('detail-back-fixed').getBoundingClientRect(), m=document.querySelector('.brand-mark').getBoundingClientRect();
+      return {bc:b.top+b.height/2, mc:m.top+m.height/2, w:b.width, left:b.left, pos:getComputedStyle(document.getElementById('detail-back-fixed')).position}; }""")
+    assert abs(r["bc"] - r["mc"]) <= 0.5 and r["w"] == 34 and r["left"] > 40 and r["pos"] == "fixed", r       # item 12: centred on the clef, not a stray square at the edge
+    pill = pg.evaluate("() => { var p=document.querySelector('#nav-prev-label .wrap-pill'); if(!p) return null; var r=p.getBoundingClientRect(); return [r.left, parseFloat(getComputedStyle(p).paddingLeft)]; }")
+    assert pill is None or (pill[0] >= 8 and pill[1] >= 6), pill      # Art: the first page's 'back around' chip is 8px clear of the edge with 6px of padding
+    pg.tap("#detail-back-fixed")
+    pg.wait_for_timeout(1000)
+    assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")

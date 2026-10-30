@@ -40,7 +40,7 @@ def test_the_homepage_bar_is_clear_on_a_computer_and_search_opens_compact():
 
 
 def test_retro_corners_sit_at_the_top_above_the_marks():
-    assert "top:3px;bottom:calc(3px + env(safe-area-inset-bottom,0px));" in retro.FRAME_CSS and "var(--nav-bottom" not in retro.FRAME_CSS
+    assert "top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));" in retro.FRAME_CSS and "var(--nav-bottom" not in retro.FRAME_CSS
     assert "X #title-bar:not(#_)>*{translate:0 8px;}" in retro.FRAME_CSS
 
 

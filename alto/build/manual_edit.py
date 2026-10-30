@@ -18,6 +18,8 @@ Field keys ("|"-separated; ids are slugs):
   u|<i>|label                             a unit's name
   bt|title                                the timeline's own name (the title bar; Brief.title)
   dt|<tree key>|<step>|title  text  edge  a decision-tree step (subtree.py)
+  dt|<tree key>|<step>|when  to           a mini timeline's item: its date, a flag's end (layout "timeline"; the
+                                          list op dt|<key>|tree carries its events, flags and box tags in order)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
   p|<id>|slide                            a card slid along its own line, [dx, dy] (it alone)
   n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
@@ -214,6 +216,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   /* phones: above the controls along the foot of the screen */
   html.mobile #alto-edit-exit{bottom:calc(66px + env(safe-area-inset-bottom,0px));height:42px;border-radius:21px;font-size:14px;padding:0 5px 0 14px;gap:6px;}
   html.mobile #alto-edit-exit .ee-st{display:none;}
+  html.mobile #alto-edit-exit .ee-flag,html.mobile #alto-edit-exit .ee-box{display:none;}
   html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}
   /* what else sits at the foot of the screen moves up while editing */
@@ -260,8 +263,12 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   .aed-sc button[data-x="del"]:hover,.aed-tc button[data-x="del"]:hover{color:#dc2626;border-color:#dc2626;}
   #summary-inner > .aed-blk{position:relative;}
   #summary-inner > .aed-blk > .aed-sc{position:absolute;right:-4px;top:-14px;margin:0;}
-  html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-12px;z-index:3;opacity:0;transition:opacity .15s;}
+  html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-16px;z-index:3;opacity:0;transition:opacity .15s;}
   html.alto-editing .adt-card:hover .aed-tc,html.alto-editing .adt-card:focus-within .aed-tc{opacity:1;}
+  html.alto-editing .amt-i:not(.adt-card) .aed-tc{display:flex;position:absolute;right:2px;top:-28px;z-index:6;opacity:0;transition:opacity .15s;margin:0;}
+  html.alto-editing .amt-i:not(.adt-card):hover .aed-tc,html.alto-editing .amt-i:not(.adt-card):focus-within .aed-tc{opacity:1;}
+  html.alto-editing .amt-flag,html.alto-editing .amt-box{overflow:visible;text-overflow:clip;}
+  html.alto-editing .amt .adt-scroll{cursor:default;}
   .aed-add{display:none;margin:8px 0 34px;padding:10px 16px;border-radius:10px;border:1.5px dashed var(--border);background:none;color:var(--muted);
     cursor:pointer;font:inherit;font-size:13px;letter-spacing:.06em;}
   html.alto-editing .aed-add{display:inline-block;}
@@ -656,7 +663,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(mk) t = t.replace(MARK, ''); var m = SLOT.exec(t); return {text: m ? t.slice(0, m.index) : t, tail: (m ? m[0] : '') + mks}; }
   function plan(){ return window._ALTO_TREE_PLAN || null; }
   function treeStep(key, step){ var T = (window._ALTO_DT || {})[key]; if(!T) return null; for(var i = 0; i < T.n.length; i++) if(T.n[i].i === step) return T.n[i]; return null; }
-  var DTF = {title:'t', text:'x', edge:'e', tag:'g'};
+  var DTF = {title:'t', text:'x', edge:'e', tag:'g', when:'w', to:'z'};
 
   /* a section added here: its kind (brief.PROVENANCE), and a tree of its own */
   var PROVL = {quoted:'Quoted', notes:'From your notes', summary:'Summary'};
@@ -1284,7 +1291,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
-    if(LN && (kind === 'ln' || kind === 'fb' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
+    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bx' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
       return {kind:'plain', get:function(){ return n[p[2]] || ''; }, set:function(v){
@@ -1340,7 +1347,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         get:function(){ var X = window._ALTO_DT[id]; return X ? JSON.parse(JSON.stringify(X.n)) : []; },
         set:function(v){ var X = window._ALTO_DT[id]; v = JSON.parse(JSON.stringify(v || []));
           if(!X) X = window._ALTO_DT[id] = {n: [], lay: 'auto', open: true, fold: 0, label: ''};
-          X.n = v; var q = newTreeSec(id); if(q) setSlot(q.s, id, v.length > 0); }};
+          X.n = v; if(v.some(function(q){ return q.k; })) X.lay = 'timeline'; var q = newTreeSec(id); if(q) setSlot(q.s, id, v.length > 0); }};
     }
     if(kind === 'dt' && p.length === 3 && p[2] === 'tree'){
       var TT = (window._ALTO_DT || {})[id]; if(!TT) return null;
@@ -1748,9 +1755,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     b = document.createElement('div'); b.id = 'alto-edit-exit';
     b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎ Editing</span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
+      + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
+      + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
-      if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
+      if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     if(!document.getElementById('alto-edit-rail')){ var rl = document.createElement('div'); rl.id = 'alto-edit-rail'; rl.setAttribute('aria-hidden', 'true'); document.body.appendChild(rl); }
     document.body.appendChild(b); placePill(); return b;
   }
@@ -1858,6 +1867,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.adt[data-adt-key]').forEach(function(bx){
         var key = bx.getAttribute('data-adt-key');
         var T0 = (window._ALTO_DT || {})[key], rootId = T0 && T0.n.filter(function(x){ return !x.p; })[0];
+        if(T0 && T0.lay === 'timeline'){ decorateTL(bx, key, T0); return; }
         bx.querySelectorAll('.adt-card[data-i]').forEach(function(c){
           var i = c.getAttribute('data-i');
           setF(c.querySelector('.adt-t'), 'dt|' + key + '|' + i + '|title');
@@ -1880,6 +1890,34 @@ MANUAL_JS = r"""<script id="alto-manual">
         });
       });
     }
+  }
+  // A mini timeline (subtree.py layout "timeline"): every item's words and date are fields;
+  // a computer also gets + (an event after it), a flag and a box tag at its date, ← →, ✕.
+  function decorateTL(bx, key, T0){
+    var fresh = false;
+    bx.querySelectorAll('.amt-i[data-i]').forEach(function(c){
+      var i = c.getAttribute('data-i'), n = treeStep(key, i); if(!n) return;
+      var kind = n.k === 'f' ? 'flag' : n.k === 'b' ? 'box' : 'event';
+      setF(c.querySelector('.adt-t'), 'dt|' + key + '|' + i + '|title');
+      if(kind === 'event'){ setF(c.querySelector('.adt-x'), 'dt|' + key + '|' + i + '|text'); setF(c.querySelector('.adt-tag'), 'dt|' + key + '|' + i + '|tag'); }
+      var w = c.querySelector('.amt-when');
+      if(!w){ w = document.createElement('span'); w.className = 'amt-when' + (n.w ? '' : ' aed-ph'); w.textContent = n.w || '+ date';
+        if(c.classList.contains('amt-chip')) c.appendChild(w); else c.insertBefore(w, c.firstChild); fresh = true; }
+      setF(w, 'dt|' + key + '|' + i + '|when');
+      if(kind === 'flag' && !c.querySelector('.amt-to')){
+        var z = document.createElement('span'); z.className = 'amt-to' + (n.z ? '' : ' aed-ph'); z.textContent = n.z || '+ end'; z.title = 'Where this era ends (optional)';
+        c.appendChild(z); fresh = true; setF(z, 'dt|' + key + '|' + i + '|to'); }
+      if(kind === 'event' && !c.classList.contains('amt-chip')){
+        if(!c.querySelector('.adt-tag')){ var tg = document.createElement('div'); tg.className = 'adt-tag aed-ph'; tg.textContent = '+ tag'; c.insertBefore(tg, c.querySelector('.adt-t')); setF(tg, 'dt|' + key + '|' + i + '|tag'); fresh = true; }
+        if(!c.querySelector('.adt-x')){ var tx = document.createElement('div'); tx.className = 'adt-x aed-ph'; tx.textContent = '+ words'; c.insertBefore(tx, c.querySelector('.adt-foot')); setF(tx, 'dt|' + key + '|' + i + '|text'); fresh = true; }
+      }
+      if(structOK() && !c.querySelector('.aed-tc')){
+        c.appendChild(ctl('aed-tc', [['add', '+', 'Add an event after this one'], ['addf', '⚑', 'Add a flag at this date'], ['addb', '▭', 'Add a box tag at this date'],
+          ['up', '←', 'Move earlier in the reading order'], ['down', '→', 'Move later in the reading order'], ['del', '✕', 'Remove this ' + kind]], {tk: key, ts: i}));
+        fresh = true;
+      }
+    });
+    if(fresh) bx.dispatchEvent(new Event('amt-relayout'));
   }
   // Moving, adding and removing pieces is for a computer; phones edit words.
   function structOK(){ return !PHONE && !root.classList.contains('mobile'); }
@@ -2075,6 +2113,12 @@ MANUAL_JS = r"""<script id="alto-manual">
   function lnSync(){ if(window._altoLanesDerive) try{ window._altoLanesDerive(LN); }catch(e){} }
   // a line as stored: only its authored keys (lanes.norm_line), never the derived ones
   function lineSpec(l){ return l ? {id: l.id, label: l.label || '', color: l.color || '', side: l.side || '', from: l.from || '', to: l.to || ''} : null; }
+  function btOf(id){ var f = null; (LN.bt || []).forEach(function(q){ if(q.id === id) f = q; }); return f; }
+  // a box tag as stored: only its authored keys (lanes.norm_box without t / svg)
+  function btSpec(q){ return q ? {id: q.id, label: q.label || '', glyph: q.glyph || '', on: q.on || 'axis', at: q.at || '', node: q.node || '', side: q.side || ''} : null; }
+  function tfOf(id){ var f = null; (LN.tf || []).forEach(function(q){ if(q.id === id) f = q; }); return f; }
+  // a flag as stored: only its authored keys (lanes.norm_flag without t / t2)
+  function tfSpec(q){ return q ? {id: q.id, label: q.label || '', at: q.at || '', to: q.to || '', node: q.node || '', color: q.color || ''} : null; }
   function laneField(kind, id, f){
     if(kind === 'ln'){
       var l0 = null; (LN0.lines || []).forEach(function(q){ if(q.id === id) l0 = q; });
@@ -2090,6 +2134,25 @@ MANUAL_JS = r"""<script id="alto-manual">
         set:function(v){ LN.flashbacks = LN.flashbacks || []; var i = -1; LN.flashbacks.forEach(function(q, j){ if(q.id === id) i = j; });
           if(!v){ if(i >= 0) LN.flashbacks.splice(i, 1); } else if(i >= 0) LN.flashbacks[i].label = v.label || ''; else LN.flashbacks.push(fspec(v));
           lnSync(); }};
+    }
+    if(kind === 'bx'){                                   // a box tag, whole: {id, label, glyph, on, at, node, side} or null
+      var b0 = null; (LN0.bt || []).forEach(function(q){ if(q.id === id) b0 = q; });
+      return {kind:'card', sig:function(){ return btSpec(b0); }, get:function(){ return btSpec(btOf(id)); },
+        set:function(v){ LN.bt = LN.bt || []; var i = -1; LN.bt.forEach(function(q, j){ if(q.id === id) i = j; });
+          if(!v){ if(i >= 0) LN.bt.splice(i, 1); }
+          else { var o = Object.assign({}, btSpec(v), {id: id}); o.t = o.at ? lanesWhen(o.at) : null;
+            var gl = (EDK.glyphs || []).filter(function(g){ return g.n === o.glyph; })[0]; o.svg = gl ? gl.s : '';
+            if(i >= 0) LN.bt[i] = o; else LN.bt.push(o); }
+          relayoutSoon(); }};
+    }
+    if(kind === 'tf'){                                   // a time flag, whole: {id, label, at, to, node, color} or null
+      var t0 = null; (LN0.tf || []).forEach(function(q){ if(q.id === id) t0 = q; });
+      return {kind:'card', sig:function(){ return tfSpec(t0); }, get:function(){ return tfSpec(tfOf(id)); },
+        set:function(v){ LN.tf = LN.tf || []; var i = -1; LN.tf.forEach(function(q, j){ if(q.id === id) i = j; });
+          if(!v){ if(i >= 0) LN.tf.splice(i, 1); }
+          else { var o = Object.assign({}, tfSpec(v), {id: id}); o.t = o.at ? lanesWhen(o.at) : null; o.t2 = o.to ? lanesWhen(o.to) : null;
+            if(i >= 0) LN.tf[i] = o; else LN.tf.push(o); }
+          relayoutSoon(); }};
     }
     if(!srcNode(id)) return null;
     var e0 = (LN0.ev || {})[id] || {l: 'main', w: '', t: null, present: [], flash: ''};
@@ -2155,6 +2218,129 @@ MANUAL_JS = r"""<script id="alto-manual">
         fn: function(){ var L = run.map(function(i){ return ['n|' + i + '|flash', '']; }); L.push(['fb|' + fl.id, null]);
           if(changes(L)) toast('The flashback is gone — ⌘Z puts it back.'); }});
     }
+  }
+  /* ── time flags: add, drag along the axis, rename, re-date, pin to an event, colour, remove ── */
+  function flagEl(id){ return document.querySelector('.lanes-flag[data-flag="' + id + '"]'); }
+  function whenOf(t, T){                                // a time on the axis, written the way the events write theirs
+    if(T && T.yearLike){
+      var y = Math.floor(t + 1e-9), doy = (t - y) * 365, D = [31,28,31,30,31,30,31,31,30,31,30,31], m = 0, acc = 0;
+      for(; m < 11 && doy >= acc + D[m] - 0.5; m++) acc += D[m];
+      if(T.pxYear / 12 < 26) return String(Math.round(t));
+      return y + '-' + (m < 9 ? '0' : '') + (m + 1);
+    }
+    return String(Math.round(t * 100) / 100);
+  }
+  function flagFormFields(f, withNode){
+    var F = [{k: 'label', l: 'Label', val: f.label, req: 1},
+             {k: 'at', l: 'Date or number', val: f.at, hint: 'Written like an event’s date: 1852-06, 500 BC, Day 3'},
+             {k: 'to', l: 'Ends (an era, optional)', val: f.to}];
+    var opts = [['', 'None — use the date']];
+    (LN.order || []).forEach(function(i){ if(srcNode(i) && !cardGone(i)) opts.push([i, titleOf(i)]); });
+    F.push({k: 'node', l: 'Or sit where an event sits', type: 'select', val: f.node || '', opts: opts});
+    return F;
+  }
+  function flagCheck(v){
+    if(!v.at && !v.node) return 'Give a date or number, or pick the event it sits at.';
+    if(v.node) return '';
+    var a = lanesWhen(v.at); if(a == null) return '“' + v.at + '” is not a date or number — try 1852-06, 500 BC or Day 3.';
+    if(v.to){ var z = lanesWhen(v.to); if(z == null) return '“' + v.to + '” is not a date or number.'; if(z < a) return 'The era ends before it starts.'; }
+    return '';
+  }
+  function flagFromVals(v, old){
+    var o = Object.assign({}, old || {}, {label: v.label, color: (old && old.color) || ''});
+    if(v.node){ o.node = v.node; o.at = ''; o.to = ''; } else { o.node = ''; o.at = v.at; o.to = v.to || ''; }
+    return o;
+  }
+  function addFlag(at){
+    askForm(at || document.body, 'New time flag', flagFormFields({label: '', at: '', to: '', node: ''}), 'Add', function(v){
+      var fid = 'tf-' + Math.random().toString(36).slice(2, 7), spec = flagFromVals(v, {id: fid});
+      if(change('tf|' + fid, tfSpec(spec))) toast('“' + v.label + '” is flagged — drag it along the axis, or click it for more. ⌘Z puts it back.');
+    }, flagCheck);
+  }
+  function flagMenu(fid){
+    var f = tfOf(fid); if(!f) return;
+    var T = window._altoLanesTime || {}, put = function(ch, msg){ if(change('tf|' + fid, Object.assign({}, tfSpec(f), ch))) toast(msg + ' — ⌘Z puts it back.'); };
+    var A = [
+      {t: 'Rename it…', fn: function(){ askName(flagEl(fid) || document.body, 'Name this flag', f.label, function(v){
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== f.label) put({label: v}, 'Renamed'); }); }},
+      {t: 'Change its place…', sub: f.node ? 'Now it sits where “' + titleOf(f.node) + '” sits.' : 'Now: ' + f.at + (f.to ? ' – ' + f.to : '') + '. Give another date, an era, or an event to sit at.',
+        fn: function(){ askForm(flagEl(fid) || document.body, 'Where it stands', flagFormFields(f), 'Save', function(v){
+          var o = flagFromVals(v, f); put({label: f.label, at: o.at, to: o.to, node: o.node}, 'Moved'); }, flagCheck); }},
+      {t: 'Change its colour', sub: 'The next colour in the set.', fn: function(){
+        var i = LINE_COLORS.indexOf(f.color); put({color: LINE_COLORS[(i + 1) % LINE_COLORS.length]}, 'Recoloured'); }},
+      {t: 'Use the standard colour', off: !f.color, fn: function(){ put({color: ''}, 'Back to the standard colour'); }},
+      {t: 'Remove this flag', cls: 'aa-danger', fn: function(){ if(change('tf|' + fid, null)) toast('Flag removed — ⌘Z puts it back.'); }}];
+    ask('The flag “' + f.label + '”', (T.dated === false && !f.node) ? 'No event is dated on this timeline, so a date has nothing to stand on — pin the flag to an event.' : 'Drag it along the axis to move it.', A);
+  }
+  // dragging a pennant along the time axis: it lands on the nearest step of the axis
+  var FD = null;
+  document.addEventListener('pointerdown', function(e){
+    if(!LN || !structOK() || !editing() || e.button) return;
+    var el = e.target.closest && e.target.closest('.lanes-flag,.lanes-box'); if(!el) return;
+    var box = el.classList.contains('lanes-box');
+    FD = {id: el.getAttribute(box ? 'data-box' : 'data-flag'), box: box, el: el, x0: e.clientX, left: parseFloat(el.style.left) || 0, moved: false, k: 1};
+    var r = el.getBoundingClientRect(); FD.k = el.offsetWidth ? r.width / el.offsetWidth : 1;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('pointermove', function(e){
+    if(!FD) return; var dx = (e.clientX - FD.x0) / (FD.k || 1);
+    if(!FD.moved && Math.abs(dx) < 4) return;
+    FD.moved = true; FD.el.classList.add('aed-drag'); FD.el.style.left = (FD.left + dx) + 'px';
+    var pole = !FD.box && document.querySelector('#lanes-svg .ln-flag[data-flag="' + FD.id + '"] .ln-fpole'); if(pole){ pole.setAttribute('x1', FD.left + dx); pole.setAttribute('x2', FD.left + dx); }
+  }, true);
+  document.addEventListener('pointerup', function(e){
+    if(!FD) return; var d = FD; FD = null; d.el.classList.remove('aed-drag'); e.stopPropagation();
+    if(!d.moved){ if(d.box) boxMenu(d.id); else flagMenu(d.id); return; }
+    var T = window._altoLanesTime, f = d.box ? btOf(d.id) : tfOf(d.id), dx = (e.clientX - d.x0) / (d.k || 1);
+    if(!T || !T.dated || !f){ toast('This timeline has no dated events to stand ' + (d.box ? 'a box' : 'a flag') + ' on — set its place to an event from its menu.'); relayoutSoon(); return; }
+    var t = T.t(d.left + dx), step = T.snap, snapped = Math.round(t / step) * step;
+    var span = (!d.box && f.to && f.t2 != null && f.t != null) ? f.t2 - f.t : 0, a = whenOf(snapped, T), z = span > 0 ? whenOf(snapped + span, T) : '';
+    var ok = d.box ? change('bx|' + d.id, Object.assign({}, btSpec(f), {at: a, node: ''})) : change('tf|' + d.id, Object.assign({}, tfSpec(f), {at: a, to: z, node: ''}));
+    if(!ok) relayoutSoon();
+    else toast('Moved to ' + a + (z ? ' – ' + z : '') + ' — ⌘Z puts it back.');
+  }, true);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && FD){ var d = FD; FD = null; d.el.classList.remove('aed-drag'); relayoutSoon(); } }, true);
+  /* ── box tags: labelled boxes that are not cards (add, drag, rename, move to a line, remove) ── */
+  function boxEl(id){ return document.querySelector('.lanes-box[data-box="' + id + '"]'); }
+  function boxFields(b){
+    var F = [{k: 'label', l: 'Label', val: b.label, req: 1}];
+    var on = [['axis', 'The time axis'], ['main', LN.main || 'The main line']];
+    (LN.lines || []).forEach(function(l){ on.push([l.id, l.label]); });
+    F.push({k: 'on', l: 'Sits on', type: 'select', val: b.on || 'axis', opts: on});
+    F.push({k: 'at', l: 'Date or number', val: b.at, hint: 'Written like an event’s date: 1852-06, 500 BC, Day 3'});
+    var opts = [['', 'None — use the date']];
+    (LN.order || []).forEach(function(i){ if(srcNode(i) && !cardGone(i)) opts.push([i, titleOf(i)]); });
+    F.push({k: 'node', l: 'Or beside an event', type: 'select', val: b.node || '', opts: opts});
+    return F;
+  }
+  function boxCheck(v){
+    if(!v.at && !v.node) return 'Give a date or number, or pick the event it sits beside.';
+    if(!v.node && lanesWhen(v.at) == null) return '“' + v.at + '” is not a date or number — try 1852-06, 500 BC or Day 3.';
+    return '';
+  }
+  function boxFromVals(v, old){
+    var o = Object.assign({}, old || {}, {label: v.label, on: v.on || 'axis'});
+    if(v.node){ o.node = v.node; o.at = ''; } else { o.node = ''; o.at = v.at; }
+    return o;
+  }
+  function addBox(at){
+    askForm(at || document.body, 'New box tag', boxFields({label: '', on: 'axis', at: '', node: ''}), 'Add', function(v){
+      var bid = 'bt-' + Math.random().toString(36).slice(2, 7), spec = boxFromVals(v, {id: bid, glyph: '', side: ''});
+      if(change('bx|' + bid, btSpec(spec))) toast('“' + v.label + '” is on the board — a label only, no page. Drag it along, or click it for more. ⌘Z puts it back.');
+    }, boxCheck);
+  }
+  function boxMenu(bid){
+    var b = btOf(bid); if(!b) return;
+    var put = function(ch, msg){ if(change('bx|' + bid, Object.assign({}, btSpec(b), ch))) toast(msg + ' — ⌘Z puts it back.'); };
+    var A = [
+      {t: 'Rename it…', fn: function(){ askName(boxEl(bid) || document.body, 'Name this box', b.label, function(v){
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== b.label) put({label: v}, 'Renamed'); }); }},
+      {t: 'Change its place…', sub: b.node ? 'Now beside “' + titleOf(b.node) + '”.' : 'Now: ' + b.at + '. Another date, an event, or another line.',
+        fn: function(){ askForm(boxEl(bid) || document.body, 'Where it sits', boxFields(b), 'Save', function(v){
+          var o = boxFromVals(v, b); put({label: b.label, on: o.on, at: o.at, node: o.node}, 'Moved'); }, boxCheck); }}];
+    if(b.on !== 'axis') A.push({t: 'Put it ' + (b.side === 'below' ? 'above' : 'below') + ' its line', fn: function(){ put({side: b.side === 'below' ? 'above' : 'below'}, 'Moved'); }});
+    A.push({t: 'Remove this box', cls: 'aa-danger', fn: function(){ if(change('bx|' + bid, null)) toast('Box removed — ⌘Z puts it back.'); }});
+    ask('The box “' + b.label + '”', 'It is only a label: no page, no step. Drag it along the axis to move it.', A);
   }
   var LINE_COLORS = ['#e07a5f', '#3d9a8b', '#8a6fd1', '#d4a017', '#4a90d9', '#c2577a', '#5a9e4b', '#b8763e'];
   function newLine(id){
@@ -2885,7 +3071,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   var KINDS = [['text', 'Text', 'A heading and a paragraph'], ['list', 'List', 'A heading and bullet points'],
     ['quoted', 'Quote', 'The source’s own words, marked Quoted'], ['notes', 'From your notes', 'Your notes, marked as yours'],
-    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch, like a small timeline'],
+    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch'],
+    ['timeline', 'Mini timeline', 'Events along a horizontal line, with flags and box tags'],
     ['quiz', 'Quiz', 'Multiple-choice questions that grade you — best written by Claude from your notes'],
     ['cards', 'Flash cards', 'Cards you flip and mark Know it / Still learning — best written by Claude from your notes'],
     ['cases', 'Cases', 'A list of cases — each with its citation, a note and a link'],
@@ -2905,12 +3092,13 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = field(ok + '|order'); if(!f) return;
     if(kind === 'cases' || kind === 'authorities'){ addAuthSection(ok, kind, at || document.body); return; }
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
-    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', quiz:'Quiz', cards:'Flash cards'}[kind] || 'New section';
-    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : kind === 'tree' ? '' : 'Write here.';
+    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', timeline:'Timeline', quiz:'Quiz', cards:'Flash cards'}[kind] || 'New section';
+    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : (kind === 'tree' || kind === 'timeline') ? '' : 'Write here.';
     var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H]];
     if(T) L.push([base + '|t', T]);
     if(PROVL[kind]) L.push([base + '|p', kind]);
     if(kind === 'tree') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), t: 'First question'}]]);
+    if(kind === 'timeline') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), k: 'e', t: 'First event'}, {i: rid('s-'), k: 'e', t: 'Second event'}]]);
     if(kind === 'quiz' || kind === 'cards'){
       var sk = DTPRE[q[0]] + '-' + q[1] + '-' + nk;
       L.push(['sd|' + sk + '|study', studyStarter(kind)]);
@@ -3685,6 +3873,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(w && w.hasAttribute('data-tk')){
       var tk = w.getAttribute('data-tk'), ts = w.getAttribute('data-ts'), tf = field('dt|' + tk + '|tree'); if(!tf) return;
       var n = tf.get(), me = n.filter(function(q){ return q.i === ts; })[0]; if(!me) return;
+      var TLX = (window._ALTO_DT || {})[tk]; if(TLX && TLX.lay === 'timeline'){ timelineOp(tk, tf, n, me, x); return; }
       if(x === 'add'){
         var ni = rid('s-'); n.push({i: ni, p: ts, t: 'New step'});
         if(change('dt|' + tk + '|tree', n)) setTimeout(function(){ var c = document.querySelector('#detail-content .adt[data-adt-key="' + tk + '"] .adt-card[data-i="' + ni + '"] .adt-t');
@@ -3716,13 +3905,33 @@ MANUAL_JS = r"""<script id="alto-manual">
         else if(x === 'down'){ var nx = b0.nextElementSibling; if(!nx) return false; d.insertBefore(nx, b0); } });
     }
   }
+  function timelineOp(tk, tf, n, me, x){
+    var at = n.indexOf(me), kind = {e: 'event', f: 'flag', b: 'box'}[me.k || 'e'];
+    if(x === 'add' || x === 'addf' || x === 'addb'){
+      var ni = rid('s-'), k = x === 'addf' ? 'f' : x === 'addb' ? 'b' : 'e', it = {i: ni, k: k, t: k === 'f' ? 'New flag' : k === 'b' ? 'New box tag' : 'New event'};
+      if(k !== 'e' && me.w) it.w = me.w;                 // a flag or a box tag starts at this item's date
+      if(k === 'e' && me.d) it.d = me.d;
+      n.splice(at + 1, 0, it);
+      if(change('dt|' + tk + '|tree', n)) setTimeout(function(){ var c = document.querySelector('#detail-content .adt[data-adt-key="' + tk + '"] .amt-i[data-i="' + ni + '"] .adt-t');
+        if(c){ decorate(); startField(c, 'dt|' + tk + '|' + ni + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
+      return;
+    }
+    if(x === 'del'){
+      if(n.length < 2){ toast('A timeline keeps at least one item — remove its section instead.'); return; }
+      n.splice(at, 1);
+      if(change('dt|' + tk + '|tree', n)) toast('Removed — ⌘Z brings it back.');
+      return;
+    }
+    var to = x === 'up' ? at - 1 : at + 1; if(to < 0 || to >= n.length) return;
+    n.splice(to, 0, n.splice(at, 1)[0]); change('dt|' + tk + '|tree', n);
+  }
   function eatIfEditing(e){
     if(!editing()) return;
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t) || titleKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
+    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card,.amt-i') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -3766,7 +3975,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(f){ e.stopPropagation(); e.preventDefault(); startField(f, f.getAttribute('data-aed')); return; }
     var body = t.closest('.aed-bodypart');
     if(body){ var box = body.closest('[data-aed-body]'); if(box){ e.stopPropagation(); e.preventDefault(); startField(body, box.getAttribute('data-aed-body')); return; } }
-    if(t.closest('#canvas .node-card') || t.closest('.adt-card')){ e.stopPropagation(); e.preventDefault(); }
+    if(t.closest('#canvas .node-card') || t.closest('.adt-card,.amt-i')){ e.stopPropagation(); e.preventDefault(); }
     if(cur) endField(true);
   }, true);
   // Leaving a field by clicking anywhere else saves it.
