@@ -5,7 +5,7 @@ On a computer (a window of any width from 1440 down to 360) the controls are one
 name and wordmark float over it); and the plan is never under the dock: at rest and after Fit it stands wholly above it, a room picked (from the plan or from the card list)
 is brought clear of the dock and the room card. A phone (html.mobile / html.pmin) keeps the v1.9.152 layout until Luke has seen the dock on it.
 
-Chromium, over a fake origin (the page, the hosted renderer, the Retro layer). Skipped without Playwright."""
+Chromium and WebKit, over a fake origin (the page, the hosted renderer, the Retro layer). Skipped without Playwright."""
 import sys
 from pathlib import Path
 
@@ -16,12 +16,31 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from alto.build import building_schema as bs, palace_assets  # noqa: E402
-from test_building_pma_render import ORIGIN, PLAN, _html, browser  # noqa: E402,F401  (the fixture is the module's own)
+from test_building_pma_render import ORIGIN, PLAN, _html  # noqa: E402,F401
 
 try:
     import playwright.sync_api as pw      # noqa: F401
 except ImportError:
     pw = None
+
+
+@pytest.fixture(scope="module", params=["chromium", "webkit"])
+def browser(request):                                                                    # (as test_building_blueprint_live: both engines, WebKit skipped where it is not installed)
+    if pw is None:
+        pytest.skip("Playwright is not installed")
+    with pw.sync_playwright() as p:
+        try:
+            b = p.webkit.launch() if request.param == "webkit" else p.chromium.launch()
+        except Exception as e:
+            try:
+                b = p.chromium.launch(channel="chrome") if request.param == "chromium" else None
+            except Exception:
+                b = None
+            if b is None:
+                pytest.skip(f"no {request.param}: {e}")
+        yield b
+        b.close()
+
 
 WIDTHS = [1440, 1180, 1024, 768, 600, 520, 420, 360]
 
@@ -36,7 +55,7 @@ GEO = """(() => {
   return {cls: document.documentElement.className, W: innerWidth, H: innerHeight, rootTop: r.top, dock: {l: dock.left, r: dock.right, t: dock.top, b: dock.bottom}, plan: u, nrooms: rooms.length,
           chipUnderDock: chips.filter(q => hit(q, dock)).length,
           clipped: [...root.querySelectorAll('.bl-dock button')].filter(e => { const q = b(e); return q.width > 1 && (q.left < dock.left - 1 || q.right > dock.right + 1 || q.bottom > dock.bottom + 1 || q.top < dock.top - 1); }).length,
-          ctlUnderDock: ['mode-toggle', 'info-btn', 'search-btn', 'edit-toggle', 'alto-edit-pill', 'account-btn'].map(i => document.getElementById(i)).filter(e => e && e.getBoundingClientRect().width > 1).filter(e => hit(b(e), dock)).length, roomUnderDock: rooms.filter(q => hit(q, dock)).length,
+          ctlUnderDock: ['mode-toggle', 'info-btn', 'search-btn', 'edit-toggle', 'alto-edit-pill', 'account-btn', 'sk-mark'].map(i => document.getElementById(i)).filter(e => e && e.getBoundingClientRect().width > 1).filter(e => hit(b(e), dock)).length, roomUnderDock: rooms.filter(q => hit(q, dock)).length,
           roomUnderCard: card ? rooms.filter(q => hit(q, card)).length : 0, card: card && {t: card.top, b: card.bottom}}; })()"""
 
 
@@ -168,6 +187,38 @@ def test_the_name_chip_is_small_and_the_old_stacks_are_gone(browser):
             const foot = document.querySelector('#bldg-root .bl-foot'); return {hh: h.height, hw: h.width, top: h.top, tabsBottom: t.bottom, foot: foot ? getComputedStyle(foot).display : 'none',
             walkText: !!document.querySelector('#bldg-root .bl-head .bl-walk') && getComputedStyle(document.querySelector('#bldg-root .bl-head .bl-walk')).display}; })()""")
         assert r["hh"] < 70 and r["hw"] < 400 and r["foot"] == "none" and r["walkText"] in (False, "none"), r
+        assert errors == []
+    finally:
+        page.close()
+
+
+# Luke 2026-10-30: "the dock must never cover the user's blueprint", on a phone too. A phone keeps the v1.9.152 layout (the dock is display:contents, its tabs and zoom where
+# they always sat) until Luke has seen the dock there; html.bl-dock-phone is how he tries it. Either way, after Fit no room or chip of the plan is under a dock control.
+PHONE = """(() => {
+  const b = e => e.getBoundingClientRect(), root = document.getElementById('bldg-root');
+  const hit = (q, d) => q.left < d.right && q.right > d.left && q.top < d.bottom && q.bottom > d.top;
+  const rooms = [...root.querySelectorAll('.bl-room:not(.bl-ov)')].map(b).filter(q => q.width > 1 && q.height > 1);
+  const chips = [...root.querySelectorAll('.bl-pill')].map(b).filter(q => q.width > 1);
+  const dk = root.querySelector('.bl-dock'), shown = getComputedStyle(dk).display !== 'contents';
+  const ctl = shown ? [b(dk)] : [...dk.querySelectorAll('button')].filter(e => getComputedStyle(e).display !== 'none' && b(e).width > 1).map(b);
+  return {cls: document.documentElement.className, shown, nctl: ctl.length, nrooms: rooms.length, docW: document.documentElement.scrollWidth, W: innerWidth,
+          under: rooms.concat(chips).filter(q => ctl.some(d => hit(q, d))).length}; })()"""
+
+
+@pytest.mark.parametrize("w,h", [(390, 844), (360, 740)])
+@pytest.mark.parametrize("preview", [False, True])
+def test_on_a_phone_the_plan_is_never_under_the_dock(browser, w, h, preview):
+    page, errors = _page(browser, w, h=h)
+    try:
+        page.evaluate("document.documentElement.classList.add('mobile'%s); dispatchEvent(new Event('resize'))" % (", 'bl-dock-phone'" if preview else ""))
+        page.wait_for_timeout(400)
+        for _ in range(2):
+            _fit(page)
+            page.wait_for_timeout(300)
+            g = page.evaluate(PHONE)
+            assert g["shown"] == preview and g["nctl"] >= 1 and g["nrooms"] > 5, g
+            assert g["under"] == 0 and g["docW"] <= g["W"] + 1, g
+            page.evaluate("AltoBuilding.selectLevel([...document.querySelectorAll('#bldg-root .bl-tab:not(.on)')].pop().dataset.level)")   # and on another floor
         assert errors == []
     finally:
         page.close()

@@ -182,7 +182,8 @@ BOARD_CSS = r"""
   X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
   X.alto-lanes #sk-mark{display:none !important;}
   @media (max-width:900px){ X #sk-mark{display:none !important;} }   /* (a narrow window: no cartouche) */
-  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */
+  X.bldg-open #sk-mark{display:none !important;}   /* (the Blueprint's dock has the bottom middle: the cartouche drew "WALK" over its zoom buttons) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
   X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}

@@ -136,7 +136,7 @@ html:is(.mobile,.pmin) #bldg-root .bl-cards{display:none !important;}
 #bldg-root .bl-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-zo{order:1;} html:not(.mobile):not(.pmin) #bldg-root .bl-fit{order:2;} html:not(.mobile):not(.pmin) #bldg-root .bl-zi{order:3;}
 html.bl-lift.bldg-open :is(#mode-toggle,#info-btn,#search-btn,#edit-toggle,#alto-edit-pill){translate:0 calc(-1 * var(--bl-lift,46px));}
-html.bl-lift-l.bldg-open #account-btn{translate:0 calc(-1 * var(--bl-lift,46px));}
+html.bl-lift-l.bldg-open #account-btn{translate:0 calc(-1 * var(--bl-lift-a,var(--bl-lift,46px)));}
 html:not(.mobile):not(.pmin) #bldg-root,html.bl-dock-phone #bldg-root{top:0 !important;--bl-dock-h:50px;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock,html.bl-dock-phone #bldg-root .bl-dock{display:flex;position:absolute;z-index:4;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));
   align-items:center;gap:4px;padding:6px 8px;border-radius:999px;border:1px solid var(--bl-line);max-width:calc(100% - 24px);box-sizing:border-box;pointer-events:auto;
@@ -414,12 +414,14 @@ function layoutPills(glide){ // once a gesture settles: the places of the number
   var near=S.near=AltoMarkers.band(S.near, -k, -.14, -.125), t=scr(), H=24, gap=3, sl=3;
   var hx=S.home&&[S.home[0]*t.s+t.x, (S.home[0]+S.home[2])*t.s+t.x];
   S.mk.classList.toggle('bl-near', near);
+  var rr=S.root.getBoundingClientRect(), dq=docked()&&S.dock.getBoundingClientRect(), dk=dq&&[dq.left-rr.left-gap, dq.top-rr.top-gap, dq.right-rr.left+gap, dq.bottom-rr.top+gap];
   // placed by the number alone, so a title showing or not never moves a chip (titles once widened every chip and re-laid the lot: up to 233 px)
   var items=S.chips.map(function(p){ var w=p._wF||32, W=w+gap, c=[[0,0]];
     for(var r=1;r<7;r++) c.push([0,r*H],[0,-r*H],[W,0],[-W,0],[W,r*H],[-W,-r*H],[W,-r*H],[-W,r*H]);
+    if(dk) for(r=7;r<13;r++) c.push([0,-r*H],[W,-r*H],[-W,-r*H],[2*W,-r*H],[-2*W,-r*H]);   // (with the dock drawn, a chip crowded down onto it has places further up, tried last)
     return {id:p._n.id, x:p._a[0]*t.s+t.x, y:p._a[1]*t.s+t.y, w:w, h:H-2, c:c}; });
   S.mkSt=S.mkSt||{};
-  var at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w){ return !hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]); }});   // pushed aside, a chip stays over the building's width
+  var at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w,h){ return (!hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]))&&!(dk&&x-w/2<dk[2]&&x+w/2>dk[0]&&y-h/2<dk[3]&&y+h/2>dk[1]); }});   // pushed aside, a chip stays over the building's width, and never under the dock
   var box=items.map(function(m){ var o=at[m.id]; return [m.x+o.dx-m.w/2, m.y+o.dy, m.w, m.h]; });   // [left, centre y, w, h]
   function clear(i, x, w, s){ var b=box[i]; for(var j=0;j<box.length;j++){ if(j===i) continue; var c=box[j];
     if(x<c[0]+c[2]+gap-s && c[0]<x+w+gap-s && Math.abs(b[1]-c[1])<(b[3]+c[3])/2+gap-s) return false; } return true; }
@@ -469,7 +471,8 @@ function fit(){ // the home box centred in the free part of the screen: on a pho
   var top=0, bot=H, side=0, hb=S.head&&S.head.getBoundingClientRect();
   if(hb&&hb.height&&hb.width>W*.6) top=Math.max(0,hb.bottom-r.top+6);
   if(W<700){ bot=H-58; side=30; }
-  if(isDesk()){ var fb=freeBox(); top=fb.top; bot=fb.bot; side=W<700?14:30; }
+  if(!docked()&&S.dock) [].forEach.call(S.dock.querySelectorAll('button'),function(b){ var q=b.getBoundingClientRect(); if(q.width>1&&q.left>r.left+W/2) side=Math.max(side,r.right-q.left+6); });   // the rail's real width (the tabs and zoom are wider than the old 30px gutter)
+  if(docked()){ var fb=freeBox(); top=fb.top; bot=fb.bot; side=W<700?14:30; }
   else if(bot-top<H*.4){ top=0; bot=H; }
   var s=Math.min((W-2*side)/h0[2],(bot-top)/h0[3]), cx=h0[0]+h0[2]/2, cy=h0[1]+h0[3]/2;
   S.vb=[cx-W/2/s, cy-(top+bot)/2/s, W/s, H/s];
@@ -523,7 +526,7 @@ A.selectRoom=function(id){
 A.deselect=function(){ S.sel=null; info(null); if(S.svg) [].forEach.call(S.svg.querySelectorAll('.bl-sel'),function(n){ n.classList.remove('bl-sel'); }); };
 // a room picked stays in the free part of the screen: it is moved (never zoomed) out from under the dock, the room card or the name chip, and a room from the card list is brought in at a close zoom
 function clearOf(r,closeUp){
-  if(!isDesk()||!S.vb||!S.home||!r||!S.root||S.root.hidden) return;
+  if(!docked()||!S.vb||!S.home||!r||!S.root||S.root.hidden) return;
   var rr=S.root.getBoundingClientRect(), W=rr.width, H=rr.height, fb=freeBox(), q=V(centroid(r.p)), vb=S.vb, k=vb[3]/H;
   if(closeUp){ var w=Math.min(vb[2],S.home[2]*.55); vb[2]=w; vb[3]=w*H/W; k=vb[3]/H; vb[0]=q[0]-W/2*k; vb[1]=q[1]-(fb.top+fb.bot)/2*k; applyVB(); return; }
   var px=(q[0]-vb[0])/k, py=(q[1]-vb[1])/k, dy=0, dx=0;
@@ -588,6 +591,8 @@ function setTop(){ // under the page's title bar and nav, which settle (slide in
   S.root.style.setProperty('--bl-top',top+'px'); dockH(); if(S.vb) applyVB();
 }
 function isDesk(){ var c=document.documentElement.classList; return !c.contains('mobile')&&!c.contains('pmin'); }
+// the dock is drawn (a computer, or a phone trying it with html.bl-dock-phone): then the plan is fitted and kept above it, whatever turned it on
+function docked(){ var d=S.dock; return !!(d&&getComputedStyle(d).display!=='contents'&&d.getBoundingClientRect().height>0); }
 function dockH(){ if(S.dock&&S.root){ var b=S.dock.getBoundingClientRect(); if(b.height>0){ S.root.style.setProperty('--bl-dock-h',Math.round(b.height)+'px'); document.documentElement.style.setProperty('--bl-dock-h',Math.round(b.height)+'px'); } liftNow(); } }
 /* the page's light/dark, INFO, search and edit circles sit bottom right and the account button bottom left: where the dock reaches under them (a narrow window) they stand just above it instead, and above an open card or sheet too */
 function liftNow(){ var dt=document.documentElement, b=S.dock&&S.dock.getBoundingClientRect(); if(!b||!b.height||!isDesk()){ dt.classList.remove('bl-lift','bl-lift-l'); return; }
@@ -595,10 +600,14 @@ function liftNow(){ var dt=document.documentElement, b=S.dock&&S.dock.getBoundin
   var ac=document.getElementById('account-btn'), ar=ac&&ac.getBoundingClientRect(), card=0;
   [S.info,S.cards,S.credits].forEach(function(e){ if(e&&!e.hidden){ var r=e.getBoundingClientRect(); if(r.height>card) card=r.height; } });
   dt.classList.toggle('bl-lift',b.right>lo-10||card>0&&innerWidth<900); dt.classList.toggle('bl-lift-l',!!(ar&&ar.width>1&&b.left<ar.right+10));
-  dt.style.setProperty('--bl-lift',Math.round(b.height+4+(card?card+8:0))+'px'); }
+  // each side is lifted from where it rests (the account button rests lower than the circles), so neither stands in the dock even when it wraps to two rows
+  var rest=function(ids){ var lo=0; ids.forEach(function(id){ var e=document.getElementById(id), r=e&&e.getBoundingClientRect(); if(r&&r.width>1){ var ty=parseFloat((getComputedStyle(e).translate||'').split(' ')[1])||0; lo=Math.max(lo,r.bottom-ty); } }); return lo; };
+  var up=function(lo){ return Math.round(Math.max(b.height+4,lo?lo-b.top+6:0)+(card?card+8:0))+'px'; };
+  dt.style.setProperty('--bl-lift',up(rest(['search-btn','info-btn','mode-toggle','edit-toggle','alto-edit-pill'])));
+  dt.style.setProperty('--bl-lift-a',up(rest(['account-btn']))); }
 // the part of the root that is free of the dock, the room card and the name chip: [top,bottom] in root px (a plan placed in it is never under them)
 function freeBox(){
-  var r=S.root.getBoundingClientRect(), top=0, bot=r.height; if(!isDesk()) return {top:top,bot:bot,left:0,right:r.width};
+  var r=S.root.getBoundingClientRect(), top=0, bot=r.height; if(!docked()) return {top:top,bot:bot,left:0,right:r.width};
   var d=S.dock&&S.dock.getBoundingClientRect(); if(d&&d.height) bot=Math.min(bot,d.top-r.top-14);
   [S.info,S.cards,S.credits].forEach(function(e){ if(e&&!e.hidden){ var b=e.getBoundingClientRect(); if(b.height) bot=Math.min(bot,b.top-r.top-10); } });
   var hb=S.head&&S.head.getBoundingClientRect(); top=(r.width<900&&hb&&hb.height)?hb.bottom-r.top+8:52;
