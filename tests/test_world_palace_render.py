@@ -137,7 +137,7 @@ def test_the_engine_reaches_the_map_and_a_page_puts_it_aside(browser, origin):
         assert page.evaluate(ENL) == "hanna"                                                                 # and back on the map after
         page.evaluate("document.documentElement.classList.add('alto-editing')")
         _settle(page, 200)
-        assert page.evaluate("document.getElementById('wpal-root').hidden")
+        assert not page.evaluate("document.getElementById('wpal-root').hidden")                         # editing stays on the map (2026-10-29)
         page.evaluate("document.documentElement.classList.remove('alto-editing')")
         _settle(page, 400)
         assert not page.evaluate("document.getElementById('wpal-root').hidden")
