@@ -126,6 +126,8 @@ html.alto-retro #wpal-root .wp-bar.wp-pick:not(#_){background:#05070b;color-sche
 html.alto-retro #wpal-root .wp-pick :is(input,select):not(#_){border-radius:0;background:#0b0d12;border-color:rgba(217,174,85,.45);}
 html.alto-retro #wpal-root .wp-pick .l button:not(#_){border-radius:0;}
 html.mobile #wpal-root .wp-pick{display:none !important;}
+/* the Edit bar clears the Tour's strip (Art, 2026-10-30) */
+html.alto-editing:has(#wpal-root:not([hidden]) .wp-tour:not([hidden])) #alto-edit-exit{bottom:73px;}
 @media (prefers-reduced-motion: reduce){#wpal-root :is(canvas.wp-globe,svg.wp-svg){transition:none;}}
 @media (prefers-reduced-motion: reduce){#wpal-root :is(.wp-enl,.wp-card){transition:opacity .15s linear;}#wpal-root :is(.wp-enl,.wp-card).wp-grow{scale:1;transition:none;}
   #wpal-root .wp-ghost{transition:opacity .15s linear;}#wpal-root .wp-ghost.wp-fold{scale:1;}}

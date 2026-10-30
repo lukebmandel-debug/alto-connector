@@ -158,3 +158,16 @@ def test_one_undo_takes_the_card_and_its_place_back(browser, origin):  # noqa: F
         assert len(page.evaluate(NEW)) == 1
     finally:
         page.close()
+
+
+def test_the_edit_bar_clears_the_tour_strip(browser, origin):  # noqa: F811
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    try:
+        page.goto(origin + "/index.html")
+        _ready(page)
+        page.evaluate("AltoWorld.tourMode(true); window._altoManual.enter()")
+        page.wait_for_timeout(400)
+        gap = page.evaluate("(() => { var e = document.getElementById('alto-edit-exit').getBoundingClientRect(), t = document.querySelector('#wpal-root .wp-tour').getBoundingClientRect(); return t.top - e.bottom; })()")
+        assert gap >= 0, gap                                                          # (Art: it sat on the strip)
+    finally:
+        page.close()
