@@ -14,17 +14,17 @@ def test_back_next_and_where_you_are(browser, origin):  # noqa: F811
     page, errors = _open(browser, origin)
     try:
         assert page.evaluate(AT) == "Whole world"
-        assert page.evaluate("document.querySelector('#wpal-root .wp-nav .wp-btn').disabled")           # nothing above the world
+        assert page.evaluate("document.querySelector('#wpal-root .wp-nav .wp-up').disabled")           # nothing above the world
         assert not page.evaluate("document.querySelector('#wpal-root .wp-mm').classList.contains('on')")  # no minimap at the world
         page.evaluate("AltoWorld.select('erie1')")
         _settle(page)
         at = page.evaluate(AT)
         assert "›" in at                                                                                   # its place › it
         assert page.evaluate("document.querySelector('#wpal-root .wp-mm').classList.contains('on')")
-        page.click("#wpal-root .wp-nav .wp-btn")                                                          # Back: up to its place
+        page.click("#wpal-root .wp-nav .wp-up")                                                          # Back: up to its place
         _settle(page)
         assert page.evaluate(ENL) == "erie"
-        page.click("#wpal-root .wp-nav .wp-btn")                                                          # Back: up to its unit
+        page.click("#wpal-root .wp-nav .wp-up")                                                          # Back: up to its unit
         _settle(page)
         assert page.evaluate(ENL) is None and page.evaluate(AT) != "Whole world"
         page.keyboard.press("o")

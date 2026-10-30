@@ -92,6 +92,23 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
 @keyframes wp-pulse{from{r:6px;opacity:.9;}to{r:26px;opacity:0;}}
 html.alto-retro #wpal-root .wp-plane path:not(#_){fill:#0b0d12;stroke:#d9ae55;}html.alto-retro #wpal-root .wp-plane path.f:not(#_){fill:none;}
 html.alto-retro #wpal-root .wp-trail:not(#_){stroke:#d9ae55;}
+/* Flat | Globe (Art's option 1 "Alto-line globe": flat-shaded, a thin sphere edge, pale land with one-weight coasts and fine borders, a dotted
+   graticule; Retro gold line on black): the same map, the same camera, drawn on a sphere */
+#wpal-root canvas.wp-globe{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;pointer-events:none;transition:opacity .35s ease;}
+#wpal-root.wp-g canvas.wp-globe{opacity:1;pointer-events:auto;cursor:grab;}
+#wpal-root canvas.wp-globe.v{pointer-events:none !important;}
+#wpal-root.wp-g.wp-drag canvas.wp-globe{cursor:grabbing;}
+#wpal-root svg.wp-svg{transition:opacity .35s ease;}
+#wpal-root.wp-g svg.wp-svg{opacity:0;pointer-events:none;}
+#wpal-root .wp-ga{fill:none;stroke:var(--u);stroke-width:2.6px;stroke-linecap:round;stroke-linejoin:round;opacity:.85;}
+#wpal-root .wp-ga.k{stroke-width:1.5px;}#wpal-root .wp-ga.hand{stroke:var(--w-sub);stroke-width:1.5px;stroke-dasharray:2 7;opacity:.7;}
+#wpal-root.wp-focus .wp-ovg g:not(.wp-on){opacity:.25;}
+#wpal-root .wp-seg{display:inline-flex;border-radius:999px;background:color-mix(in srgb,var(--w-text) 7%,transparent);padding:2px;margin-right:4px;}
+#wpal-root .wp-seg .wp-btn.r{width:26px;height:26px;}
+#wpal-root .wp-seg .wp-btn.r[aria-pressed="true"]{background:var(--w-card);color:var(--w-text);box-shadow:0 1px 3px rgba(0,0,0,.14);}
+html.alto-retro #wpal-root .wp-seg:not(#_){border-radius:0;background:none;border:1px solid rgba(217,174,85,.4);}
+html.alto-retro #wpal-root .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){background:#d9ae55;color:#000;box-shadow:none;}
+@media (prefers-reduced-motion: reduce){#wpal-root :is(canvas.wp-globe,svg.wp-svg){transition:none;}}
 @media (prefers-reduced-motion: reduce){#wpal-root :is(.wp-enl,.wp-card){transition:opacity .15s linear;}#wpal-root :is(.wp-enl,.wp-card).wp-grow{scale:1;transition:none;}
   #wpal-root .wp-ghost{transition:opacity .15s linear;}#wpal-root .wp-ghost.wp-fold{scale:1;}}
 #wpal-root .wp-rel{fill:none;stroke:var(--u);stroke-width:1.8px;stroke-dasharray:5 5;stroke-linecap:round;opacity:.85;}
@@ -262,8 +279,8 @@ function quad(a,b,bend){ var mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b
 // The engine may scale the whole page (CSS zoom on <html>, e.g. ×0.85 on a 1440 px window): the map is laid out in CSS px, while
 // events and getBoundingClientRect come in the window's px. cp() turns a window point into the map's own (S.z, S.rl, S.rt from resize).
 function cp(x,y){ return [(x-(S.rl||0))/(S.z||1),(y-(S.rt||0))/(S.z||1)]; }
-function scr(x,y){ return [(x-S.cx)*S.k+S.vw/2,(y-S.cy)*S.k+S.vh/2]; }
-function wld(sx,sy){ return [(sx-S.vw/2)/S.k+S.cx,(sy-S.vh/2)/S.k+S.cy]; }
+function scr(x,y){ if(S.globe) return gScr(x,y); return [(x-S.cx)*S.k+S.vw/2,(y-S.cy)*S.k+S.vh/2]; }
+function wld(sx,sy){ if(S.globe){ var w=gWld(sx,sy); if(w) return w; return [S.cx,S.cy]; } return [(sx-S.vw/2)/S.k+S.cx,(sy-S.vh/2)/S.k+S.cy]; }
 function inset(){ return phone()?{t:56,b:124,l:14,r:14}:{t:60,b:96,l:30,r:70}; }      // (clear of the page's own corner buttons and side rail)
 function fitBox(bb,pad){ var I=inset(), w=S.vw-I.l-I.r-2*pad, hh=S.vh-I.t-I.b-2*pad, bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3);
   var k=Math.min(w/bw,hh/bh); return {k:k,cx:(bb[0]+bb[2])/2-((I.l-I.r)/2)/k,cy:(bb[1]+bb[3])/2-((I.t-I.b)/2)/k}; }
@@ -272,15 +289,17 @@ function fitBox(bb,pad){ var I=inset(), w=S.vw-I.l-I.r-2*pad, hh=S.vh-I.t-I.b-2*
 // height) and the reader pans sideways from its middle.
 function worldView(){ var short=S.vh<500, px=phone()?10:short?16:40, py=short?18:62, bw=2000, bh=974;
   var k=Math.min((S.vw-2*px)/bw,(S.vh-2*py)/bh); if(phone()&&!short) k=Math.max(k,(S.vh-2*py)*.6/bh);
+  if(S.globe) return {k:Math.min(S.vw*.42,(S.vh-2*py)*.46)/GR,cx:S.cx,cy:0};          // (the globe: whole, turned where it was)
   return {k:k,cx:0,cy:0}; }
-function apply(){ if(S.mmBox) mmBox();
+function apply(){ if(S.mmBox) mmBox(); if(S.globe) gDraw();
   S.g.setAttribute('transform','translate('+(S.vw/2-S.cx*S.k).toFixed(2)+' '+(S.vh/2-S.cy*S.k).toFixed(2)+') scale('+S.k.toFixed(5)+')');
   place();
 }
-function setView(cx,cy,k){ var kmin=S.kW*(phone()?.35:.6), kmax=S.kW*60; S.k=clamp(k,kmin,kmax); S.cx=clamp(cx,-1100,1100); S.cy=clamp(cy,-560,560); apply(); settleSoon(); }
+function setView(cx,cy,k){ var kmin=S.kW*(phone()?.35:.6), kmax=S.kW*60; S.k=clamp(k,kmin,kmax); S.cx=S.globe?wrapX(cx):clamp(cx,-1100,1100); S.cy=clamp(cy,-560,560); apply(); settleSoon(); }
 function zoomAt(f,sx,sy){ S.zt=performance.now(); var p=wld(sx,sy), k=clamp(S.k*f,S.kW*(phone()?.35:.6),S.kW*60); S.cx=p[0]-(sx-S.vw/2)/k; S.cy=p[1]-(sy-S.vh/2)/k; S.k=k; stop(); apply(); settleSoon(); }
 function stop(){ if(S.anim){ cancelAnimationFrame(S.anim.raf); S.anim=null; } }
 function fly(cx,cy,k,done,early){
+  if(S.globe) cx+=2000*Math.round((S.cx-cx)/2000);                             // (on the globe: the short way round)
   stop(); var c0=[S.cx,S.cy,S.k], d=Math.hypot(cx-c0[0],cy-c0[1]), kmin=Math.min(c0[2],k), l0=Math.log(c0[2]), l1=Math.log(k);
   var far=d*kmin/Math.max(S.vw,1), dip=far>1.1&&!phone()?Math.log(Math.max((S.vw*.85)/(d*kmin),.08)):0;       // a long flight rises first (not on a phone)
   var cap=1875*d*Math.exp((l0+l1)/2+dip)/(1.4*Math.max(S.vw,1));            // min-jerk's peak speed is 1.875 d/T: kept under 1.4 widths a second
@@ -327,20 +346,21 @@ function drawBase(G){
 }
 function firstIn(cid){ var s=stops(); for(var i=0;i<s.length;i++) if(N(s[i]).c===cid) return s[i]; return null; }
 function drawArcs(){
-  var g=S.gArcs; while(g.firstChild) g.removeChild(g.firstChild); S.chev=[];
+  var g=S.gArcs; while(g.firstChild) g.removeChild(g.firstChild); S.chev=[]; S.tubes=[];
   var U=D().u||[], prev=null;
   U.forEach(function(u,a){
     var gu=el('g',{'class':ucls(a),'data-u':a},g), tops=(u.tops||[]).filter(placed);
     for(var i=0;i+1<tops.length;i++) tube(gu,N(tops[i]),N(tops[i+1]),a,.22,true);
     tops.forEach(function(t){ (D().cl[t]||[]).concat(kidsPlaced(t)).forEach(function(c){ if(placed(c)&&N(c).par===t) tube(gu,N(t),N(c),a,.12,false,'k'); }); });
     if(prev&&tops.length){ var p0=N(prev),p1=N(tops[0]); if(Math.hypot(p1.x-p0.x,p1.y-p0.y)>1){ var Q=quad([p0.x,p0.y],[p1.x,p1.y],.18);
-      el('path',{d:'M'+p0.x+' '+p0.y+'Q'+Q.c[0].toFixed(2)+' '+Q.c[1].toFixed(2)+' '+p1.x+' '+p1.y,'class':'wp-arc hand'},gu); } }
+      el('path',{d:'M'+p0.x+' '+p0.y+'Q'+Q.c[0].toFixed(2)+' '+Q.c[1].toFixed(2)+' '+p1.x+' '+p1.y,'class':'wp-arc hand'},gu);
+      S.tubes.push({a:[p0.x,p0.y],b:[p1.x,p1.y],u:a,k:'hand'}); } }
     if(tops.length) prev=tops[tops.length-1];
   });
 }
 function kidsPlaced(t){ var o=[]; var all=D().nodes||{}; for(var id in all) if(all[id].par===t&&all[id].x!=null) o.push(id); return o; }
 function tube(g,a,b,u,bend,chev,only){
-  if(Math.hypot(b.x-a.x,b.y-a.y)<.5) return;
+  if(Math.hypot(b.x-a.x,b.y-a.y)<.5) return; S.tubes.push({a:[a.x,a.y],b:[b.x,b.y],u:u,k:only||''});
   var Q=quad([a.x,a.y],[b.x,b.y],bend), d='M'+a.x+' '+a.y+'Q'+Q.c[0].toFixed(2)+' '+Q.c[1].toFixed(2)+' '+b.x+' '+b.y;
   if(only){ el('path',{d:d,'class':'wp-arc '+only},g); return; }
   el('path',{d:d,'class':'wp-arc h'},g); el('path',{d:d,'class':'wp-arc m'},g); el('path',{d:d,'class':'wp-arc s'},g);
@@ -371,11 +391,13 @@ function drawPins(){
 function place(){
   var big=S.big;
   for(var id in S.pins){ var P=S.pins[id], n=N(id), s=scr(n.x,n.y), f=big?1.6:1, x=s[0]+P.off[0]*f, y=s[1]+P.off[1]*f;
+    if(s[2]===false){ x=-9999; y=-9999; } P.el.style.visibility=s[2]===false?'hidden':'';
     P.x=x; P.y=y; P.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
     P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)).toFixed(1)+'px)'; }
   S.tags.forEach(function(T){ if(T.pos&&T.d){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
   var ov=S.ovChev; while(ov.firstChild) ov.removeChild(ov.firstChild);
-  S.chev.forEach(function(C){ var t=.5, x=(1-t)*(1-t)*C.a[0]+2*(1-t)*t*C.c[0]+t*t*C.b[0], y=(1-t)*(1-t)*C.a[1]+2*(1-t)*t*C.c[1]+t*t*C.b[1];
+  if(S.globe) gArcs(); else if(S.ovg&&S.ovg.firstChild) S.ovg.textContent='';
+  if(!S.globe) S.chev.forEach(function(C){ var t=.5, x=(1-t)*(1-t)*C.a[0]+2*(1-t)*t*C.c[0]+t*t*C.b[0], y=(1-t)*(1-t)*C.a[1]+2*(1-t)*t*C.c[1]+t*t*C.b[1];
     var tx=2*(1-t)*(C.c[0]-C.a[0])+2*t*(C.b[0]-C.c[0]), ty=2*(1-t)*(C.c[1]-C.a[1])+2*t*(C.b[1]-C.c[1]), s=scr(x,y);
     if(Math.hypot(C.b[0]-C.a[0],C.b[1]-C.a[1])*S.k<46) return;
     el('path',{d:'M-4,-4L3,0L-4,4','class':'wp-chev','transform':'translate('+s[0].toFixed(1)+' '+s[1].toFixed(1)+') rotate('+(Math.atan2(ty,tx)*180/Math.PI).toFixed(1)+')',opacity:S.sel!=null&&unitOf(S.sel)!==C.u?.25:1},ov); });
@@ -424,7 +446,7 @@ function labels(){                                  // decided once a gesture se
 function fetchJSON(url){ return fetch(url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
 function visBox(){ var a=wld(0,0), b=wld(S.vw,S.vh); return [a[0],a[1],b[0],b[1]]; }
 function meets(a,b){ return a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1]; }
-function detail(){
+function detail(){ if(S.globe) return;
   var want=S.k>=S.kW*2.4, vb=visBox();
   Object.keys(GEO.cont).forEach(function(cs){
     if(want&&meets(CBOX[cs]||[-1e9,-1e9,1e9,1e9],vb)){
@@ -484,12 +506,14 @@ function planeHop(from,to,v,land){
   var L=Math.hypot(sb[0]-sa[0],sb[1]-sa[1]), dur=clamp(900+420*Math.log2(1+L/300),1000,1800), W=300;
   var P=S.plane={g:g,tr:tr,a:[a.x,a.y],c:Q.c,b:[b.x,b.y],t0:performance.now(),dur:dur,W:W,to:to,v:v,land:land,raf:0};
   var at=function(t){ var u=1-t; return [u*u*P.a[0]+2*u*t*P.c[0]+t*t*P.b[0],u*u*P.a[1]+2*u*t*P.c[1]+t*t*P.b[1]]; };
+  var pt=function(t){ return scr.apply(null,at(t)); };                       // (on the globe: a great circle, lifting ~12% of the radius mid-route)
+  if(S.globe){ var ga=gVec(a.x,a.y), gb=gVec(b.x,b.y); pt=function(t){ return gProj(gSlerp(ga,gb,t),1+.12*Math.sin(Math.PI*t)); }; }
   (function step(now){ if(S.plane!==P) return; var e=now-P.t0-W, t=clamp(e/dur,0,1), m=e<0?0:mj(t);
-    var p=scr.apply(null,at(m)), q=scr.apply(null,at(Math.min(1,m+.01))), r=e<0?0:Math.atan2(q[1]-p[1],q[0]-p[0]);
-    if(e<0){ var p1=scr.apply(null,at(.02)); r=Math.atan2(p1[1]-p[1],p1[0]-p[0]); }
+    var p=pt(m), q=pt(Math.min(1,m+.01)), r=e<0?0:Math.atan2(q[1]-p[1],q[0]-p[0]);
+    if(e<0){ var p1=pt(.02); r=Math.atan2(p1[1]-p[1],p1[0]-p[0]); }
     var sc=(e<0?.6+.4*mj(clamp((now-P.t0)/W,0,1)):1)*(1+.15*Math.sin(Math.PI*t));                 // (wind-up at the pin; lift mid-route)
     g.setAttribute('transform','translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate('+(r*180/Math.PI).toFixed(1)+') scale('+sc.toFixed(3)+')');
-    var d=''; for(var i=0;i<=24;i++){ var w=scr.apply(null,at(m*i/24)); d+=(i?'L':'M')+w[0].toFixed(1)+' '+w[1].toFixed(1); } tr.setAttribute('d',d);
+    var d=''; for(var i=0;i<=24;i++){ var w=pt(m*i/24); d+=(i?'L':'M')+w[0].toFixed(1)+' '+w[1].toFixed(1); } tr.setAttribute('d',d);
     if(t<1) P.raf=requestAnimationFrame(step); else planeLand(P); })(P.t0);
   return true; }
 function planeLand(P){ if(S.plane!==P) return; S.plane=null; P.g.remove(); var tr=P.tr; tr.classList.add('wp-gone'); setTimeout(function(){ tr.remove(); },450);
@@ -660,6 +684,95 @@ function watchBoard(){ var t=0, w=document.getElementById('world');
   var o={attributes:true,subtree:true,attributeFilter:['class'],attributeOldValue:true};
   if(w) mo.observe(w,o); mo.observe(S.lCards,o); }
 
+// ── Flat | Globe (Art's sheet, option 1 "Alto-line globe"; notes atlas-build (c)) ──
+// The globe is the same map and the same camera: the view's centre (S.cx, S.cy, in the flat map's units) is the point facing the reader and
+// S.k sets the radius (equal scale at the centre), so a place, a Tour stop, the plane, the cards and the keys all carry over. The surface is
+// painted once (2048 x 1024, equirectangular) from the map's own rings and colours, and a WebGL quad turns it into an orthographic sphere.
+var EA1=1.340264,EA2=-0.081106,EA3=0.000893,EA4=0.003796,EM=Math.sqrt(3)/2,ESC=1000/(Math.PI/(EM*EA1)),GR=1000/Math.PI,D2R=Math.PI/180;
+function eeF(lon,lat){ var th=Math.asin(EM*Math.sin(lat*D2R)), t2=th*th, t6=t2*t2*t2;
+  return [lon*D2R*Math.cos(th)/(EM*(EA1+3*EA2*t2+t6*(7*EA3+9*EA4*t2)))*ESC,-th*(EA1+EA2*t2+t6*(EA3+EA4*t2))*ESC]; }
+function eeI(x,y){ var X=x/ESC, Y=clamp(-y/ESC,-1.3173,1.3173), th=Y/EA1;
+  for(var i=0;i<8;i++){ var t2=th*th, t6=t2*t2*t2, f=th*(EA1+EA2*t2+t6*(EA3+EA4*t2))-Y, d=EA1+3*EA2*t2+t6*(7*EA3+9*EA4*t2); th-=f/d; }
+  var t2b=th*th, t6b=t2b*t2b*t2b, db=EA1+3*EA2*t2b+t6b*(7*EA3+9*EA4*t2b);
+  return [X*EM*db/Math.max(Math.cos(th),1e-6)/D2R,Math.asin(clamp(Math.sin(th)/EM,-1,1))/D2R]; }
+var GC={};
+function gVec(x,y){ var k=x+','+y, v=GC[k]; if(v) return v; var l=eeI(x,y), la=l[1]*D2R, lo=l[0]*D2R; v=GC[k]=[Math.cos(la)*Math.sin(lo),Math.sin(la),Math.cos(la)*Math.cos(lo)]; return v; }
+function gSlerp(a,b,t){ var d=clamp(a[0]*b[0]+a[1]*b[1]+a[2]*b[2],-1,1), w=Math.acos(d); if(w<1e-6) return a; var s=Math.sin(w), p=Math.sin((1-t)*w)/s, q=Math.sin(t*w)/s;
+  return [a[0]*p+b[0]*q,a[1]*p+b[1]*q,a[2]*p+b[2]*q]; }
+function gRot(){ var c=eeI(S.cx,clamp(S.cy,-480,480)), lo=c[0]*D2R, la=c[1]*D2R, cl=Math.cos(lo), sl=Math.sin(lo), ca=Math.cos(la), sa=Math.sin(la);
+  return [cl,0,-sl, -sa*sl,ca,-sa*cl, ca*sl,sa,ca*cl]; }                        // Rx(lat0)·Ry(-lon0), row by row
+function gProj(v,lift){ var M=S.gM||(S.gM=gRot()), R=S.k*GR*(lift||1), x=M[0]*v[0]+M[1]*v[1]+M[2]*v[2], y=M[3]*v[0]+M[4]*v[1]+M[5]*v[2], z=M[6]*v[0]+M[7]*v[1]+M[8]*v[2];
+  return [S.vw/2+R*x,S.vh/2-R*y,z>0||(lift>1&&x*x+y*y>1/(lift*lift))]; }
+function gScr(x,y){ return gProj(gVec(x,y)); }
+function gWld(sx,sy){ var R=S.k*GR, px=(sx-S.vw/2)/R, py=-(sy-S.vh/2)/R, r2=px*px+py*py; if(r2>1) return null; var z=Math.sqrt(1-r2), M=S.gM||(S.gM=gRot());
+  var wx=M[0]*px+M[3]*py+M[6]*z, wy=M[1]*px+M[4]*py+M[7]*z, wz=M[2]*px+M[5]*py+M[8]*z, lat=Math.asin(clamp(wy,-1,1))/D2R, lon=Math.atan2(wx,wz)/D2R;
+  var c0=eeI(S.cx,clamp(S.cy,-480,480))[0], dl=((lon-c0)%360+540)%360-180; return eeF(c0+dl,lat); }
+function wrapX(cx){ return clamp(cx,-1e5,1e5); }                            // (the globe turns on and on; the flat map's centre is put back in range)
+var GLS={vs:'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}',
+  fs:'precision highp float;uniform sampler2D T;uniform vec2 C;uniform float R,E;uniform mat3 M;uniform vec4 K,B;'+
+     'void main(){vec2 q=(gl_FragCoord.xy-C)/R;float r=length(q);if(r>1.){discard;}'+
+     'vec3 w=M*vec3(q,sqrt(max(0.,1.-r*r)));float la=asin(clamp(w.y,-1.,1.)),lo=atan(w.x,w.z);'+
+     'vec4 c=texture2D(T,vec2(lo/6.2831853+.5,.5-la/3.1415927));c.rgb=mix(c.rgb,B.rgb,B.a*smoothstep(.55,1.,r));'+
+     'gl_FragColor=mix(c,K,smoothstep(1.-E*2.,1.-E*.5,r)*K.a);}'};
+function gOk(){ if(S.glOk!=null) return S.glOk; try{ var c=document.createElement('canvas'); S.glOk=!!(window.WebGLRenderingContext&&(c.getContext('webgl')||c.getContext('experimental-webgl'))); }catch(x){ S.glOk=false; } return S.glOk; }
+function gInit(){ if(S.G) return true; if(!gOk()) return false; var gl=S.gl.getContext('webgl',{premultipliedAlpha:false,antialias:true})||S.gl.getContext('experimental-webgl'); if(!gl) return false;
+  var sh=function(t,src){ var o=gl.createShader(t); gl.shaderSource(o,src); gl.compileShader(o); return o; }, pr=gl.createProgram();
+  gl.attachShader(pr,sh(gl.VERTEX_SHADER,GLS.vs)); gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,GLS.fs)); gl.linkProgram(pr); if(!gl.getProgramParameter(pr,gl.LINK_STATUS)) return false;
+  gl.useProgram(pr); var bf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  var lp=gl.getAttribLocation(pr,'p'); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
+  var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  var u={}; ['T','C','R','E','M','K','B'].forEach(function(n){ u[n]=gl.getUniformLocation(pr,n); });
+  S.G={gl:gl,u:u,tx:tx,key:''}; gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gSize(); gPaint(); return true; }
+function gSize(){ if(!S.G) return; var d=Math.min(window.devicePixelRatio||1,2), w=Math.round(S.vw*d), hh=Math.round(S.vh*d); if(S.gl.width!==w||S.gl.height!==hh){ S.gl.width=w; S.gl.height=hh; S.gv.width=w; S.gv.height=hh; } S.G.d=d; S.G.gl.viewport(0,0,w,hh); }
+function rgba(c){ var x=document.createElement('canvas').getContext('2d'); x.fillStyle='#000'; x.fillStyle=c; x.fillRect(0,0,1,1); var d=x.getImageData(0,0,1,1).data; return [d[0]/255,d[1]/255,d[2]/255,d[3]/255]; }
+// the surface: the sea, a dotted graticule, every country in its own colours (a used one in its unit's tint), coasts and borders one weight
+function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(S.root), v=function(n){ return cs.getPropertyValue(n).trim(); };
+  var sea=v('--w-sea1')||'#eef2fb', edge=v('--w-edge'), grat=v('--w-grat'), key=[sea,edge,v('--w-land'),document.documentElement.className].join('|'); if(key===S.G.key) return; S.G.key=key;
+  S.gRings=[]; GC={}; var W=2048, H=1024, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d'), q=S.base.q;
+  x.fillStyle=sea; x.fillRect(0,0,W,H); x.lineCap='round'; x.lineJoin='round';
+  x.strokeStyle=grat; x.lineWidth=2; x.setLineDash([1,7]); x.beginPath();
+  for(var lo=-180;lo<=180;lo+=30){ var px=(lo+180)/360*W; x.moveTo(px,0); x.lineTo(px,H); } for(var la=-60;la<=60;la+=30){ var py=(90-la)/180*H; x.moveTo(0,py); x.lineTo(W,py); } x.stroke(); x.setLineDash([]);
+  Object.keys(S.base.c).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
+    x.fillStyle='rgba(255,255,255,.9)'; x.fillStyle=st.fill; x.strokeStyle=edge; x.strokeStyle=st.stroke; x.lineWidth=pth.classList.contains('wp-u')?2.2:1.3;
+    x.beginPath(); S.base.c[cid].forEach(function(fl){ var P=decode(fl,q), last=null, pts=[], vv=new Float32Array(P.length*3);
+      P.forEach(function(w,i){ var g=gVec(w[0],w[1]); vv[3*i]=g[0]; vv[3*i+1]=g[1]; vv[3*i+2]=g[2]; }); S.gRings.push({c:cid,v:vv});
+      P.forEach(function(w){ var l=eeI(w[0],w[1]); if(last!=null){ while(l[0]-last>180) l[0]-=360; while(l[0]-last<-180) l[0]+=360; } last=l[0]; pts.push([(l[0]+180)/360*W,(90-l[1])/180*H]); });
+      [-W,0,W].forEach(function(o){ pts.forEach(function(p,i){ if(i) x.lineTo(p[0]+o,p[1]); else x.moveTo(p[0]+o,p[1]); }); x.closePath(); }); });
+    x.fill('evenodd'); x.stroke(); });
+  var gl=S.G.gl; gl.bindTexture(gl.TEXTURE_2D,S.G.tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c);
+  S.G.K=rgba(edge); S.G.K[3]=Math.min(1,S.G.K[3]*2.4); S.G.B=rgba(sea); S.G.B[3]=.18; }
+function gDraw(){ var G=S.G; if(!G) return; S.gM=gRot(); var gl=G.gl, M=S.gM, d=G.d||1, R=S.k*GR*d;
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform1i(G.u.T,0); gl.uniform2f(G.u.C,S.vw/2*d,S.vh/2*d); gl.uniform1f(G.u.R,R); gl.uniform1f(G.u.E,1.4*d/R);
+  gl.uniformMatrix3fv(G.u.M,false,new Float32Array(M));                        // (column-major: M as given is Mᵀ, the view-to-world turn)
+  gl.uniform4fv(G.u.K,G.K||[.5,.55,.7,.6]); gl.uniform4fv(G.u.B,G.B||[1,1,1,0]); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); gVector(R/d); }
+// zoomed in, the land is drawn sharp over the surface, from the same rings and in their live colours (a picked or hidden country shows),
+// each ring only while it is wholly on the near side (a ring that runs round the back stays on the surface)
+function gVector(R){ var cv=S.gv, on=R>Math.max(S.vw,S.vh)*.55&&S.gRings; cv.style.display=on?'':'none'; if(!on) return;
+  var d=S.G.d||1; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
+  var x=cv.getContext('2d'), M=S.gM, cx=S.vw/2, cy=S.vh/2, W=S.vw, H=S.vh; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
+  var by={}; S.gRings.forEach(function(r){ var v=r.v, n=v.length/3, pts=new Array(n), inn=false;
+    for(var i=0;i<n;i++){ var a=v[3*i],b=v[3*i+1],c=v[3*i+2], z=M[6]*a+M[7]*b+M[8]*c; if(z<=0) return;
+      var px=cx+R*(M[0]*a+M[1]*b+M[2]*c), py=cy-R*(M[3]*a+M[4]*b+M[5]*c); pts[i]=[px,py]; if(px>-50&&px<W+50&&py>-50&&py<H+50) inn=true; }
+    if(inn) (by[r.c]=by[r.c]||[]).push(pts); });
+  Object.keys(by).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
+    x.globalAlpha=+st.opacity||1; x.fillStyle=st.fill; x.strokeStyle=st.stroke; x.lineWidth=parseFloat(st.strokeWidth)||1; x.beginPath();
+    by[cid].forEach(function(P){ P.forEach(function(p,i){ if(i) x.lineTo(p[0],p[1]); else x.moveTo(p[0],p[1]); }); x.closePath(); }); x.fill('evenodd'); x.stroke(); });
+  x.globalAlpha=1; }
+// the route on the globe: great circles, the near side only
+function gArcs(){ var g=S.ovg; g.textContent=''; var fu=S.sel!=null?unitOf(S.sel):S.ua;
+  (S.tubes||[]).forEach(function(T){ var a=gVec(T.a[0],T.a[1]), b=gVec(T.b[0],T.b[1]), d='', pen=false;
+    for(var i=0;i<=24;i++){ var p=gProj(gSlerp(a,b,i/24)); if(p[2]){ d+=(pen?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1); pen=true; } else pen=false; }
+    if(!d) return; var gu=el('g',{'class':ucls(T.u)+(fu===T.u?' wp-on':'')},g); el('path',{d:d,'class':'wp-ga'+(T.k?' '+T.k:'')},gu); }); }
+A.globe=function(on){ if(on==null) return !!S.globe; on=!!on&&!phone()&&!document.documentElement.classList.contains('mobile');
+  if(on===!!S.globe) return S.globe; if(on&&!gInit()) return false; stop(); planeStop();
+  var atWorld=!S.cur&&S.ua==null&&Math.abs(Math.log(S.k/(S.globe?worldView().k:S.kW)))<.35;
+  if(on){ S.globe=1; S.root.classList.add('wp-g'); gSize(); gPaint(); }
+  else { S.gv.style.display='none'; var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]); S.globe=0; S.cx=f[0]; S.cy=f[1]; S.root.classList.remove('wp-g'); }
+  try{ localStorage.setItem('alto-world-globe',S.globe?'1':'0'); }catch(x){}
+  apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); return S.globe; };
+
 // ── moving round the map the System's way (solar_navopt.py, adapted to the map) ──
 // The levels: the whole world ('') > a unit (its own card, or '@<a>') > a stop (a card standing on a place) > the cards clustered round it.
 // Back goes up a level, Next along it, and with a card enlarged the arrows (the Tour off) and 1-9 go round what is beside it: what is
@@ -687,9 +800,13 @@ var NKEYS=[['Back','up to the place or unit it belongs to'],['Next','the next on
 function svgI(p,d){ var s=el('svg',{viewBox:'0 0 20 20','aria-hidden':'true'},p); d.forEach(function(x){ el('path',{d:x},s); }); return s; }
 function navChrome(){
   var b=S.navEl=h('div',{'class':'wp-bar wp-nav',role:'navigation','aria-label':'Where you are'},S.root);
-  S.nUp=h('button',{type:'button','class':'wp-btn r'},b); svgI(S.nUp,['M8 4.5 4 8.5l4 4','M4 8.5h7a5 5 0 0 1 5 5v2']);
+  if(gOk()){ var sg=h('span',{'class':'wp-seg',role:'group','aria-label':'Flat map or globe'},b);
+    S.nFlat=h('button',{type:'button','class':'wp-btn r',title:'Flat map','aria-label':'Flat map'},sg); svgI(S.nFlat,['M3 5.5 7.5 4l5 1.5L17 4v10.5L12.5 16l-5-1.5L3 16z','M7.5 4v10.5','M12.5 5.5V16']);
+    S.nGlb=h('button',{type:'button','class':'wp-btn r',title:'Globe','aria-label':'Globe'},sg); svgI(S.nGlb,['M10 3a7 7 0 1 0 0 14a7 7 0 1 0 0-14z','M10 3c-2.6 2.2-2.6 11.8 0 14','M10 3c2.6 2.2 2.6 11.8 0 14','M3.4 8h13.2','M3.4 12h13.2']);
+    S.nFlat.addEventListener('click',function(ev){ ev.stopPropagation(); A.globe(false); }); S.nGlb.addEventListener('click',function(ev){ ev.stopPropagation(); A.globe(true); }); }
+  S.nUp=h('button',{type:'button','class':'wp-btn r wp-up'},b); svgI(S.nUp,['M8 4.5 4 8.5l4 4','M4 8.5h7a5 5 0 0 1 5 5v2']);
   S.nAt=h('button',{type:'button','class':'wp-at'},b);
-  S.nNx=h('button',{type:'button','class':'wp-btn r'},b); svgI(S.nNx,['M8 4.5 13.5 10 8 15.5']);
+  S.nNx=h('button',{type:'button','class':'wp-btn r wp-nx'},b); svgI(S.nNx,['M8 4.5 13.5 10 8 15.5']);
   S.nMp=h('button',{type:'button','class':'wp-btn r'},b); svgI(S.nMp,['M5 4.5h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z','M7.5 8.5v.01','M12.5 11.5v.01','M8.5 9.4 11.5 11']);
   [S.nUp,S.nAt,S.nNx].forEach(function(e){ e.addEventListener('click',function(ev){ ev.stopPropagation(); if(e.disabled) return; ngo(e.getAttribute('data-go')||''); }); });
   S.nMp.addEventListener('click',function(ev){ ev.stopPropagation(); S.mmOn=!S.mmOn; try{ localStorage.setItem('alto-world-map',S.mmOn?'1':'0'); }catch(x){} navSync(); });
@@ -716,7 +833,9 @@ function mmInput(){ var mm=S.mmEl, dg=null;
   mm.addEventListener('pointerup',up); mm.addEventListener('pointercancel',function(){ dg=null; });
   mm.addEventListener('pointerleave',function(){ if(!dg) S.mmTip.hidden=true; });
   mm.addEventListener('click',function(e){ e.stopPropagation(); }); }
-function mmBox(){ if(!S.mmBox||!S.mmEl.classList.contains('on')) return; var b=visBox(), r=S.mmBox;
+function mmBox(){ if(!S.mmBox||!S.mmEl.classList.contains('on')) return; var b=visBox(), r=S.mmBox; r.setAttribute('rx',0);
+  if(S.globe){ var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]), rr=Math.min(GR*1.5,Math.min(S.vw,S.vh)/2/S.k);
+    r.setAttribute('x',(f[0]-rr).toFixed(0)); r.setAttribute('y',(f[1]-rr).toFixed(0)); r.setAttribute('width',(2*rr).toFixed(0)); r.setAttribute('height',(2*rr).toFixed(0)); r.setAttribute('rx',rr.toFixed(0)); return; }
   r.setAttribute('x',Math.max(b[0],-1010).toFixed(0)); r.setAttribute('y',Math.max(b[1],-497).toFixed(0));
   r.setAttribute('width',Math.max(8,Math.min(b[2],1010)-Math.max(b[0],-1010)).toFixed(0)); r.setAttribute('height',Math.max(8,Math.min(b[3],497)-Math.max(b[1],-497)).toFixed(0)); }
 // what is drawn follows where you are: the control's labels, the minimap (only while a card or a unit is enlarged), the lit and numbered places
@@ -724,6 +843,7 @@ function navSync(){ if(!S.navEl) return; var hm=nhome(), u=nup(hm), nx=nnext(hm)
   var lab=function(e,t){ e.title=t; e.setAttribute('aria-label',t); };
   S.nUp.disabled=!hm; S.nUp.setAttribute('data-go',u); lab(S.nUp,hm?'Back to '+nname(u):'Back');
   S.nNx.disabled=!nx; S.nNx.setAttribute('data-go',nx||''); lab(S.nNx,nx?'Next: '+nname(nx):'Nothing after this one');
+  if(S.nFlat){ S.nFlat.setAttribute('aria-pressed',String(!S.globe)); S.nGlb.setAttribute('aria-pressed',String(!!S.globe)); }
   S.nMp.classList.toggle('on',!!S.mmOn); S.nMp.setAttribute('aria-pressed',String(!!S.mmOn)); lab(S.nMp,S.mmOn?'Hide the minimap':'Show the minimap');
   var at=S.nAt; while(at.firstChild) at.removeChild(at.firstChild); at.setAttribute('data-go',hm);
   if(hm&&p) at.appendChild(document.createTextNode(nname(p)+' › ')); h('b',null,at,nname(hm)); lab(at,hm?'You are at '+nname(hm)+(p?', in '+nname(p):'')+' (? for the keys)':'The whole world (? for the keys)');
@@ -775,6 +895,9 @@ function bindInput(){
   var up=function(e){ if(!S.ptr[e.pointerId]) return; delete S.ptr[e.pointerId]; last=Object.keys(S.ptr).length?mid():null; if(!last){ root.classList.remove('wp-drag'); if(S.dragged) setTimeout(function(){ S.dragged=false; },0); } };
   root.addEventListener('pointerup',up); root.addEventListener('pointercancel',up);
   svg.addEventListener('click',function(e){ if(S.dragged) return; if(e.target===svg||e.target.classList.contains('wp-c')&&!e.target.classList.contains('wp-u')){ if(S.cl||S.cur) unfocus(); } });
+  S.gl.addEventListener('click',function(e){ if(S.dragged||!S.globe) return; var q=cp(e.clientX,e.clientY), w=gWld(q[0],q[1]), used=D().used||{};
+    if(w&&window.DOMPoint) for(var c in used){ var pp=S.paths[c]; try{ if(pp&&pp.isPointInFill(new DOMPoint(w[0],w[1]))){ var f=firstIn(c); if(f){ A.select(f); return; } } }catch(x){} }
+    if(S.cl||S.cur) unfocus(); });
   svg.addEventListener('dblclick',function(e){ e.preventDefault(); var q=cp(e.clientX,e.clientY), s=S.k*2, p=wld(q[0],q[1]); fly(p[0],p[1],s); });
   document.addEventListener('keydown',function(e){
     if(S.root.hidden||document.documentElement.classList.contains('detail-open')) return;
@@ -794,6 +917,7 @@ function bindInput(){
 }
 function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=S.root.clientWidth||r.width||window.innerWidth; S.vh=S.root.clientHeight||r.height||window.innerHeight;
   S.z=r.width&&S.root.clientWidth?r.width/S.root.clientWidth:1; S.rl=r.left; S.rt=r.top; var v=worldView(); S.kW=v.k;
+  if(S.globe){ S.globe=0; S.kW=worldView().k; S.globe=1; } gSize();
   if(!S.inited){ S.inited=1; S.cx=v.cx; S.cy=v.cy; S.k=v.k; } else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
 function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
   S.top=top; S.root.style.setProperty('--w-top',top+'px'); }
@@ -854,13 +978,17 @@ A.mount=function(data){
   var root=S.root=h('div',{id:'wpal-root','aria-label':'World map'},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
-  S.ov=el('svg',{'class':'wp-ov'},root); S.ovRel=el('g',null,S.ov);
+  S.gl=h('canvas',{'class':'wp-globe','aria-hidden':'true'},root); S.gv=h('canvas',{'class':'wp-globe v','aria-hidden':'true'},root);
+  S.ov=el('svg',{'class':'wp-ov'},root); S.ovg=el('g',{'class':'wp-ovg'},S.ov); S.ovRel=el('g',null,S.ov);
   S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov); S.ovPlane=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail(); watchPage();
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
-    msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); settle(); watchBoard(); dim(); navSync(); emit('ready');
+    msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); settle(); watchBoard(); dim(); navSync();
+    new MutationObserver(function(){ if(S.globe&&S.G) setTimeout(function(){ gPaint(); gDraw(); },60); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+    try{ if(localStorage.getItem('alto-world-globe')==='1'&&!phone()) A.globe(true); }catch(x){}
+    emit('ready');
   }).catch(function(){ msg.remove(); A.hide(); S.root.remove(); S.root=null; });      // no map: the page keeps its cards
 };
 """
