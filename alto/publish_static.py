@@ -18,7 +18,7 @@ Site layout (Firebase Hosting site `alto-connector`, static only):
   /alto-bglib.js         — imported backgrounds: the picker's "Yours" section and
                            the import (build/backgrounds_import.py); the pictures
                            themselves are in the owner's Firestore, never here
-  /privacy/index.html
+  /privacy/, /terms/, /credits/ index.html (build/legal.py)
 
 No timeline content is ever in the static site. 'private' timelines never
 leave the machine; 'private-web' ones live in Firestore behind the owner's
@@ -42,6 +42,7 @@ from pathlib import Path
 import urllib.error
 import urllib.request
 
+from .build import legal
 from .build.builder import build_timeline, load_brief, stored_brief
 from .build.fingerprint import META_NAME, build_fingerprint
 from .build.pages import build_home, build_reports
@@ -334,9 +335,10 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         if name not in _on_site(site / palace_tiles.FOLDER):
             stale_notes.append(f"city data {name}: a published palace names it, but it is not in {palace_tiles.blob_dir()} — rebuild that timeline "
                                "(or restore the folder) before publishing, or its map does not load")
-    pdir = site / "privacy"
-    pdir.mkdir(exist_ok=True)
-    shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
+    for key, text in legal.pages().items():              # /privacy/ /terms/ /credits/: the words are alto/legal/*.md
+        ldir = site / key
+        ldir.mkdir(exist_ok=True)
+        (ldir / "index.html").write_text(text, encoding="utf-8")
     return site
 
 

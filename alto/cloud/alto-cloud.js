@@ -57,6 +57,7 @@
 
   let _resolveReady, _isReady = false;
   const ready = new Promise(r => { _resolveReady = () => { _isReady = true; r(); }; });
+  let termsTicked = false;   // the sign-in box was ticked for the sign-in now under way (see the terms block near the end)
   const cloud = {
     enabled: configured,
     user: null,
@@ -65,7 +66,7 @@
     // Synchronous once Firebase is up: the popup must open inside the tap that
     // asked for it, and even an already-resolved await gives Safari on iOS a
     // reason to call it unprompted and block it.
-    signIn:  () => _isReady ? _signIn() : ready.then(() => _signIn()),
+    signIn:  () => !termsGate() ? Promise.resolve(null) : _isReady ? _signIn() : ready.then(() => _signIn()),
     signOut: async () => { await ready; return _signOut(); },
     sync:    async () => { await ready; return requestSync('manual'); },
     // Tell the sync layer which timeline the page now on screen is. Without it a
@@ -1427,6 +1428,107 @@
     return true;
   }
 
+
+  // ── the beta's terms (REQUIRED-for-beta R2): an unticked box at every sign-in, one create-once record per person and version, asked again when the version changes ──
+  // The words live on /terms/ and /privacy/ (alto/legal/*.md); TERMS_V is alto/legal/VERSION, spliced in by emit_cloud_js. The record is terms_acceptance/<uid>_<version>,
+  // {uid, version, ageConfirmed, acceptedAt}, written once (the rules allow create, never update). Nothing is kept in this browser as proof: the record decides.
+  const TERMS_V = '__ALTO_TERMS_V__';
+  const termsDocId = (uid) => uid + '_' + TERMS_V;
+  const LEGAL_HTML = 'I am 18 or over and agree to the <a href="/terms/" target="_blank" rel="noopener">Beta Terms</a> and <a href="/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.';
+  const LEGAL_CSS =
+    '.acct-terms{display:flex;gap:10px;align-items:flex-start;text-align:left;font-size:12.5px;line-height:1.5;color:var(--text);margin:0 0 12px;cursor:pointer}' +
+    '.acct-terms input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--text)}' +
+    '.acct-terms a,.acct-legal a{color:inherit;text-decoration:underline;text-underline-offset:2px}' +
+    '.acct-legal{font-size:11px;letter-spacing:.04em;color:var(--muted);margin-top:12px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}' +
+    // Art 30 Oct: the plate the text sits on is near-opaque (the muted lines clear 4.5:1 on it, both themes); the waiting button stays the main button, text >= 3:1
+    '#account-modal{background:var(--surface,#fff);background:color-mix(in srgb,var(--surface,#fff) 90%,transparent)}' +
+    '#account-modal .acct-provider:disabled{opacity:1;color:var(--muted);background:transparent;cursor:not-allowed}' +
+    '#alto-terms-scrim{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,12,20,.62)}' +
+    '#alto-terms-card{max-width:380px;width:100%;box-sizing:border-box;padding:22px;border-radius:14px;background:var(--surface,#fff);color:var(--text,#1a1a2e);border:1px solid var(--btn-border,rgba(0,0,0,.2));font-family:inherit}' +
+    '#alto-terms-card h2{margin:0 0 8px;font-size:15px;letter-spacing:.16em;text-transform:uppercase;font-weight:500}' +
+    '#alto-terms-card p{margin:0 0 14px;font-size:13px;line-height:1.55;color:var(--muted)}' +
+    '#alto-terms-card button{width:100%;height:42px;margin-top:8px;border-radius:12px;border:1px solid var(--btn-border,rgba(0,0,0,.2));background:var(--card-glass-bg,transparent);color:var(--text);font:inherit;font-size:13.5px;cursor:pointer}' +
+    '#alto-terms-card button:disabled{opacity:.45;cursor:not-allowed}';
+  const termsStyle = () => {
+    if (document.getElementById('alto-legal-css')) return;
+    const st = document.createElement('style'); st.id = 'alto-legal-css'; st.textContent = LEGAL_CSS; document.head.appendChild(st);
+  };
+  cloud.terms = { version: TERMS_V, docId: termsDocId };
+  // the sign-in box (the same markup on the homepage and every timeline): the unticked row above the button, the links under it
+  function legalUI() {
+    const so = document.getElementById('acct-signed-out');
+    if (!so) return false;
+    if (so.querySelector('.acct-terms')) return true;
+    termsStyle();
+    const btn = so.querySelector('.acct-provider');
+    const row = document.createElement('label');
+    row.className = 'acct-terms';
+    row.innerHTML = '<input type="checkbox" id="acct-terms-box"><span>' + LEGAL_HTML + '</span>';
+    so.insertBefore(row, btn || so.firstChild);
+    const lk = document.createElement('div'); lk.className = 'acct-legal';
+    lk.innerHTML = '<a href="/privacy/" target="_blank" rel="noopener">Privacy</a> &middot; <a href="/terms/" target="_blank" rel="noopener">Beta Terms</a>';
+    so.appendChild(lk);
+    const box = row.querySelector('input');
+    const sync = () => { if (btn) { btn.disabled = !box.checked; btn.setAttribute('aria-disabled', String(!box.checked)); } };
+    box.addEventListener('change', sync);
+    sync();
+    return true;
+  }
+  if (!legalUI()) {
+    const mo = new MutationObserver(() => { if (legalUI()) mo.disconnect(); });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  }
+  // every sign-in button on every page goes through cloud.signIn: where the unticked box is on screen it stops the call (a script, the keyboard, a page that never
+  // disabled its button); a page without the box (a shared link) signs in and meets the blocking dialog below
+  function termsGate() {
+    const b = document.getElementById('acct-terms-box');
+    if (b && !b.checked) { try { b.focus(); } catch (e) {} return false; }
+    termsTicked = !!(b && b.checked);
+    return true;
+  }
+  // true when the record exists afterwards. A refused create is read once more: a record that is there already (another tab, a second click) counts as accepted;
+  // anything else (the rules not deployed yet, a person who is not on the beta list) is reported, never thrown
+  async function termsWrite(user) {
+    const ref = doc(db, 'terms_acceptance', termsDocId(user.uid));
+    try {
+      await setDoc(ref, { uid: user.uid, version: TERMS_V, ageConfirmed: true, acceptedAt: serverTimestamp() });
+      return true;
+    } catch (e) {
+      console.warn('[AltoCloud] terms record', e);
+      try { return (await getDoc(ref)).exists(); } catch (e2) { return false; }
+    }
+  }
+  const TERMS_FAIL = "We couldn't save your agreement. Please try again.";
+  // after sign-in: this person's own record for this version decides. Missing -> write it if the box was ticked just now, else a blocking dialog (declining signs out).
+  // A record that cannot be read does not lock anyone out (the Bass proxy checks the same record and does), and is never written over.
+  async function termsCheck(user) {
+    let exists = false;
+    try { exists = (await getDoc(doc(db, 'terms_acceptance', termsDocId(user.uid)))).exists(); }
+    catch (e) { console.warn('[AltoCloud] terms read', e); return; }
+    if (exists) return;
+    if (termsTicked) { termsTicked = false; if (!(await termsWrite(user))) termsDialog(user, TERMS_FAIL); return; }
+    termsDialog(user);
+  }
+  function termsDialog(user, problem) {
+    if (document.getElementById('alto-terms-scrim')) return;
+    termsStyle();
+    const sc = document.createElement('div'); sc.id = 'alto-terms-scrim'; sc.setAttribute('role', 'dialog'); sc.setAttribute('aria-modal', 'true'); sc.setAttribute('aria-label', 'Beta Terms');
+    sc.innerHTML = '<div id="alto-terms-card"><h2>Before you continue</h2>' +
+      '<p id="alto-terms-msg" role="status">' + (problem || 'The Beta Terms and Privacy Policy are new or have changed. Please read them and agree to keep using Alto.') + '</p>' +
+      '<label class="acct-terms"><input type="checkbox" id="alto-terms-ok"><span>' + LEGAL_HTML + '</span></label>' +
+      '<button type="button" id="alto-terms-go" disabled>Continue</button><button type="button" id="alto-terms-no">Sign out</button></div>';
+    document.body.appendChild(sc);
+    const ok = sc.querySelector('#alto-terms-ok'), go = sc.querySelector('#alto-terms-go');
+    ok.addEventListener('change', () => { go.disabled = !ok.checked; });
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      if (await termsWrite(user)) { sc.remove(); return; }
+      sc.querySelector('#alto-terms-msg').textContent = TERMS_FAIL; go.disabled = !ok.checked;
+    });
+    sc.querySelector('#alto-terms-no').addEventListener('click', () => { sc.remove(); _signOut().catch(() => {}); });
+    ok.focus();
+  }
+
   onAuthStateChanged(auth, (user) => {
     cloud.user = user || null;
     // Pages draw from what this browser remembers until this is set; after it,
@@ -1452,6 +1554,7 @@
       }, e => console.warn('[AltoCloud] user listener', e));
 
       subscribeTl(user);
+      termsCheck(user);
     } else {
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
       // Cached listings and pages belong to the account that just left.

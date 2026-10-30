@@ -232,6 +232,17 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
 
 # The homepage's and the reports page's background choice (backgrounds.py): one key
 # for both, applied in <head> ahead of everything else.
+# the beta's two legal pages (plus the OpenStreetMap credit), one quiet line at the foot of the homepage (REQUIRED-for-beta R1/R4; text in alto/legal/*.md, build/legal.py). It sits
+# after the project list in the page flow, not fixed, so it never covers a card; the list's own 140px foot makes room, the negative margin takes it back.
+_HOME_LEGAL = (
+    '<footer id="home-legal"><a href="/privacy/">Privacy</a><span aria-hidden="true">&middot;</span><a href="/terms/">Beta Terms</a>'
+    '<span aria-hidden="true">&middot;</span><a href="/credits/">Credits</a><br>'
+    '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Map data &copy; OpenStreetMap contributors (ODbL)</a></footer>'
+    '<style>#home-legal{position:relative;z-index:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:-104px 0 0;padding:0 20px 34px;'
+    'font-size:11px;line-height:1.6;font-family:inherit;letter-spacing:.04em;color:var(--muted,#5a5a80)}'
+    '#home-legal a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}#home-legal a:hover,#home-legal a:focus-visible{border-bottom-color:currentColor}'
+    '@media (max-width:768px){#home-legal{margin-top:0;padding-bottom:150px}}</style>')
+
 HOME_BG_KEY = "alto-bg-home-v1"
 # The homepage's title bar without its glass on a computer, as on every timeline (clear_top.py; Luke, 2026-10-22: "get rid
 # of the background of the top bar on the home page as well"): the background runs to the top of the window, the name keeps
@@ -286,6 +297,7 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, _HOME_ROW_OLD, _HOME_ROW_NEW, 1, "home search expanded rows")
     template = _rep(template, _HOME_CLOSE_OLD, _HOME_CLOSE_NEW, 1, "home search render hook")
     template = _rep(template, _HOME_PROJ_OLD, _HOME_PROJ_NEW, 1, "home search card project")
+    template = _rep(template, '<div id="projects-wrap"></div>', '<div id="projects-wrap"></div>' + _HOME_LEGAL, 1, "home legal footer")
     template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
     template = _rep(template, _HOME_RW_TAIL_OLD, sx_block(HOME_ROW_JS) + _BG_UI + _HOME_RW_TAIL_NEW, 1,
                     "home runway (script)")

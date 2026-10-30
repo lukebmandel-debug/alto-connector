@@ -37,7 +37,8 @@ include = ["alto*"]
 [tool.setuptools.package-data]
 "alto" = [
   "interview_guide.md",
-  "privacy.html",
+  "legal/*.md",
+  "legal/VERSION",
   # Committed copy of ../firestore.rules (pinned identical by a test): the
   # rules have to travel with every install, or publishing cannot deploy them.
   "firestore.rules",

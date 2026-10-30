@@ -9,7 +9,7 @@ Routes:
   /t/{tid}/download — offline single-file artifact
   /reports        — reports page (?course=tid)
   /alto-cloud.js  — cloud sync layer (v3)
-  /privacy, /healthz
+  /privacy, /terms, /credits, /healthz
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, \
     RedirectResponse
 from itsdangerous import BadSignature, URLSafeSerializer
 
+from .build import legal
 from .build.pages import build_home, build_reports, course_entry_for
 from .build.builder import load_brief
 from .hosted import hosted_home, hosted_reports
@@ -265,8 +266,18 @@ async def cloud_js():
 
 
 @app.get("/privacy", response_class=HTMLResponse)
+@app.get("/privacy/", response_class=HTMLResponse)
 async def privacy():
-    p = ROOT / "privacy.html"
-    if p.exists():
-        return HTMLResponse(p.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>Alto Connector — Privacy</h1><p>Coming soon.</p>")
+    return HTMLResponse(legal.page("privacy"))
+
+
+@app.get("/terms", response_class=HTMLResponse)
+@app.get("/terms/", response_class=HTMLResponse)
+async def terms():
+    return HTMLResponse(legal.page("terms"))
+
+
+@app.get("/credits", response_class=HTMLResponse)
+@app.get("/credits/", response_class=HTMLResponse)
+async def credits():
+    return HTMLResponse(legal.page("credits"))
