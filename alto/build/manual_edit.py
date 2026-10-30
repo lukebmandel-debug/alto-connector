@@ -268,6 +268,9 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing .amt-i:not(.adt-card) .aed-tc{display:flex;position:absolute;right:2px;top:-36px;z-index:6;opacity:0;transition:opacity .15s;margin:0;}
   html.alto-editing .amt-i:not(.adt-card):hover .aed-tc,html.alto-editing .amt-i:not(.adt-card):focus-within .aed-tc{opacity:1;}
   html.alto-editing .amt-flag,html.alto-editing .amt-box{overflow:visible;text-overflow:clip;}
+  /* the start / end years that edit mode adds sit 7px off the label on each side, on its baseline */
+  html.alto-editing .amt-flag .amt-when,html.alto-editing .amt-box > .amt-when:not(:only-child){margin:0 7px 0 0;vertical-align:baseline;}
+  html.alto-editing .amt-flag .amt-to{margin:0 0 0 7px;vertical-align:baseline;}
   html.alto-editing .amt .adt-scroll{cursor:default;}
   .aed-add{display:none;margin:8px 0 34px;padding:10px 16px;border-radius:10px;border:1.5px dashed var(--border);background:none;color:var(--muted);
     cursor:pointer;font:inherit;font-size:13px;letter-spacing:.06em;}
