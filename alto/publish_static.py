@@ -626,8 +626,9 @@ def deploy_site(site_dir: Path) -> str:
     rules_src = rules_path()
     rules_out = site_dir.parent / "firestore.rules"
     shutil.copy(rules_src, rules_out)
-    # Storage holds nothing of Alto's; its rules deny every client. Shipped
-    # beside firestore.rules so `firebase deploy --only storage` uses them.
+    # Storage rules: one owner-only path (Bass Documents originals), every
+    # other path denied. Shipped beside firestore.rules so
+    # `firebase deploy --only storage` uses them.
     storage_src = rules_src.parent / "storage.rules"
     if storage_src.exists():
         shutil.copy(storage_src, site_dir.parent / "storage.rules")
