@@ -9,3 +9,9 @@ What to look at:
 - Homepage: Retro's homepage rules (alto-home, retro.HOME_CSS) re-inked in cyan; the faded format symbol stays.
 - Phone: the unit band under the title stays navy and the corner controls (MAP, MENU, INFO, FILTER, NOTES, MARK) stay rounded,
   exactly as in Retro today. Not changed (phone UI is suggest-first); a suggestion for Luke.
+
+## 30 Oct, later (Luke in session)
+- System shots (`*-s-*`) retaken: planets, suns and moons are round again ("we don't want square planets").
+- `backgrounds/`: the six Holographic-only backgrounds (Neon rain, Amber haze, Grid horizon, Signal rain, Targeting,
+  Lightspeed) on a timeline, light and dark, plus `sheet-dark.png` / `sheet-light.png` with all six side by side.
+  Original SVG scenes in the genre, nothing taken from any film.
