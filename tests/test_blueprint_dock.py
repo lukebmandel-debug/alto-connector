@@ -5,7 +5,7 @@ On a computer (a window of any width from 1440 down to 360) the controls are one
 name and wordmark float over it); and the plan is never under the dock: at rest and after Fit it stands wholly above it, a room picked (from the plan or from the card list)
 is brought clear of the dock and the room card. A phone (html.mobile / html.pmin) keeps the v1.9.152 layout until Luke has seen the dock on it.
 
-Chromium and WebKit, over a fake origin (the page, the hosted renderer, the Retro layer). Skipped without Playwright."""
+Chromium and WebKit, over real local HTTP (the page, the hosted renderer, the Retro layer). Skipped without Playwright."""
 import sys
 from pathlib import Path
 
@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from alto.build import building_schema as bs, palace_assets  # noqa: E402
-from test_building_pma_render import ORIGIN, PLAN, _html  # noqa: E402,F401
+from test_building_pma_render import PLAN, _html  # noqa: E402,F401
 
 try:
     import playwright.sync_api as pw      # noqa: F401
@@ -59,26 +59,54 @@ GEO = """(() => {
           roomUnderCard: card ? rooms.filter(q => hit(q, card)).length : 0, card: card && {t: card.top, b: card.bottom}}; })()"""
 
 
-def _page(browser, w, h=900, dark=False, style=None):
+_SRV = None
+
+
+def _server():
+    """The page, and every asset palace_assets knows (the hosted renderer, the plan, the Retro layer), over real local HTTP: WebKit does not route the
+    page's synchronous loader request, so a fake origin is not enough (as building_fpv_support.Server, which serves only /bldg/)."""
+    import http.server
+    import socketserver
+    import threading
     from test_building_pma_render import PLAN as P
     pname, ptext = bs.hosted_json(P)
+    html = _html().encode()
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            body, ct, code = b"no", "text/plain", 404
+            if path in ("/", "/index.html"):
+                body, ct, code = html, "text/html; charset=utf-8", 200
+            elif path == "/alto-cloud.js":
+                body, ct, code = b"", "text/javascript", 200
+            else:
+                hit = palace_assets.find(path, building_plans={pname: ptext})
+                if hit:
+                    body, ct, code = (hit[1].encode() if isinstance(hit[1], str) else hit[1]), hit[0], 200
+            self.send_response(code)
+            self.send_header("Content-Type", ct)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    httpd = socketserver.ThreadingTCPServer(("127.0.0.1", 0), H)
+    httpd.daemon_threads = True
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return "http://127.0.0.1:%d" % httpd.server_address[1]
+
+
+def _page(browser, w, h=900, dark=False, style=None):
+    global _SRV
+    if _SRV is None:
+        _SRV = _server()
     page = browser.new_page(viewport={"width": w, "height": h})
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    html = _html()
-
-    def route(r):
-        path = r.request.url[len(ORIGIN):].split("?")[0]
-        if path in ("/", "/index.html"):
-            return r.fulfill(status=200, content_type="text/html", body=html)
-        if path == "/alto-cloud.js":
-            return r.fulfill(status=200, content_type="text/javascript", body="")
-        hit = palace_assets.find(path, building_plans={pname: ptext})
-        if hit:
-            return r.fulfill(status=200, content_type=hit[0], body=hit[1])
-        return r.fulfill(status=404, body="no")
-    page.route(ORIGIN + "/**", route)
-    page.goto(ORIGIN + "/index.html")
+    page.goto(_SRV + "/index.html")
     page.wait_for_selector("#bldg-root .bl-tab")
     page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
     page.evaluate("localStorage.clear()")

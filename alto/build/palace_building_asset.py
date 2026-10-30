@@ -471,11 +471,11 @@ function fit(){ // the home box centred in the free part of the screen: on a pho
   var top=0, bot=H, side=0, hb=S.head&&S.head.getBoundingClientRect();
   if(hb&&hb.height&&hb.width>W*.6) top=Math.max(0,hb.bottom-r.top+6);
   if(W<700){ bot=H-58; side=30; }
-  if(!docked()&&S.dock) [].forEach.call(S.dock.querySelectorAll('button'),function(b){ var q=b.getBoundingClientRect(); if(q.width>1&&q.left>r.left+W/2) side=Math.max(side,r.right-q.left+6); });   // the rail's real width (the tabs and zoom are wider than the old 30px gutter)
+  var rail=0; if(!docked()&&S.dock) [].forEach.call(S.dock.querySelectorAll('button'),function(b){ var q=b.getBoundingClientRect(); if(q.width>1&&q.left>r.left+W/2) rail=Math.max(rail,r.right-q.left+6); });   // the right rail's real width (its tabs and zoom are wider than the 30px gutter): the plan keeps clear of it, the left keeps its gutter
   if(docked()){ var fb=freeBox(); top=fb.top; bot=fb.bot; side=W<700?14:30; }
   else if(bot-top<H*.4){ top=0; bot=H; }
-  var s=Math.min((W-2*side)/h0[2],(bot-top)/h0[3]), cx=h0[0]+h0[2]/2, cy=h0[1]+h0[3]/2;
-  S.vb=[cx-W/2/s, cy-(top+bot)/2/s, W/s, H/s];
+  var sr=Math.max(side,rail), s=Math.min((W-side-sr)/h0[2],(bot-top)/h0[3]), cx=h0[0]+h0[2]/2, cy=h0[1]+h0[3]/2;
+  S.vb=[cx-(side+W-sr)/2/s, cy-(top+bot)/2/s, W/s, H/s];
 }
 function applyVB(){ // keep the drawing's aspect equal to the viewport's
   if(!S.vb||!S.svg) return;
