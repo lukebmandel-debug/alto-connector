@@ -1066,6 +1066,46 @@ def _across_wide_river(out, scale):
     out["parks"] = [pk for pk in out["parks"] if pk["r"] and kept(*_ring_mid(pk["r"][0]))]
     out["stations"] = [s for s in out["stations"] if kept(s["x"], s["y"])]
     out["landmarks"] = [l for l in out["landmarks"] if kept(l["x"], l["y"])]
+    tr = out.get("transit")
+    if isinstance(tr, dict) and tr.get("stops"):
+        # the real lines too: no stop on the land cut away (Rosslyn, across the Potomac), their track cut at the river
+        ki = [i for i, s in enumerate(tr["stops"]) if kept(s["x"], s["y"])]
+        if len(ki) < len(tr["stops"]):
+            re_ = {o: n for n, o in enumerate(ki)}
+            tr["stops"] = [tr["stops"][i] for i in ki]
+            for ln in tr.get("lines", []):
+                ln["w"] = [_flat(c) for w in ln.get("w") or []
+                           for c in _keep_side([(w[i], w[i + 1]) for i in range(0, len(w) - 1, 2)], f, keep) if len(c) >= 2]
+                ln["s"] = [re_[i] for i in ln.get("s") or [] if i in re_]
+                ln["b"] = [b for b in ([re_[i] for i in br if i in re_] for br in ln.get("b") or []) if b]
+            tr["lines"] = [ln for ln in tr.get("lines", []) if ln["w"]]
+    hw = out.get("highways")
+    if isinstance(hw, dict) and hw.get("roads"):
+        # the highways too: cut at the river, a road wholly across it dropped (the George Washington Parkway)
+        for rd in hw["roads"]:
+            rd["parts"] = [dict(pt, p=_flat(c)) for pt in rd.get("parts") or []
+                           for c in _keep_side([(pt["p"][i], pt["p"][i + 1]) for i in range(0, len(pt["p"]) - 1, 2)], f, keep)
+                           if len(c) >= 2]
+        hw["roads"] = [rd for rd in hw["roads"] if rd["parts"]]
+        by = {rd["id"]: rd for rd in hw["roads"]}
+        xs = []
+        for x in hw.get("x") or []:
+            if x.get("r") not in by or not kept(x["x"], x["y"]):
+                continue
+            best = None                                  # the interchange on its road's new parts: part index, arc length
+            for pi, pt in enumerate(by[x["r"]]["parts"]):
+                q = [(pt["p"][i], pt["p"][i + 1]) for i in range(0, len(pt["p"]) - 1, 2)]
+                acc = 0.0
+                for a, b in zip(q, q[1:]):
+                    L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1e-9
+                    t = max(0.0, min(1.0, ((x["x"] - a[0]) * (b[0] - a[0]) + (x["y"] - a[1]) * (b[1] - a[1])) / (L * L)))
+                    d = math.hypot(a[0] + t * (b[0] - a[0]) - x["x"], a[1] + t * (b[1] - a[1]) - x["y"])
+                    if best is None or d < best[0]:
+                        best = (d, pi, acc + t * L)
+                    acc += L
+            if best:
+                xs.append(dict(x, part=best[1], s=round(best[2], 1)))
+        hw["x"] = xs
     keep_rings = []
     for ring in out["water"]:
         rp = [(ring[i], ring[i + 1]) for i in range(0, len(ring) - 1, 2)]

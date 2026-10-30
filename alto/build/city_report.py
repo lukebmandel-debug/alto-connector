@@ -330,11 +330,17 @@ def c_displacement(g, m, M, aliases):
     lm, miss = _match_landmarks(g, m, aliases)
     pts = lm + _match_stops(g, m, M)
     rows = []
+    # in the root lattice's own blocks (a domain whose blocks follow the real block shape is not CW x CH: Washington's
+    # 240 x 280), as c_spacing measures
+    try:
+        bw, bh = _dom_frame(M["doms"][0], m)[2] if M["doms"] else (CW, CH)
+    except Exception:                    # noqa: BLE001 — a domain without a frame: the standard block
+        bw, bh = CW, CH
     for n, r, p, kind in pts:
         q = M["to_page"](*r)
         if q is None:
             continue
-        d = math.hypot((p[0] - q[0]) / CW, (p[1] - q[1]) / CH)
+        d = math.hypot((p[0] - q[0]) / bw, (p[1] - q[1]) / bh)
         rows.append((round(d, 2), n, kind))
     # neighbour-relative (information): affine from the 4 nearest other points, real -> page
     rel = []
@@ -347,7 +353,7 @@ def c_displacement(g, m, M, aliases):
         if fit is None:
             continue
         q = (fit[0] * r[0] + fit[1] * r[1] + fit[2], fit[3] * r[0] + fit[4] * r[1] + fit[5])
-        rel.append(math.hypot((p[0] - q[0]) / CW, (p[1] - q[1]) / CH))
+        rel.append(math.hypot((p[0] - q[0]) / bw, (p[1] - q[1]) / bh))
     rows.sort(reverse=True)
     worst = rows[0][0] if rows else 0.0
     nf = sum(1 for d, _, _ in rows if d > TH["disp_fail"])
@@ -675,7 +681,12 @@ def c_avenues(g, m, M):
         P = polys[pi]
         d = M["by_id"].get(s.get("dom", 0)) or M["doms"][0]
         base = _dget(d, "a", 0.0) or 0.0
-        core = P[1:-1] if len(P) > 3 and math.dist(P[0], P[1]) <= LEAD + .5 and math.dist(P[-1], P[-2]) <= LEAD + .5 else P
+        jj = s.get("j")
+        if jj and len(jj) == 2 and len(P) > 2:    # the engine says which ends turn out of a street (a lead each)
+            core = P[(1 if jj[0] and math.dist(P[0], P[1]) <= LEAD + .5 else 0):
+                     len(P) - (1 if jj[1] and math.dist(P[-1], P[-2]) <= LEAD + .5 else 0)]
+        else:
+            core = P[1:-1] if len(P) > 3 and math.dist(P[0], P[1]) <= LEAD + .5 and math.dist(P[-1], P[-2]) <= LEAD + .5 else P
         nb = 0
         for a, b, c in zip(core, core[1:], core[2:]):
             t1 = math.atan2(b[1] - a[1], b[0] - a[0]); t2 = math.atan2(c[1] - b[1], c[0] - b[0])

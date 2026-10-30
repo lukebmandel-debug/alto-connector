@@ -543,8 +543,15 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
 
     r_ix = [(city_avenues.PolyIndex(rv["_q"], 200.0), rv["w"]) for rv in river if len(rv["_q"]) > 1]
 
+    ponds = _ponds(m, cmap)                        # still water (the Tidal Basin, the Reflecting Pool): no block, no park
+
+    def in_pond(p, pad=0.0):
+        return any(bx[0] - pad <= p[0] <= bx[2] + pad and bx[1] - pad <= p[1] <= bx[3] + pad and
+                   (ring_inside(r, p[0], p[1]) or (pad and min(_segd(p, a, b) for a, b in zip(r, r[1:] + r[:1])) <= pad))
+                   for r, bx in ponds)
+
     def near_river(p, extra=0.0):
-        return any(ix.dist(p, w / 2 + extra + 1) < w / 2 + extra for ix, w in r_ix)
+        return any(ix.dist(p, w / 2 + extra + 1) < w / 2 + extra for ix, w in r_ix) or (bool(ponds) and in_pond(p, POND_PAD * CH))
     for did in by_id:                                # no block in the river band
         mp = maps[did]
         i0, j0, xg, yg = lat_ix[did]
@@ -801,6 +808,18 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                     if q[2] in ds and math.dist(p, q[:2]) <= blk:
                         q4.add((q[0] > p[0], q[1] > p[1]))
         return len(q4) == 4
+    st_ix_all = [city_avenues.PolyIndex(_pairs(s_["p"]), 200.0) for s_ in streets if not s_.get("d") and len(s_["p"]) >= 4]
+    cellk = 400.0
+    st_b = {}
+    for k_, ix_ in enumerate(st_ix_all):
+        x0_, y0_, x1_, y1_ = ix_.box
+        for a in range(int(x0_ // cellk), int(x1_ // cellk) + 1):
+            for b in range(int(y0_ // cellk), int(y1_ // cellk) + 1):
+                st_b.setdefault((a, b), []).append(ix_)
+
+    def on_street(p, tol=2.0):
+        """A drawn lattice street runs through p (where a lead's end must be: it turns into that street)."""
+        return any(ix_.dist(p, tol + 1) <= tol for ix_ in st_b.get((int(p[0] // cellk), int(p[1] // cellk)), ()))
     for a_ in avs:
         ds_ = av_doms.get(a_["n"], set()) | {a_.get("dom")}
         P = _pairs(a_["p"])
@@ -828,8 +847,9 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         pts = [q for k, q in enumerate(pts) if k == 0 or math.dist(q, pts[k - 1]) > 0.5]
         if len(pts) < 2:
             continue
-        lead_a = P[:1] if (j[0] and a0 == 0) else []
-        lead_b = P[-1:] if (j[1] and a1 == len(S) - 1) else []
+        lead_a = P[:1] if (j[0] and a0 == 0 and on_street(P[0])) else []
+        lead_b = P[-1:] if (j[1] and a1 == len(S) - 1 and on_street(P[-1])) else []   # a lead turns into a street
+
         line = lead_a + pts + lead_b
         st = {"n": norm(a_["n"]), "k": 0, "d": 1, "j": [int(bool(lead_a)), int(bool(lead_b))],
               "p": [round(v, 1) for q in line for v in q]}
@@ -968,6 +988,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     tables = Mapping(rmp.loc.th, rmp.loc.cx, rmp.loc.cy, rmp.loc.xr, rxg, rmp.loc.yr, ryg).tables()
     if m.get("channels"):                               # a lot on the other bank than its real place is no lot (city_report.c_side)
         _drop_wrong_bank(blocks, river, m, tables)
+    if root == 0 or abs(rmp.a) < 1e-9:
+        streets = _span_names(streets, lines, m, tables, rxg, ryg)
     g = {k: v for k, v in m.items() if k not in ("streets", "water", "rivers", "rails", "trails", "stations",
                                                  "landmarks", "parks", "W", "H", "majors", "transit")}
     for rv in river:
@@ -1185,6 +1207,69 @@ def _ring_c(flat):
     return (sum(p[0] for p in q) / len(q), sum(p[1] for p in q) / len(q))
 
 
+def _span_names(streets, lines, m, tables, xs, ys):
+    """A lattice line two real streets share (city_lines' merge: "alt") is named per span after the real street nearest
+    each stretch, split on the crossing line where the name changes (Washington: I Street Northwest west of North Capitol
+    Street, I Street Northeast east of it). Root (unturned) lattice lines only; xs, ys: its page columns and rows."""
+    alt = {}
+    for L in lines.values():
+        for fam in ("v", "h"):
+            for l in L[fam]:
+                if l.get("alt") and l.get("n"):
+                    alt.setdefault(norm(l["n"]), set()).update(norm(a) for a in l["alt"])
+    if not alt:
+        return streets
+    from .city_report import unmap
+    want = set().union(*alt.values())
+    real = {}
+    for st in m.get("streets", []):
+        n = norm(st.get("n") or "")
+        if n in want and not st.get("t"):
+            real.setdefault(n, []).append(city_avenues.PolyIndex(_pairs(st["p"]), 200.0))
+    step = min(CW, CH) / 2
+
+    def name_at(p, names):
+        r = unmap(tables, *p)
+        return min(sorted(names), key=lambda nm: min((ix.dist(r) for ix in real.get(nm, ())), default=1e18))
+    out = []
+    for s in streets:
+        n = s.get("n")
+        if not n or s.get("d") or s.get("sm") or norm(n) not in alt:
+            out.append(s)
+            continue
+        names = alt[norm(n)] | {norm(n)}
+        P = _pairs(s["p"])
+        a, b = max(zip(P, P[1:]), key=lambda ab: math.dist(*ab))        # the line's own run (the rest are its leads)
+        horiz = abs(b[1] - a[1]) < 1.0
+        if not horiz and abs(b[0] - a[0]) >= 1.0:
+            out.append(s)
+            continue
+        L = math.dist(a, b)
+        k = max(2, int(L // step))
+        lab = [name_at((a[0] + (b[0] - a[0]) * t / k, a[1] + (b[1] - a[1]) * t / k), names) for t in range(k + 1)]
+        if len(set(lab)) == 1:
+            out.append(dict(s, n=lab[0]))
+            continue
+        cuts = [0.0]
+        for t in range(1, k + 1):
+            if lab[t] != lab[t - 1]:
+                v = (a[0] + (b[0] - a[0]) * (t - .5) / k) if horiz else (a[1] + (b[1] - a[1]) * (t - .5) / k)
+                grid = xs if horiz else ys
+                v = min(grid, key=lambda g_: abs(g_ - v)) if grid else v           # on the crossing street
+                tt = (v - (a[0] if horiz else a[1])) / ((b[0] - a[0]) if horiz else (b[1] - a[1]))
+                if cuts[-1] + 1e-6 < tt < 1 - 1e-6:
+                    cuts.append(tt)
+        cuts.append(1.0)
+        ia, ib = P.index(a), P.index(b)
+        for c0, c1 in zip(cuts, cuts[1:]):
+            q0 = (a[0] + (b[0] - a[0]) * c0, a[1] + (b[1] - a[1]) * c0)
+            q1 = (a[0] + (b[0] - a[0]) * c1, a[1] + (b[1] - a[1]) * c1)
+            pts = (P[:ia] if c0 == 0.0 else []) + [q0, q1] + (P[ib + 1:] if c1 == 1.0 else [])
+            nm = name_at(((q0[0] + q1[0]) / 2, (q0[1] + q1[1]) / 2), names)
+            out.append(dict(s, n=nm, p=[round(v, 1) for q in pts for v in q]))
+    return out
+
+
 def _names(L, fam):
     return [l.get("n") or "" for l in L[fam]]
 
@@ -1260,19 +1345,60 @@ def _rivers(m, cmap, W, H, cents=(), blk=(CW, CH)):
         if not line or (_len(line) < .6 * min(realW, realH) and name.lower() not in keep):
             continue
         real = resample(line, 25.0)
-        wide = bank.get("n") == name and bank.get("side") == "e"
+        wide = bank.get("n") == name             # the city's edge, on any side (Washington's Potomac: west and south)
         pts = [cmap(x, y) for x, y in real]
-        if wide and cents:
-            pts = _hug(pts, cents, WIDE_W, blk)
+        if wide and cents and bank.get("side") == "e":      # (on another side the real course is kept: hugged, the
+            pts = _hug(pts, cents, WIDE_W, blk)               # Potomac took the Mall's blocks across East Potomac Park)
         ends = (True, True)
         if name.lower() in keep:                        # a channel runs off the glass only where it leaves the box
             edge = CHANNEL_EDGE * (m.get("scale") or 1.0)
             ends = tuple(min(q[0], q[1], realW - q[0], realH - q[1]) < edge for q in (real[0], real[-1]))
         c = course(pts, 320.0 * (1.4 if wide else 1.0), ends)
         w = WIDE_W if wide else NARROW_W
-        if wide:
+        if wide and bank.get("side") == "e":
             new_w = max(new_w, int(max(p[0] for p in c if -50 < p[1] < H + 50) + w / 2 + RIVER_EDGE))
         out.append({"n": name, "w": w, "p": [round(v, 1) for p in c for v in p], "_q": c})
+    # a narrow river on the far bank the map cut away (Little River, Virginia) is not drawn: most of its real course is
+    # across the wide river from the city's streets
+    if bank.get("n") and any(r["w"] == WIDE_W for r in out):
+        from ..palace_map import _side_of
+        wl = _main_piece(m["rivers"], bank["n"])
+        f = _side_of(wl) if wl else None
+        if f:
+            ss = [f((st["p"][0] + st["p"][2]) / 2, (st["p"][1] + st["p"][3]) / 2) for st in m.get("streets", [])[::7]
+                  if len(st.get("p") or ()) >= 4]
+            city = 1 if sum(1 for v in ss if v > 0) >= len(ss) / 2 else -1
+            far = set()
+            for name in names:
+                ln = _main_piece(m["rivers"], name)
+                if name != bank["n"] and ln and sum(1 for q in ln if f(*q) * city < 0) > len(ln) / 2:
+                    far.add(name)
+            out = [r for r in out if r["n"] not in far]
+    # a narrow river that flows into the wide one ends at its mouth (Rock Creek in the Potomac): its run-off past the
+    # mouth would cross the wide band
+    wides = [r for r in out if r["w"] == WIDE_W]
+    for r in out:
+        if r["w"] == WIDE_W or not wides:
+            continue
+        q = r["_q"]
+        wet = [any(min(_segd(p, a, b) for a, b in zip(wr["_q"], wr["_q"][1:])) < WIDE_W / 2 for wr in wides) for p in q]
+        if not any(wet):
+            continue
+        runs, cur = [], []
+        for k, wt in enumerate(wet):
+            if wt:
+                if cur:
+                    runs.append(cur); cur = []
+            else:
+                cur.append(k)
+        if cur:
+            runs.append(cur)
+        if not runs:
+            continue
+        best = max(runs, key=len)
+        k0, k1 = best[0] - (1 if best[0] > 0 else 0), best[-1] + (1 if best[-1] < len(q) - 1 else 0)
+        c = q[k0:k1 + 1]
+        r["_q"], r["p"] = c, [round(v, 1) for p in c for v in p]
     return out, new_w
 
 
@@ -1377,6 +1503,29 @@ def _sea(m, cmap, step=50.0):
         pg = [cmap(x, y) for x, y in pts]
         if len(pg) >= 3:
             out.append([round(v, 1) for q in pg for v in q])
+    return out
+
+
+POND_MIN = 5000.0        # real px^2: still water this big is kept free of blocks and parks
+POND_PAD = 0.33          # blocks (CH): a cell whose centre is this close to still water is wet (the 51 m Reflecting Pool)
+
+
+def _ponds(m, cmap):
+    """Still water on the page: [(ring, box)] for every water ring of POND_MIN or more that no river line runs in."""
+    from ..palace_map import _in_ring
+    sc = m.get("scale") or 1.0
+    lines = [_pairs(r["p"]) for r in m.get("rivers", [])]
+    out = []
+    for ring in m.get("water", []):
+        rp = _pairs(ring)
+        if len(rp) < 3 or abs(ring_area(rp)) < POND_MIN * sc * sc:
+            continue
+        x0, y0 = min(q[0] for q in rp), min(q[1] for q in rp)
+        x1, y1 = max(q[0] for q in rp), max(q[1] for q in rp)
+        if any(x0 <= q[0] <= x1 and y0 <= q[1] <= y1 and _in_ring(q, rp) for ln in lines for q in ln[::4]):
+            continue                                  # a river's own water: drawn as its band
+        pg = [cmap(x, y) for x, y in rp]
+        out.append((pg, (min(q[0] for q in pg), min(q[1] for q in pg), max(q[0] for q in pg), max(q[1] for q in pg))))
     return out
 
 
