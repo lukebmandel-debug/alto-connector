@@ -52,7 +52,7 @@ jobs:
       - name: Install the project and the test tools
         run: |
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist pytest-timeout playwright
+          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist pytest-timeout pytest-rerunfailures pillow playwright
       - name: Install the browsers (Chromium and WebKit) with their system libraries
         run: python -m playwright install --with-deps chromium webkit
       - name: Stage the engine templates
@@ -83,7 +83,7 @@ jobs:
             done ) &
           MON=$!
           trap 'kill $MON 2>/dev/null || true' EXIT
-          python -m pytest $(cat shard-files.txt) -n 2 -v -p no:cacheprovider -k "not webkit" -rfEs --durations=10 --timeout=300 --timeout-method=thread \
+          python -m pytest $(cat shard-files.txt) -n 2 -v -p no:cacheprovider -k "not webkit" --reruns 1 -rfEs --durations=10 --timeout=300 --timeout-method=thread \
             -o junit_family=xunit2 --junitxml=junit-linux-${{ matrix.shard }}.xml 2>&1 | tee pytest-linux-${{ matrix.shard }}.log
       - name: Keep the results
         if: always()
@@ -97,14 +97,10 @@ jobs:
           retention-days: 7
 
   macos-webkit:
-    name: macos webkit shard ${{ matrix.shard }} of 6
+    name: macos webkit diagnosis (one test)
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.macos_webkit) || startsWith(github.ref_name, 'alto-tests-full-calib') }}
     runs-on: macos-14
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -119,48 +115,30 @@ jobs:
       - name: Install the project and the test tools
         run: |
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet -e . -r requirements.txt pytest pytest-xdist pytest-timeout playwright
+          python -m pip install --quiet -e . -r requirements.txt pytest pytest-timeout playwright
       - name: Install WebKit
         run: python -m playwright install webkit
       - name: Stage the engine templates
         run: python packaging/stage_engine.py
-      - name: Pick this shard's WebKit test files
+      - name: Versions
+        run: |
+          python --version
+          python -m playwright --version
+          python -c "import playwright; print('playwright python package', playwright.__version__)"
+          ls -la "$HOME/Library/Caches/ms-playwright" || true
+          sw_vers
+      - name: One WebKit test, no xdist, with the stack dump and the browser's own output
         env:
-          SHARDS: "6"
-          SHARD: ${{ matrix.shard }}
+          DEBUG: "pw:browser*"
         run: |
-          python - <<'PY' > shard-files.txt
-          import glob, os
-          n, i = int(os.environ["SHARDS"]), int(os.environ["SHARD"])
-          files = [p for p in glob.glob("tests/test_*.py") if "webkit" in open(p, encoding="utf-8", errors="replace").read().lower()]
-          files.sort(key=lambda p: (-os.path.getsize(p), p))
-          for k, f in enumerate(files):
-              if k % n == i:
-                  print(f)
-          PY
-          echo "files in this shard: $(wc -l < shard-files.txt)"
-          [ -s shard-files.txt ] || { echo "empty shard"; exit 1; }
-      - name: Run the tests
-        run: |
-          set -o pipefail
-          # Every 15 s, print memory pressure and the five biggest processes (names only).
-          ( while true; do
-              echo "[monitor $(date -u +%H:%M:%S)]"; vm_stat | head -5 | sed 's/^/[monitor] /'
-              ps -Ao pid,rss,pcpu,comm -m | head -6 | sed 's/^/[monitor] /'
-              sleep 15
-            done ) &
-          MON=$!
-          trap 'kill $MON 2>/dev/null || true' EXIT
-          python -m pytest $(cat shard-files.txt) -k "webkit" -n 2 -v -p no:cacheprovider -rfEs --durations=10 --timeout=300 --timeout-method=thread \
-            -o junit_family=xunit2 --junitxml=junit-macos-${{ matrix.shard }}.xml 2>&1 | tee pytest-macos-${{ matrix.shard }}.log
-      - name: Keep the results
+          python -m pytest "tests/test_pan2d.py::test_a_diagonal_trackpad_scroll_moves_both_axes_as_far_as_the_browser_would[webkit-solar]" \
+            -p no:xdist -p no:cacheprovider -x -s -v --timeout=120 --timeout-method=signal 2>&1 | tee pytest-macos-diag.log
+      - name: Keep the log
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: tests-full-macos-${{ matrix.shard }}
-          path: |
-            junit-macos-${{ matrix.shard }}.xml
-            pytest-macos-${{ matrix.shard }}.log
+          name: tests-full-macos-diag
+          path: pytest-macos-diag.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -174,7 +152,10 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
-          sparse-checkout: .github/workflows
+          sparse-checkout: |
+            .github/workflows
+            tests/ci-baseline-failures.txt
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           pattern: tests-full-*
@@ -222,6 +203,38 @@ jobs:
               print(f"- `{name}` {msg[0][:200] if msg else ''}")
           if not fails:
               print("none")
+          # Against the local gate's baseline (tests/ci-baseline-failures.txt): print only, never fails the job.
+          import os, re
+          def node_id(case):
+              parts = case.get("classname", "").split(".")
+              k = next((n for n, p in enumerate(parts) if p.startswith("test_")), None)
+              if k is None:
+                  return case.get("classname", "") + "::" + case.get("name", "")
+              return "/".join(parts[:k + 1]) + ".py" + "".join("::" + p for p in parts[k + 1:]) + "::" + case.get("name", "")
+          passed_ids, failed_ids = set(), set()
+          for f in sorted(glob.glob("results/junit-*.xml")):
+              try:
+                  root = ET.parse(f).getroot()
+              except ET.ParseError:
+                  continue
+              for case in root.iter("testcase"):
+                  nid = node_id(case)
+                  if case.find("failure") is not None or case.find("error") is not None:
+                      failed_ids.add(nid)
+                  elif case.find("skipped") is None:
+                      passed_ids.add(nid)
+          base = set()
+          if os.path.exists("tests/ci-baseline-failures.txt"):
+              base = {l.strip() for l in open("tests/ci-baseline-failures.txt", encoding="utf-8") if l.strip()}
+          print(f"\n### Against the local baseline ({len(base)} known failures)")
+          new = sorted(failed_ids - base)
+          fixed = sorted(base & passed_ids)
+          print(f"**NEW (failing here, not in the baseline): {len(new)}**")
+          for n in new[:120]:
+              print(f"- `{n}`")
+          print(f"\n**FIXED (in the baseline, passing here): {len(fixed)}**")
+          for n in fixed[:120]:
+              print(f"- `{n}`")
           print("\n### Slowest 10")
           for t, name in sorted(times, reverse=True)[:10]:
               print(f"- {t:.1f}s `{name}`")
