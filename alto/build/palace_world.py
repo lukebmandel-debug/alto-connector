@@ -115,11 +115,13 @@ html.alto-retro #wpal-root .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){backgr
 html.dark #wpal-root .wp-bar.wp-pick{background:#151b2c;color-scheme:dark;}
 html.alto-retro #wpal-root .wp-bar.wp-pick:not(#_){background:#05070b;color-scheme:dark;}
 #wpal-root .wp-pick{left:50%;top:64px;transform:translateX(-50%);width:min(380px,calc(100% - 32px));display:flex;flex-direction:column;align-items:stretch;gap:8px;white-space:normal;padding:12px;z-index:8;}
-#wpal-root .wp-pick .r{display:flex;gap:6px;align-items:center;}
+#wpal-root .wp-pick .r{display:flex;gap:6px;align-items:center;width:100%;box-sizing:border-box;}
 #wpal-root .wp-pick b{font-size:13.5px;flex:1;}
 #wpal-root .wp-pick :is(input,select){font:inherit;font-size:13px;color:var(--w-text);background:var(--w-card);border:1px solid var(--w-edge);border-radius:9px;padding:6px 9px;min-width:0;}
-#wpal-root .wp-pick input{flex:1;}
-#wpal-root .wp-pick .l{max-height:300px;overflow:auto;touch-action:pan-y;}
+#wpal-root .wp-pick :is(input,select){box-sizing:border-box;max-width:100%;}
+#wpal-root .wp-pick input{flex:1 1 0;width:0;}
+#wpal-root .wp-pick select{flex:0 1 auto;width:auto;max-width:48%;text-overflow:ellipsis;}   /* (a region's long name never widens the row past the plate) */
+#wpal-root .wp-pick .l{max-height:300px;overflow:auto;touch-action:pan-y;width:100%;}
 #wpal-root .wp-pick .l button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;color:var(--w-text);font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;cursor:pointer;}
 #wpal-root .wp-pick .l button:hover,#wpal-root .wp-pick .l button:focus-visible{background:color-mix(in srgb,var(--accent,#5b6cff) 14%,transparent);outline:0;}
 #wpal-root .wp-pick .l button span{color:var(--w-sub);font-size:11.5px;white-space:nowrap;}
