@@ -69,3 +69,20 @@ def test_a_phone_keeps_its_map_as_it_is(browser, origin):  # noqa: F811
         assert page.evaluate("getComputedStyle(document.querySelector('#wpal-root .wp-mm')).display") == "none"
     finally:
         page.close()
+
+
+def test_the_open_key_and_the_minimap_never_overlap(browser, origin):  # noqa: F811
+    page, errors = _open(browser, origin)
+    try:
+        page.evaluate("AltoWorld.select('erie')")
+        _settle(page)
+        assert page.evaluate("document.querySelector('#wpal-root .wp-mm').classList.contains('on')")
+        page.click("#key-toggle")
+        page.wait_for_timeout(400)
+        assert page.evaluate("getComputedStyle(document.querySelector('#wpal-root .wp-mm')).visibility") == "hidden"   # the key has the floor
+        page.click("#key-toggle")
+        page.wait_for_timeout(400)
+        assert page.evaluate("getComputedStyle(document.querySelector('#wpal-root .wp-mm')).visibility") == "visible"
+        assert not errors, errors
+    finally:
+        page.close()

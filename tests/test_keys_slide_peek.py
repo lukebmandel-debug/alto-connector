@@ -44,8 +44,8 @@ def test_both_keys_are_a_toggle_not_a_fixed_panel():
         assert "_altoKeyToggle(k," in js
     assert "#lanes-key{position:fixed" not in lanes.LANES_CSS
     assert "#pal-key{padding" not in palace.PALACE_CSS and 'id="pal-key"><h5>' not in palace.PALACE_JS
-    # under the bars, top left, glass like the round buttons
-    assert "top:calc(var(--nav-bottom, 100px) + 14px)" in key_toggle.KEY_CSS
+    # in the bottom-right row (Luke picked Art's option A, 2026-10-30), glass like the round buttons
+    assert "right:var(--kt-r, 172.5px); bottom:var(--alto-row-b, 24px)" in key_toggle.KEY_CSS
     assert "border-radius:50%" in key_toggle.KEY_CSS and "backdrop-filter:blur(18px)" in key_toggle.KEY_CSS
 
 
@@ -102,19 +102,19 @@ def _desk(browser, f):
     return pg, errs
 
 
-def test_the_key_is_a_closed_round_toggle_at_the_top_left_under_the_bars(browser, lanes_page):
+def test_the_key_is_a_closed_round_toggle_in_the_bottom_right_row(browser, lanes_page):
     pg, errs = _desk(browser, lanes_page)
     r = pg.evaluate("""() => { const b = document.getElementById('key-toggle'), k = document.getElementById('lanes-key'),
-        nav = document.getElementById('nav').getBoundingClientRect(), br = b.getBoundingClientRect();
-      return { navBottom: nav.bottom, top: br.top, left: br.left, w: br.width, round: getComputedStyle(b).borderRadius,
+        info = document.getElementById('info-btn').getBoundingClientRect(), br = b.getBoundingClientRect();
+      return { infoMid: (info.top + info.bottom) / 2, mid: (br.top + br.bottom) / 2, right: br.right, infoLeft: info.left, w: br.width, round: getComputedStyle(b).borderRadius,
                open: k.classList.contains('open'), shown: getComputedStyle(k).display, fixed: getComputedStyle(b).position }; }""")
     assert r["fixed"] == "fixed" and r["shown"] == "none" and not r["open"]        # closed until asked for
-    assert r["top"] >= r["navBottom"] and r["left"] < 60 and r["round"] in ("50%", f"{r['w'] / 2}px")
+    assert abs(r["mid"] - r["infoMid"]) < 1 and r["right"] < r["infoLeft"] and r["round"] in ("50%", f"{r['w'] / 2}px")
     pg.click("#key-toggle")
     o = pg.evaluate("""() => { const k = document.getElementById('lanes-key'), kr = k.getBoundingClientRect(),
         br = document.getElementById('key-toggle').getBoundingClientRect();
-      return { shown: getComputedStyle(k).display, below: kr.top >= br.bottom, rows: k.querySelectorAll('.lk-row').length }; }""")
-    assert o["shown"] == "block" and o["below"] and o["rows"] >= 3
+      return { shown: getComputedStyle(k).display, above: kr.bottom <= br.top, rows: k.querySelectorAll('.lk-row').length }; }""")
+    assert o["shown"] == "block" and o["above"] and o["rows"] >= 3
     pg.keyboard.press("Escape")
     assert pg.evaluate("getComputedStyle(document.getElementById('lanes-key')).display") == "none"
     assert not errs

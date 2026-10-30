@@ -183,7 +183,7 @@ function shown(el){ if(!el) return null; var r=el.getBoundingClientRect(); retur
 /* the part of the canvas no chrome sits over: under the key's toggle, above the rail */
 function band(c){
   var r=c.getBoundingClientRect(), k=zk(c), ch=c.clientHeight, t=16, b=ch-16, q;
-  if((q=shown(document.getElementById('key-toggle'))) && q.bottom>r.top) t=Math.max(t,(q.bottom-r.top)/k+12);
+  if((q=shown(document.getElementById('key-toggle'))) && q.bottom>r.top && q.top<r.top+ch/2) t=Math.max(t,(q.bottom-r.top)/k+12);
   if((q=shown(document.getElementById('lanes-nav'))) && q.top<r.bottom) b=Math.min(b,(q.top-r.top)/k-14);
   if(b-t<160){ t=16; b=ch-16; }
   return {t:t, b:b};

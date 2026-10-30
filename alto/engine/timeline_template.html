@@ -6365,9 +6365,17 @@ html:not(.mobile) .note-dialog-btn {
     infoBtn.style.setProperty('top',  'auto', 'important');
     // Chain the SEARCH bubble directly LEFT of INFO (same 12px rhythm, same
     // vertical centring). Anchored by right so .expanded grows leftward.
+    // A horizontal timeline's or a Memory Palace's key (key_toggle.py) takes the slot between them, so the row
+    // reads edit, light/dark, INFO, key, search (Luke picked Art's option A, 2026-10-30) and search still grows leftward.
+    var kt = document.getElementById('key-toggle'), ktOn = !!(kt && getComputedStyle(kt).display !== 'none');
+    if(ktOn){
+      kt.style.setProperty('right',  (rightCSS + COLLAPSED_H + MARGIN) + 'px', 'important');
+      kt.style.setProperty('bottom', bottomCSS + 'px', 'important');
+      document.documentElement.style.setProperty('--kt-r', (rightCSS + COLLAPSED_H + MARGIN) + 'px');
+    }
     var sb = document.getElementById('search-btn');
     if(sb){
-      sb.style.setProperty('right',  (rightCSS + COLLAPSED_H + MARGIN) + 'px', 'important');
+      sb.style.setProperty('right',  (rightCSS + (COLLAPSED_H + MARGIN) * (ktOn ? 2 : 1)) + 'px', 'important');
       sb.style.setProperty('bottom', bottomCSS + 'px', 'important');
       sb.style.setProperty('left', 'auto', 'important');
     }
@@ -6435,6 +6443,7 @@ html:not(.mobile) .note-dialog-btn {
     if(!infoBtn) return;
     var current = null;   // running animation handle (INFO)
     var currentSb = null; // running animation handle (search bubble slide)
+    var currentKt = null; // and the key's toggle beside it
     function applyExpansion(){
       var expanded = infoBtn.classList.contains('expanded');
       var fromW = infoBtn.offsetWidth;
@@ -6472,6 +6481,15 @@ html:not(.mobile) .note-dialog-btn {
           ],
           { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }
         );
+      }
+      // the key's toggle sits between INFO and search: it steps aside with search, in the same frames
+      var kb = document.getElementById('key-toggle');
+      if(kb){
+        var kFrom = getComputedStyle(kb).transform;
+        if(!kFrom || kFrom === 'none') kFrom = 'translateX(0px)';
+        if(currentKt) try { currentKt.cancel(); } catch(e){}
+        currentKt = kb.animate([{ transform: kFrom }, { transform: expanded ? 'translateX(-324px)' : 'translateX(0px)' }],
+          { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
       }
     }
     new MutationObserver(applyExpansion).observe(infoBtn, {attributes:true, attributeFilter:['class']});
