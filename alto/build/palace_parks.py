@@ -101,18 +101,22 @@ def pick(m: dict, mp, xg, yg, names=(), blocked=(), wet=None, first=()) -> list:
     cand = []
     for n, pks in groups.items():
         rings = [r for pk in pks for r in pk["r"] if r and len(r) >= 6]
+        per = [[r for r in pk["r"] if r and len(r) >= 6] for pk in pks]          # each OSM element's own rings
         area = 0.0
         for r in rings:
             q = _pairs(r)
             area += abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(q, q[1:] + q[:1]))) / 2
         named = n.lower() in want or short_name(n).lower() in want
         if named or (area >= AUTO_HA * 1e4 and not _SKIP.search(n)):
-            cand.append((-1 if n.lower() in must else (0 if named else 1), -area, n, rings, named))
+            cand.append((-1 if n.lower() in must else (0 if named else 1), -area, n, [q for q in per if q], named))
     cand.sort(key=lambda c: c[:3])                   # the asked-for ones claim their blocks first
     taken = set(blocked)
     out = []
-    for _, _, n, rings, named in cand:
-        gr = [[mp(x, y) for x, y in _pairs(r)] for r in rings]
+    for _, _, n, per, named in cand:
+        # a park of several OSM elements (Washington's National Mall: the whole Mall and pieces inside it) is their
+        # union; even-odd only within one element (its own inner rings), or the overlaps would read as holes
+        grs = [[[mp(x, y) for x, y in _pairs(r)] for r in rings] for rings in per]
+        gr = [r for q in grs for r in q]
         xs = [p[0] for r in gr for p in r]; ys = [p[1] for r in gr for p in r]
         i0, i1 = bisect_right(xg, min(xs)) - 1, bisect_right(xg, max(xs))
         j0, j1 = bisect_right(yg, min(ys)) - 1, bisect_right(yg, max(ys))
@@ -125,7 +129,7 @@ def pick(m: dict, mp, xg, yg, names=(), blocked=(), wet=None, first=()) -> list:
                 for a in range(4):
                     for b in range(4):
                         p = (xg[i] + (xg[i + 1] - xg[i]) * (a + .5) / 4, yg[j] + (yg[j + 1] - yg[j]) * (b + .5) / 4)
-                        if _inside(p, gr):
+                        if any(_inside(p, q) for q in grs):
                             n_in += 1
                 if n_in:
                     cov[(i, j)] = n_in / 16
