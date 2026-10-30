@@ -109,6 +109,19 @@ html.alto-retro #wpal-root .wp-trail:not(#_){stroke:#d9ae55;}
 #wpal-root .wp-seg .wp-btn.r[aria-pressed="true"]{background:var(--w-card);color:var(--w-text);box-shadow:0 1px 3px rgba(0,0,0,.14);}
 html.alto-retro #wpal-root .wp-seg:not(#_){border-radius:0;background:none;border:1px solid rgba(217,174,85,.4);}
 html.alto-retro #wpal-root .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){background:#d9ae55;color:#000;box-shadow:none;}
+/* adding a country by hand (edit mode, desktop; Luke 2026-10-29: "Make sure user can manually add countries"): the edit pill's + Country */
+#wpal-root .wp-pick{left:50%;top:64px;transform:translateX(-50%);width:min(380px,calc(100% - 32px));display:flex;flex-direction:column;align-items:stretch;gap:8px;white-space:normal;padding:12px;z-index:8;}
+#wpal-root .wp-pick .r{display:flex;gap:6px;align-items:center;}
+#wpal-root .wp-pick b{font-size:13.5px;flex:1;}
+#wpal-root .wp-pick :is(input,select){font:inherit;font-size:13px;color:var(--w-text);background:var(--w-card);border:1px solid var(--w-edge);border-radius:9px;padding:6px 9px;min-width:0;}
+#wpal-root .wp-pick input{flex:1;}
+#wpal-root .wp-pick .l{max-height:300px;overflow:auto;touch-action:pan-y;}
+#wpal-root .wp-pick .l button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;color:var(--w-text);font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;cursor:pointer;}
+#wpal-root .wp-pick .l button:hover,#wpal-root .wp-pick .l button:focus-visible{background:color-mix(in srgb,var(--accent,#5b6cff) 14%,transparent);outline:0;}
+#wpal-root .wp-pick .l button span{color:var(--w-sub);font-size:11.5px;white-space:nowrap;}
+html.alto-retro #wpal-root .wp-pick :is(input,select):not(#_){border-radius:0;background:#0b0d12;border-color:rgba(217,174,85,.45);}
+html.alto-retro #wpal-root .wp-pick .l button:not(#_){border-radius:0;}
+html.mobile #wpal-root .wp-pick{display:none !important;}
 @media (prefers-reduced-motion: reduce){#wpal-root :is(canvas.wp-globe,svg.wp-svg){transition:none;}}
 @media (prefers-reduced-motion: reduce){#wpal-root :is(.wp-enl,.wp-card){transition:opacity .15s linear;}#wpal-root :is(.wp-enl,.wp-card).wp-grow{scale:1;transition:none;}
   #wpal-root .wp-ghost{transition:opacity .15s linear;}#wpal-root .wp-ghost.wp-fold{scale:1;}}
@@ -340,10 +353,10 @@ function drawBase(G){
     if(cid==='ATA'&&used[cid]==null) return;
     var bb=[1e9,1e9,-1e9,-1e9], d=rings2d(G.c[cid],q,1,bb); S.bb[cid]=bb;
     var p=el('path',{d:d,'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._base=d; p._cid=cid; S.paths[cid]=p;
-    if(used[cid]!=null) p.addEventListener('click',function(){ if(S.dragged) return; var f=firstIn(cid); if(f) A.select(f); });
+    p.addEventListener('click',function(){ if(S.dragged||(D().used||{})[cid]==null) return; var f=firstIn(cid); if(f) A.select(f); });
   });
 }
-function firstIn(cid){ var s=stops(); for(var i=0;i<s.length;i++) if(N(s[i]).c===cid) return s[i]; return null; }
+function firstIn(cid){ var s=stops(); for(var i=0;i<s.length;i++) if(N(s[i])&&N(s[i]).c===cid) return s[i]; return null; }
 function drawArcs(){
   var g=S.gArcs; while(g.firstChild) g.removeChild(g.firstChild); S.chev=[]; S.tubes=[];
   var U=D().u||[], prev=null;
@@ -777,6 +790,74 @@ A.globe=function(on){ if(on==null) return !!S.globe; on=!!on&&!phone()&&!documen
   try{ localStorage.setItem('alto-world-globe',S.globe?'1':'0'); }catch(x){}
   apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); return S.globe; };
 
+
+// ── adding and removing countries by hand (edit mode; Luke 2026-10-29: "Make sure user can manually add countries", no Claude, no MCP) ──
+// The edit pill's + Country opens a picker; a pick is a new card in the chosen unit (under its own card when the unit has one) standing on
+// that country: two edits in one undo step, the card (`nn|`) and its place (`w|<id>|place` = {c}), which edits.py folds into
+// brief.world.places, so a republish keeps it. Until then the page lays them over itself (replay below). Removing the card is the card's own
+// ✕; its place goes with it.
+S.hand={};
+function cOf(id){ var e=document.querySelector('#node-'+(window.CSS&&CSS.escape?CSS.escape(id):id)+' .node-title'); return e?e.textContent:''; }
+function ops(){ try{ return (window._altoManual&&window._altoManual.ops())||{}; }catch(x){ return {}; } }
+function reUsed(){ var U={}, all=D().nodes||{}; seq().forEach(function(id){ var n=all[id]; if(n&&n.x!=null&&n.c&&U[n.c]==null) U[n.c]=n.a; });
+  for(var id in all){ var n=all[id]; if(n.x!=null&&n.c&&U[n.c]==null) U[n.c]=n.a; } A.data.used=U; }
+function redraw(){ if(!S.ready) return; var C=S.cl&&{id:S.cl.id,enl:S.cl.enl}; if(S.cl) closeCluster();
+  reUsed(); var U=D().used||{};
+  for(var cid in S.paths){ var p=S.paths[cid], u=U[cid]; p.setAttribute('class','wp-c'+(u!=null?' wp-u '+ucls(u):'')); }
+  drawArcs(); [S.lPins,S.lLbl,S.lTag].forEach(function(L){ while(L.firstChild) L.removeChild(L.firstChild); }); S.pins={}; S.tags=[]; drawPins();
+  mmDraw(); S.dimSig=null; dim(); if(S.G){ S.G.key=''; gPaint(); }
+  if(C&&N(C.enl)&&placeOf(C.id)===C.id) openCluster(C.id,null,C.enl); else if(S.cur&&!N(S.cur)) unfocus();
+  if(S.sel&&N(S.sel)) focus(N(S.sel).a,N(S.sel).c,S.sel); apply(); labels(); navSync(); }
+function handPlace(id,cid){ var c=CTRY[cid]; if(!c) return false; var all=D().nodes, n=all[id];
+  if(!n){ var o=(ops()['nn|'+id]||{}).v; if(!o) return false; var a=typeof o.a==='number'?o.a:/^\d+$/.test(String(o.a))?+o.a:-1, u=(D().u||[])[a]; if(!u) return false;
+    n=all[id]={n:'',t:cOf(id)||o.t||c[0],a:a}; if(o.p) n.par=o.p; u.tops.push(id); u.st.push(id); S.hand[id]='new'; }
+  else if(!S.hand[id]) S.hand[id]={x:n.x,y:n.y,c:n.c,pl:n.pl,k:n.k};
+  n.x=c[1]; n.y=c[2]; n.c=cid; n.pl=c[0]; n.k='country'; (A.data.names=A.data.names||{})[cid]=c[0]; redraw(); return true; }
+function handDrop(id){ var hd=S.hand[id], n=N(id); delete S.hand[id]; if(!n) return;
+  if(hd==='new'){ cardGone(id); return; } if(hd){ n.x=hd.x; n.y=hd.y; n.c=hd.c; n.pl=hd.pl; n.k=hd.k; } redraw(); }
+function cardGone(id){ var all=D().nodes; if(!all[id]) return; S.gone=S.gone||{}; S.gone[id]=all[id]; delete all[id];
+  (D().u||[]).forEach(function(u){ ['tops','st'].forEach(function(f){ var i=(u[f]||[]).indexOf(id); if(i>=0) u[f].splice(i,1); }); });
+  var cl=D().cl||{}; for(var s0 in cl){ var j=cl[s0].indexOf(id); if(j>=0) cl[s0].splice(j,1); }
+  var was=S.cur===id||S.sel===id; if(was){ closeCluster(); S.sel=null; S.cur=null; } redraw(); if(was) unfocus(); }
+function cardBack(id){ var n=S.gone&&S.gone[id]; if(!n||N(id)) return; delete S.gone[id]; D().nodes[id]=n; var u=(D().u||[])[n.a];
+  if(u&&n.x!=null&&(!n.par||!N(n.par)||N(n.par).x==null||hubUnit(n.par)>=0)){ u.tops.push(id); u.st.push(id); } redraw(); }
+window._altoWorldField=function(k){ var p=k.split('|'), id=p[1]; if(p.length!==3||p[2]!=='place') return null;
+  return {kind:'card', sig:function(){ return null; }, get:function(){ var n=N(id); return S.hand[id]&&n?{c:n.c}:null; },
+    set:function(v){ if(v&&v.c) handPlace(id,v.c); else handDrop(id); }}; };
+window._altoEditHook=function(k,v){ var p=k.split('|'), id=p[1];
+  if(p[0]==='nn'&&!v){ delete S.hand[id]; cardGone(id); }
+  else if(p[0]==='nn'&&v){ var w=ops()['w|'+id+'|place']; if(w&&!w.done&&w.v&&!N(id)) setTimeout(function(){ handPlace(id,w.v.c); },0); }
+  else if(p[0]==='nd'){ if(v) cardGone(id); else cardBack(id); } };
+// a reload before the next republish: the page's own edits laid over the map (cards added, placed, removed)
+function replay(){ var O=ops(), K=Object.keys(O).sort(function(a,b){ return (O[a].t||0)-(O[b].t||0); });
+  K.forEach(function(k){ var o=O[k], p=k.split('|'); if(!o||o.done) return;
+    if(p[0]==='w'&&p[2]==='place'&&o.v&&o.v.c){ var n=N(p[1]); if(!n||n.c!==o.v.c||S.hand[p[1]]) handPlace(p[1],o.v.c); }
+    else if(p[0]==='nd'&&o.v) cardGone(p[1]);
+    else if(p[0]==='nn'&&!o.v) cardGone(p[1]); }); }
+A.pickCountry=function(btn){ if(!S.root||S.root.hidden) return; if(S.pick){ S.pick.remove(); S.pick=null; return; }
+  var E=window._altoEdit; if(!E||!E.addCard) return;
+  var P=S.pick=h('div',{'class':'wp-bar wp-pick',role:'dialog','aria-label':'Add a country'},S.root), hd=h('div',{'class':'r'},P);
+  h('b',null,hd,'Add a country'); var x=h('button',{type:'button','class':'wp-btn r','aria-label':'Close'},hd,'✕');
+  var r1=h('div',{'class':'r'},P), q=h('input',{type:'search',placeholder:'Search countries','aria-label':'Search countries'},r1), rg=h('select',{'aria-label':'Region'},r1);
+  h('option',{value:''},rg,'All regions'); REG.forEach(function(n){ h('option',{value:n},rg,n); });
+  var U=D().u||[], us=null; if(U.length>1){ var r2=h('div',{'class':'r'},P); h('span',null,r2,'In unit'); us=h('select',{'aria-label':'Unit'},r2);
+    U.forEach(function(u,a){ h('option',{value:a},us,nname(ukey(a))); }); us.value=String(S.ua!=null?S.ua:S.cur&&N(S.cur)?N(S.cur).a:U.length-1); }
+  var L=h('div',{'class':'l',role:'listbox'},P), used=D().used||{};
+  var close=function(){ if(S.pick===P){ P.remove(); S.pick=null; } };
+  var go=function(cid){ var a=us?+us.value:0, u=U[a]; close(); if(!u) return;
+    var id=E.addCard(u.hub||null,a,!u.hub,{spec:{t:CTRY[cid][0]},ops:function(nid){ return [['w|'+nid+'|place',{c:cid}]]; },toast:CTRY[cid][0]+' added — ⌘Z takes it back.',edit:false});
+    if(id) setTimeout(function(){ if(N(id)) A.select(id); },420); };
+  var fill=function(){ while(L.firstChild) L.removeChild(L.firstChild); var t=(q.value||'').toLowerCase().trim(), want=rg.value, n=0;
+    var st=function(cid){ return t&&CTRY[cid][0].toLowerCase().indexOf(t)===0?0:1; };          // (names that start with it first)
+    Object.keys(CTRY).sort(function(a,b){ return st(a)-st(b)||(CTRY[a][0]<CTRY[b][0]?-1:1); }).forEach(function(cid){ var c=CTRY[cid]; if(n>=80) return;
+      if(want&&c[3]!==want) return; if(t&&c[0].toLowerCase().indexOf(t)<0&&cid.toLowerCase()!==t) return; n++;
+      var b=h('button',{type:'button',role:'option','data-c':cid},L); b.appendChild(document.createTextNode(c[0])); h('span',null,b,(used[cid]!=null?'in use · ':'')+c[3]);
+      b.addEventListener('click',function(e){ e.stopPropagation(); go(cid); }); }); };
+  q.addEventListener('input',fill); rg.addEventListener('change',fill); x.addEventListener('click',function(e){ e.stopPropagation(); close(); });
+  P.addEventListener('keydown',function(e){ if(e.key==='Escape'){ e.stopPropagation(); close(); } else if(e.key==='Enter'){ var f=L.querySelector('button'); if(f){ e.preventDefault(); go(f.getAttribute('data-c')); } } });
+  ['pointerdown','wheel','click'].forEach(function(t){ P.addEventListener(t,function(e){ e.stopPropagation(); },{passive:true}); });
+  fill(); setTimeout(function(){ try{ q.focus(); }catch(e){} },0); };
+
 // ── moving round the map the System's way (solar_navopt.py, adapted to the map) ──
 // The levels: the whole world ('') > a unit (its own card, or '@<a>') > a stop (a card standing on a place) > the cards clustered round it.
 // Back goes up a level, Next along it, and with a card enlarged the arrows (the Tour off) and 1-9 go round what is beside it: what is
@@ -890,7 +971,7 @@ function bindInput(){
   var mid=function(){ var k=Object.keys(S.ptr), a=S.ptr[k[0]], b=S.ptr[k[1]]||a; return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)}; };
   // a drag pans from anywhere on the map, a pin or a name too (not from a card or a panel); it takes the pointer once it is a drag, so a
   // tap on a pin is still the pin's
-  var mine=function(t){ return t===svg||!(t.closest&&t.closest('.wp-bar,.wp-list,.wp-enl,.wp-card,.wk,.key-pop')); };
+  var mine=function(t){ return t===svg||!(t.closest&&t.closest('.wp-bar,.wp-list,.wp-enl,.wp-card,.wk,.key-pop,.wp-pick')); };
   root.addEventListener('pointerdown',function(e){ if(S.plane&&e.button===0&&!(e.target.closest&&e.target.closest('.wp-bar,.wp-list'))){ planeSkip(); return; }
     if(!mine(e.target)||e.button>0) return; stop(); var q=cp(e.clientX,e.clientY); S.ptr[e.pointerId]={x:q[0],y:q[1]};
     if(e.target===svg) try{ svg.setPointerCapture(e.pointerId); }catch(x){}
@@ -993,6 +1074,7 @@ A.mount=function(data){
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
     msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); if(one()){ var hv=homeView(); S.cx=hv.cx; S.cy=hv.cy; S.k=hv.k; apply(); } settle(); watchBoard(); dim(); navSync();
     new MutationObserver(function(){ if(S.globe&&S.G) setTimeout(function(){ gPaint(); gDraw(); },60); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+    replay();
     try{ if(localStorage.getItem('alto-world-globe')==='1'&&!phone()) A.globe(true); }catch(x){}
     emit('ready');
   }).catch(function(){ msg.remove(); A.hide(); S.root.remove(); S.root=null; });      // no map: the page keeps its cards
@@ -1009,11 +1091,26 @@ def _retro_cards() -> str:
     return retro._slim(retro.scoped("\n".join(rows).replace("#world .node", "#wpal-root .wp-enl .node"), "html.alto-retro"))
 
 
+def _countries() -> dict:
+    """The picker's countries: {iso3: [name, x, y (its pin: the capital, as world_plan places it), region]} (the hosted renderer, not the page)."""
+    from .world_geo import REGIONS, gazetteer
+    from .world_plan import _country_place, _xy
+    reg = {s: r for r, subs in REGIONS for s in subs}
+    out = {}
+    for cid, c in gazetteer()["countries"].items():
+        if cid == "ATA" or not c.get("n"):
+            continue
+        x, y = _xy(_country_place(cid))
+        out[cid] = [c["n"], round(x, 2), round(y, 2), reg.get(c.get("sub"), "")]
+    return out
+
+
 def _asset() -> str:
-    from .world_geo import manifest, continent_boxes
+    from .world_geo import REGIONS, manifest, continent_boxes
     from .key_toggle import KEY_CSS, KEY_JS
     return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
-            + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\n" + WORLD_JS + "\n})();\n")
+            + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\nvar CTRY=" + _json.dumps(_countries(), sort_keys=True, separators=(",", ":"))
+            + ";\nvar REG=" + _json.dumps([r for r, _ in REGIONS]) + ";\n" + WORLD_JS + "\n})();\n")
 
 
 WORLD_ASSET = _asset()
