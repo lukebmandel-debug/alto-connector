@@ -1388,30 +1388,42 @@
   function _clearLocal() {
     for (const k of _localKeys()) { try { localStorage.removeItem(k); } catch (e) {} }
   }
+  // Notes set aside (below) are kept a few days in case someone pressed the
+  // wrong button, then dropped; signing out drops them at once.
+  const UNCLAIMED_DAYS = 3;
+  function _dropOldUnclaimed() {
+    try {
+      const v = JSON.parse(origGet(UNCLAIMED_KEY) || 'null');
+      if (v && !(Date.now() - (Number(v.t) || 0) < UNCLAIMED_DAYS * 864e5)) localStorage.removeItem(UNCLAIMED_KEY);
+    } catch (e) { try { localStorage.removeItem(UNCLAIMED_KEY); } catch (e2) {} }
+  }
+  function _setAside(keys) {
+    const data = {};
+    for (const k of keys) { try { data[k] = localStorage.getItem(k); } catch (e) {} }
+    try { origSet(UNCLAIMED_KEY, JSON.stringify({ t: Date.now(), data })); } catch (e) {}
+    _clearLocal();
+  }
   function _adoptLocal(user) {
     let owner = null;
     try { owner = origGet(OWNER_KEY); } catch (e) {}
     if (owner === user.uid) return;
-    const data = _localKeys().filter(k => !/^alto-cloud-meta-v3/.test(k));
+    const keys = _localKeys();
+    const data = keys.filter(k => !/^alto-cloud-meta-v3/.test(k));
+    // Sync bookkeeping means some account already synced this data, and with
+    // no owner recorded it cannot be known which: never offer it to this one.
+    const synced = keys.length !== data.length;
     if (owner) {
       _clearLocal();                                  // another account's
+    } else if (data.length && synced) {
+      _setAside(data);
     } else if (data.length) {
       let mine = false;
       try {
-        mine = window.confirm('This browser has highlights or notes that were saved while ' +
-          'nobody was signed in. Add them to ' + (user.email || 'this account') + '?\n\n' +
-          'Choose Cancel if they are not yours: they will be set aside and not added.');
+        mine = window.confirm('This browser has highlights or notes that are not linked to ' +
+          'any account. They may belong to someone else who used this browser.\n\n' +
+          'Add them to ' + (user.email || 'this account') + '? Choose OK only if they are yours.');
       } catch (e) {}
-      if (!mine) {
-        const keep = {};
-        for (const k of data) { try { keep[k] = localStorage.getItem(k); } catch (e) {} }
-        try { origSet(UNCLAIMED_KEY, JSON.stringify(keep)); } catch (e) {}
-        _clearLocal();
-      } else {
-        // Sync bookkeeping from before the record existed is not evidence of
-        // whose the data is; let this account's first sync start clean.
-        for (const k of _localKeys()) if (/^alto-cloud-meta-v3/.test(k)) { try { localStorage.removeItem(k); } catch (e) {} }
-      }
+      if (!mine) _setAside(data);
     }
     try { origSet(OWNER_KEY, user.uid); } catch (e) {}
     meta = loadMeta();
@@ -1526,6 +1538,7 @@
 
   onAuthStateChanged(auth, (user) => {
     // Before anything can sync: this browser's data must be this account's.
+    _dropOldUnclaimed();
     if (user) _adoptLocal(user);
     cloud.user = user || null;
     // Pages draw from what this browser remembers until this is set; after it,
@@ -1556,7 +1569,10 @@
       // Signing out leaves nothing of the account behind for whoever signs
       // in next, and reloads so no open page still holds it in memory.
       const was = _lastUid;
-      if (was) { _clearLocal(); try { localStorage.removeItem(OWNER_KEY); } catch (e) {} }
+      if (was) {
+        _clearLocal();
+        try { localStorage.removeItem(OWNER_KEY); localStorage.removeItem(UNCLAIMED_KEY); } catch (e) {}
+      }
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
       // Cached listings and pages belong to the account that just left.
       try { localStorage.removeItem('alto-pages-cache-v1'); } catch (e) {}

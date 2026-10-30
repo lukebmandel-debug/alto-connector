@@ -139,17 +139,56 @@ test('data with no recorded owner is merged only when the person says it is thei
     const ctx = await profile();
     const page = await open(ctx);
     await page.evaluate((v) => localStorage.setItem('alto-hl-biology', v), note(NOTE));
-    let asked = 0;
-    page.on('dialog', d => { asked++; yes ? d.accept() : d.dismiss(); });
+    let asked = 0, msg = '';
+    page.on('dialog', d => { asked++; msg = d.message(); yes ? d.accept() : d.dismiss(); });
     const bob = await signIn(page, 'bob');
     await page.evaluate(() => window.AltoCloud.sync());
     const got = await until(async () => (await tlNotes(bob)).includes(NOTE), yes ? 8000 : 2500);
     assert.equal(asked, 1);
+    assert.ok(/not linked to any account/.test(msg) && !/nobody was signed in/.test(msg), msg);
     assert.equal(!!got, yes, yes ? 'claimed data was not merged' : 'unclaimed data was merged');
     if (!yes) assert.ok((await page.evaluate(() => localStorage.getItem('alto-local-unclaimed-v1') || '')).includes('n1'),
                         'unclaimed data should be set aside, not lost');
     await ctx.close();
   }
+});
+
+test('notes some account already synced, with no owner recorded, are never offered', async () => {
+  const ctx = await profile();
+  const page = await open(ctx);
+  await page.evaluate((v) => { localStorage.setItem('alto-hl-biology', v);
+                               localStorage.setItem('alto-cloud-meta-v3-biology', '{"hlSig":"x"}'); }, note(NOTE));
+  let asked = 0;
+  page.on('dialog', d => { asked++; d.accept(); });
+  const bob = await signIn(page, 'bob');
+  await page.evaluate(() => window.AltoCloud.sync());
+  await new Promise(r => setTimeout(r, 2500));
+  assert.equal(asked, 0, 'should not offer notes another account synced');
+  assert.ok(!(await tlNotes(bob)).includes(NOTE), 'synced notes reached another account');
+  const aside = await page.evaluate(() => JSON.parse(localStorage.getItem('alto-local-unclaimed-v1') || 'null'));
+  assert.ok(aside && aside.t && JSON.stringify(aside.data).includes('n1'), 'not set aside');
+  await ctx.close();
+});
+
+test('notes set aside are dropped on sign-out, and after a few days', async () => {
+  const ctx = await profile();
+  const page = await open(ctx);
+  await page.evaluate((v) => localStorage.setItem('alto-hl-biology', v), note(NOTE));
+  page.on('dialog', d => d.dismiss());
+  await signIn(page, 'bob');
+  assert.ok(await page.evaluate(() => !!localStorage.getItem('alto-local-unclaimed-v1')));
+  await signOut(page);
+  assert.equal(await page.evaluate(() => localStorage.getItem('alto-local-unclaimed-v1')), null);
+  // Left by a session that never signed out: kept three days, then dropped.
+  const day = 864e5;
+  for (const [age, kept] of [[2 * day, true], [4 * day, false]]) {
+    await page.evaluate((t) => localStorage.setItem('alto-local-unclaimed-v1',
+      JSON.stringify({ t, data: { 'alto-hl-x': '[]' } })), Date.now() - age);
+    await page.reload();
+    await page.waitForFunction(() => window.AltoCloud && window.AltoCloud.known);
+    assert.equal(await page.evaluate(() => !!localStorage.getItem('alto-local-unclaimed-v1')), kept, 'age ' + age / day);
+  }
+  await ctx.close();
 });
 
 test('the browser writes shares as content plus an owner record, and revokes them', async () => {
