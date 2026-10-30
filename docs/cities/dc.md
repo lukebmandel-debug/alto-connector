@@ -7,25 +7,23 @@ Avenue and U Street, south to the Navy Yard and East Potomac Park.
 
 ## Result
 
-**83.7 / 100, NOT PASSED**: one row fails, G4 order (Vermont Avenue NW crosses 13th Street and O Street in the other order
-than the real avenue; the real crossings are 73 m apart). Every other row is ok or warn. Built offline from the OSM cache
-with the fill-in buildings and the rules doc's 100-building, 6-section brief:
-`python -m alto.build.city_gate dc --cache DIR --fill`; JSON in `docs/cities/dc_gate.json`.
+**89.8 / 100, PASS**: no row fails. Built offline from the OSM cache with the fill-in buildings and the rules doc's
+100-building, 6-section brief: `python -m alto.build.city_gate dc --cache DIR --fill`; JSON in `docs/cities/dc_gate.json`.
 
 | row | rule | w | status | measured |
 |---|---|---|---|---|
 | G1 | domains sane | 3 | ok | domains: 3 domains (grid -0.1° 33.9 km², free 0.0° 3.2 km², free 0.0° 1.2 km²) |
 | G2 | phantom lines | 6 | ok | phantom: 52 of 231 lattice lines (23%) are under 25% real (median coverage 0.57) |
 | G3 | landmark/stop displacement | 6 | warn | displacement: 52 points; 0 over 1.5 blocks, worst 1.30 (Foggy Bottom–GWU) |
-| G4 | order | 6 | fail | order: 0 stop-order swaps; 1 of 18 avenues cross streets out of order (Vermont Avenue Northwest 1/12) |
+| G4 | order | 6 | ok | order: 0 stop-order swaps; 0 of 18 avenues cross streets out of order |
 | G5 | side of river/seam | 8 | ok | side: 0 of 10410 points on the wrong side (10364 lots checked) |
 | G6 | seams | 6 | ok | seam_fidelity: no seams; tjoin: no lines end on a seam; cross_seam: 0 non-hinge lines cross a seam |
-| G7 | dangling ends | 5 | warn | ends: 0 line ends land on nothing inside the grid; 4 run past its edge |
+| G7 | dangling ends | 5 | warn | ends: 0 line ends land on nothing inside the grid; 7 run past its edge |
 | G8 | avenues | 3 | ok | avenues: 25 avenues; 0 break the rules |
 | G9 | transit | 6 | ok | transit: 0 transit problems (red 41 turns stray 1.9, blue 18 turns stray 2.3, orange 18 turns stray 1.5, silver 18 turns stray 1.5, green 10 turns stray 1.2, yellow 3 turns stray 1.1) |
 | G10 | highways | 4 | warn | 10 highways, 0 problems, 2 warnings (12th Street Expressway 1 turns stray 1.1 x 2/2, 9th Street Expressway 0 turns stray 0.5 x 2/2, E Street Expressway 0 turns stray 0.3 x 2/2, I-66 1 turns stray 0.9 x 2/2, I-395 7 turns stray 0.8 x 5/5, I-695 4 turns stray 1.8 x 3/4, US-1 2 turns stray 0.5 x 1/1, US-29 1 turns stray 1.1 x 2/2, US-50 2 turns stray 0.6 x 2/2, DC-295 1 turns stray 0.2 x 2/2) |
 | G11 | cut blocks | 3 | ok | cut: 0 of 2550 blocks cut or open (0.0%) |
-| G12 | data size per km2 | 3 | ok | size: 18031x16120 px, 370 streets, 41 kB packed (0.82x Philadelphia 1.9.78 per km²) |
+| G12 | data size per km2 | 3 | ok | size: 18031x16120 px, 372 streets, 42 kB packed (0.84x Philadelphia 1.9.78 per km²) |
 | G13 | page overlap | 3 | ok | overlap: one page region |
 | G14 | landmark spacing / fronts | 6 | ok | spacing: 135 landmark pair-axes; 0 drawn too far or too close in blocks; median drawn/real N-S 1.09, E-W 1.1; fronts: 4 landmark fronts; 0 over 1.0 block from the line of the street they stand on |
 | G15 | dry land | 5 | ok | 0 points in water (-); 4 bands, 0 under 40 px; channels missing: none |
@@ -34,7 +32,7 @@ with the fill-in buildings and the rules doc's 100-building, 6-section brief:
 | G18 | labels | 4 | ok | 7 top names at the whole-city zoom (x0.056): 0 overlap each other, 0 under a landmark name, 0 off the glass (4 landmark-name pairs meet: the page shows one) |
 | G19 | page bytes | 6 | ok | stored page 525 KB with 100 buildings (fail > 976 KB, warn > 900 KB) |
 | G20 | tiles | 3 | ok | base 121 KB gz (max 350); 56 tiles, largest 5 KB gz (max 64); 73 KB gz in all |
-| G21 | build time | 2 | warn | set_up 69.8 s from the cache (warn > 60 s); map from cache |
+| G21 | build time | 2 | warn | set_up 91.1 s from the cache (warn > 60 s); map from cache |
 | G22 | determinism | 3 | ok | two builds give identical map data |
 
 ## How the city is drawn
@@ -71,17 +69,19 @@ with the fill-in buildings and the rules doc's 100-building, 6-section brief:
 | the Mall's OSM pieces read as holes in each other; a line drawn between two parks that meet | one green; a segment between two parks is inside the park |
 | a street drawn round the Monument and the Castle | a landmark standing in a park counts as park |
 | Maryland Avenue through Stanton Park, North Capitol Street through Upper Senate Park | a line is cut at a small park its real street does not cross |
-| avenue order 7 of 15 (Florida, Rhode Island, New Hampshire, Vermont ...) | 1 of 18 |
+| avenue order 7 of 15 (Florida, Rhode Island, New Hampshire, Vermont ...) | 0 of 18: a piece that swaps two real crossings is split at a node, judged on the real streets' crossings (a street that ends on the avenue counts) |
 | lots on the wrong side of Rock Creek | none (core's wrong-bank rule, now on for DC through `channels`) |
 | displacement measured in 240 x 170 blocks on a 240 x 280 lattice | in the root lattice's own block |
 | an avenue error string in the stage timings crashed the build it was meant to spare | timings sum numbers only |
 
 ## What is left
 
-- **G4 (fail)**: Vermont Avenue NW: 13th Street / O Street, 73 m apart, where the drawn avenue runs along 13th Street.
-  Fixing it passes the gate (about 90).
-- G21 (warn): set-up 70 s from the cache (the avenue order splits cost about 30 s); the limit is 60 s.
+- G21 (warn): set-up 91 s from the cache (the avenue order splits cost about 30 s); the limit is 60 s.
 - G16 (warn): Logan, Thomas, Scott and Washington Circles are not drawn as parks (each is smaller than a block); the
   Monument and the Castle stand in the Mall's green (as in reality).
-- G3 (warn): Foggy Bottom-GWU station is 1.3 blocks from its mapped place. G7 (warn): 4 lines run past the grid's edge.
-- Not measured here: Art's look check, the blind audit (14 views), Safari, the full test suite.
+- G3 (warn): Foggy Bottom-GWU station is 1.3 blocks from its mapped place. G7 (warn): 7 lines run past the grid's edge.
+  G10 (warn): two highways with more turns than the rule likes; 0 problems.
+- Rock Creek and Potomac Parkway is a primary road in OSM, so it is drawn as an avenue, not a highway (the brief listed it
+  as a highway; forcing it would need a per-preset override).
+- Not measured here: Art's look check (some avenues are drawn as several short pieces where they leave the blocks),
+  the blind audit (14 views), Safari, the full test suite.
