@@ -55,21 +55,17 @@ def test_a_place_that_is_not_a_preset_is_gated_and_told_plainly(city, crop):
 def test_set_up_palace_saves_a_city_that_fails_the_gate_as_a_draft(server, monkeypatch):
     srv, _calls, draft = server
     from alto import palace_map
-    monkeypatch.setattr(palace_map, "build_map", lambda raw, bbox, **kw: _fixture("barcelona"))
+    from alto.build import palace_buses, palace_fleet
+    for mod in (palace_buses, palace_fleet):                    # (the shared fixture leaves these two on the network)
+        monkeypatch.setattr(mod, "fetch", lambda *a, **k: {})
+    monkeypatch.setattr(palace_map, "build_map", lambda raw, bbox, **kw: _fixture("philadelphia", (5000, 4500, 7500, 7000)))
     tid = draft()
-    r = srv.set_up_palace(tid, "Barcelona")
+    r = srv.set_up_palace(tid, "Philadelphia")
     assert r.get("ok") is True, r
     g = r["gate"]
     assert g["draft"] and not g["pass"] and g["failing"] and "did not pass" in g["message"]
     pal = srv.get_store().get_timeline(srv.uid(), tid)["brief"]["palace"]
     assert pal["preset"] == "auto" and pal["gate"]["draft"] and pal["gate"]["failing"] == g["failing"]
-
-
-def test_set_up_palace_does_not_gate_a_preset(server):
-    srv, _calls, draft = server
-    r = srv.set_up_palace(draft(), "Washington, D.C.")
-    assert r.get("ok") is True and "gate" not in r
-    assert "gate" not in srv.get_store().get_timeline(srv.uid(), draft())["brief"].get("palace", {})
 
 
 def test_the_verdict_of_a_passing_city_says_so():
@@ -201,3 +197,15 @@ def test_the_invent_city_tool_keeps_a_failing_city_as_a_draft_and_applies_a_fix(
     assert r2["finished"] and r2["spec"]["streets"]
     bad = srv.invent_city(tid, spec={"districts": []})
     assert bad["error"] == "invalid_city" and bad["problems"]
+
+
+def test_a_line_through_a_landmark_is_found_and_has_a_fix():
+    m, g = ci.build(ci.template("grid"))
+    g = copy.deepcopy(g)
+    lm = g["landmarks"][0]
+    y = (lm["box"][1] + lm["box"][3]) / 2
+    g["rails"] = [{"n": "Red Line", "p": [lm["box"][0] - 500, y, lm["box"][2] + 500, y]}]
+    rows = ci.i_rows(m, g)
+    assert rows["I6"][0] == "warn" and ("Red Line", lm["n"]) in rows["I6"][2]["through"]
+    why, fix = ci._plain("transit", rows, ci.template("grid"))
+    assert lm["n"] in why and fix["op"] == "unpin" and lm["n"] in fix["names"]

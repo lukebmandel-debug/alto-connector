@@ -1956,7 +1956,8 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                 raw = city_setup.fetch_city(tuple(bbox), cache_dir=str(cache), names=list(dict.fromkeys(names)) or None,
                                             whole=False)
         from .build import city_byoc
-        with city_byoc.capture() as cap:
+        import contextlib
+        with (city_byoc.capture() if auto_info else contextlib.nullcontext({})) as cap:   # (only a gated city keeps a copy)
             pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                                  landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache), raw=raw,
                                  diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
