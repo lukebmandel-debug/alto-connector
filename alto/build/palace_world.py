@@ -121,6 +121,8 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-btn.r{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
 #wpal-root .wp-ctl{right:16px;top:12px;}html.mobile #wpal-root .wp-ctl{top:112px !important;}
 #wpal-root .wp-tour{left:50%;bottom:18px;transform:translateX(-50%);max-width:calc(100% - 32px);}
+/* the Editing bar (manual edit) rides 8px above the tour strip while it is up, covering none of its controls (Art, 2026-10-30) */
+html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit-exit{bottom:73px;}
 #wpal-root .wp-tour .d{color:var(--w-sub);overflow:hidden;text-overflow:ellipsis;max-width:180px;}
 #wpal-root .wp-tour .c{font-weight:650;overflow:hidden;text-overflow:ellipsis;}
 #wpal-root .wp-key{left:16px;bottom:66px;display:block;font-size:12px;line-height:20px;max-width:340px;white-space:normal;}
