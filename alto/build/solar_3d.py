@@ -349,6 +349,36 @@ function keep(G, E, w, ex){ if(w<=0) return E; var nr=Math.max(2, cam.d/400);
     var q=Rc+B*Math.exp((r-Rc-B)/B), u=r<1e-3 ? [0, 1, 0] : [dx/r, dy/r, dz/r];
     E=[E[0]+(g.x+u[0]*q-E[0])*w, E[1]+(u[1]*q-E[1])*w, E[2]+(g.y+u[2]*q-E[2])*w]; });
   return E; }
+/* ── the minimap and the whole-system view (Luke, 2026-10-28: "minimap in 3D system isn't quite expanding to the whole system") ──
+   The 2D camera (window._altoSolarCam) is what the minimap's box, the whole-system toggle, pinch and cmd-minus move; the
+   scene's own camera followed none of it. Zoomed out, the scene now frames the same part of the plan: the view the 2D
+   camera shows, and at the whole system every body and every unit's outer orbit, with a margin, at any aspect ratio. */
+var OVS=null, WSAVE=null, WDET=0, WLAST=0, WM=.9;     /* the 2D view while zoomed out; the camera to go back to; a hand on the scene let it go */
+function wpad(){ return (typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0; }
+function ovWatch(){ var C=window._altoSolarCam; if(!C || C._w3) return; C._w3=1;
+  C.onChange(function(g){ var z=g && g.scale<.999; if(!z || !OVS || Math.abs(g.scale-OVS.s)>1e-4 || Math.abs(g.cx-OVS.cx)>.5 || Math.abs(g.cy-OVS.cy)>.5) WDET=0; OVS=z ? g : null; kick(); }); }
+/* the nearest the eye can be (aimed at tx, tz from this angle) with every ground point inside the frame, by a margin */
+function fitD(pts, tx, tz, az, el, asp){
+  var ce=Math.cos(el), z=[ce*Math.sin(az), Math.sin(el), ce*Math.cos(az)], x=nrm(crs([0, 1, 0], z)), y=crs(z, x), t=1/Math.tan(cam.fov/2), d=60;
+  pts.forEach(function(q){ var r=[q[0]-tx, 0, q[1]-tz], vz=dot(r, z); d=Math.max(d, vz+Math.max(Math.abs(dot(r, x))*t/asp, Math.abs(dot(r, y))*t)/WM); });
+  return d; }
+function ovTarget(G, o, asp){
+  var py=wpad(), cv0=document.getElementById('canvas')||{}, w=Math.max(1, cv0.clientWidth||1)/o.scale/2, h=Math.max(1, cv0.clientHeight||1)/o.scale/2;
+  var all=[], x0=1e9, x1=-1e9, y0=1e9, y1=-1e9;
+  Object.keys(G.bodies).forEach(function(i){ var g=G.bodies[i], r=Math.max(g.d/2, 4); [[g.x-r, g.y], [g.x+r, g.y], [g.x, g.y-r], [g.x, g.y+r]].forEach(function(q){ all.push(q); }); });
+  (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun]; if(!s || !u.R) return; for(var k=0;k<16;k++) all.push([s.x+u.R*Math.cos(k*TAU/16), s.y+u.R*Math.sin(k*TAU/16)]); });
+  all.forEach(function(q){ x0=Math.min(x0, q[0]); x1=Math.max(x1, q[0]); y0=Math.min(y0, q[1]); y1=Math.max(y1, q[1]); });
+  var m=Math.max(x1-x0, y1-y0)*.03; x0-=m; x1+=m; y0-=m; y1+=m;
+  /* the 2D view, cut to the system (the board round it is empty): all of it showing, it is the whole system, orbits and all */
+  var vx0=o.cx-w, vx1=o.cx+w, vy0=o.cy+py-h, vy1=o.cy+py+h, cx0=Math.max(vx0, x0), cx1=Math.min(vx1, x1), cy0=Math.max(vy0, y0), cy1=Math.min(vy1, y1);
+  if(!all.length || cx1<=cx0 || cy1<=cy0){ cx0=vx0; cx1=vx1; cy0=vy0; cy1=vy1; }       /* (looking at the empty board: where it looks) */
+  var tx=(cx0+cx1)/2, tz=(cy0+cy1)/2, whole=all.length && cx0<=x0+1e-6 && cx1>=x1-1e-6 && cy0<=y0+1e-6 && cy1>=y1-1e-6;
+  var pts=whole ? all : [[cx0, cy0], [cx1, cy0], [cx0, cy1], [cx1, cy1]];
+  return {x:tx, z:tz, d:fitD(pts, tx, tz, cam.az, cam.el, asp)}; }
+function ovCam(G, now, asp){
+  var o=OVS; if(!WSAVE){ WSAVE=snap(); }
+  var B=ovTarget(G, o, asp), dt=Math.min(100, WLAST ? now-WLAST : 16), k=1-Math.exp(-dt/130); WLAST=now;
+  cam.tx+=(B.x-cam.tx)*k; cam.tz+=(B.z-cam.tz)*k; cam.d=Math.exp(Math.log(cam.d)+(Math.log(B.d)-Math.log(cam.d))*k); cam.ox*=1-k; cam.oy*=1-k; }
 /* ── input: drag turns, wheel / pinch nears, a click picks ── */
 function down(e){ if(e.button) return; drag={x:e.clientX, y:e.clientY, az:cam.az, el:cam.el, da:LK ? LK.da : 0, de:LK ? LK.de : 0, m:false, id:e.pointerId}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} }
 function move(e){
@@ -357,7 +387,7 @@ function move(e){
     cv.classList.add('drag'); MOVED=1;
     if(LK && foc){ var a0=LK.da, e0=LK.de; LK.da=drag.da-dx*.006; LK.de=Math.max(-1.5, Math.min(1.05, drag.de+dy*.006));
       if(!tw){ cam.az+=LK.da-a0; cam.el+=LK.de-e0; } return; }   /* (close up: the camera turns about the globe, at once) */
-    tw=null; cam.az=drag.az-dx*.006; cam.el=Math.max(-1.45, Math.min(1.45, drag.el+dy*.006)); return; }
+    tw=null; WDET=1; cam.az=drag.az-dx*.006; cam.el=Math.max(-1.45, Math.min(1.45, drag.el+dy*.006)); return; }
   var h=pick(e.clientX, e.clientY); cv.style.cursor=h ? 'pointer' : '';
   tip(h && h.line ? h : null, e);
 }
@@ -373,7 +403,7 @@ function wheel(e){
   e.preventDefault(); e.stopImmediatePropagation();
   var m=e.deltaMode===1 ? 16 : e.deltaMode===2 ? 400 : 1, dy=e.deltaY*m, dx=e.deltaX*m;
   if(LK && foc){ if(dy>2 && window.exitFocus) window.exitFocus(); return; }       /* close up, scrolling out leaves the close-up (flying back out) */
-  tw=null; MOVED=1;
+  tw=null; MOVED=1; WDET=1;
   cam.d=Math.max(60, Math.min(60000, cam.d*Math.exp(dy*(e.ctrlKey ? .012 : .0025))));
   if(!e.ctrlKey) cam.az-=dx*.004;
 }
@@ -412,6 +442,8 @@ function frame(){
     var nl=tw.leave && document.getElementById('node-'+tw.leave); if(nl){ if(p>=1) nl.style.removeProperty('--s3o'); else nl.style.setProperty('--s3o', String(Math.round((1-sm(0, .2, p))*1000)/1000)); }
     if(p>=1) tw=null; }
   else if(f && LK){ var B=cin(G, f, r); cam.tx=B.x; cam.tz=B.z; cam.d=B.d; cam.az=B.az; cam.el=B.el; cam.ox=B.ox; cam.oy=B.oy; if(nf) nf.style.setProperty('--s3o', '1'); }   /* (held on the disc, round its orbit) */
+  else if(OVS && !f && !WDET && !FS && !LK){ ovCam(G, now, asp); }
+  else if(WSAVE && !OVS){ var wb=WSAVE; WSAVE=null; WLAST=0; if(!f && !FS) tw={t0:now, ms:800, hop:0, a:snap(), b:wb}; }
   EYE=[cam.tx+cam.d*Math.cos(cam.el)*Math.sin(cam.az), cam.d*Math.sin(cam.el), cam.tz+cam.d*Math.cos(cam.el)*Math.cos(cam.az)];
   if(!(f && LK && !tw && !FS)){ var kx={}, kp=tw ? Math.min(1, (now-tw.t0)/tw.ms) : 1; if(tw && tw.lock) kx[tw.lock]=1; if(tw && tw.leave) kx[tw.leave]=1;      /* (held on a close-up: its own, with the fades; the dive eases the push off at its end) */
     EYE=keep(G, EYE, tw && tw.lock ? 1-sm(.6, 1, kp) : 1, kx); }
@@ -727,7 +759,7 @@ function ctl(){ var w=document.getElementById('sol-ctl'); if(!w) return; var b=d
   var f=window._focusedNodeId||null; if(f!==MVF){ MVF=f; if(f) MOVED=0; }   /* (a body enlarged: a fresh close-up; leaving one keeps the turned view) */
   var hide=!(on && MOVED && !lk()); if(b.hidden!==hide){ b.hidden=hide; de.style.setProperty('--sol-ctl-h', w.offsetHeight+'px'); } }
 function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
-setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
+setInterval(function(){ ovWatch(); if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600); ovWatch();
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, eye:function(){ return EYE; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
   pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, e:SH.e, nose:SH.nose, vis:SH.fx ? SH.fx.vis : 1, warp:SH.fx ? SH.fx.warp : 0}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};

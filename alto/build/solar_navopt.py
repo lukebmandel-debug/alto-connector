@@ -28,7 +28,7 @@ NAVOPT_CSS = r"""
   #nvo-a button:hover:not(:disabled){color:var(--text);}
   #nvo-a button:disabled{opacity:.35;cursor:default;}
   #nvo-a button.on{color:var(--accent,#6d5bd0);}
-  #nvo-a .nv-at{flex:0 1 auto;min-width:0;max-width:300px;padding:0 6px;font-size:12.5px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:30px;}
+  #nvo-a .nv-at{flex:0 0 auto;width:clamp(150px, 20vw, 260px);min-width:0;box-sizing:border-box;padding:0 6px;font-size:12.5px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:30px;}
   #nvo-a .nv-at b{color:var(--text);font-weight:650;} #nvo-a .nv-at:hover b{text-decoration:underline;text-underline-offset:3px;}
   #nvo-a .nv-at:focus-visible{outline:2px solid var(--accent,#6d5bd0);border-radius:6px;}
   html.alto-stars:not(.sk-retro) #nvo-a .nv-at b{color:#eef2ff;}
@@ -39,6 +39,8 @@ NAVOPT_CSS = r"""
     border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow, rgba(20,24,60,.18));border-radius:12px;box-sizing:border-box;font-size:13px;}
   #nvo-map{right:16px;bottom:70px;padding:6px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .28s ease,visibility 0s .28s;}
   #nvo-map.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .28s ease;} #nvo-map.dr{cursor:grabbing;}
+  #nvo-map.on.dim{opacity:.35;transition:opacity .4s ease;}   /* (Luke, 2026-10-28: while a ship or ride flies, the map only goes faint, never changes size; Art sets the level) */
+  @media (prefers-reduced-motion:reduce){#nvo-map,#nvo-map.on,#nvo-map.on.dim{transition:none;}}
   #nvo-map svg{display:block;height:104px;width:auto;touch-action:manipulation;}
   #nvo-map circle.hr.hr{fill:none !important;stroke:var(--accent,#6d5bd0) !important;stroke-width:2px;vector-effect:non-scaling-stroke;pointer-events:none;}
   html.alto-stars:not(.sk-retro) #nvo-map circle.hr.hr{stroke:#fff !important;} html.sk-retro #nvo-map circle.hr.hr{stroke:#efe6cf !important;}
@@ -72,7 +74,7 @@ NAVOPT_CSS = r"""
   html.phone-whole :is(#nvo-a,#nvo-map){display:none;} html.phone-whole #nvo-map.fit{display:block;}
   html.phone-whole.nvo-open #nvo-a{display:flex;position:fixed;z-index:330;left:8px;right:8px;max-width:none;height:44px;bottom:calc(68px + env(safe-area-inset-bottom,0px));box-sizing:border-box;border-radius:22px;
     background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);border:1px solid var(--card-glass-border, var(--border));}
-  html.phone-whole.nvo-open #nvo-a button{width:44px;height:38px;} html.phone-whole.nvo-open #nvo-a .nv-at{flex:1 1 auto;max-width:none;text-align:center;font-size:13.5px;}
+  html.phone-whole.nvo-open #nvo-a button{width:44px;height:38px;} html.phone-whole.nvo-open #nvo-a .nv-at{flex:1 1 auto;width:auto;max-width:none;text-align:center;font-size:13.5px;}
   html.phone-whole.nvo-open.alto-stars:not(.sk-retro) #nvo-a{background:rgba(6,10,26,.8);border-color:rgba(170,198,255,.18);color:#eef2ff;}
   html.phone-whole.nvo-open.sk-retro #nvo-a{background:#000;border-radius:0;border-color:rgba(217,174,85,.55);}
   html.phone-whole.nvo-open.nvo-map #nvo-map{display:block;left:auto;right:8px;bottom:calc(120px + env(safe-area-inset-bottom,0px));}
@@ -84,7 +86,7 @@ NAVOPT_JS = r"""
 (function(){
 if(!window._altoSolarNavApi) return;
 var A=window._altoSolarNavApi, de=document.documentElement;
-var KEYS=[['Back', 'up to the one it belongs to'], ['Next', 'the next one at the same level'], ['Left / Right arrows, or scroll', 'round the ones beside the enlarged one'], ['1 – 9', 'that one beside it'], ['O or Esc', 'see the whole system']];
+var KEYS=[['Back', 'up to the one it belongs to'], ['Next', 'the next one at the same level'], ['Left / Right arrows, or scroll', 'round the ones beside the enlarged one'], ['1 – 9', 'fly to the one beside it with that number'], ['Esc or Backspace', 'up a level, then the whole system'], ['O', 'see the whole system']];
 function mk(t, id, cls, h){ var e=document.createElement(t); if(id) e.id=id; if(cls) e.className=cls; if(h!=null) e.innerHTML=h; return e; }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]; }); }
 function nm(id){ return esc(A.name(id)); }
@@ -143,7 +145,7 @@ function mapDraw(h){
   MP.innerHTML=mapSvg().replace('</svg>', '<rect class="vb"/>'+'<rect class="vh"/>'.repeat(4)+'</svg>'); var me=MP.querySelector('circle[data-b="'+(window.CSS && CSS.escape ? CSS.escape(h) : h)+'"]'); if(me){ me.classList.add('h');   /* (you: ringed as well, to be found at a glance) */
     var hr=document.createElementNS('http://www.w3.org/2000/svg', 'circle'); hr.setAttribute('class', 'hr'); ['cx', 'cy'].forEach(function(a){ hr.setAttribute(a, me.getAttribute(a)); });
     hr.setAttribute('r', Math.max(+me.getAttribute('r')*1.9, MG.m*3.2).toFixed(0)); me.parentNode.insertBefore(hr, me.nextSibling); }
-  SZ=0; return MP; }
+  SZ=0; if(SD) size(SD); return MP; }   /* (a redraw keeps the frame's size) */
 /* ── where you are looking: the box (the window's view, in the map's own units: world px) ── */
 var HOLD=0, CAM=window._altoSolarCam, PY=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0, DG=null, SUP=0, MIN=.03;
 function cnv(){ return document.getElementById('canvas'); }
@@ -184,7 +186,8 @@ function drop(){ if(!DG) return; var on=DG.on, mv=DG.m==='mv'; DG=null; MP && MP
 /* its place: the biggest that fits in the free room, first where you last put it, else down the right side then the
    left, from the bottom; never over the enlarged card, what is beside it, the nav row, Ship or the corner controls */
 var POS=(function(){ try{ var p=JSON.parse(lsGet('alto-solar-map-at')||'null'); return p && isFinite(p.x) && isFinite(p.y) ? p : null; }catch(e){ return null; } })();
-var SZ=0, SP=null, SK='', SIZES=[300, 264, 232, 204, 180, 158, 138, 120, 104];
+var SZ=0, SP=null, SK='', SD=null, MAPH={system:230, chart:230, retro:230, d3:230};   /* (Luke, 2026-10-28: the frame never changes size, only the view inside it; Art sets the heights) */
+function mh(){ return de.classList.contains('sk-retro') ? MAPH.retro : de.classList.contains('sk-3d') ? MAPH.d3 : de.classList.contains('alto-stars') ? MAPH.chart : MAPH.system; }
 function obst(){ var W=innerWidth, H=innerHeight, o=[];
   function add(e, g){ var r=e && e.getBoundingClientRect(); if(!r || r.width<1 || r.height<1 || r.bottom<0 || r.top>H || r.right<0 || r.left>W) return; var cs=getComputedStyle(e);
     if(cs.visibility==='hidden' || cs.display==='none' || +cs.opacity<.05) return; o.push([r.left-g, r.top-g, r.right+g, r.bottom+g]); }
@@ -196,15 +199,15 @@ function obst(){ var W=innerWidth, H=innerHeight, o=[];
   return o; }
 function free(q, O){ if(q[0]<4 || q[1]<4 || q[2]>innerWidth-4 || q[3]>innerHeight-4) return false;
   for(var i=0;i<O.length;i++){ var b=O[i]; if(q[0]<b[2] && b[0]<q[2] && q[1]<b[3] && b[1]<q[3]) return false; } return true; }
-function dims(h){ var a=(MG && MG.a) || 1.5, w=h*a; if(w>h*1.9){ w=h*1.9; h=w/a; } return [w, h]; }   /* (the map's own px: its svg) */
+function dims(h){ return [h*1.5, h]; }   /* (the map's own px: its svg) */
 function spot(){ if(!MG) return null; var z=zm(), W=innerWidth, H=innerHeight, O=obst(), m=12*z, mw=phone() ? W*.45 : 0, i, d, bw, bh, x, y;   /* (a phone: legible or not at all, MENU has it) */
   function box(x, y){ return [x, y, x+bw, y+bh]; }
   function sz(h){ d=dims(h); bw=(d[0]+14)*z; bh=(d[1]+14)*z; }
-  if(POS) for(i=0;i<SIZES.length;i++){ sz(SIZES[i]); if(bw<mw) break; x=POS.x*(W-bw); y=POS.y*(H-bh); if(free(box(x, y), O)) return [x/z, y/z, d]; }
-  for(i=0;i<SIZES.length;i++){ sz(SIZES[i]); if(bw<mw) break;
-    for(var c=0;c<2;c++){ x=c ? m : W-m-bw; for(y=H-m-bh; y>=m; y-=10*z) if(free(box(x, y), O)) return [x/z, y/z, d]; } }
+  sz(mh()); if(bw<mw) return null;
+  if(POS){ x=POS.x*(W-bw); y=POS.y*(H-bh); if(free(box(x, y), O)) return [x/z, y/z, d]; }
+  for(var c=0;c<2;c++){ x=c ? m : W-m-bw; for(y=H-m-bh; y>=m; y-=10*z) if(free(box(x, y), O)) return [x/z, y/z, d]; }
   return null; }
-function size(d){ var sv=MP && MP.querySelector('svg'); if(!sv || SZ===d[1]) return; SZ=d[1]; sv.style.width=d[0].toFixed(0)+'px'; sv.style.height=d[1].toFixed(0)+'px'; var r=MP.querySelector('.vb'); if(r) r._k=''; }
+function size(d){ var sv=MP && MP.querySelector('svg'); SD=d; if(!sv || SZ===d[1]) return; SZ=d[1]; sv.style.width=d[0].toFixed(0)+'px'; sv.style.height=d[1].toFixed(0)+'px'; var r=MP.querySelector('.vb'); if(r) r._k=''; }
 function put(x, y){ var st=MP.style, l=Math.round(x)+'px', t=Math.round(y)+'px'; if(st.left!==l) st.left=l; if(st.top!==t) st.top=t; if(st.right!=='auto'){ st.right='auto'; st.bottom='auto'; } }
 /* placed once per enlarged body (and window, style), checked again every tick: moved only when something comes over it */
 function place(key){ if(!MP || !MP.isConnected) return false;
@@ -239,6 +242,7 @@ function tick(force){
   else if(en && !busy()) fit=place([en, innerWidth, innerHeight, de.className].join('|'));
   else fit=was && (!!en || busy()) && !!SP;
   MP.classList.toggle('fit', fit && phone()); MP.classList.toggle('on', sh || fit);
+  if(busy()){ if(!BT) BT=Date.now(); } else BT=0; MP.classList.toggle('dim', !!BT && Date.now()-BT>180 && (sh || fit));   /* (a short hop does not flicker it) */
   if(!(sh || fit)) tip(null); vbDraw();
 }
 setInterval(function(){ tick(); later(); }, 250); tick(true);
@@ -269,8 +273,13 @@ document.addEventListener('keydown', function(e){ var t=e.target; if((e.key==='E
 /* the keys: with a body enlarged, the arrows go round what is beside it (no arrow takes you up or along: Back and Next do) */
 function enl(){ var f=window._focusedNodeId; return f && !A.ov() && f===A.home() ? f : null; }
 /* (pressed on the way: it waits for the landing, then goes on from there) */
-var PD=0; function busy(){ return !!((window._altoSolarFlight && window._altoSolarFlight()) || (window._altoSolarLock && window._altoSolarLock.riding())); }
-function later(){ if(!PD || busy() || !enl()) return; var d=PD; PD=0; step(d); }
+var BT=0, PD=0; function busy(){ return !!((window._altoSolarFlight && window._altoSolarFlight()) || (window._altoSolarLock && window._altoSolarLock.riding())); }
+function later(){ if(!PD || busy() || !enl()) return; var k=PD; PD=0; press(k); }
+/* a digit: the neighbour whose face shows that number, else the one in that place */
+function digit(h, k){ var s=scope(h), m=s.filter(function(i){ return i!==h && A.num(i)===String(k); }), to=m.length===1 ? m[0] : s[k-1]; if(to && to!==h) go(to); }
+/* one level up: a moon to its planet, a planet to its sun, then the enlarged one goes home; the whole system after that */
+function climb(){ var h=A.home(), f=window._focusedNodeId; if(f && !A.ov()){ var u=up(h); if(u) go(u); else A.step('let'); } else A.step('ov'); }
+function press(k){ if(/^Arrow/.test(k)) step(k==='ArrowRight' || k==='ArrowDown' ? 1 : -1); else digit(A.home(), +k); }
 function step(d){ var h=enl(); if(!h) return false; var to=round(h, d); if(to) go(to); return true; }
 window.addEventListener('keydown', function(e){
   if(!live() || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -278,11 +287,11 @@ window.addEventListener('keydown', function(e){
   if(document.querySelector('#summary-wrap.open,#sol-craft-pop')) return;
   var k=e.key, h=A.home(), f=window._focusedNodeId, ar=/^Arrow/.test(k);
   if(k==='?'){ help(!HP); } else if(k==='o' || k==='O'){ if(!e.repeat) A.step('ov'); }
-  else if(k==='Escape'){ if(HP) help(false); else if(!e.repeat) A.step((f && !A.ov()) ? 'let' : 'ov'); }
+  else if(k==='Escape' || k==='Backspace'){ if(HP && k==='Escape') help(false); else if(!e.repeat) climb(); }
   else if(ar || /^[1-9]$/.test(k)){
     if(e.repeat){ e.preventDefault(); e.stopImmediatePropagation(); return; }
-    if(busy()){ if(ar) PD=k==='ArrowRight' || k==='ArrowDown' ? 1 : -1; }
-    else if(enl()){ if(ar) step(k==='ArrowRight' || k==='ArrowDown' ? 1 : -1); else { var s=scope(h), to=s[k-1]; if(to && to!==h) go(to); } }
+    if(busy()) PD=k;                              /* (pressed on the way: it goes on from the landing) */
+    else if(enl()) press(k);
     else if(A.ov()){ if(ar) A.step('ov'); }                           /* (the whole system: an arrow is back where you were) */
     else if(ar && h) go(h);                                         /* (panned away: back to your place) */
   } else return;
