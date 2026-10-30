@@ -106,6 +106,8 @@ def test_add_a_country_reload_it_is_there_remove_it(browser, origin):  # noqa: F
         page.wait_for_timeout(300)
         assert page.evaluate("getComputedStyle(document.getElementById('wpal-root')).visibility") == "visible"     # edit stays in the map
         page.click("#alto-edit-exit .ee-country")
+        bg = page.evaluate("getComputedStyle(document.querySelector('#wpal-root .wp-pick')).backgroundColor")
+        assert float(bg.replace(')', '').split(',')[-1]) >= .92 if bg.startswith('rgba') else True, bg      # a solid plate (Art)
         page.fill("#wpal-root .wp-pick input", "Japan")
         page.press("#wpal-root .wp-pick input", "Enter")
         page.wait_for_timeout(1800)
