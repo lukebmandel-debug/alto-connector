@@ -22,9 +22,10 @@ UNIT_STRIP_OLD = """function unitStrip(units){
   return u.map(c => '<span' + (c && /^#[0-9a-fA-F]{3,8}$/.test(c)
     ? ' style="background:' + c + '"' : '') + '></span>').join('');
 }"""
-UNIT_STRIP_NEW = """const HOME_FMT_ACCENT = %s;
-function unitStrip(units, fmt){
+UNIT_STRIP_NEW = """function unitStrip(units, fmt){
   // one equal segment per unit, in unit order, at most seven; none known = one segment in the format's accent
+  // (the map lives inside the function: unitStrip runs before a top-level const further down the script would be set)
+  const HOME_FMT_ACCENT = %s;
   const ok = (units || []).filter(c => c && /^#[0-9a-fA-F]{3,8}$/.test(c)).slice(0, 7);
   const u = ok.length ? ok : [HOME_FMT_ACCENT[fmt] || HOME_FMT_ACCENT.timeline];
   return u.map(c => '<span style="background:' + c + '"></span>').join('');
