@@ -5,7 +5,8 @@
   * a row with no slot yet (the works named in a cited review of the reinstalled galleries) is hung on a free stretch of wall in its room, clear of doors and corners.
 Frame fields written on the slot (`fr`: the renderer paints the Labelled-frame look only for slots that have it):
   fr  "g" warm gilt moulding (work dated before 1900) | "w" dark walnut (1900 onward)
-  lb  where the label hangs: "r" right of the frame, "l" left of it, "b" below it (when neither side has room)
+  lb  where the label hangs: "r" right of the frame, "l" left of it, "b" below it (when neither side has room); never over a doorway or past the end of the drawn wall
+  la  "l" when a label below the frame (and the phone's, always below) lines up with the frame's left edge instead of its right (desktop) or centre (phone)
   work.lic  "pd" (the real picture hangs once /bart/ serves it; until then the empty canvas) | anything else: the empty canvas only; work.cl  the credit line of a hung picture.
 A work is never given an image here; `work.img` stays what the plan or pma_art.json says (see pma_wall.json for the licence rule).
 """
@@ -93,11 +94,86 @@ def _u(p, e) -> float:
 
 
 def _on_edge(s: dict, e: dict) -> bool:
+    """The slot hangs on this room edge: facing into the room, 5 cm off it (up to 75 cm when the drawn wall's face stands proud of the room outline)."""
     px, py = s["p"][0] - e["a"][0], s["p"][1] - e["a"][1]
     off = px * e["n"][0] + py * e["n"][1]
     along = px * e["dir"][0] + py * e["dir"][1]
     fc = math.radians(s.get("fc", 0))
-    return abs(off - 0.05) < 0.2 and -0.01 <= along <= e["L"] + 0.01 and (math.cos(fc) * e["n"][0] + math.sin(fc) * e["n"][1]) > 0.95
+    return -0.15 < off - 0.05 < 0.7 and -0.01 <= along <= e["L"] + 0.01 and (math.cos(fc) * e["n"][0] + math.sin(fc) * e["n"][1]) > 0.95
+
+
+def _wall_segments(plan: dict, level: str) -> list:
+    """Every straight run of a drawn wall (plan["wl"]) on a level: start, unit direction, length, thickness and its openings as (from, to) along the run."""
+    out = []
+    for w in plan["wl"]:
+        if w["l"] != level:
+            continue
+        pts = w["p"] + ([w["p"][0]] if w.get("loop") else [])
+        ops = [(o["a"] - o["w"] / 2, o["a"] + o["w"] / 2) for o in w.get("o", [])]
+        tot = 0.0
+        for a, b in zip(pts, pts[1:]):
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L > 1e-6:
+                out.append((a, ((b[0] - a[0]) / L, (b[1] - a[1]) / L), L, w.get("t", 0.2), [(x - tot, y - tot) for x, y in ops if y > tot and x < tot + L]))
+            tot += L
+    return out
+
+
+def _solid_spans(s: dict, segs: list) -> list:
+    """The solid stretches of drawn wall right behind a slot, flush with the wall the frame hangs on, as merged (u0, u1) in the slot's viewer's-right
+    coordinate (0 = the frame's centre). A slot found inside a thicker wall's face (the room outline is not always the drawn face) is first brought
+    out to 5 cm in front of it, in place (s["p"] moves along its facing only)."""
+    fc = math.radians(s.get("fc", 0))
+    n = (math.cos(fc), math.sin(fc))
+    d = (-n[1], n[0])
+    hw = s["sz"][0] / 2
+    runs = []                                                     # (u0, u1, face distance behind the slot, solid pieces)
+    for a, di, L, t, ops in segs:
+        k = di[0] * d[0] + di[1] * d[1]
+        if abs(k) < 0.99:
+            continue
+        rx, ry = s["p"][0] - a[0], s["p"][1] - a[1]
+        off = rx * n[0] + ry * n[1]
+        if not 0 < off < t / 2 + 0.3:                             # the wall's centre line is just behind the frame
+            continue
+        al = rx * di[0] + ry * di[1]
+        cuts = [0.0] + [c for o in sorted(ops) for c in o] + [L]
+        pieces = [tuple(sorted(((x0 - al) * k, (x1 - al) * k))) for x0, x1 in zip(cuts[::2], cuts[1::2]) if x1 > x0]
+        if pieces:
+            runs.append((min(p[0] for p in pieces), max(p[1] for p in pieces), off - t / 2, pieces))
+    under = [r[2] for r in runs if r[0] < hw and -hw < r[1]]
+    if not under:
+        return []
+    face = min(under)                                             # the frontmost face behind the frame is the one it hangs on
+    if face < 0.04:
+        dz = 0.05 - face
+        s["p"] = [round(s["p"][0] + n[0] * dz, 3), round(s["p"][1] + n[1] * dz, 3)]
+        runs = [(r[0], r[1], r[2] + dz, r[3]) for r in runs]
+        face += dz
+    iv = sorted(p for r in runs if abs(r[2] - face) < 0.03 for p in r[3])
+    front = [(r[0], r[1]) for r in runs if r[2] < face - 0.03]    # a face standing proud of the frame's wall hides whatever is behind it
+    out = []
+    for x0, x1 in iv:
+        if out and x0 <= out[-1][1] + 0.02:
+            out[-1] = (out[-1][0], max(out[-1][1], x1))
+        else:
+            out.append((x0, x1))
+    for f0, f1 in front:
+        cut = []
+        for x0, x1 in out:
+            if x1 <= f0 or x0 >= f1:
+                cut.append((x0, x1))
+                continue
+            if x0 < f0:
+                cut.append((x0, f0))
+            if x1 > f1:
+                cut.append((f1, x1))
+        out = cut
+    return out
+
+
+def _on_solid(spans: list, lo: float, hi: float) -> bool:
+    return any(x0 <= lo + 0.02 and hi <= x1 + 0.02 for x0, x1 in spans)
 
 
 def merge(plan: dict, unplaced: list | None = None) -> dict:
@@ -176,40 +252,50 @@ def merge(plan: dict, unplaced: list | None = None) -> dict:
             plan["sl"].append(s)
             by_id[s["id"]] = s
             _frame_fields(s, r)
-    # every framed slot: where its label hangs (right when there is room for it, else left, else below)
-    for rid in {s["rm"] for s in plan["sl"] if s.get("fr")}:
-        edges = _edges(rooms[rid])
-        for s in plan["sl"]:
-            if s["rm"] != rid or not s.get("fr"):
-                continue
-            s["lb"] = "b"
-            for i, e in enumerate(edges):
-                if not _on_edge(s, e):
+    # every framed slot: where its label hangs (right when there is room for it, else left, else below), and never over a doorway or past the end of the drawn wall
+    segs = {}
+    for _ in range(2):
+        for rid in {s["rm"] for s in plan["sl"] if s.get("fr")}:
+            edges = _edges(rooms[rid])
+            lv = rooms[rid]["l"]
+            segs.setdefault(lv, _wall_segments(plan, lv))
+            for s in plan["sl"]:
+                if s["rm"] != rid or not s.get("fr"):
                     continue
-                u = _u(s["p"], e)
-                u0, u1 = sorted((_u(e["a"], e), _u((e["a"][0] + e["dir"][0] * e["L"], e["a"][1] + e["dir"][1] * e["L"]), e)))
-                hw = s["sz"][0] / 2
-                right_ok = u + hw + GAP + PLATE_W <= u1 - CLEAR + 1e-6
-                left_ok = u - hw - GAP - PLATE_W >= u0 + CLEAR - 1e-6
-                for o in plan["sl"]:
-                    if o is s or o["rm"] != rid or "sz" not in o or not _on_edge(o, e):
+                s["lb"] = "b"
+                for i, e in enumerate(edges):
+                    if not _on_edge(s, e):
                         continue
-                    ou = _u(o["p"], e)
-                    if ou > u and ou - o["sz"][0] / 2 < u + hw + GAP + PLATE_W + 0.05:
-                        right_ok = False
-                    if ou < u and ou + o["sz"][0] / 2 > u - hw - GAP - PLATE_W - 0.05:
-                        left_ok = False
-                for c, dh in doors.setdefault(rooms[rid]["l"], _opening_points(plan, rooms[rid]["l"])):
-                    off = (c[0] - e["a"][0]) * e["n"][0] + (c[1] - e["a"][1]) * e["n"][1]
-                    along = (c[0] - e["a"][0]) * e["dir"][0] + (c[1] - e["a"][1]) * e["dir"][1]
-                    if abs(off) < 0.45 and -0.5 <= along <= e["L"] + 0.5:
-                        uc = _u(c, e)
-                        if uc > u and uc - dh - CLEAR < u + hw + GAP + PLATE_W:
+                    u = _u(s["p"], e)
+                    u0, u1 = sorted((_u(e["a"], e), _u((e["a"][0] + e["dir"][0] * e["L"], e["a"][1] + e["dir"][1] * e["L"]), e)))
+                    hw = s["sz"][0] / 2
+                    right_ok = u + hw + GAP + PLATE_W <= u1 - CLEAR + 1e-6
+                    left_ok = u - hw - GAP - PLATE_W >= u0 + CLEAR - 1e-6
+                    for o in plan["sl"]:
+                        if o is s or o["rm"] != rid or "sz" not in o or not _on_edge(o, e):
+                            continue
+                        ou = _u(o["p"], e)
+                        if ou > u and ou - o["sz"][0] / 2 < u + hw + GAP + PLATE_W + 0.05:
                             right_ok = False
-                        if uc < u and uc + dh + CLEAR > u - hw - GAP - PLATE_W:
-                            left_ok = False
-                s["lb"] = "r" if right_ok else "l" if left_ok else "b"
-                break
+                        if ou < u and ou + o["sz"][0] / 2 + (GAP + PLATE_W if o.get("fr") and o.get("lb", "r") == "r" else 0) > u - hw - GAP - PLATE_W - 0.05:
+                            left_ok = False                            # nor on a left neighbour's own label (two passes: the first takes every neighbour's label as right)
+                    for c, dh in doors.setdefault(rooms[rid]["l"], _opening_points(plan, rooms[rid]["l"])):
+                        off = (c[0] - e["a"][0]) * e["n"][0] + (c[1] - e["a"][1]) * e["n"][1]
+                        along = (c[0] - e["a"][0]) * e["dir"][0] + (c[1] - e["a"][1]) * e["dir"][1]
+                        if abs(off) < 0.45 and -0.5 <= along <= e["L"] + 0.5:
+                            uc = _u(c, e)
+                            if uc > u and uc - dh - CLEAR < u + hw + GAP + PLATE_W:
+                                right_ok = False
+                            if uc < u and uc + dh + CLEAR > u - hw - GAP - PLATE_W:
+                                left_ok = False
+                    spans = _solid_spans(s, segs[lv])
+                    if spans:                                          # the drawn wall is known here: the label goes on its solid part
+                        right_ok = right_ok and _on_solid(spans, hw + GAP, hw + GAP + PLATE_W)
+                        left_ok = left_ok and _on_solid(spans, -hw - GAP - PLATE_W, -hw - GAP)
+                    s["lb"] = "r" if right_ok else "l" if left_ok else "b"
+                    if spans and not _on_solid(spans, hw - PLATE_W, hw) and _on_solid(spans, -hw, -hw + PLATE_W * 1.25):
+                        s["la"] = "l"                                  # a label below the frame lines up with its left edge (the wall ends, or opens, under its right side)
+                    break
     return plan
 
 

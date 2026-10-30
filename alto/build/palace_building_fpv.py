@@ -60,7 +60,7 @@ FPV_CSS = r"""
 #bf-root .bf-sheet{position:absolute;left:16px;right:16px;bottom:96px;max-width:520px;margin:0 auto;padding:14px 16px 13px;border-radius:14px;background:rgba(246,243,236,.96);color:#1c1b18;border:1px solid #c9c2b0;
   font-family:Georgia,'Times New Roman',serif;box-shadow:0 6px 28px rgba(0,0,0,.35);transform:translateY(12px);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;}
 #bf-root .bf-sheet.on{opacity:1;transform:none;pointer-events:auto;}
-#bf-root .bf-sheet b{display:block;font-size:17px;font-style:italic;font-weight:600;line-height:1.25;} #bf-root .bf-sheet span{display:block;font-size:14px;line-height:1.35;} #bf-root .bf-sheet i{display:block;font:12px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#5a564d;font-style:normal;margin-top:6px;}
+#bf-root .bf-sheet b{display:block;font-size:17px;font-style:italic;font-weight:600;line-height:1.25;} #bf-root .bf-sheet span{display:block;font-size:14px;line-height:1.35;} #bf-root .bf-sheet i{display:block;font:14px/1.35 -apple-system,Helvetica,Arial,sans-serif;color:#45413a;font-style:normal;margin-top:6px;}
 #bf-root kbd{font:600 11px ui-monospace,Menlo,monospace;padding:1px 5px;border-radius:4px;border:1px solid rgba(255,255,255,.55);margin-right:7px;}
 #bf-root .bf-toast{left:50%;top:18px;transform:translateX(-50%);text-align:center;font-size:15px;font-weight:600;opacity:0;transition:opacity .7s;pointer-events:none;
   max-width:70vw;padding:9px 18px;}
@@ -357,6 +357,7 @@ void main(){
   } else if(kind<2.5){ vec4 tq=TEX(uA,vT*uUv.xy+uUv.zw); alb=pow(tq.rgb,vec3(2.2)); rough=uMat.y; metal=0.; if(uMat.w>0.) alpha=(1.-smoothstep(uMat.w-.5,uMat.w,dist))*tq.a; }
   else if(kind<3.5){ alb=uTint.rgb; rough=uMat.y; }
   else { alb=uTint.rgb; rough=.05; metal=0.; }
+  bool matte=uMat.y<0.; if(matte) rough=1.;                /* an empty canvas: dead matte, no specular at all */
   /* contact AO from the room's shape */
   float hz=vP.z-uRoom.x, hc=uRoom.y-vP.z, ao=1., vt=1.-abs(N.z);
   ao*=1.-.5*vt*exp(-max(hz,0.)/.22);
@@ -404,7 +405,7 @@ void main(){
   if(metal>.5&&!outside) env*=(.3+1.5*smoothstep(-.15,.85,R.z))*(.45+1.1*pow(max(dot(R,vec3(.36,.48,.8)),0.),2.));
   vec3 col;
   if(kind>3.5){ col=F*(env*1.2+Ls)+alb*(amb+Ld)*.03; alpha=clamp(uMat.y+dot(F,vec3(.33))*.9+(outside&&vX.z>.25?.22:0.),0.,.96); if(outside&&vX.z>.25) col+=env*.2; }
-  else col=alb*(1.-metal)*(amb*ao*cav+Ld*mix(1.,ao,.55)*cav)+F*(Ls*cav+env*ao*(1.-rough)*(1.-rough)*(1.+metal*2.2))+metal*alb*(amb+Ld*.25)*.2;
+  else col=alb*(1.-metal)*(amb*ao*cav+Ld*mix(1.,ao,.55)*cav)+(matte?vec3(0.):F)*(Ls*cav+env*ao*(1.-rough)*(1.-rough)*(1.+metal*2.2))+metal*alb*(amb+Ld*.25)*.2;
   vec3 o=post(col,dist);
   /* polished floors: the planar reflection of the room, blurred by roughness, stronger at grazing angles */
   if(uRefl.x>.5&&uPol>0.&&kind<.5&&N.z>.75&&abs(vP.z-uRefl.y)<.03){ vec2 rq=gl_FragCoord.xy*uScr.zw+N.xy*.012; float g=pow(1.-max(dot(normalize(vN),V),0.),4.);
@@ -1209,13 +1210,13 @@ ITEM.slot=function(G,mb,it,b){ var s=it.s, r=it.room, n=it.n, d=it.d, W=s.sz[0],
     if(paper){ var mm=Math.min(iw,ih)*.22; mb.quad('mat',[F(-iw,.012,cz-ih),F(iw,.012,cz-ih),F(iw,.012,cz+ih),F(-iw,.012,cz+ih)],N3,[[0,0],[1,0],[1,1],[0,1]]);
       var aw=iw-mm, ah=ih-mm; mb.quad(ik,[F(-aw,.0135,cz-ah),F(aw,.0135,cz-ah),F(aw,.0135,cz+ah),F(-aw,.0135,cz+ah)],N3,[[0,0],[1,0],[1,1],[0,1]]);
       mb.quad('glaze',[F(-iw,dp*.5,cz-ih),F(iw,dp*.5,cz-ih),F(iw,dp*.5,cz+ih),F(-iw,dp*.5,cz+ih)],N3,[[0,0],[1,0],[1,1],[0,1]]); b.trans.glaze=1; }
-    else mb.quad(ik,[F(-iw,.012,cz-ih),F(iw,.012,cz-ih),F(iw,.012,cz+ih),F(-iw,.012,cz+ih)],N3,[[0,0],[1,0],[1,1],[0,1]]); }
+    else mb.quad(ik,[F(-iw,.012,cz-ih),F(iw,.012,cz-ih),F(iw,.012,cz+ih),F(-iw,.012,cz+ih)],N3,FRm&&!hung?[[-iw,-ih],[iw,-ih],[iw,ih],[-iw,ih]]:[[0,0],[1,0],[1,1],[0,1]]); }
   if(FRm) return frLabel(mb,b,it,o,n,d,cz);
   var lz=clamp(cz-hh*.35,r.l.e+1.25,r.l.e+1.5); labelPlate(G,mb,b,it,[o[0]+d[0]*(hw+.2),o[1]+d[1]*(hw+.2)],lz,n,d); };
-/* where a framed work's label hangs: right of the frame (`lb` r), left (l) or below it (b); on a phone always below, centred, 1.25x */
+/* where a framed work's label hangs: right of the frame (`lb` r), left (l) or below it (b); on a phone always below, centred, 1.25x; below lines up with the frame's left edge when `la` is l */
 function touchy(){ return !!(window.matchMedia&&matchMedia('(pointer:coarse)').matches); }
 function frGeom(s,e,cz){ var t=touchy(), k=t?1.25:1, PW=FR.PW*k, PH=FR.PH*k, hw=s.sz[0]/2, hh=s.sz[1]/2, side=t?'b':(s.lb||'r'), u, top;
-  if(side==='r'){ u=hw+FR.GAP+PW/2; top=e+FR.TOP; } else if(side==='l'){ u=-(hw+FR.GAP+PW/2); top=e+FR.TOP; } else { u=t?0:hw-PW/2; top=Math.min(e+FR.TOP,cz-hh-.07); }
+  if(side==='r'){ u=hw+FR.GAP+PW/2; top=e+FR.TOP; } else if(side==='l'){ u=-(hw+FR.GAP+PW/2); top=e+FR.TOP; } else { u=s.la==='l'?-hw+PW/2:t?0:hw-PW/2; top=Math.min(e+FR.TOP,cz-hh-.07); }
   return {u:u, z:top-PH/2, PW:PW, PH:PH}; }
 function frLabel(mb,b,it,o,n,d,cz){ var g=frGeom(it.s,it.room.l.e,cz), idx=b.fl.length, cx=idx%FR.COLS, cy=Math.floor(idx/FR.COLS), H=b.flH, u0=cx/FR.COLS, u1=(cx+1)/FR.COLS, v1=1-cy*FR.CH/H, v0=1-(cy+1)*FR.CH/H;
   var F=function(u,w,z){ return [o[0]+d[0]*u+n[0]*w,o[1]+d[1]*u+n[1]*w,z]; }; b.fl.push(it);
@@ -1356,8 +1357,10 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='lab'){ m={kind:2,lab:1,rough:.9}; }
   else if(base==='flab'){ m={kind:2,lab:1,fl:1,rough:.9,trans:1,bump:FR.FADE}; }                 /* a framed work's museum label: fades out beyond reading distance */
   else if(base==='walnut'){ m={kind:3,tint:[.17,.1,.062],rough:.5,metal:0}; }
-  else if(base==='canvas'||base==='fart'){ var rr=G.rooms[parseInt(String(arg).split('.').pop(),10)], pc=rr&&rr.paint?rr.paint:[.9,.88,.84];            /* an empty canvas: the room's wall tone, 6% darker */
-    m={kind:base==='fart'?2:3,fa:base==='fart'?1:0,tint:[pc[0]*.9,pc[1]*.9,pc[2]*.9],rough:.95,metal:0}; }
+  else if(base==='canvas'||base==='fart'){ var ri=parseInt(String(arg).split('.').pop(),10), rr=G.rooms[ri], wm=rr&&rr.wm?matOf(G,wallKey(rr)):null;   /* an empty canvas: the room's own wall finish, dead matte (no specular, so a spot cannot blow it out); x.85 reads about 6% darker than the lit wall on screen (WebKit, under a spot) */
+    if(base==='fart') m={kind:2,fa:1,rough:.95,metal:0,fb:matOf(G,'canvas#'+ri)};                                                                    /* a hung picture: the empty canvas until its image arrives */
+    else if(wm&&wm.kind===0&&!wm.metal) m={gen:wm.gen,tint:wm.tint.map(function(v){ return Math.pow(v,1/2.2)*.85; }),tile:wm.tile,rough:-1,metal:0,bump:0,kind:0,v:wm.v};
+    else { var pc=rr&&rr.paint?rr.paint:[.9,.88,.84]; m={kind:3,tint:[pc[0]*.85,pc[1]*.85,pc[2]*.85],rough:-1,metal:0}; } }
   else if(base==='art'){ m={kind:2,art:+arg,rough:.6}; }
   else if(base==='glass'){ m={kind:4,tint:[.92,.96,.95],rough:.05,a:.05,trans:1}; }
   else if(base==='glaze'){ m={kind:4,tint:[1,1,1],rough:.05,a:.0,trans:1}; }
@@ -1514,12 +1517,16 @@ function flabel(g,x,y,w,h,it){ var s=it.s, wk=wkOf(s), d=S.data||{}, nid=nodeFor
   g.fillStyle='rgba(246,243,236,.92)'; g.fill(); g.strokeStyle='#c9c2b0'; g.lineWidth=1.5; g.stroke(); g.clip(); g.fillStyle='#1c1b18'; g.textBaseline='alphabetic';
   var fit=function(t,font){ g.font=font; t=String(t||''); if(g.measureText(t).width<=mw) return t; while(t.length>2&&g.measureText(t+'\u2026').width>mw) t=t.slice(0,-1); return t+'\u2026'; };
   var wrap=function(t,font,max){ g.font=font; var out=[], cur=''; String(t||'').split(/\s+/).forEach(function(wd){ var tt=cur?cur+' '+wd:wd; if(g.measureText(tt).width>mw&&cur){ out.push(cur); cur=wd; } else cur=tt; }); if(cur) out.push(cur); return out.length>max?null:out; };
-  var fs=0, tl=null, sizes=[.2,.18,.16,.145,.13]; for(var i=0;i<sizes.length&&!tl;i++){ fs=h*sizes[i]; tl=wrap(wk.t||'','italic 600 '+Math.round(fs)+'px '+F,2); } if(!tl){ fs=h*.12; tl=wrap(wk.t||'','italic 600 '+Math.round(fs)+'px '+F,2)||[fit(wk.t||'','italic 600 '+Math.round(fs)+'px '+F)]; }
+  /* the credit line of a hung picture is set at the artist line's size (on up to two lines), so the title shrinks until everything fits the plate */
+  var SF='-apple-system,Helvetica,Arial,sans-serif', hasCl=!n&&wk.cl&&wk.lic==='pd', cll=null, fits=function(fs,t){ if(!t) return false; if(!hasCl) return true; var f2=Math.min(fs*.82,h*.15), c=wrap(wk.cl,Math.round(f2)+'px '+SF,2); if(!c) return false; cll=c;
+    return pad+fs*.82+(t.length-1)*fs*1.12+f2*1.28+((wk.a?1:0)+(wk.d?1:0)+c.length-1)*f2*1.2+f2*.3<=h-pad*.5; };
+  var fs=0, tl=null, sizes=[.2,.18,.16,.145,.13,.12,.11,.1]; for(var i=0;i<sizes.length&&!tl;i++){ if(i>4&&!hasCl) break; fs=h*sizes[i]; var tt=wrap(wk.t||'','italic 600 '+Math.round(fs)+'px '+F,2); if(fits(fs,tt)) tl=tt; }
+  if(!tl){ fs=h*(hasCl?.1:.12); tl=wrap(wk.t||'','italic 600 '+Math.round(fs)+'px '+F,2)||[fit(wk.t||'','italic 600 '+Math.round(fs)+'px '+F)]; if(hasCl&&!fits(fs,tl)) cll=[fit(wk.cl,Math.round(Math.min(fs*.82,h*.15))+'px '+SF)]; }
   var y0=y+pad+fs*.82; g.font='italic 600 '+Math.round(fs)+'px '+F; tl.forEach(function(l,i){ g.fillText(l,x+pad,y0+i*fs*1.12); }); y0+=(tl.length-1)*fs*1.12;
   var f2=Math.min(fs*.82,h*.15); y0+=f2*1.28; if(wk.a){ g.font=Math.round(f2)+'px '+F; g.fillText(fit(wk.a,Math.round(f2)+'px '+F),x+pad,y0); y0+=f2*1.2; }
   if(wk.d){ g.font=Math.round(f2)+'px '+F; g.fillText(fit(wk.d,Math.round(f2)+'px '+F),x+pad,y0); y0+=f2*1.2; }
   if(n){ var f3=f2*.82, t3=n.n+'  '+dec(n.t); g.font='500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'; g.fillText(fit(t3,'500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'),x+pad,y0+f3*.2); }
-  else if(wk.cl&&wk.lic==='pd'){ var f4=h*.075; g.fillStyle='#5a564d'; g.font=Math.round(f4)+'px -apple-system,Helvetica,Arial,sans-serif'; g.fillText(fit(wk.cl,Math.round(f4)+'px -apple-system,Helvetica,Arial,sans-serif'),x+pad,y+h-pad*.8); }
+  else if(hasCl){ g.fillStyle='#45413a'; g.font=Math.round(f2)+'px '+SF; (cll||[fit(wk.cl,Math.round(f2)+'px '+SF)]).forEach(function(l,i){ g.fillText(l,x+pad,y0+i*f2*1.2); }); }      /* about 9:1 on the plate (WCAG asks 4.5:1) */
   g.restore(); }
 function frAtlas(G,b){ if(!b.fl.length) return null; var W=FR.CW*FR.COLS, H=b.flH, cv=D.createElement('canvas'); cv.width=W; cv.height=H; var g=cv.getContext('2d'); if(!g) return null;
   b.fl.forEach(function(it,i){ flabel(g,(i%FR.COLS)*FR.CW,Math.floor(i/FR.COLS)*FR.CH,FR.CW,FR.CH,it); });
@@ -1620,10 +1627,11 @@ function drawBatch(b,trans,stats){ var gl=S.gl, u=S.pw.u, B=b.built, L=b.light, 
   gl.uniform4fv(u.uSpP,L.spP); gl.uniform4fv(u.uSpD,L.spD); gl.uniform4fv(u.uSpC,L.spC); gl.uniform1f(u.uNS,L.ns);
   gl.uniform4fv(u.uWnC,L.wC); gl.uniform4fv(u.uWnU,L.wU); gl.uniform4fv(u.uWnN,L.wN); gl.uniform1f(u.uNW,L.nw);
   gl.uniform4fv(u.uEd,L.ed); gl.uniform1f(u.uNE,L.ne); gl.uniform4fv(u.uBl,L.bl); gl.uniform4fv(u.uBr,L.br); gl.uniform1f(u.uNB,L.nb);
-  for(var j=0;j<B.ranges.length;j++){ var r=B.ranges[j]; if(r.trans!==trans) continue; var m=r.m, ta=S.white, tb=S.flatN, uv=[1,1,0,0], kd=m.kind;
+  for(var j=0;j<B.ranges.length;j++){ var r=B.ranges[j]; if(r.trans!==trans) continue; var m=r.m, ta=S.white, tb=S.flatN, uv=[1,1,0,0], kd;
+    if(m.fa&&m.fb&&!(b.imgs&&b.imgs[r.k])) m=m.fb; kd=m.kind;
     if(m.kind===0){ var tx=S.tex[m.gen]||genTex(m.gen); ta=tx[0]; tb=tx[1];
       if(u.uRx){ var re=realOf(m.gen); if(re){ gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,re.a); gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D,re.b); gl.uniform4fv(u.uRx,[Math.min(1,(S.now-re.t0)/700),re.tile,re.baked,0]); } else gl.uniform4fv(u.uRx,Z4); } }
-    else if(m.kind===2){ if(m.lab){ ta=(m.fl?b.fatlas:b.atlas)||S.white; } else if(m.fa){ var im3=b.imgs&&b.imgs[r.k]; if(im3) ta=im3; else kd=3; } else { var im=b.imgs&&b.imgs[r.k]; if(im) ta=im; else { ta=b.atlas||S.white; var i2=m.art%12; uv=[.25,.25,(i2%4)*.25,1-(Math.floor(i2/4)+1)*.25]; } } }
+    else if(m.kind===2){ if(m.lab){ ta=(m.fl?b.fatlas:b.atlas)||S.white; } else if(m.fa){ ta=b.imgs[r.k]; } else { var im=b.imgs&&b.imgs[r.k]; if(im) ta=im; else { ta=b.atlas||S.white; var i2=m.art%12; uv=[.25,.25,(i2%4)*.25,1-(Math.floor(i2/4)+1)*.25]; } } }
     if(m.kind!==0&&u.uRx) gl.uniform4fv(u.uRx,Z4);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,ta); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,tb);
     var t=m.tint||[1,1,1]; gl.uniform4fv(u.uTint,[t[0],t[1],t[2],kd]); gl.uniform4fv(u.uJ,m.j||Z4); var mv=m.v||Z4; gl.uniform4fv(u.uVar,[mv[0],mv[1],mv[2],mv[3]||0]); gl.uniform1f(u.uPol,m.pol||0); gl.uniform4fv(u.uMat,[m.kind===6?(m.e||8):(m.tile||1),m.kind>=4&&m.kind<=5?(m.a||0):(m.rough||.8),m.metal||0,m.bump||0]); gl.uniform4fv(u.uUv,uv);

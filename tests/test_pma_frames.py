@@ -69,3 +69,35 @@ def test_nothing_overlaps_on_a_wall_and_every_label_has_its_room():
 def test_the_labels_that_say_right_have_the_room_and_the_slot_count():
     assert len(PLAN["sl"]) == 128 and not [s for s in PLAN["sl"] if s["id"].startswith("sl-") and len(s["id"]) > 32]
     assert math.isclose(pma_frames.PLATE_W, 0.5)
+
+
+def test_labels_and_frames_sit_on_the_drawn_wall_not_the_room_outline():
+    """Art 2026-10-30: the Rivera label hung past the end of its wall. A label beside a frame goes only on solid drawn wall flush with the frame (never past a
+    wall's end, over a doorway or behind a face that stands proud), and a frame found inside a thicker wall's face is brought out in front of it."""
+    rooms = {r["id"]: r for r in PLAN["rm"]}
+    G, W = pma_frames.GAP, pma_frames.PLATE_W
+    for s in PLAN["sl"]:
+        if not s.get("fr"):
+            continue
+        t = dict(s, p=list(s["p"]))
+        spans = pma_frames._solid_spans(t, pma_frames._wall_segments(PLAN, rooms[s["rm"]]["l"]))
+        assert t["p"] == s["p"], s["id"]                                        # already in front of the wall it hangs on
+        hw = s["sz"][0] / 2
+        if spans and s["lb"] == "r":
+            assert pma_frames._on_solid(spans, hw + G, hw + G + W), s["id"]
+        if spans and s["lb"] == "l":
+            assert pma_frames._on_solid(spans, -hw - G - W, -hw - G), s["id"]
+    rv = SLOTS["sl-rivera-sugar-cane"]
+    assert rv["lb"] == "l" and rv["la"] == "l"                                  # the wall ends under the fresco's right side: label on the left, phone label left-aligned
+    assert SLOTS["sl-250-woman-ironing"]["lb"] == "b"                           # l2-w103 stands proud right of it, Morning's label is on its left
+    assert SLOTS["sl-255-the-bridge-at-loosduinen"]["p"][0] > -36.34            # in front of the exterior wall's face, no longer inside it
+
+
+def test_the_renderer_draws_art_s_three_fixes():
+    """Art 2026-10-30: the empty canvas is the room's own wall finish, about 6% darker on screen under a spot (x.85), and dead matte; the credit line is the artist line's size in ink of about 9:1
+    (4.5:1 asked) on the desktop plate and the phone sheet; a label below a frame lines up left when the slot says la:'l'."""
+    from alto.build import palace_building_fpv as fpv
+    src = "".join(v for v in vars(fpv).values() if isinstance(v, str))          # the view's script, shaders and styles
+    assert "Math.pow(v,1/2.2)*.85" in src and "rough:-1" in src and "matte?vec3(0.):F" in src
+    assert "g.fillStyle='#45413a'; g.font=Math.round(f2)+'px '+SF" in src and "font:14px/1.35 -apple-system,Helvetica,Arial,sans-serif;color:#45413a" in src
+    assert "u=s.la==='l'?-hw+PW/2:t?0:hw-PW/2" in src
