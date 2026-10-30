@@ -145,7 +145,7 @@ def test_the_package_carries_the_rules():
     py = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert '"firestore.rules"' in py
     mcpb = (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
-    assert '"firestore.rules")' in mcpb
+    assert '"firestore.rules"' in mcpb and '"storage.rules"' in mcpb
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the fake CLI is a /bin/sh script")

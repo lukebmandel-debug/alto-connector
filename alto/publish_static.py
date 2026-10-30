@@ -428,7 +428,7 @@ def firebase_configured() -> tuple[str, str, str] | None:
     return None
 
 
-def _security_headers(site_dir: Path | None = None) -> list[dict]:
+def _security_headers(site_dir: Path | None = None, site: str | None = None) -> list[dict]:
     """CSP and friends for the published site.
 
     `'unsafe-inline'` in script-src is unavoidable and deliberate: the engine is
@@ -437,8 +437,10 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     blast radius: no third-party script origins, no plugins, no framing, no form
     posts, and no <base> rewriting.
     """
+    own = (" https://%s.web.app" % site) if site and _FB_NAME.fullmatch(site) else ""
+
     def build(form_action: str) -> str:
-        return _csp(form_action)
+        return _csp(form_action, own)
     csp = build("'none'")
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
@@ -446,21 +448,28 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir))
 
 
-def _csp(form_action: str) -> str:
+def _csp(form_action: str, own: str = "") -> str:
+    """`own` is " https://<site>.web.app" or "". WebKit does not match 'self' inside a sandboxed (opaque-origin) frame, so the shared-page
+    frame, which inherits this policy, could not load the hosted palace scripts and data in Safari. Naming the site's own origin beside
+    'self' fixes that and grants nothing new: the frame's origin is opaque (no storage, cookies or sign-in), and a cross-origin READ
+    still needs the Access-Control-Allow-Origin header, which only the public hashed folders carry."""
     return "; ".join([
         "default-src 'self'",
         # gstatic serves the Firebase SDK; apis.google.com serves the gapi
         # loader signInWithPopup injects — without it Google sign-in (and so
         # cross-device sync) is dead on every published page.
         # 'wasm-unsafe-eval' lets WebAssembly compile (the FPV's Basis texture transcoder, build/fpv_gfx.py) and nothing else: no eval(), no new Function.
-        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https://*.googleusercontent.com",
-        "font-src 'self' data:",
+        "script-src 'self'" + own + " 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com",
+        "style-src 'self'" + own + " 'unsafe-inline'",
+        "img-src 'self'" + own + " data: blob: https://*.googleusercontent.com",
+        "font-src 'self'" + own + " data:",
         # Firestore + Identity Toolkit, which alto-cloud.js talks to directly.
-        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com "
+        "connect-src 'self'" + own + " https://*.googleapis.com https://*.firebaseio.com "
         "wss://*.firebaseio.com https://*.firebaseapp.com" + _tile_src(),
-        "frame-src https://*.firebaseapp.com",   # the Google sign-in popup
+        # The Google sign-in popup's helper frame, on the project's authDomain:
+        # *.firebaseapp.com by default, or this site itself when authDomain is
+        # set to the site (<site>.web.app), hence 'self'.
+        "frame-src 'self' https://*.firebaseapp.com",
         "object-src 'none'",
         "base-uri 'self'",
         f"form-action {form_action}",
@@ -507,6 +516,7 @@ def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=
         # A hosted palace script (the fleet, the Retro style, ...) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
+            *([_ANY_ORIGIN] if f == "world" else []),
         ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
         # bldg: the Memory Blueprint's renderers and plans, one literal immutable rule per file that exists: a plan a page names before the
         # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
@@ -543,7 +553,7 @@ def _gfx_names(site_dir) -> list:
 def _gfx_rules(names) -> list:
     from .build.fpv_gfx import FOLDER, NAME_RE
     return [{"source": "/%s/%s" % (FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if NAME_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if NAME_RE.match(n)]
 
 
 def _art_names(site_dir) -> list:
@@ -554,6 +564,9 @@ def _art_names(site_dir) -> list:
     d = Path(site_dir) / ART_FOLDER
     return sorted(p.name for p in d.iterdir() if p.is_file() and ART_RE.match(p.name)) if d.is_dir() else []
 
+
+# A shared page runs in a sandboxed frame (share_shell.py), an opaque origin: its fetches of these hashed public files are cross-origin.
+_ANY_ORIGIN = {"key": "Access-Control-Allow-Origin", "value": "*"}
 
 BLDG_RE = re.compile(r"^(palace-building-(fpv-)?[0-9a-f]{10}\.js|plan-[0-9a-f]{12}\.json)$")
 
@@ -568,13 +581,13 @@ def _bldg_names(site_dir) -> list:
 
 def _bldg_rules(names) -> list:
     return [{"source": "/bldg/%s" % n, "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if BLDG_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if BLDG_RE.match(n)]
 
 
 def _art_rules(names) -> list:
     from .buildings.pma_art import ART_FOLDER, ART_RE
     return [{"source": "/%s/%s" % (ART_FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if ART_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if ART_RE.match(n)]
 
 
 def _cmap_names(site_dir) -> list:
@@ -594,12 +607,12 @@ def _cmap_rules(names) -> list:
     day is the longest a browser may remember that."""
     from .build import palace_tiles
     rules = [{"source": "/%s/%s" % (palace_tiles.FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if palace_tiles.BASE_RE.match(n)]
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if palace_tiles.BASE_RE.match(n)]
     if any(palace_tiles.TILE_RE.match(n) for n in names):
         rules.append({"regex": "^/%s/t-[0-9a-f]{10}\\.json$" % palace_tiles.FOLDER, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=86400"},
             # the tiles are shared geography, fetched by the palaces of other sites (palace_tiles.tile_host)
-            {"key": "Access-Control-Allow-Origin", "value": "*"}]})
+            _ANY_ORIGIN]})
     return rules
 
 
@@ -625,6 +638,11 @@ def deploy_site(site_dir: Path) -> str:
     rules_src = rules_path()
     rules_out = site_dir.parent / "firestore.rules"
     shutil.copy(rules_src, rules_out)
+    # Storage holds nothing of Alto's; its rules deny every client. Shipped
+    # beside firestore.rules so `firebase deploy --only storage` uses them.
+    storage_src = rules_src.parent / "storage.rules"
+    if storage_src.exists():
+        shutil.copy(storage_src, site_dir.parent / "storage.rules")
 
     # keep firebase.json's site in step with the configured site name
     fbjson = site_dir.parent / "firebase.json"
@@ -638,8 +656,10 @@ def deploy_site(site_dir: Path) -> str:
                      # Same idea for private timelines: any account's page
                      # opens from any of its sites (see regenerate_site).
                      {"source": "/pv/**", "destination": "/pv/index.html"}],
-        "headers": _security_headers(site_dir)}}
+        "headers": _security_headers(site_dir, site)}}
     cfg_json["firestore"] = {"rules": rules_out.name}
+    if (site_dir.parent / "storage.rules").exists():
+        cfg_json["storage"] = {"rules": "storage.rules"}
     fbjson.write_text(json.dumps(cfg_json, indent=2))
     (site_dir.parent / ".firebaserc").write_text(
         json.dumps({"projects": {"default": project}}, indent=2))
