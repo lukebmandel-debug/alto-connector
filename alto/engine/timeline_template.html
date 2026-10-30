@@ -8999,7 +8999,7 @@ html.dark:not(.mobile) #summary-toggle{
    locked: ×1.29 on font + side padding; pill radius = half height). alignInfo()
    reads offsetWidth/Height live, so INFO re-centres itself automatically. ── */
 html:not(.mobile) #mode-toggle{
-  height:35px; width:105px; bottom:30px; right:30px;
+  height:35px; width:105px; bottom:var(--alto-row-b, 24px); right:30px;
   display:inline-flex; align-items:center; justify-content:center;
   white-space:nowrap; padding:0; font-size:15px; border-radius:17.5px;
   /* FIXED width so "☽ Dark" and "☀ Light" render the SAME size across modes.
@@ -10873,8 +10873,12 @@ window.AltoShare = { createLink: shareCreateLink, resolve: shareResolve, open: o
 <!-- ── ACCOUNT — person bubble in the bottom-LEFT slot the chat bubble used to hold;
      opens a Google sign-in modal (ported from index.html, Google-only). ── -->
 <style id="alto-account-style">
+/* ONE bottom line for every desktop control along the foot (Luke, 2026-10-30: "are the toggles on the bottom right higher
+   than the account toggle?"): the account toggle, the right-hand row, the edit toggle and the formats' own controls
+   all sit --alto-row-b off the foot, the homepage's line (its row mirrors the account toggle) */
+html:not(.mobile){ --alto-row-b:24px; }
 html:not(.mobile) #account-btn{
-  position:fixed; bottom:24px; left:24px; right:auto; z-index:200;
+  position:fixed; bottom:var(--alto-row-b, 24px); left:24px; right:auto; z-index:200;
   width:35px; height:35px; border-radius:50%;
   background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
   -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));

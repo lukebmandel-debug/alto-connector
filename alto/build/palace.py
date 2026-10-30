@@ -872,7 +872,7 @@ PALACE_CSS = KEY_CSS + r"""
   /* the zoom controls: Alto's round glass (the search / info / key buttons), in a row beside the account toggle —
      the same inset, the same 35px, the same centre line; a grouped pill for closer / farther with a divider, and
      the whole city as a pill of its own. left = the account toggle's 24 + 35 + the row's 12.5 gap. */
-  #pal-ctl{position:fixed;left:71.5px;bottom:24px;z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
+  #pal-ctl{position:fixed;left:71.5px;bottom:var(--alto-row-b,24px);z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
   #pal-ctl .pc-pill,#pal-ctl .pc-city{position:relative;height:35px;box-sizing:border-box;display:inline-flex;align-items:stretch;border-radius:17.5px;
     background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));
