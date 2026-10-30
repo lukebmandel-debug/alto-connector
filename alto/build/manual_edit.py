@@ -216,7 +216,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   /* phones: above the controls along the foot of the screen */
   html.mobile #alto-edit-exit{bottom:calc(66px + env(safe-area-inset-bottom,0px));height:42px;border-radius:21px;font-size:14px;padding:0 5px 0 14px;gap:6px;}
   html.mobile #alto-edit-exit .ee-st{display:none;}
-  html.mobile #alto-edit-exit .ee-flag,html.mobile #alto-edit-exit .ee-box{display:none;}
+  html.mobile #alto-edit-exit .ee-flag,html.mobile #alto-edit-exit .ee-box,html.mobile #alto-edit-exit .ee-country{display:none;}
+  #alto-edit-exit .ee-country{width:auto;padding:0 10px;line-height:1;font:inherit;font-size:12.5px;white-space:nowrap;}
   html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}
   /* what else sits at the foot of the screen moves up while editing */
@@ -303,7 +304,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-link .al-fk{font-size:11px;line-height:1.35;margin-top:6px;}
   /* cards: + / ✕ on a card, + Add a card beside a unit's name */
   .aed-cc{position:absolute;right:40px;top:-13px;z-index:6;display:none;gap:3px;-webkit-user-select:none;user-select:none;}
-  html.alto-editing:not(.mobile):not(.aed-picking) #canvas .node:hover .aed-cc{display:flex;}
+  html.alto-editing:not(.mobile):not(.aed-picking) :is(#canvas .node,#wpal-root .wp-enl > .node):hover .aed-cc{display:flex;}
   .aed-cc button{width:26px;height:24px;padding:0;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--muted);
     cursor:pointer;font:600 13px/22px system-ui,-apple-system,sans-serif;box-shadow:0 4px 12px var(--node-rest-shadow);}
   .aed-cc button::before{content:attr(data-g);}
@@ -1293,6 +1294,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
+    if(window._altoWorldField && kind === 'w') return window._altoWorldField(k);           // a Memory Atlas card's country (palace_world.py)
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
     if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bx' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
@@ -1597,6 +1599,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if((k in APPLIED) && same(cur, APPLIED[k]) && o && !o.done) base = o.b;
     STORE.ops[k] = {b: base, v: v, t: Date.now()};
     f.set(v); APPLIED[k] = v; wr(); push(); refresh(k);
+    if(window._altoEditHook) try{ window._altoEditHook(k, v); }catch(e){}
     return true;
   }
   // Several changes as one step of undo (a new section is its place, heading and words).
@@ -1613,6 +1616,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // what a Memory Palace needs to add a building or a floor: a fresh card id, the units to choose
   // from (and the key the page stores one under), the glass form, the toast
   window._altoEdit = {rid: rid, ask: function(){ return askForm.apply(null, arguments); }, toast: toast, editing: editing,
+    addCard: function(p, a, sun, more){ return addCard(p, a, sun, more); }, removeCard: function(id){ return removeCard(id); },
     units: function(){ var out = []; for(var i = 0; i < ACT_SEQS.length; i++) out.push({i: i, key: unitKeyOf(i), name: unitName(i)}); return out; }};
   function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; h.slice().reverse().forEach(function(e){ apply(e.k, e.a); }); syncHist(); return true; }
   function redo(){ if(HP >= HIST.length) return false; var h = HIST[HP++]; h.forEach(function(e){ apply(e.k, e.b); }); syncHist(); return true; }
@@ -1760,9 +1764,10 @@ MANUAL_JS = r"""<script id="alto-manual">
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
+      + (window.AltoWorld && window.AltoWorld.pickCountry ? '<button type="button" class="ee-h ee-country" aria-label="Add a country" title="Add a country: a new card that stands on it">+ Country</button>' : '')
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
-      if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
+      if(t.classList.contains('ee-country')) window.AltoWorld.pickCountry(t); else if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     if(!document.getElementById('alto-edit-rail')){ var rl = document.createElement('div'); rl.id = 'alto-edit-rail'; rl.setAttribute('aria-hidden', 'true'); document.body.appendChild(rl); }
     document.body.appendChild(b); placePill(); return b;
   }
@@ -1984,7 +1989,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   document.addEventListener('mouseover', function(e){
     if(!editing() || !structOK() || PICK || LINK || !cardsBase()) return;
-    var nodeEl = e.target && e.target.closest && e.target.closest('#canvas .node'); if(!nodeEl) return;
+    var nodeEl = e.target && e.target.closest && e.target.closest('#canvas .node,#wpal-root .wp-enl > .node'); if(!nodeEl) return;
     var card = nodeEl.querySelector('.node-card'), id = nodeEl.id.replace(/^node-/, '');
     if(!card || card.querySelector(':scope > .aed-cc') || !srcNode(id)) return;
     var items = [];
@@ -2023,7 +2028,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!solarWarned && (MOVED.length || NEWO.length || SWAPPED.length || REORD.length || Object.keys(GONE).length)){
       solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this timeline.'); }
   }
-  function addCard(p, a, sun){      // sun: a new top concept of the unit (a System's second sun), not a card under its first
+  function addCard(p, a, sun, more){      // sun: a new top concept of the unit (a System's second sun), not a card under its first; more: the Atlas's
+                                          // {spec, ops(id), toast} (palace_world.py: a card and its country, one step)
     if(!cardsBase()) return;
     // an outline's unit has one card at its top (brief: one hub per unit): a
     // card added to the unit goes under it
@@ -2033,10 +2039,13 @@ MANUAL_JS = r"""<script id="alto-manual">
     var inAct = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === act; }), like = par || inAct[inAct.length - 1] || null;
     var spec = {p: p || '', a: unitKeyOf(act), t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
     if(!OUT) spec.col = like && like.col ? like.col : 'center';
-    if(!change('nn|' + id, spec)) return;
-    toast(sun ? 'Sun added — it is another top concept of this unit. ⌘Z takes it back.' : 'Card added — ⌘Z takes it back.');
+    if(more && more.spec) Object.keys(more.spec).forEach(function(q){ spec[q] = more.spec[q]; });
+    if(!changes([['nn|' + id, spec]].concat(more && more.ops ? more.ops(id) : []))) return;
+    toast(more && more.toast ? more.toast : sun ? 'Sun added — it is another top concept of this unit. ⌘Z takes it back.' : 'Card added — ⌘Z takes it back.');
+    if(more && more.edit === false) return id;           // (the Atlas: its title is already the country's name)
     setTimeout(function(){ var el = document.querySelector('#node-' + id + ' .node-title');
       if(el){ try{ el.scrollIntoView({block:'center', inline:'nearest'}); }catch(_){} startField(el, 'n|' + id + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 140);
+    return id;
   }
   /* units: add one at the end (with its first card), rename one */
   var UNIT_COLORS = ['#e0654a', '#4a9eff', '#2fb380', '#c084fc', '#f2a93b', '#ec6fa8', '#22b8cf', '#8f9c3a', '#b07a4f', '#7c83f2'];
