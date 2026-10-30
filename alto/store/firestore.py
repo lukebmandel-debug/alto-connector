@@ -5,12 +5,15 @@ Layout (plan §4):
   users/{uid}/timelines/{tid}                     — doc.json equivalent
   users/{uid}/timelines/{tid}/nodes/{nodeId}      — one doc per node (_seq order)
   users/{uid}/timelines/{tid}/meta/connections    — {list: [...]}
-  shares/{tid}                                    — {uid, visibility}
+  hosted_shares/{uid}_{tid}                       — {uid, visibility}
   gs://{bucket}/builds/{uid}/{tid}/{name}         — built artifacts
 
 users/{uid} and users/{uid}/tl/** (alto-cloud v3 sync) are client-owned and
-untouched here. Admin SDK bypasses security rules; client rules never allow
-`shares` or `oauth`, so those stay server-only.
+untouched here. Admin SDK bypasses security rules; no client rule matches `hosted_shares`
+or `oauth`, so those stay server-only. The hosted index is NOT kept in
+`shares`, whose documents anyone may get by key, and is keyed by account as
+well as timeline id: timeline ids are readable slugs, the same in many
+accounts, so a tid-only key let one account's publish replace another's.
 """
 from __future__ import annotations
 
@@ -131,12 +134,23 @@ class FirestoreStore(Store):
             return None
         return blob.download_as_text()
 
-    def get_share(self, tid):
-        snap = self.db.collection("shares").document(tid).get()
-        return snap.to_dict() if snap.exists else None
+    def _hosted(self, uid, tid):
+        if not uid or not tid or "/" in uid or "/" in tid:
+            return None
+        return self.db.collection("hosted_shares").document(f"{uid}_{tid}")
 
-    def delete_share(self, tid):
-        self.db.collection("shares").document(tid).delete()
+    def get_share(self, tid, uid=None):
+        ref = self._hosted(uid, tid)
+        snap = ref.get() if ref else None
+        return snap.to_dict() if snap is not None and snap.exists else None
+
+    def delete_share(self, tid, uid=None):
+        ref = self._hosted(uid, tid)
+        if ref:
+            ref.delete()
 
     def put_share(self, tid, doc):
-        self.db.collection("shares").document(tid).set(doc)
+        ref = self._hosted(doc.get("uid"), tid)
+        if ref is None:
+            raise ValueError("a hosted share needs its owner's uid")
+        ref.set(doc)

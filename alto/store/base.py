@@ -59,7 +59,7 @@ class Store(abc.ABC):
         """Remove the project doc only; its timelines are removed separately."""
 
     @abc.abstractmethod
-    def delete_share(self, tid: str) -> None: ...
+    def delete_share(self, tid: str, uid: str | None = None) -> None: ...
 
     @abc.abstractmethod
     def put_artifact(self, uid: str, tid: str, name: str, content: str) -> str:
@@ -69,8 +69,9 @@ class Store(abc.ABC):
     def get_artifact(self, uid: str, tid: str, name: str) -> str | None: ...
 
     @abc.abstractmethod
-    def get_share(self, tid: str) -> dict | None:
-        """Reverse lookup {uid, visibility} for public serving."""
+    def get_share(self, tid: str, uid: str | None = None) -> dict | None:
+        """Reverse lookup {uid, visibility} for serving. `uid` is the signed-in
+        viewer; a multi-account store looks only among that account's."""
 
     @abc.abstractmethod
     def put_share(self, tid: str, doc: dict) -> None: ...

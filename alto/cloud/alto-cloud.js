@@ -255,7 +255,7 @@
            getRedirectResult, signOut, onAuthStateChanged, browserLocalPersistence,
            setPersistence },
          { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
-           onSnapshot, serverTimestamp, Bytes }] =
+           onSnapshot, serverTimestamp, Bytes, writeBatch, deleteField }] =
     await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
@@ -1182,19 +1182,61 @@
       delete body.html;
       body = Object.assign(body, packed.fields);
     }
-    // owner is what the rules check on every later update and delete, so it is
-    // written here and never taken from the caller.
-    await setDoc(doc(db, 'shares', key),
-                 Object.assign(body, { owner: u.uid,
-                                       updatedAt: serverTimestamp() }));
+    // The public document carries content only. Who may change or revoke it
+    // is shares/{key}/private/owner, written once, in the same batch as the
+    // first write that needs it, and always as this account.
+    body.title = String(body.title || '').slice(0, 300);
+    const batch = writeBatch(db);
+    if (!(await _ownsShare(key, u.uid))) batch.set(_ownerRef(key), { owner: u.uid });
+    batch.set(doc(db, 'shares', key), Object.assign(body, { updatedAt: serverTimestamp() }));
+    await batch.commit();
     return true;
   }
 
   async function _revokeShare(key) {
     const u = auth.currentUser;
     if (!u || !key) return false;
-    await deleteDoc(doc(db, 'shares', key));
+    const batch = writeBatch(db);
+    if (!(await _ownsShare(key, u.uid))) batch.set(_ownerRef(key), { owner: u.uid });
+    batch.delete(doc(db, 'shares', key));
+    await batch.commit();
     return true;
+  }
+
+  const _ownerRef = (key) => doc(db, 'shares', key, 'private', 'owner');
+
+  // Only its owner may read an owner record, so a refusal and a missing
+  // record both read as "not ours yet".
+  async function _ownsShare(key, uid) {
+    try {
+      const s = await getDoc(_ownerRef(key));
+      return s.exists() && (s.data() || {}).owner === uid;
+    } catch (e) { return false; }
+  }
+
+  // Shares made before owner records named their owner in the public
+  // document. Move that into the owner record (same key, same content, so
+  // every link already handed out keeps working), once per account here.
+  async function _migrateShares(uid) {
+    const flag = 'alto-shares-owner-v1-' + uid;
+    try { if (origGet(flag)) return; } catch (e) {}
+    const keys = new Set();
+    (await getDocs(collection(db, 'users', uid, 'pagemeta'))).forEach(d => {
+      const k = (d.data() || {}).shareKey;
+      if (k) keys.add(k);
+    });
+    let left = 0;
+    for (const key of keys) {
+      try {
+        const s = await getDoc(doc(db, 'shares', key));
+        if (!s.exists() || (s.data() || {}).owner !== uid) continue;
+        const batch = writeBatch(db);
+        if (!(await _ownsShare(key, uid))) batch.set(_ownerRef(key), { owner: uid });
+        batch.update(doc(db, 'shares', key), { owner: deleteField(), updatedAt: serverTimestamp() });
+        await batch.commit();
+      } catch (e) { left++; }
+    }
+    if (!left) { try { origSet(flag, '1'); } catch (e) {} }
   }
 
   // Same alphabet as the connector's _share_slug: 32 symbols with no look-alike
@@ -1452,6 +1494,7 @@
       }, e => console.warn('[AltoCloud] user listener', e));
 
       subscribeTl(user);
+      _migrateShares(user.uid).catch(e => console.warn('[AltoCloud] shares', e));
     } else {
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
       // Cached listings and pages belong to the account that just left.

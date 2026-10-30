@@ -185,9 +185,26 @@ class CloudStore(Store):
                   {"delete": self._doc(uid, "pagemeta", key)},
                   {"delete": self._doc(uid, "alto_snapshots", key)}]
         if share:
-            writes += [{"delete": f"{self.root}/shares/{check_component(share, 'shareKey')}"},
+            sk = check_component(share, "shareKey")
+            # Revoking is checked against the share's owner record. A share
+            # made before those existed gets its record in this same commit
+            # (the rules allow that to the owner the share itself names).
+            if not self._owns_share(uid, sk):
+                writes.append({"update": {"name": f"{self.root}/shares/{sk}/private/owner",
+                                          "fields": {"owner": _sv(uid)}},
+                               "currentDocument": {"exists": False}})
+            writes += [{"delete": f"{self.root}/shares/{sk}"},
                        {"delete": self._doc(uid, "shared", share)}]
         self._commit(writes)
+
+    def _owns_share(self, uid: str, key: str) -> bool:
+        """Whether shares/{key}/private/owner names uid. The rules let only its
+        owner read it, so a refusal and a missing record both mean no."""
+        try:
+            js = self._req("GET", f"{self.root}/shares/{key}/private/owner", ok404=True)
+        except CloudError:
+            return False
+        return (((js or {}).get("fields") or {}).get("owner") or {}).get("stringValue") == uid
 
     # ── nodes / connections ──────────────────────────────────────────────────
     def list_nodes(self, uid, tid):
@@ -283,14 +300,14 @@ class CloudStore(Store):
     def get_artifact(self, uid, tid, name):
         return self.local.get_artifact(uid, tid, name)
 
-    def get_share(self, tid):
-        return self.local.get_share(tid)
+    def get_share(self, tid, uid=None):
+        return self.local.get_share(tid, uid)
 
     def put_share(self, tid, doc):
         self.local.put_share(tid, doc)
 
-    def delete_share(self, tid):
-        self.local.delete_share(tid)
+    def delete_share(self, tid, uid=None):
+        self.local.delete_share(tid, uid)
 
     # ── private pages, written the way the browser writes them ───────────────
     def put_page(self, uid: str, key: str, html: str, title: str,

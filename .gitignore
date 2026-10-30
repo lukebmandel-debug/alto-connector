@@ -38,3 +38,4 @@ DISTRIBUTION.md
 
 # security test toolchain (tests/security)
 tests/security/node_modules/
+tests/security/build/

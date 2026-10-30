@@ -128,17 +128,22 @@ def test_shares_are_gettable_but_never_listable():
 
 
 def test_only_the_owner_may_change_or_revoke_a_share():
+    """Ownership lives in an owner-only record beside the share, not in the
+    public document; tests/security/firestore_rules.test.mjs checks the
+    behaviour against the emulator."""
     m = re.search(r"match /shares/\{key\} \{(.*?)\n    \}", RULES, re.S)
     body = m.group(1)
-    assert "request.auth.uid == request.resource.data.owner" in body
-    assert "request.auth.uid == resource.data.owner" in body
+    assert "allow create, update: if validKey(key) && allowlisted() && shareContent()" in body
+    assert "allow delete: if ownsShareAfter(key);" in body
+    assert "allow update, delete: if false;" in body.split("match /private/{doc}")[1]
 
 
-def test_the_owner_field_is_written_by_us_not_by_the_caller():
+def test_the_owner_record_is_written_by_us_not_by_the_caller():
     """It is what every later update and delete is checked against."""
     fn = CLOUD_JS[CLOUD_JS.index("async function _putShare("):]
     fn = fn[:fn.index("\n  }")]
-    assert "{ owner: u.uid," in fn
+    assert "batch.set(_ownerRef(key), { owner: u.uid });" in fn
+    assert "owner:" not in fn.split("batch.set(doc(db, 'shares', key)")[1]
 
 
 def test_publishing_deploys_the_rules():
