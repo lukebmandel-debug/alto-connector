@@ -9,8 +9,8 @@ THE CONTRAST FLOOR. Every colour a rule uses for text or for the plate under it 
 that can meet (PAIRS) is held to WCAG AA by tests/test_holo.py (4.5:1 for text, 3:1 for a line or an outline), light and dark. The
 bars and the chip rows are solid (not see-through), so a card passing under them never shows through a label.
 
-How it is built. The rules are Retro's own (retro.CHROME_CSS / BOARD_CSS / FORMAT_CSS: the same selectors for the bars, chips, panels,
-detail pages, cards, lines, both palaces' maps and the Atlas), re-inked: `ink()` swaps Retro's gold, black, cream and navy for the tokens,
+How it is built. The rules are Retro's own (retro.CHROME_CSS / BOARD_CSS / FORMAT_CSS / HOME_CSS: the same selectors for the bars, chips,
+panels, detail pages, cards, lines, both palaces' maps, the Atlas and the homepage), re-inked: `ink()` swaps Retro's gold, black, cream and navy for the tokens,
 drops the frame, the cartouche, the forced dark theme and the poster lettering, and HOLO_CSS adds what only Projector has (the grid, the
 scan lines, the glow, the solid bars, the phone's square controls). A format department refines its own part by adding rules to
 FORMAT_CSS below. Carried like Retro: a page holds only the switch (backgrounds.py head script, window._altoStyle, `holo`) and a hosted
@@ -59,10 +59,12 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars) :is(body,#canvas):not(#_){background-color:var(--ho-bg) !important;
     background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
     background-size:auto,48px 48px,48px 48px !important;}
-  /* the bars are solid: a card or a line passing under a label never shows through it (the floor on text over anything) */
-  X :is(#title-bar,#nav,#node-nav-bar):not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;}
-  X #title-bar:not(#_):not(#__){border-bottom:1px solid rgba(var(--ho-rgb),.5) !important;}
-  X #title-bar:not(#_):not(#__){box-shadow:var(--ho-glow) !important;}
+  /* the bars: where a page keeps them (a detail page, a phone) they are solid, so a card or a line passing under a label never shows
+     through it; a desktop timeline or the homepage has no top bars (clear_top.py, Luke 2026-10-21/22), so there each label carries its
+     own solid square plate instead (the floor on text over anything) */
+  X:not(.ct-on):not(.alto-home.alto-clear-top) :is(#title-bar,#nav,#node-nav-bar):not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;}
+  X:not(.ct-on):not(.alto-home.alto-clear-top) #title-bar:not(#_):not(#__){border-bottom:1px solid rgba(var(--ho-rgb),.5) !important;box-shadow:var(--ho-glow) !important;}
+  X:is(.ct-on,.alto-home.alto-clear-top) :is(#title-text,.nav-group-label):not(#_):not(#__){background:var(--ho-bg) !important;box-shadow:0 0 0 6px var(--ho-bg) !important;border-radius:0 !important;}
   X #title-text:not(#_){color:var(--ho-tx) !important;font-weight:500 !important;}
   /* the cards: a square wireframe plate lit from its edge */
   X #world .node-card:not(#_){border:1px solid rgba(var(--ho-rgb),.62) !important;border-radius:0 !important;
@@ -132,7 +134,7 @@ def ink(css: str) -> str:
     for a, b in (("#f0c15e", "var(--ho-ac2)"), ("#d9ae55", "var(--ho-ac)"), ("#efe6cf", "var(--ho-tx)"), ("#b9b2a0", "var(--ho-mu)"), ("#7f9cc4", "var(--ho-mu)"),
                  ("#0a1b34", "var(--ho-sf2)"), ("#e3dccb", "var(--ho-tx)")):
         css = css.replace(a, b)
-    css = _re.sub(r"#(?:030407|05070b|06080c|0b0d12|0d1016)(?![0-9a-fA-F])", "var(--ho-sf)", css)
+    css = _re.sub(r"#(?:030407|05070a|05070b|06080c|070a0f|0b0d12|0d1016)(?![0-9a-fA-F])", "var(--ho-sf)", css)
     css = _re.sub(r"#000(?![0-9a-fA-F])", "var(--ho-bg)", css)
     css = css.replace("sepia(1) saturate(2) hue-rotate(-8deg) brightness(.85)", "grayscale(1) sepia(1) hue-rotate(125deg) saturate(3)")
     css = _re.sub(r"font-family:[^;}]*(;|(?=}))", "", css)
@@ -142,7 +144,7 @@ def ink(css: str) -> str:
 
 def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
-    base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS)
+    base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)   # (HOME_CSS: the homepage, home_look.py)
     body = base + "\n" + HOLO_CSS + FORMAT_CSS + _UNIT_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"

@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from alto.build import backgrounds_import as bi, holo, palace_assets, retro   # noqa: E402
+from alto.build import backgrounds_import as bi, holo, pages, palace_assets, retro   # noqa: E402
 from alto.build.builder import build_timeline, load_brief       # noqa: E402
 
 try:
@@ -68,6 +68,7 @@ def test_the_sheet_is_retro_re_inked_with_no_gold_and_no_frame():
     for anchor in ("#world .node-card", "#river-svg path", "#detail-page", "#lanes-svg .ln-main", ".pal-svg .pl-tube", "#bldg-root", "#wpal-root", ".lu-chip",
                    "#title-bar", "#nav .nav-btn", "#pmin-find"):
         assert anchor in c, anchor
+    assert not re.search(r"#[0-9a-fA-F]{3,6}\b", holo.ink(retro.HOME_CSS))   # the homepage's Retro plates are all re-inked
     assert "#mode-toggle" in c and "#mode-toggle{display:none" not in c     # unlike Retro, the light/dark toggle stays: a square chip (Art, fix 1)
     assert re.search(r"#mode-toggle[^{]*\{[^}]*border-radius:0", c)
 
@@ -122,12 +123,18 @@ document.querySelectorAll('body *').forEach(function(el){
 return {seen:seen, bad:bad}; })()"""
 
 
+HOME = [{"name": "Law", "pid": "p", "courses": [
+    {"title": "Torts", "href": "t.html", "sub": "3 units", "courseId": "a", "units": ["#4a9eff", "#f43f5e", "#10b981"]},
+    {"title": "Contracts", "href": "t.html", "sub": "0 units", "courseId": "b", "units": []}]}]
+
+
 @pytest.fixture(scope="module")
 def site(outline, tmp_path_factory):
     if pw is None:
         pytest.skip("Playwright is not installed")
     d = tmp_path_factory.mktemp("holosite")
     (d / "t.html").write_text(outline, encoding="utf-8")
+    (d / "h.html").write_text(pages.build_home(HOME), encoding="utf-8")
     (d / "holo").mkdir()
     (d / "retro").mkdir()
     name, text = holo.holo_asset()
@@ -151,7 +158,7 @@ def site(outline, tmp_path_factory):
     srv.server_close()
 
 
-@pytest.fixture(params=["webkit"])
+@pytest.fixture(params=["chromium", "webkit"])
 def browser(request):
     if pw is None:
         pytest.skip("Playwright is not installed")
@@ -190,4 +197,50 @@ def test_text_on_a_timeline_page_meets_aa_in_both_themes_and_sizes(browser, site
     pg.evaluate("window._altoStyle.set('classic')")
     assert not pg.evaluate("document.documentElement.classList.contains('alto-holo')")
     assert not errors, errors
+    ctx.close()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+@pytest.mark.parametrize("size", [(1400, 900), (390, 844)])
+def test_text_on_the_homepage_meets_aa_in_both_themes_and_sizes(browser, site, dark, size):
+    ctx = browser.new_context(viewport={"width": size[0], "height": size[1]}, has_touch=size[0] < 500, is_mobile=size[0] < 500)
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/h.html")
+    pg.wait_for_timeout(500)
+    pg.evaluate("localStorage.clear()")
+    assert pg.evaluate("window._altoStyle.list") == ["classic", "retro", "holo"]   # the homepage offers all three (alto-home: Classic | Retro)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false"))
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-holo') && !document.documentElement.classList.contains('alto-retro')")
+    res = pg.evaluate(AUDIT_JS)
+    assert res["seen"] > 4, res
+    assert not res["bad"], res["bad"][:12]
+    # square cards, like Retro's homepage (retro.HOME_CSS re-inked)
+    assert pg.evaluate("[...document.querySelectorAll('.course-tile:not(.new-tile)')].every(c => getComputedStyle(c).borderTopLeftRadius === '0px')")
+    pg.evaluate("window._altoStyle.set('retro')")
+    assert pg.evaluate("document.documentElement.classList.contains('alto-retro') && !document.documentElement.classList.contains('alto-holo')")
+    assert not errors, errors
+
+
+def test_the_bars_follow_the_top_bar_rule(browser, site):
+    """clear_top.py: no bar backgrounds where the page clears its top (html.ct-on: a desktop timeline); where it keeps them (a detail page,
+    a phone: no ct-on) Holographic's bars are solid."""
+    clear = ("rgba(0, 0, 0, 0)", "transparent")
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear(); window._altoStyle.set('holo')")
+    pg.wait_for_timeout(400)
+    css = lambda sel, p: pg.evaluate("getComputedStyle(document.querySelector(%r)).%s" % (sel, p))
+    assert pg.evaluate("document.documentElement.classList.contains('ct-on')")
+    assert css("#title-bar", "backgroundColor") in clear and css("#nav", "backgroundColor") in clear
+    assert css("#title-text", "backgroundColor") not in clear            # the name keeps its own solid plate instead
+    pg.evaluate("document.documentElement.classList.add('detail-open')")
+    pg.wait_for_timeout(300)
+    assert not pg.evaluate("document.documentElement.classList.contains('ct-on')")
+    assert css("#title-bar", "backgroundColor") not in clear
     ctx.close()
