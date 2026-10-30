@@ -42,6 +42,8 @@ include = ["alto*"]
   # Committed copy of ../firestore.rules (pinned identical by a test): the
   # rules have to travel with every install, or publishing cannot deploy them.
   "firestore.rules",
+  # Same for ../storage.rules: deny all client access to Firebase Storage.
+  "storage.rules",
   "assets/*.svg",
   "assets/png/*.png",
   "assets/backgrounds/*.jpg",

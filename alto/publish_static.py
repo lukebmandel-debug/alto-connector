@@ -460,7 +460,10 @@ def _csp(form_action: str) -> str:
         # Firestore + Identity Toolkit, which alto-cloud.js talks to directly.
         "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com "
         "wss://*.firebaseio.com https://*.firebaseapp.com" + _tile_src(),
-        "frame-src https://*.firebaseapp.com",   # the Google sign-in popup
+        # The Google sign-in popup's helper frame, on the project's authDomain:
+        # *.firebaseapp.com by default, or this site itself when authDomain is
+        # set to the site (<site>.web.app), hence 'self'.
+        "frame-src 'self' https://*.firebaseapp.com",
         "object-src 'none'",
         "base-uri 'self'",
         f"form-action {form_action}",
@@ -625,6 +628,11 @@ def deploy_site(site_dir: Path) -> str:
     rules_src = rules_path()
     rules_out = site_dir.parent / "firestore.rules"
     shutil.copy(rules_src, rules_out)
+    # Storage holds nothing of Alto's; its rules deny every client. Shipped
+    # beside firestore.rules so `firebase deploy --only storage` uses them.
+    storage_src = rules_src.parent / "storage.rules"
+    if storage_src.exists():
+        shutil.copy(storage_src, site_dir.parent / "storage.rules")
 
     # keep firebase.json's site in step with the configured site name
     fbjson = site_dir.parent / "firebase.json"
@@ -640,6 +648,8 @@ def deploy_site(site_dir: Path) -> str:
                      {"source": "/pv/**", "destination": "/pv/index.html"}],
         "headers": _security_headers(site_dir)}}
     cfg_json["firestore"] = {"rules": rules_out.name}
+    if (site_dir.parent / "storage.rules").exists():
+        cfg_json["storage"] = {"rules": "storage.rules"}
     fbjson.write_text(json.dumps(cfg_json, indent=2))
     (site_dir.parent / ".firebaserc").write_text(
         json.dumps({"projects": {"default": project}}, indent=2))
