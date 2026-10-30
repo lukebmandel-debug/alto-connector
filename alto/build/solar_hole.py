@@ -217,11 +217,12 @@ function offer(P0, d){
      when there is no card; never near the page edge */
   function place(){
     if(chip!==c) return;
-    var W=innerWidth, H=innerHeight, w=c.offsetWidth, h=c.offsetHeight, tb=textBox(), l=P0[0]+34, tp=P0[1]-h/2;
+    var z=(c.getBoundingClientRect().width/(c.offsetWidth||1)) || 1;           /* (the page's zoom: the words' rects are as seen, the chip's left/top are in its own px) */
+    var W=innerWidth, H=innerHeight, w=c.offsetWidth*z, h=c.offsetHeight*z, tb=textBox(), l=P0[0]*z+34, tp=P0[1]*z-h/2;
     if(tb){ l=(tb.l+tb.r)/2-w/2; tp=tb.b+12; if(tp+h>H-16) tp=Math.max(70, tb.t-12-h); }
-    else if(l+w>W-16) l=P0[0]-34-w;
+    else if(l+w>W-16) l=P0[0]*z-34-w;
     l=Math.max(16, Math.min(W-w-16, l)); tp=Math.max(70, Math.min(H-h-16, tp));
-    c.style.left=Math.round(l)+'px'; c.style.top=Math.round(tp)+'px';
+    c.style.left=Math.round(l/z)+'px'; c.style.top=Math.round(tp/z)+'px';
   }
   place(); c.style.transition='left .25s ease, top .25s ease'; chip._d=d;
   var pn=0, pt=setInterval(function(){ if(chip!==c || ++pn>26){ clearInterval(pt); return; } place(); }, 300);          /* (the chart is still settling back under it, the 3D close-up diving in: the card's words land where they land) */
@@ -256,7 +257,7 @@ window.addEventListener('alto-quiz-fail', function(e){
   BACK={type:window._currentDetailType, id:window._currentDetailId, st:(document.getElementById('detail-page')||{}).scrollTop||0, key:d.key};
   last=performance.now(); try{ start(d); }catch(x){ R=null; de.classList.remove('bh-on'); if(window.console) console.warn('alto black hole', x); }
 });
-window._altoHole={state:function(){ return R ? {t:(performance.now()-R.t0)/1000, end:R.tE, mode:R.tv ? R.tv.mode : null, rd:R.rd, skipBtn:!!R.sk} : (chip ? {chip:true} : null); }, skip:skip, again:again, dismiss:gone, reset:function(){ last=-1e9; }};
+window._altoHole={state:function(){ return R ? {t:(performance.now()-R.t0)/1000, end:R.tE, mode:R.tv ? R.tv.mode : null, rd:R.rd, skipBtn:!!R.sk} : (chip ? {chip:true} : null); }, skip:skip, again:again, dismiss:gone, box:textBox, reset:function(){ last=-1e9; }};
 })();
 """
 
