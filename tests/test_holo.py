@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from alto.build import backgrounds_import as bi, holo, pages, palace_assets, retro   # noqa: E402
+from alto.build import backgrounds_import as bi, holo, holo_backgrounds as hb, pages, palace_assets, retro   # noqa: E402
 from alto.build.builder import build_timeline, load_brief       # noqa: E402
 
 try:
@@ -135,6 +135,7 @@ def site(outline, tmp_path_factory):
     d = tmp_path_factory.mktemp("holosite")
     (d / "t.html").write_text(outline, encoding="utf-8")
     (d / "h.html").write_text(pages.build_home(HOME), encoding="utf-8")
+    (d / "s.html").write_text(_build("outline", layout="solar"), encoding="utf-8")
     (d / "holo").mkdir()
     (d / "retro").mkdir()
     name, text = holo.holo_asset()
@@ -213,7 +214,7 @@ def test_text_on_the_homepage_meets_aa_in_both_themes_and_sizes(browser, site, d
     assert pg.evaluate("window._altoStyle.list") == ["classic", "retro", "holo"]   # the homepage offers all three (alto-home: Classic | Retro)
     pg.evaluate("window._altoStyle.set('holo')")
     pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false"))
-    pg.wait_for_timeout(500)
+    pg.wait_for_timeout(1200)   # (the colours ease over; measure once they have settled)
     assert pg.evaluate("document.documentElement.classList.contains('alto-holo') && !document.documentElement.classList.contains('alto-retro')")
     res = pg.evaluate(AUDIT_JS)
     assert res["seen"] > 4, res
@@ -244,4 +245,70 @@ def test_the_bars_follow_the_top_bar_rule(browser, site):
     pg.wait_for_timeout(300)
     assert not pg.evaluate("document.documentElement.classList.contains('ct-on')")
     assert css("#title-bar", "backgroundColor") not in clear
+    ctx.close()
+
+
+def test_a_system_keeps_its_planets_round(browser, site):
+    """Luke, 2026-10-30: "we don't want square planets": Holographic squares the cards, never a System's bodies."""
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/s.html")
+    pg.wait_for_timeout(500)
+    pg.evaluate("localStorage.clear(); window._altoSolarStyles.set('holo')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-holo')")
+    radii = pg.evaluate("[...document.querySelectorAll('#world .node[data-solar] .node-card')].map(c => getComputedStyle(c).borderTopLeftRadius)")
+    assert radii and all(r == "50%" for r in radii), radii
+    ctx.close()
+
+
+
+# ── the style's own backgrounds (holo_backgrounds.py) ──────────────────────
+
+def test_each_holographic_background_keeps_its_ground_under_the_text_tokens():
+    """Text sits on solid plates, but the free labels' ink must still read on each scene's ground (top, middle, bottom), light and dark."""
+    e = hb.client_entries()
+    assert len(e) == 6 and all(v["k"] == "h" and v["g"] == "Holographic" for v in e.values())
+    for hid, v in e.items():
+        for theme, key in (("light", "l"), ("dark", "d")):
+            grounds = re.findall(r"#[0-9a-f]{6}", v[key]["b"].rsplit("linear-gradient", 1)[1])
+            assert len(grounds) == 3, hid
+            for g in grounds:
+                for ink in ("tx", "mu", "ac"):
+                    assert holo.contrast(holo.TOKENS[theme][ink], g) >= 4.5, (hid, theme, ink, g)
+
+
+def test_the_backgrounds_ride_in_the_hosted_script_not_the_page(outline):
+    assert "h-neon-rain" in holo.ASSET and "h-neon-rain" not in outline
+
+
+def test_holographic_backgrounds_are_offered_only_in_holographic(browser, site):
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear()")
+    heads = "[...document.querySelectorAll('#bg-panel .bg-h')].map(h => h.textContent)"
+    pg.click("#bg-toggle")
+    pg.wait_for_timeout(400)
+    assert "Holographic" not in pg.evaluate(heads)                       # Classic: not offered
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(500)
+    assert "Holographic" in pg.evaluate(heads)                           # Holographic: its own section
+    pg.click('.bg-tile[data-bg="h-neon-rain"]')
+    pg.wait_for_timeout(400)
+    cls = "document.documentElement.classList"
+    assert pg.evaluate(cls + ".contains('alto-bg-h')")
+    assert "data:image/svg+xml" in pg.evaluate("getComputedStyle(document.getElementById('page-bg'), '::before').backgroundImage")
+    assert pg.evaluate("getComputedStyle(document.getElementById('page-bg'), '::before').display") != "none"
+    pg.evaluate("window._altoStyle.set('classic')")                      # back in Classic: no background, no section; the choice is kept
+    pg.wait_for_timeout(400)
+    assert not pg.evaluate(cls + ".contains('alto-bg')") and "Holographic" not in pg.evaluate(heads)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(400)
+    assert pg.evaluate(cls + ".contains('alto-bg-h')")
+    assert pg.evaluate(heads).count("Holographic") == 1
+    assert not errors, errors
     ctx.close()

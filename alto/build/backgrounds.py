@@ -247,7 +247,7 @@ HEAD_JS = r"""(function(){
     try{
       var m=JSON.parse(localStorage.getItem('alto-bgq-v1')||'{}') || {};
       if(!c && !(k in m)) return;          // nothing chosen, nothing remembered: no write
-      if(c) m[k]=[c.k==='p'||c.k==='m' ? c.l.q : c.l[0], c.k==='p'||c.k==='m' ? c.d.q : c.d[0]]; else delete m[k];
+      if(c) m[k]=[c.k==='p'||c.k==='m'||c.k==='h' ? c.l.q : c.l[0], c.k==='p'||c.k==='m'||c.k==='h' ? c.d.q : c.d[0]]; else delete m[k];
       var ks=Object.keys(m); if(ks.length>60) delete m[ks[0]];
       localStorage.setItem('alto-bgq-v1',JSON.stringify(m));
     }catch(e){}
@@ -258,7 +258,7 @@ HEAD_JS = r"""(function(){
     var c=cur && get(cur), dark=isDark();
     if(!c && !touched) return;             // never chosen: the engine's own colour, untouched
     touched=!!c;
-    var v=c && (c.k==='p'||c.k==='m' ? (dark ? c.d.s : c.l.s) : (dark ? c.d[0] : c.l[0]));
+    var v=c && (c.k==='p'||c.k==='m'||c.k==='h' ? (dark ? c.d.s : c.l.s) : (dark ? c.d[0] : c.l[0]));
     m.setAttribute('content', v || (dark ? '#6b4326' : '#ffc59e'));
   }
   // The bars across the top, as far down as they reach, in the page-bg layer's own pixels.
@@ -285,7 +285,7 @@ HEAD_JS = r"""(function(){
   }
   function clear(){
     cur=''; sig='';
-    if(r.classList.contains('alto-bg')){ r.classList.remove('alto-bg'); r.classList.remove('alto-bg-map'); VARS.concat(PV).forEach(function(v){ r.style.removeProperty(v); }); PV=[]; bar(); tell(); }
+    if(r.classList.contains('alto-bg')){ r.classList.remove('alto-bg'); r.classList.remove('alto-bg-map'); r.classList.remove('alto-bg-h'); VARS.concat(PV).forEach(function(v){ r.style.removeProperty(v); }); PV=[]; bar(); tell(); }
     window._altoBgId=''; remember(null);
   }
   // a map ground changes what the map draws against (palace.py listens)
@@ -302,7 +302,7 @@ HEAD_JS = r"""(function(){
       bg=g ? g.bg : u ? 'url('+u+') '+(v.x*100)+'% '+(v.y*100)+'% / cover no-repeat' : 'none'; T=g ? g.T : (r.classList.contains('mobile') ? 132 : 84);
       top=v.a; q=v.q; bright=v.b; blur='6px'; mask='linear-gradient(transparent,#000 40px)';
       veil=(dark ? 'rgba(8,10,18,' : 'rgba(247,249,253,')+v.v+')';
-    } else if(c.k==='m'){
+    } else if(c.k==='m' || c.k==='h'){   // (h: a Holographic ground, holo.py: drawn as CSS like a map's, offered only in that style)
       var m=dark ? c.d : c.l; key=[cur,dark].join('|'); if(key===sig) return; sig=key;
       bg=m.b; top=m.a; q=m.q; pv=m.v||{};
     } else {
@@ -310,7 +310,7 @@ HEAD_JS = r"""(function(){
       bg=c.k==='x' ? pattern(c.p, w) : 'linear-gradient(160deg,'+w[0]+','+w[1]+')'; top=w[0]; q=w[0];
     }
     PV.forEach(function(n){ if(!(n in pv)) st.removeProperty(n); }); Object.keys(pv).forEach(function(n){ st.setProperty(n,pv[n]); }); PV=Object.keys(pv);
-    r.classList.toggle('alto-bg-map', c.k==='m');
+    r.classList.toggle('alto-bg-map', c.k==='m'); r.classList.toggle('alto-bg-h', c.k==='h');
     st.setProperty('--alto-bg',bg); st.setProperty('--alto-top',top); st.setProperty('--alto-q',q); st.setProperty('--alto-veil',veil);
     st.setProperty('--alto-bright',bright); st.setProperty('--alto-blur',blur); st.setProperty('--alto-t',T+'px'); st.setProperty('--alto-mask',mask);
     r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
@@ -468,6 +468,7 @@ UI_JS = r"""(function(){
     var id=B.read(), c=B.get(id); foot.textContent='';
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
     if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map, for the light and the dark theme.'; return; }
+    if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background, for the light and the dark theme.'; return; }
     if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+' — for the light and the dark theme.'; return; }
     // one of the account's own pictures: its name, rename and remove (the hosted library script)
     if(c.u){ foot.textContent=c.n; B.need(function(L){ L.credit(id, foot); }); return; }
@@ -490,6 +491,7 @@ UI_JS = r"""(function(){
       var v=variant(c), im=t.querySelector('img'), nm=t.querySelector('.bg-name');
       var src=c.th||B.base+'t/'+v.f; if(im && im.getAttribute('src')!==src) im.src=src; if(nm) nm.textContent=v.n; t.setAttribute('aria-label',v.n+', '+c.g);
     } else if(c.k==='m'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', for the map'); }
+    else if(c.k==='h'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', Holographic'); }
     else if(c.k==='c'){ var w=dark() ? c.d : c.l; t.style.background='linear-gradient(160deg,'+w[0]+','+w[1]+')'; }
     else { var q=B.pattern(c.p, dark() ? c.d : c.l); t.style.background=q; }
   }
@@ -522,12 +524,14 @@ UI_JS = r"""(function(){
     // is the ninth tile of that set, not a section of its own
     if(by['Memory Palace']) body.appendChild(sec('Memory Palace', by['Memory Palace'], tile('',null)));
     else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
+    // Holographic's own backgrounds (holo_backgrounds.py), in the catalog only while that style is on: next, ahead of the rest
+    if(by['Holographic']) body.appendChild(sec('Holographic', by['Holographic']));
     // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
     if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
       B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
-    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace') body.appendChild(sec(g, by[g])); });
+    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
   function open(v){

@@ -22,7 +22,7 @@ import hashlib as _hashlib
 import json as _json
 import re as _re
 
-from . import retro as _rt
+from . import holo_backgrounds as _hb, retro as _rt
 
 FOLDER = "holo"
 
@@ -56,9 +56,14 @@ def _vars(t: dict, units: list) -> str:
 # ── what only Projector has ──
 HOLO_CSS = r"""
   /* the plate of the page: the faint grid and the scan lines, under everything (the palaces and the Star chart draw their own ground) */
-  X:not(.alto-palace):not(.alto-stars) :is(body,#canvas):not(#_){background-color:var(--ho-bg) !important;
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) :is(body,#canvas):not(#_){background-color:var(--ho-bg) !important;
     background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
     background-size:auto,48px 48px,48px 48px !important;}
+  /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
+     and the plates under the board let it through */
+  X.alto-bg-h #page-bg:not(#_):not(#__){background:var(--alto-top) !important;}
+  X.alto-bg-h #page-bg:not(#_)::before{display:block !important;}
+  X.alto-bg-h :is(body,#app,#canvas):not(#_):not(#__){background:transparent !important;}
   /* the bars: where a page keeps them (a detail page, a phone) they are solid, so a card or a line passing under a label never shows
      through it; a desktop timeline or the homepage has no top bars (clear_top.py, Luke 2026-10-21/22), so there each label carries its
      own solid square plate instead (the floor on text over anything) */
@@ -74,6 +79,8 @@ HOLO_CSS = r"""
   X #world .node:not(.dimmed):hover .node-card:not(#_){border-color:var(--ho-ac) !important;box-shadow:var(--ho-glow),var(--ho-glow),inset 0 0 18px rgba(var(--ho-rgb),.1) !important;}
   X #world .node.focused .node-card:not(#_){background:var(--ho-sf2) !important;border-color:var(--ho-ac) !important;box-shadow:0 0 0 2px var(--ho-bg),0 0 0 3px var(--ho-ac),var(--ho-glow) !important;}
   X #world .node-tag:not(#_){letter-spacing:.14em !important;}
+  /* a System's suns, planets and moons stay round (Luke, 2026-10-30: "we don't want square planets"): only the cards above are square */
+  X.alto-solar:not(.mobile) #world .node[data-solar] .node-card:not(#_):not(#__),X.alto-solar:not(.mobile) #world .node[data-solar] .node-card:not(#_):not(#__)::before{border-radius:50% !important;}
   /* no dimmed text (Art's rule 2): the small numerals and glyphs wear the controls' ink at full strength */
   X :is(.nav-chip-count,.node-order,.aep-pen,.node-unit):not(#_):not(#__){color:var(--ho-ac2) !important;opacity:1 !important;}
   X :is(#alto-edit-pill,#alto-edit-pill .aep-half):not(#_):not(#__){opacity:1 !important;}
@@ -156,18 +163,33 @@ def css() -> str:
 
 JS = r"""(function(){
 if(window._altoHolo) return;
-var r=document.documentElement, CSS=__CSS__, st=null;
+var r=document.documentElement, CSS=__CSS__, BGS=__BGS__, st=null;
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
+// the style's own backgrounds (holo_backgrounds.py): in the picker's catalog only while Holographic is on; a page set to one of them
+// paints it when the style comes on and goes back to no background when it goes off (the choice itself is kept)
+function sec(){ var U=(window._altoBg||{}).ui; if(!U||!U.body) return null; return [].filter.call(U.body.querySelectorAll('.bg-sec'), function(s){ var h=s.querySelector('.bg-h'); return h && h.textContent==='Holographic'; })[0]||null; }
+function bgs(on){
+  var B=window._altoBg; if(!B||!B.C) return; var cur=B.read();
+  Object.keys(BGS).forEach(function(id){ if(on) B.C[id]=BGS[id]; else delete B.C[id]; });
+  if(cur in BGS) B.apply(cur);
+  var U=B.ui, s=sec();
+  if(!on){ if(s) s.parentNode.removeChild(s); return; }
+  if(!U||!U.body||s) return;
+  s=U.mk('div','bg-sec'); s.appendChild(U.mk('div','bg-h','Holographic')); var g=U.mk('div','bg-grid');
+  Object.keys(BGS).forEach(function(id){ g.appendChild(U.tile(id, BGS[id])); }); s.appendChild(g);
+  var at=document.getElementById('bg-yours'); if(!at){ var all=U.body.querySelectorAll('.bg-sec'); at=all[all.length>1 ? 2 : 0]||null; }
+  U.body.insertBefore(s, at); if(U.mark) U.mark();
+}
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-holo-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);
-  r.classList.add('alto-holo'); redraw();
+  r.classList.add('alto-holo'); bgs(true); redraw();
 }
-function off(){ if(!r.classList.contains('alto-holo')) return; r.classList.remove('alto-holo'); redraw(); }
+function off(){ if(!r.classList.contains('alto-holo')) return; r.classList.remove('alto-holo'); bgs(false); redraw(); }
 window._altoHolo={on:on, off:off};
 })();"""
 
-ASSET = _rt._slim(JS.replace("__CSS__", _json.dumps(css())))
+ASSET = _rt._slim(JS.replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-holo-{V}.js"
 GUARD = "_altoHolo"
