@@ -1509,19 +1509,28 @@ function paintPH(g,x,y,C,asp,seed,paper,cloth,work,text){ var R=rng(seed), VW=C*
   g.font=Math.round(fs*.72)+'px '+F; if(a) g.fillText(a,VW/2,y0+lines.length*fs*1.24+fs*.15); g.font=Math.round(fs*.6)+'px -apple-system,Helvetica,Arial,sans-serif'; g.fillStyle=paper?'rgba(60,54,46,.55)':'rgba(236,228,212,.5)'; if(!text) g.fillText('IMAGE NOT SHOWN',VW/2,VH*.9);
   g.restore(); }
 function wkOf(s){ var w=s.work||{}; return {t:w.t||w.title, a:w.a||w.artist, d:w.d||w.date, lic:w.lic, img:w.img, cl:w.cl}; }
+/* the rows of a label plate (w x h px): the title steps down until title (<= 2 lines), artist, year and the card or credit row all sit inside the plate without touching */
+function flayout(g,w,h,wk,n,F){ var pad=h*.09, mw=w-2*pad-2, cl=(wk.cl&&wk.lic==='pd'&&!n)?1:0, steps=[.2,.18,.16,.145,.13,.12,.11,.1], L=null;
+  var wrap=function(t,font,max){ g.font=font; var out=[], cur=''; String(t||'').split(/\s+/).forEach(function(wd){ var tt=cur?cur+' '+wd:wd; if(g.measureText(tt).width>mw&&cur){ out.push(cur); cur=wd; } else cur=tt; }); if(cur) out.push(cur); return out.length>max?null:out; };
+  for(var i=0;i<steps.length;i++){ var fs=h*steps[i], tf='italic 600 '+Math.round(fs)+'px '+F, tl=wrap(wk.t||'',tf,2); if(!tl){ if(i<steps.length-1) continue; var tt=String(wk.t||''); g.font=tf; while(tt.length>2&&g.measureText(tt+'\u2026').width>mw) tt=tt.slice(0,-1); tl=[tt+'\u2026']; }
+    var f2=Math.min(fs*.82,h*.15), f3=f2*.82, y0=pad+fs*.82+(tl.length-1)*fs*1.12+f2*1.28, ya=y0; if(wk.a) y0+=f2*1.2; var yd=y0; if(wk.d) y0+=f2*1.2;
+    var ye=n?y0+f3*.2:(cl?y0+f2*.1:0), last=ye||(wk.d?yd:(wk.a?ya:y0)), bot=last+(ye&&n?f3:f2)*.28;
+    L={fs:fs,f2:f2,f3:f3,tl:tl,ya:ya,yd:yd,ye:ye,cl:cl,bot:bot,pad:pad,mw:mw}; if(bot<=h-pad*.35) break; }
+  return L; }
+S.flay=flayout;
 /* a framed work's museum label: title (italic, semi-bold), artist, year, and the Alto card's line when the work anchors one; off-white plate, hairline, dark type */
 function flabel(g,x,y,w,h,it){ var s=it.s, wk=wkOf(s), d=S.data||{}, nid=nodeForAnchor(s.id), n=nid&&d.nodes?d.nodes[nid]:null, F='Georgia,"Times New Roman",serif', pad=h*.09, mw=w-2*pad-2, r=h*.05, lines=[];
   g.save(); g.beginPath(); g.moveTo(x+r,y+1); g.arcTo(x+w-1,y+1,x+w-1,y+h-1,r); g.arcTo(x+w-1,y+h-1,x+1,y+h-1,r); g.arcTo(x+1,y+h-1,x+1,y+1,r); g.arcTo(x+1,y+1,x+w-1,y+1,r); g.closePath();
   g.fillStyle='rgba(246,243,236,.92)'; g.fill(); g.strokeStyle='#c9c2b0'; g.lineWidth=1.5; g.stroke(); g.clip(); g.fillStyle='#1c1b18'; g.textBaseline='alphabetic';
   var fit=function(t,font){ g.font=font; t=String(t||''); if(g.measureText(t).width<=mw) return t; while(t.length>2&&g.measureText(t+'\u2026').width>mw) t=t.slice(0,-1); return t+'\u2026'; };
   var wrap=function(t,font,max){ g.font=font; var out=[], cur=''; String(t||'').split(/\s+/).forEach(function(wd){ var tt=cur?cur+' '+wd:wd; if(g.measureText(tt).width>mw&&cur){ out.push(cur); cur=wd; } else cur=tt; }); if(cur) out.push(cur); return out.length>max?null:out; };
-  var fs=0, tl=null, sizes=[.2,.18,.16,.145,.13]; for(var i=0;i<sizes.length&&!tl;i++){ fs=h*sizes[i]; tl=wrap(wk.t||'','italic 600 '+Math.round(fs)+'px '+F,2); } if(!tl){ fs=h*.12; tl=wrap(wk.t||'','italic 600 '+Math.round(fs)+'px '+F,2)||[fit(wk.t||'','italic 600 '+Math.round(fs)+'px '+F)]; }
-  var y0=y+pad+fs*.82; g.font='italic 600 '+Math.round(fs)+'px '+F; tl.forEach(function(l,i){ g.fillText(l,x+pad,y0+i*fs*1.12); }); y0+=(tl.length-1)*fs*1.12;
-  var f2=Math.min(fs*.82,h*.15); y0+=f2*1.28; if(wk.a){ g.font=Math.round(f2)+'px '+F; g.fillText(fit(wk.a,Math.round(f2)+'px '+F),x+pad,y0); y0+=f2*1.2; }
-  if(wk.d){ g.font=Math.round(f2)+'px '+F; g.fillText(fit(wk.d,Math.round(f2)+'px '+F),x+pad,y0); y0+=f2*1.2; }
-  if(n){ var f3=f2*.82, t3=n.n+'  '+dec(n.t); g.font='500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'; g.fillText(fit(t3,'500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'),x+pad,y0+f3*.2); }
-  else if(wk.cl&&wk.lic==='pd'){ var cf=Math.round(f2)+'px '+F, cl0=String(wk.cl), cands=[cl0, cl0.replace(/^Public domain,? via /,'Public domain \u00b7 '), cl0.split(/[,\u00b7]/)[0]], ct=cands.find(function(t){ g.font=cf; return g.measureText(t).width<=mw; })||fit(cands[2],cf);
-    g.fillStyle='#38352e'; g.font=cf; g.fillText(ct,x+pad,Math.min(y0+f2*.1,y+h-pad*.8)); }
+  var L=flayout(g,w,h,wk,n,F), f2=L.f2, f3=L.f3, f2f=Math.round(f2)+'px '+F;
+  g.font='italic 600 '+Math.round(L.fs)+'px '+F; L.tl.forEach(function(l,i){ g.fillText(l,x+pad,y+pad+L.fs*.82+i*L.fs*1.12); });
+  if(wk.a){ g.font=f2f; g.fillText(fit(wk.a,f2f),x+pad,y+L.ya); }
+  if(wk.d){ g.font=f2f; g.fillText(fit(wk.d,f2f),x+pad,y+L.yd); }
+  if(n){ var t3=n.n+'  '+dec(n.t), f3f='500 '+Math.round(f3)+'px -apple-system,Helvetica,Arial,sans-serif'; g.font=f3f; g.fillText(fit(t3,f3f),x+pad,y+L.ye); }
+  else if(L.cl){ var cl0=String(wk.cl), cands=[cl0, cl0.replace(/^Public domain,? via /,'Public domain \u00b7 '), cl0.split(/[,\u00b7]/)[0]], ct=cands.find(function(t){ g.font=f2f; return g.measureText(t).width<=mw; })||fit(cands[2],f2f);
+    g.fillStyle='#38352e'; g.font=f2f; g.fillText(ct,x+pad,y+L.ye); }
   g.restore(); }
 function frAtlas(G,b){ if(!b.fl.length) return null; var W=FR.CW*FR.COLS, H=b.flH, cv=D.createElement('canvas'); cv.width=W; cv.height=H; var g=cv.getContext('2d'); if(!g) return null;
   b.fl.forEach(function(it,i){ flabel(g,(i%FR.COLS)*FR.CW,Math.floor(i/FR.COLS)*FR.CH,FR.CW,FR.CH,it); });
