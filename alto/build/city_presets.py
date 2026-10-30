@@ -1,4 +1,4 @@
-"""Built-in city presets for the Memory Palace: New York City, Boston and Washington, DC.
+"""Built-in city presets for the Memory Palace: New York City, Boston, Washington, DC and Chicago.
 
 A preset is the set_up_palace parameters a careful person would pass for that city (Philadelphia's are the model:
 see set_up_palace's docstring), so set_up_palace("Boston") draws Boston well with no other argument. Any explicit
@@ -13,6 +13,9 @@ Fields (all names spelled as OpenStreetMap spells them):
                      (gives it a `unit`), see buildings_for(),
   diagonals          the slanting avenues to keep,
   far_bank           True: the box faces another shore across a wide river and keeps it (Brooklyn, Cambridge),
+  layout             the city's LayoutSpec as data (city_spec; Chicago's: shore "sea", must-parks), optional,
+  channels           the rivers drawn whatever their length, each kept at least 40 page px (Chicago's three branches),
+  river_names        [[name, lat, lon]] points on the water: each water band is named by the nearest,
   parks              parks drawn whatever their size,
   areas              label-only neighbourhood names [{name, lat, lon, rank 1-4}],
   rail_lines         hypothetical railways: none,
@@ -303,7 +306,98 @@ DC = {
     ],
 }
 
-PRESETS = {"nyc": NYC, "boston": BOSTON, "dc": DC}
+CHICAGO = {
+    "place": "Chicago",
+    "area": "The Loop, the Near North Side (River North, Streeterville, the Gold Coast, Navy Pier), the Near South Side "
+            "(South Loop, the Museum Campus) and the West Loop to Ashland Avenue, with the Lake Michigan shore",
+    "bbox": [41.853, -87.668, 41.910, -87.595],
+    # one grid at -1.7 degrees; the river splits it but both banks keep their numbering (city_engine joins them across);
+    # Lake Michigan is one sea body at the east edge (city_coast: OSM draws it as a lake relation, not a coastline)
+    "layout": {"name": "chicago", "builder": "engine", "shore": "sea", "must_parks": ["Millennium Park"]},
+    "channels": ["Chicago River", "North Branch Chicago River", "South Branch Chicago River"],
+    "river_names": [["Chicago River", 41.8886, -87.6206], ["Chicago River", 41.8875, -87.6290],
+                    ["North Branch Chicago River", 41.8930, -87.6400], ["North Branch Chicago River", 41.9030, -87.6500],
+                    ["South Branch Chicago River", 41.8782, -87.6377], ["South Branch Chicago River", 41.8649, -87.6347],
+                    ["Lake Michigan", 41.8900, -87.6000], ["Lake Michigan", 41.8650, -87.6050]],
+    "majors": ["North Michigan Avenue", "South Michigan Avenue", "North State Street", "South State Street",
+               "North Wabash Avenue", "South Wabash Avenue", "North Dearborn Street", "North Clark Street", "South Clark Street",
+               "North LaSalle Drive", "North Wells Street", "South Wells Street", "North Franklin Street", "South Canal Street",
+               "South Clinton Street", "South Jefferson Street", "South Desplaines Street", "North Halsted Street",
+               "South Halsted Street", "South Racine Avenue", "North Ashland Avenue", "South Ashland Avenue",
+               "North Columbus Drive", "South Columbus Drive", "North Lake Shore Drive",
+               "North Jean Baptiste Point DuSable Lake Shore Drive", "South DuSable Lake Shore Drive",
+               "South Wacker Drive",
+               "West Division Street", "West Chicago Avenue", "West Grand Avenue", "East Grand Avenue", "West Ontario Street",
+               "East Ontario Street", "West Ohio Street", "West Kinzie Street", "West Hubbard Street", "East Illinois Street",
+               "West Lake Street", "West Randolph Street", "East Randolph Street", "West Washington Boulevard",
+               "West Madison Street", "West Monroe Street", "West Adams Street", "West Jackson Boulevard",
+               "West Van Buren Street", "West Congress Parkway", "West Harrison Street", "West Polk Street", "West Taylor Street",
+               "West Roosevelt Road", "East Roosevelt Road", "West 18th Street", "North Milwaukee Avenue", "North Ogden Avenue",
+               "West Ogden Avenue", "North Kingsbury Street"],
+    "landmarks": ["Willis Tower", "Aon Center", "Trump International Hotel & Tower Chicago", "875 N Michigan",
+                  "Chicago Board of Trade Building", "Cloud Gate", "Chicago Water Tower", "Chicago Union Station",
+                  "The Art Institute of Chicago", "Navy Pier", "Richard J. Daley Center",
+                  "Dirksen Federal Building and US Courthouse", "Cook County Building", "Merchandise Mart", "Wrigley Building",
+                  "Tribune Tower", "Buckingham Fountain", "Field Museum", "Shedd Aquarium", "Chicago Theatre", "The Rookery",
+                  "Harold Washington Library Center"],
+    "landmark_buildings": [
+        {"name": "Willis Tower", "floors": 108, "height_m": 442},
+        {"name": "Trump International Hotel & Tower Chicago", "label": "Trump Tower", "floors": 98, "height_m": 423},
+        {"name": "Aon Center", "floors": 83, "height_m": 346},
+        {"name": "875 N Michigan", "label": "John Hancock Center", "floors": 100, "height_m": 344},
+        {"name": "Chicago Board of Trade Building", "label": "Board of Trade", "floors": 44, "height_m": 184},
+        {"name": "Richard J. Daley Center", "label": "Daley Center", "floors": 31, "height_m": 197},
+        {"name": "Dirksen Federal Building and US Courthouse", "label": "Dirksen Courthouse", "floors": 30, "height_m": 117},
+        {"name": "Cook County Building", "label": "City Hall–County Building"},
+        {"name": "Chicago Union Station", "label": "Union Station"},
+        {"name": "The Art Institute of Chicago", "label": "Art Institute"},
+        {"name": "Chicago Water Tower", "label": "Water Tower"},
+        {"name": "Merchandise Mart"},
+        {"name": "Wrigley Building"},
+        {"name": "Tribune Tower", "floors": 36, "height_m": 141},
+        {"name": "Navy Pier"},
+        {"name": "Cloud Gate", "label": "Cloud Gate (the Bean)"},
+    ],
+    "diagonals": ["North Milwaukee Avenue", "North Ogden Avenue", "West Ogden Avenue", "North Kingsbury Street"],
+    "parks": ["Millennium Park", "Grant Park", "Maggie Daley Park", "Burnham Park", "Northerly Island", "Skinner Park",
+              "Jane Addams Park", "Ping Tom Memorial Park", "Polk Bros Park", "Arrigo Park", "Ogden Plaza",
+              "Chicago Women's Park and Gardens", "Washington Square", "Lake Shore Park", "Seward Park"],
+    "areas": _a([
+        ["The Loop", 41.8816, -87.6295, 1], ["Near North Side", 41.9000, -87.6346, 1], ["Near South Side", 41.8567, -87.6248, 1],
+        ["Gold Coast", 41.9049, -87.6287, 2], ["River North", 41.8922, -87.6314, 2], ["Streeterville", 41.8927, -87.6197, 2],
+        ["South Loop", 41.8658, -87.6258, 2], ["West Loop", 41.8822, -87.6531, 2], ["Little Italy", 41.8694, -87.6568, 2],
+        ["Pilsen", 41.8570, -87.6619, 2], ["Old Town", 41.9076, -87.6385, 2], ["Chinatown", 41.8545, -87.6330, 2],
+        ["Magnificent Mile", 41.8950, -87.6243, 3], ["Fulton Market District", 41.8867, -87.6533, 3],
+        ["Greektown", 41.8784, -87.6476, 3], ["Printer's Row", 41.8735, -87.6290, 3], ["Lakeshore East", 41.8866, -87.6174, 3],
+        ["Museum Campus", 41.8663, -87.6158, 3], ["Cabrini-Green", 41.8988, -87.6409, 3], ["Dearborn Park", 41.8674, -87.6290, 3],
+        ["Financial District", 41.8794, -87.6323, 4], ["Jewelers Row", 41.8821, -87.6262, 4], ["Fulton River District", 41.8865, -87.6425, 4],
+        ["Central Station", 41.8642, -87.6214, 4], ["East Pilsen", 41.8574, -87.6412, 4],
+        ["Near West Side", 41.8740, -87.6560, 3],       # (its middle is west of the box: named where the box holds it)
+    ]),
+    "rail_lines": [],
+    "transit": [
+        {"id": "red", "name": "Red Line", "colour": "#C60C30", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Red"]},
+        {"id": "blue", "name": "Blue Line", "colour": "#00A1DE", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Blue"]},
+        {"id": "brown", "name": "Brown Line", "colour": "#62361B", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Brown"]},
+        {"id": "green", "name": "Green Line", "colour": "#009B3A", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Green"]},
+        {"id": "orange", "name": "Orange Line", "colour": "#F9461C", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Orange"]},
+        {"id": "pink", "name": "Pink Line", "colour": "#E27EA6", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Pink"]},
+        {"id": "purple", "name": "Purple Line", "colour": "#522398", "kind": "metro", "network": "CTA",
+         "operator": "Chicago Transit Authority", "route": "subway", "refs": ["Purple"]},
+        {"id": "metra", "name": "Metra", "colour": "#005195", "kind": "rail", "network": "Metra",
+         "operator": "Metra", "route": "train", "refs": None},
+        {"id": "nictd", "name": "South Shore Line", "colour": "#A82618", "kind": "rail", "network": "NICTD",
+         "operator": "NICTD", "route": "train", "refs": None},
+    ],
+}
+
+PRESETS = {"nyc": NYC, "boston": BOSTON, "dc": DC, "chicago": CHICAGO}
 
 ALIASES = {
     "nyc": ("nyc", "new york", "new york city", "new york, ny", "new york ny", "manhattan", "manhattan, new york",
@@ -311,6 +405,7 @@ ALIASES = {
     "boston": ("boston", "boston, ma", "boston, massachusetts", "boston ma"),
     "dc": ("dc", "d.c.", "washington", "washington dc", "washington d.c.", "washington, dc", "washington, d.c.",
            "washington d c", "district of columbia"),
+    "chicago": ("chicago", "chicago, il", "chicago, illinois", "chicago il", "chicago illinois"),
 }
 
 FIELDS = ("place", "area", "bbox", "majors", "landmarks", "landmark_buildings", "diagonals", "parks", "areas",
@@ -439,6 +534,14 @@ COURTS = {
            aka=("Three Pemberton Square", "Suffolk Superior Court"), addr="3 Pemberton Square"),
         _c("Edward W. Brooke Courthouse", "city", 42.3627, -71.0614, label="Brooke Courthouse",
            aka=("Edward W. Brooke Court House", "Brooke Courthouse"), addr="24 New Chardon Street"),
+    ],
+    "chicago": [
+        _c("Dirksen Federal Building and US Courthouse", "federal", 41.8786, -87.6297, label="Dirksen Courthouse",
+           aka=("Everett McKinley Dirksen United States Courthouse", "Dirksen Federal Building"), addr="219 South Dearborn Street"),
+        _c("Richard J. Daley Center", "state", 41.8842, -87.6302, label="Daley Center (Circuit Court of Cook County)",
+           aka=("Daley Center",), addr="50 West Washington Street"),
+        _c("Cook County Building", "city", 41.8837, -87.6318, label="City Hall–County Building", levels=["city"],
+           aka=("City Hall–County Building", "Chicago City Hall"), addr="118 North Clark Street"),
     ],
     "dc": [
         _c("Supreme Court of the United States", "federal", 38.8906, -77.0044, label="Supreme Court",

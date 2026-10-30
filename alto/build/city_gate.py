@@ -323,9 +323,15 @@ def gate(g, m, blocks=None, preset=None, aliases=None, page=None, tiles=None, ti
             "ran": [r for r, _n, _w in ROWS if r in checks], "skipped": [r for r, _n, _w in ROWS if r not in checks]}
 
 
+def _ordered(rep):
+    """The report's rows in checklist order (a JSON round trip sorts G10 before G2)."""
+    order = {r: k for k, (r, _n, _w) in enumerate(ROWS)}
+    return sorted(rep["checks"].items(), key=lambda kv: order.get(kv[0], len(order)))
+
+
 def summary(rep) -> str:
     lines = ["score %.1f  %s" % (rep["score"], "PASS" if rep["pass"] else "NOT PASSED")]
-    for row, c in rep["checks"].items():
+    for row, c in _ordered(rep):
         lines.append("%-4s %-28s %-4s w%-2d %s" % (row, c["rule"], c["status"], c["w"], c["msg"]))
     if rep.get("skipped"):
         lines.append("not run: " + ", ".join(rep["skipped"]))
@@ -336,7 +342,7 @@ def markdown(rep, title) -> str:
     out = ["# %s: city gate" % title, "", "Score **%.1f** / 100, %s (pass = score >= %d, no fail, rows %s ran)." % (
         rep["score"], "**PASS**" if rep["pass"] else "**not passed**", PASS_SCORE, ", ".join(ZERO_TOL)), "",
         "| row | rule | w | status | measured |", "|---|---|---|---|---|"]
-    for row, c in rep["checks"].items():
+    for row, c in _ordered(rep):
         out.append("| %s | %s | %d | %s | %s |" % (row, c["rule"], c["w"], c["status"], c["msg"].replace("|", "/")))
     if rep.get("skipped"):
         out += ["", "Not run: %s." % ", ".join(rep["skipped"])]
