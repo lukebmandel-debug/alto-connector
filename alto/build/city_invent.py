@@ -461,8 +461,8 @@ def invent_city(spec) -> dict:
         cand = [c for c in d.cells if (d.name, c[1]) not in taken and
                 not (abs(c[0][0] - d.cx) < 1.6 * d.bw and abs(c[0][1] - d.cy) < 1.2 * d.bh) and   # its name stands there
                 not any(_poly_dist(dl, *c[0]) < .8 * max(d.bw, d.bh) for dl in diag_lines) and   # no avenue runs through it
-                not any(-.6 * d.bh < c[0][1] - y < 1.6 * d.bh and x0 - d.bw < c[0][0] < x1 + d.bw   # nor a line (nor the row
-                        for y, x0, x1 in rail_rows)]                                                 # below, whose art rises)
+                not any(-1.6 * d.bh < c[0][1] - y < 1.6 * d.bh and x0 - d.bw < c[0][0] < x1 + d.bw   # nor a line (nor the row
+                        for y, x0, x1 in rail_rows)]          # below, whose art rises; nor above, whose name meets the stations')
         if near is not None:
             cand.sort(key=lambda c: (c[0][0] - near[0]) ** 2 + (c[0][1] - near[1]) ** 2)
         else:                                           # spread: the middle first, then outwards in a fixed order
@@ -602,7 +602,7 @@ def invent_city(spec) -> dict:
             if _norm(l_["n"]) in stn:
                 continue
             x_, y_ = lm_pos.get(_norm(l_["n"]), (None, None))
-            if x_ is None or not any(-.6 * BLOCK[1] < y_ - y < 1.6 * BLOCK[1] and x0 - BLOCK[0] < x_ < x1 + BLOCK[0]
+            if x_ is None or not any(-1.6 * BLOCK[1] < y_ - y < 1.6 * BLOCK[1] and x0 - BLOCK[0] < x_ < x1 + BLOCK[0]
                                      for y, x0, x1 in rail_rows):
                 continue
             d = min((d_ for d_ in D if d_.kind == "grid"), key=lambda d_: (d_.cx - x_) ** 2 + (d_.cy - y_) ** 2)
