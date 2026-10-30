@@ -70,15 +70,26 @@ def test_the_rest_of_the_policy_stays_as_strict():
 
 
 def test_a_sandboxed_share_can_fetch_the_hosted_palace_files():
-    """A shared page runs in an opaque origin, so fetch and crossOrigin images need the header on every hashed file a palace reads."""
+    """A shared page runs in an opaque origin, and palace_assets.loader reads every hosted script by XHR, so each hosted folder needs the header."""
     from alto import publish_static as ps
+    from alto.build import palace_assets
     any_origin = {"key": "Access-Control-Allow-Origin", "value": "*"}
-    rules = (ps._cmap_rules(["b-0123456789ab.json", "t-0123456789.json"]) + ps._bldg_rules(["plan-0123456789ab.json"]))
-    assert rules and all(any_origin in r["headers"] for r in rules)
-    world = [r for r in ps._security_headers(None) if r.get("source") == "/world/**"]
-    assert world and any_origin in world[0]["headers"]
-    retro = [r for r in ps._security_headers(None) if r.get("source") == "/retro/**"]
-    assert retro and any_origin not in retro[0]["headers"]
+    rules = ps._security_headers(None)
+    folders = set(palace_assets.folders()) - {"bldg", "cmap"}     # (each has one rule per file, below)
+    assert {"fleet", "retro", "phone", "world"} <= folders
+    for f in folders:
+        rule = [r for r in rules if r.get("source") == "/%s/**" % f]
+        assert rule and any_origin in rule[0]["headers"], f
+    named = (ps._cmap_rules(["b-0123456789ab.json", "t-0123456789.json"]) + ps._bldg_rules(["plan-0123456789ab.json"]))
+    assert named and all(any_origin in r["headers"] for r in named)
+
+
+def test_the_signed_in_script_is_not_open_to_a_sandboxed_page():
+    """alto-cloud.js is the signed-in module; only the public hashed folders answer any origin."""
+    from alto import publish_static as ps
+    open_sources = [r.get("source", r.get("regex", "")) for r in ps._security_headers(None)
+                    if {"key": "Access-Control-Allow-Origin", "value": "*"} in r["headers"]]
+    assert not [s for s in open_sources if "cloud" in s or s in ("**", "/s/**", "/pv/**")]
 
 
 # ── the site's own origin beside 'self' (WebKit does not match 'self' in a sandboxed, opaque-origin frame) ─────────────────────────────
