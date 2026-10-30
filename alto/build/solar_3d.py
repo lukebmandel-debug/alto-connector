@@ -684,6 +684,9 @@ function labels(G, r){
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
     e.setAttribute('data-go', id);
     e.children[0].textContent=H[id].map(function(d){ return (NHT[d] || NHD[d])[0]; }).join(''); e.children[1].textContent=NHT[H[id][0]] ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
+  /* a body behind another, its centre covered by a nearer one that is drawn: no name (Art 2026-10-30: "Case 2" over the planet) */
+  function hid(id, q){ return Object.keys(G.bodies).some(function(k){ var o=BOD[k], p; if(k===id || !o || (o.fa<.5 && k!==f) || !(p=proj(W(G.bodies[k])))) return false;
+    return p.w<q.w && Math.hypot(p.x-q.x, p.y-q.y)<G.bodies[k].d/2*p.s; }); }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   var BX=[], NM=[], PL=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */
   function free(x, y, w, h){ if(BX.some(function(a){ return x<a[2] && x+w>a[0] && y<a[3] && y+h>a[1]; })) return false; BX.push([x, y, x+w, y+h]); return true; }
@@ -692,7 +695,7 @@ function labels(G, r){
   Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f || (o.fa<.5 && !H[id])) return;     /* (a faded body's name goes, its hint stays) */
     var inside=q && q.x>r.left && q.x<r.right && q.y>r.top && q.y<r.bottom, rp=q ? g.d/2*q.s : 0;
     if(H[id]){ PL.push({id:id, q:q, rp:rp}); return; }     /* (the pills: laid out together below, clear of the disc, the bodies and each other) */
-    if(!inside || rp<(g.role==='planet' ? 1.2 : g.role==='sun' ? .5 : 3)) return;
+    if(!inside || rp<(g.role==='planet' ? 1.2 : g.role==='sun' ? .5 : 3) || hid(id, q)) return;
     NM.push({id:id, x:q.x, y:q.y+rp+4, rk:({sun:0, planet:1, moon:2}[g.role]||3)*1e4-rp, m:g.role!=='planet' && g.role!=='sun'}); });
   var PP=window._altoSolarPills, fc=f && document.getElementById('node-'+f), fr=fc && (fc.querySelector('.node-card')||fc).getBoundingClientRect();
   if(PL.length && PP){ var obs=[], WB=PP.bounds(); WB.x1=Math.min(WB.x1, r.right-16);
