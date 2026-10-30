@@ -110,6 +110,10 @@ html.alto-retro #wpal-root .wp-trail:not(#_){stroke:#d9ae55;}
 html.alto-retro #wpal-root .wp-seg:not(#_){border-radius:0;background:none;border:1px solid rgba(217,174,85,.4);}
 html.alto-retro #wpal-root .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){background:#d9ae55;color:#000;box-shadow:none;}
 /* adding a country by hand (edit mode, desktop; Luke 2026-10-29: "Make sure user can manually add countries"): the edit pill's + Country */
+/* (a solid plate: no map shows through it; Art 2026-10-30) */
+#wpal-root .wp-bar.wp-pick{background:#fbfcff;-webkit-backdrop-filter:none;backdrop-filter:none;color-scheme:light;}
+html.dark #wpal-root .wp-bar.wp-pick{background:#151b2c;color-scheme:dark;}
+html.alto-retro #wpal-root .wp-bar.wp-pick:not(#_){background:#05070b;color-scheme:dark;}
 #wpal-root .wp-pick{left:50%;top:64px;transform:translateX(-50%);width:min(380px,calc(100% - 32px));display:flex;flex-direction:column;align-items:stretch;gap:8px;white-space:normal;padding:12px;z-index:8;}
 #wpal-root .wp-pick .r{display:flex;gap:6px;align-items:center;}
 #wpal-root .wp-pick b{font-size:13.5px;flex:1;}
@@ -514,7 +518,7 @@ function planeHop(from,to,v,land){
   var fits=[sa,sb].every(function(q){ return q[0]>I.l+30&&q[0]<S.vw-I.r-30&&q[1]>I.t+30&&q[1]<S.vh-I.b-30; });
   if(!fits) fly(f.cx,f.cy,kf);                                                 // the frame: both ends in view (the camera does not follow)
   var g=el('g',{'class':'wp-plane'},S.ovPlane), tr=el('path',{'class':'wp-trail'},S.ovPlane);
-  el('path',{d:'M16.5 0 L-13.5 -12 L-6 0 L-13.5 12 Z'},g); el('path',{'class':'f',d:'M-6 0 L16.5 0'},g);      // (30 x 24 px: Art, 1.5x)
+  el('path',{d:'M18 0 L-14 -13 L-6 0 L-14 13 Z'},g); el('path',{'class':'f',d:'M-6 0 L18 0'},g);      // (32 x 26 px: Art, never under 24)
   var L=Math.hypot(sb[0]-sa[0],sb[1]-sa[1]), dur=clamp(900+420*Math.log2(1+L/300),1000,1800), W=300;
   var P=S.plane={g:g,tr:tr,a:[a.x,a.y],c:Q.c,b:[b.x,b.y],t0:performance.now(),dur:dur,W:W,to:to,v:v,land:land,raf:0};
   var at=function(t){ var u=1-t; return [u*u*P.a[0]+2*u*t*P.c[0]+t*t*P.b[0],u*u*P.a[1]+2*u*t*P.c[1]+t*t*P.b[1]]; };
