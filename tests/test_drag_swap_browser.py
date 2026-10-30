@@ -104,6 +104,7 @@ def _menu(pg, i):
     pg.evaluate(f"document.getElementById('node-{i}').scrollIntoView({{block:'center'}})")
     pg.wait_for_timeout(200)
     pg.hover(f"#node-{i} .node-title")
+    pg.wait_for_timeout(350)       # the card grows ~135 ms on hover; a click mid-growth makes Playwright retry with a forced scroll, which slides the card from under the pointer
     pg.click(f'#node-{i} .aed-cc button[data-x="swapc"]')
     pg.wait_for_timeout(200)
 
