@@ -50,6 +50,7 @@ def test_a_tour_leg_flies_the_paper_plane_and_esc_lands_it(browser, origin):  # 
         page.evaluate("AltoWorld.hop(1)")                                        # Mexico to Peru: a far leg
         page.wait_for_timeout(500)
         assert page.evaluate("AltoWorld.plane() && !!document.querySelector('#wpal-root .wp-plane') && !!document.querySelector('#wpal-root .wp-trail')")
+        assert page.evaluate("document.querySelector('#wpal-root .wp-plane path').getBBox().width") >= 22         # Art: 1.5x, never under 22 px
         _settle(page, 2600)
         assert not page.evaluate("AltoWorld.plane()") and page.evaluate(ENL) == "erie"
         page.evaluate("AltoWorld.hop(-1)")                                       # and back; Esc goes straight to the landing

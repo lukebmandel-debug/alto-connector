@@ -516,7 +516,7 @@ function planeHop(from,to,v,land){
   var fits=[sa,sb].every(function(q){ return q[0]>I.l+30&&q[0]<S.vw-I.r-30&&q[1]>I.t+30&&q[1]<S.vh-I.b-30; });
   if(!fits) fly(f.cx,f.cy,kf);                                                 // the frame: both ends in view (the camera does not follow)
   var g=el('g',{'class':'wp-plane'},S.ovPlane), tr=el('path',{'class':'wp-trail'},S.ovPlane);
-  el('path',{d:'M11 0 L-9 -8 L-4 0 L-9 8 Z'},g); el('path',{'class':'f',d:'M-4 0 L11 0'},g);
+  el('path',{d:'M16.5 0 L-13.5 -12 L-6 0 L-13.5 12 Z'},g); el('path',{'class':'f',d:'M-6 0 L16.5 0'},g);      // (30 x 24 px: Art, 1.5x)
   var L=Math.hypot(sb[0]-sa[0],sb[1]-sa[1]), dur=clamp(900+420*Math.log2(1+L/300),1000,1800), W=300;
   var P=S.plane={g:g,tr:tr,a:[a.x,a.y],c:Q.c,b:[b.x,b.y],t0:performance.now(),dur:dur,W:W,to:to,v:v,land:land,raf:0};
   var at=function(t){ var u=1-t; return [u*u*P.a[0]+2*u*t*P.c[0]+t*t*P.b[0],u*u*P.a[1]+2*u*t*P.c[1]+t*t*P.b[1]]; };
