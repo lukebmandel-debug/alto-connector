@@ -1484,34 +1484,45 @@
     termsTicked = !!(b && b.checked);
     return true;
   }
+  // true when the record exists afterwards. A refused create is read once more: a record that is there already (another tab, a second click) counts as accepted;
+  // anything else (the rules not deployed yet, a person who is not on the beta list) is reported, never thrown
   async function termsWrite(user) {
+    const ref = doc(db, 'terms_acceptance', termsDocId(user.uid));
     try {
-      await setDoc(doc(db, 'terms_acceptance', termsDocId(user.uid)),
-        { uid: user.uid, version: TERMS_V, ageConfirmed: true, acceptedAt: serverTimestamp() });
-    } catch (e) { console.warn('[AltoCloud] terms record', e); }
+      await setDoc(ref, { uid: user.uid, version: TERMS_V, ageConfirmed: true, acceptedAt: serverTimestamp() });
+      return true;
+    } catch (e) {
+      console.warn('[AltoCloud] terms record', e);
+      try { return (await getDoc(ref)).exists(); } catch (e2) { return false; }
+    }
   }
+  const TERMS_FAIL = "We couldn't save your agreement. Please try again.";
   // after sign-in: this person's own record for this version decides. Missing -> write it if the box was ticked just now, else a blocking dialog (declining signs out).
-  // A record that cannot be read does not lock anyone out.
+  // A record that cannot be read does not lock anyone out (the Bass proxy checks the same record and does), and is never written over.
   async function termsCheck(user) {
     let exists = false;
     try { exists = (await getDoc(doc(db, 'terms_acceptance', termsDocId(user.uid)))).exists(); }
     catch (e) { console.warn('[AltoCloud] terms read', e); return; }
     if (exists) return;
-    if (termsTicked) { termsTicked = false; await termsWrite(user); return; }
+    if (termsTicked) { termsTicked = false; if (!(await termsWrite(user))) termsDialog(user, TERMS_FAIL); return; }
     termsDialog(user);
   }
-  function termsDialog(user) {
+  function termsDialog(user, problem) {
     if (document.getElementById('alto-terms-scrim')) return;
     termsStyle();
     const sc = document.createElement('div'); sc.id = 'alto-terms-scrim'; sc.setAttribute('role', 'dialog'); sc.setAttribute('aria-modal', 'true'); sc.setAttribute('aria-label', 'Beta Terms');
     sc.innerHTML = '<div id="alto-terms-card"><h2>Before you continue</h2>' +
-      '<p>The Beta Terms and Privacy Policy are new or have changed. Please read them and agree to keep using Alto.</p>' +
+      '<p id="alto-terms-msg" role="status">' + (problem || 'The Beta Terms and Privacy Policy are new or have changed. Please read them and agree to keep using Alto.') + '</p>' +
       '<label class="acct-terms"><input type="checkbox" id="alto-terms-ok"><span>' + LEGAL_HTML + '</span></label>' +
       '<button type="button" id="alto-terms-go" disabled>Continue</button><button type="button" id="alto-terms-no">Sign out</button></div>';
     document.body.appendChild(sc);
     const ok = sc.querySelector('#alto-terms-ok'), go = sc.querySelector('#alto-terms-go');
     ok.addEventListener('change', () => { go.disabled = !ok.checked; });
-    go.addEventListener('click', async () => { go.disabled = true; await termsWrite(user); sc.remove(); });
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      if (await termsWrite(user)) { sc.remove(); return; }
+      sc.querySelector('#alto-terms-msg').textContent = TERMS_FAIL; go.disabled = !ok.checked;
+    });
     sc.querySelector('#alto-terms-no').addEventListener('click', () => { sc.remove(); _signOut().catch(() => {}); });
     ok.focus();
   }

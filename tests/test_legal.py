@@ -102,9 +102,9 @@ export function getFirestore(){ return {}; }
 export function doc(db, ...s){ return {path:s.join('/'), id:s[s.length-1], kind:'doc'}; }
 export function collection(db, ...s){ return {path:s.join('/'), kind:'col'}; }
 const snap = (ref) => { const d = fs.docs[ref.path]; return {exists:()=>!!d, data:()=>d, id:ref.id, ref, metadata:{hasPendingWrites:false}}; };
-export async function getDoc(ref){ return snap(ref); }
+export async function getDoc(ref){ if(fs.failGet && ref.path.startsWith('terms_acceptance')) throw new Error('unavailable'); return snap(ref); }
 export async function getDocs(){ return {docs:[], forEach(){}}; }
-export async function setDoc(ref, data, o){ fs.docs[ref.path] = Object.assign({}, (o&&o.merge) ? (fs.docs[ref.path]||{}) : {}, data); fs.writes.push([ref.path, data]); }
+export async function setDoc(ref, data, o){ if(fs.denySet && ref.path.startsWith('terms_acceptance')) throw new Error('permission-denied'); fs.docs[ref.path] = Object.assign({}, (o&&o.merge) ? (fs.docs[ref.path]||{}) : {}, data); fs.writes.push([ref.path, data]); }
 export async function deleteDoc(ref){ delete fs.docs[ref.path]; }
 export function onSnapshot(ref, cb){ setTimeout(()=>cb(ref.kind==='col' ? {metadata:{hasPendingWrites:false}, forEach(){}, docs:[]} : snap(ref)),0); return ()=>{}; }
 export function serverTimestamp(){ return 'SERVER_TIME'; }
@@ -145,12 +145,12 @@ def browser():
         b.close()
 
 
-def _open(browser, site, docs=None, user=False, wait_box=True):
+def _open(browser, site, docs=None, user=False, flags=""):
     pg = browser.new_page(viewport={"width": 1200, "height": 800})
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.route("https://www.gstatic.com/firebasejs/**", lambda r: r.fulfill(status=200, content_type="text/javascript", body=STUBS[r.request.url.rsplit("/", 1)[1]]))
-    init = "window.__fs={docs:%s,writes:[]};window.__signins=0;window.__signouts=0;" % json.dumps(docs or {})
+    init = "window.__fs={docs:%s,writes:[]};window.__signins=0;window.__signouts=0;%s" % (json.dumps(docs or {}), flags)
     if user:
         init += "window.__user={uid:'u1',displayName:'T',email:'t@example.com',photoURL:''};"
     pg.add_init_script(init)
@@ -221,6 +221,32 @@ def test_a_new_version_asks_again_and_declining_signs_out(browser, site):
         pg.click("#alto-terms-no")
         pg.wait_for_function("window.__signouts === 1", timeout=5000)
         assert pg.locator("#alto-terms-scrim").count() == 0
+        assert pg.evaluate("window.__fs.writes.filter(w => w[0].startsWith('terms_acceptance')).length") == 0
+        assert errors == []
+    finally:
+        pg.close()
+
+
+def test_a_refused_save_says_so_and_keeps_asking_and_an_unreadable_record_is_never_written_over(browser, site):
+    import alto.build.legal as lg
+    pg, errors = _open(browser, site, user=True, flags="window.__fs.denySet=true;")
+    try:
+        pg.wait_for_selector("#alto-terms-scrim", timeout=5000)                           # nothing to read, nothing could be saved: the dialog, not a crash
+        pg.check("#alto-terms-ok")
+        pg.click("#alto-terms-go")
+        pg.wait_for_function("document.getElementById('alto-terms-msg').textContent.includes(\"couldn't save\")", timeout=5000)
+        assert pg.locator("#alto-terms-scrim").count() == 1 and not pg.is_disabled("#alto-terms-go")
+        assert pg.evaluate("window.__signouts") == 0
+        pg.evaluate("window.__fs.denySet = false")
+        pg.click("#alto-terms-go")
+        pg.wait_for_function("window.__fs.docs['terms_acceptance/u1_%s']" % lg.version(), timeout=5000)
+        assert errors == []
+    finally:
+        pg.close()
+    pg, errors = _open(browser, site, user=True, flags="window.__fs.failGet=true;")
+    try:
+        pg.wait_for_timeout(600)
+        assert pg.locator("#alto-terms-scrim").count() == 0                                # fail-open (the Bass proxy checks the same record and fails closed)
         assert pg.evaluate("window.__fs.writes.filter(w => w[0].startsWith('terms_acceptance')).length") == 0
         assert errors == []
     finally:
