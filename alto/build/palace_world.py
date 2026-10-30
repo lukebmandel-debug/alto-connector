@@ -42,6 +42,7 @@ html.dark #wpal-root .wp-land{filter:none;}
 #wpal-root .wp-c.wp-u{fill:color-mix(in srgb,var(--u) var(--w-used),var(--w-mix));stroke:color-mix(in srgb,var(--u) 80%,transparent);stroke-width:1.2px;cursor:pointer;}
 #wpal-root .wp-c.wp-on{fill:color-mix(in srgb,var(--u) 52%,var(--w-mix));stroke-width:2.2px;}
 #wpal-root.wp-focus .wp-c.wp-u:not(.wp-on){opacity:.55;}
+#wpal-root.wp-one .wp-c:not(.wp-u){opacity:.45;}
 #wpal-root .wp-a1{fill:none;stroke:var(--w-edge);stroke-width:.8px;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;}
 #wpal-root .wp-arc{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;}
 #wpal-root .wp-arc.h{stroke:color-mix(in srgb,var(--u) 35%,transparent);stroke-width:6px;}
@@ -648,7 +649,12 @@ A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1
 A.tourMode=function(v){ if(v==null) return S.tour; S.tour=!!v; try{ localStorage.setItem('alto-world-tour',S.tour?'on':'off'); }catch(x){}
   if(S.tourBtn) S.tourBtn.setAttribute('aria-pressed',String(S.tour)); S.root.classList.toggle('wp-free',!S.tour);
   if(S.tour){ if(S.cur) A.select(S.cur); else A.hop(1); } else { stop(); if(S.cl||S.cur) unfocus(); else tourBar(); if(S.ready) labels(); } };
-A.world=function(){ unfocus(); var v=worldView(); fly(v.cx,v.cy,v.k); };
+A.world=function(){ unfocus(); var v=homeView(); fly(v.cx,v.cy,v.k); };
+// a map of one country (brief.world.country, world_plan._plan_country): its home is the country, framed; the rest of the world is still
+// there to pan to, faded
+function one(){ var c=D().scope; return c&&S.bb[c]?c:null; }
+function homeView(){ var c=one(); if(!c) return worldView(); var b=S.bb[c], v=fitBox(b,phone()?14:40); return v; }
+function homeName(){ var c=D().scope; return c?dec((D().names||{})[c]||c):'Whole world'; }
 A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
 function tourBar(){ navSync();
   var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.tour&&s.length>0; B.hidden=!on; if(!on) return;      // (the Tour on: its bar is there before the first stop)
@@ -793,7 +799,7 @@ function nsibs(h){ return nkids(nup(h)); }
 function nscope(h){ var k=nkids(h); return k.length?k:nsibs(h); }
 function nnext(h){ if(!h) return null; var s=nsibs(h), i=s.indexOf(h); return i>=0&&s[i+1]?s[i+1]:null; }
 function nround(h,d){ var s=nscope(h), i=s.indexOf(h); if(!s.length||(s.length===1&&i===0)) return null; return i<0?s[d>0?0:s.length-1]:s[(i+d+s.length)%s.length]; }
-function nname(h){ if(!h) return 'Whole world'; var a=ua(h); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var n=N(h); return n?dec(((n.n||'')+' '+(n.t||'')).trim()):''; }
+function nname(h){ if(!h) return homeName(); var a=ua(h); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var n=N(h); return n?dec(((n.n||'')+' '+(n.t||'')).trim()):''; }
 function nhome(){ return S.cur||(S.ua!=null?ukey(S.ua):''); }
 function ngo(h){ if(!h){ A.world(); return; } var a=ua(h); if(a>=0){ A.unit(a); return; } A.select(h); }
 var NKEYS=[['Back','up to the place or unit it belongs to'],['Next','the next one at the same level'],['Left / Right arrows','round the ones beside the enlarged card (Tour off; on, the arrows step the Tour)'],['1 – 9','that one beside it (lit and numbered on the map)'],['O','the whole world'],['Esc','the card goes, then the whole world'],['T','the Tour on or off'],['+ / −','zoom']];
@@ -817,11 +823,13 @@ function navChrome(){
   S.mmTip=h('div',{'class':'wp-bar wp-mmtip',hidden:''},S.root);
   mmInput(); }
 function mmDraw(){ var L=S.mmLand, used=D().used||{}; while(L.firstChild) L.removeChild(L.firstChild);
+  var oc=one(); if(oc){ var bb=S.bb[oc], w=bb[2]-bb[0], hh=bb[3]-bb[1], m=Math.max(w,hh*2.05)*.08, W=Math.max(w,hh*2.05)+2*m, H=W/2.05;
+    S.mmSvg.setAttribute('viewBox',[(bb[0]+bb[2])/2-W/2,(bb[1]+bb[3])/2-H/2,W,H].map(function(v){ return v.toFixed(1); }).join(' ')); S.mmHere.setAttribute('r',(W/80).toFixed(1)); }
   for(var cid in S.paths){ var p=S.paths[cid]; if(!p._base) continue; el('path',{d:p._base,'class':'c'+(used[cid]!=null?' u '+ucls(used[cid]):'')},L); }
   var P=S.mmPins; while(P.firstChild) P.removeChild(P.firstChild);
-  stops().forEach(function(id){ var n=N(id); if(n&&n.x!=null) el('circle',{cx:n.x,cy:n.y,r:12,'class':ucls(n.a),'data-id':id},P); }); }
+  var pr=oc?(S.mmSvg.viewBox.baseVal.width/160):12; stops().forEach(function(id){ var n=N(id); if(n&&n.x!=null) el('circle',{cx:n.x,cy:n.y,r:pr.toFixed(1),'class':ucls(n.a),'data-id':id},P); }); }
 function mmPt(e){ var M=S.mmSvg.getScreenCTM(); if(!M) return null; var p=S.mmSvg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; p=p.matrixTransform(M.inverse()); return [p.x,p.y]; }
-function mmNear(q){ var best=null, bd=1e9; stops().forEach(function(id){ var n=N(id); if(!n||S.out[id]) return; var d=Math.hypot(n.x-q[0],n.y-q[1]); if(d<bd){ bd=d; best=id; } }); return bd<=70?best:null; }
+function mmNear(q){ var best=null, bd=1e9; stops().forEach(function(id){ var n=N(id); if(!n||S.out[id]) return; var d=Math.hypot(n.x-q[0],n.y-q[1]); if(d<bd){ bd=d; best=id; } }); return bd<=S.mmSvg.viewBox.baseVal.width/28?best:null; }
 function mmInput(){ var mm=S.mmEl, dg=null;
   mm.addEventListener('pointerdown',function(e){ if(e.button>0) return; e.stopPropagation(); var q=mmPt(e); if(!q) return; var b=visBox();
     dg={x:e.clientX,y:e.clientY,q:q,in:q[0]>b[0]&&q[0]<b[2]&&q[1]>b[1]&&q[1]<b[3],c:[S.cx,S.cy],on:0}; try{ mm.setPointerCapture(e.pointerId); }catch(x){} });
@@ -836,8 +844,8 @@ function mmInput(){ var mm=S.mmEl, dg=null;
 function mmBox(){ if(!S.mmBox||!S.mmEl.classList.contains('on')) return; var b=visBox(), r=S.mmBox; r.setAttribute('rx',0);
   if(S.globe){ var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]), rr=Math.min(GR*1.5,Math.min(S.vw,S.vh)/2/S.k);
     r.setAttribute('x',(f[0]-rr).toFixed(0)); r.setAttribute('y',(f[1]-rr).toFixed(0)); r.setAttribute('width',(2*rr).toFixed(0)); r.setAttribute('height',(2*rr).toFixed(0)); r.setAttribute('rx',rr.toFixed(0)); return; }
-  r.setAttribute('x',Math.max(b[0],-1010).toFixed(0)); r.setAttribute('y',Math.max(b[1],-497).toFixed(0));
-  r.setAttribute('width',Math.max(8,Math.min(b[2],1010)-Math.max(b[0],-1010)).toFixed(0)); r.setAttribute('height',Math.max(8,Math.min(b[3],497)-Math.max(b[1],-497)).toFixed(0)); }
+  var V=S.mmSvg.viewBox.baseVal, x0=Math.max(b[0],V.x), y0=Math.max(b[1],V.y), x1=Math.min(b[2],V.x+V.width), y1=Math.min(b[3],V.y+V.height), mn=V.width/250;
+  r.setAttribute('x',x0.toFixed(1)); r.setAttribute('y',y0.toFixed(1)); r.setAttribute('width',Math.max(mn,x1-x0).toFixed(1)); r.setAttribute('height',Math.max(mn,y1-y0).toFixed(1)); }
 // what is drawn follows where you are: the control's labels, the minimap (only while a card or a unit is enlarged), the lit and numbered places
 function navSync(){ if(!S.navEl) return; var hm=nhome(), u=nup(hm), nx=nnext(hm), p=hm?nup(hm):null;
   var lab=function(e,t){ e.title=t; e.setAttribute('aria-label',t); };
@@ -846,7 +854,7 @@ function navSync(){ if(!S.navEl) return; var hm=nhome(), u=nup(hm), nx=nnext(hm)
   if(S.nFlat){ S.nFlat.setAttribute('aria-pressed',String(!S.globe)); S.nGlb.setAttribute('aria-pressed',String(!!S.globe)); }
   S.nMp.classList.toggle('on',!!S.mmOn); S.nMp.setAttribute('aria-pressed',String(!!S.mmOn)); lab(S.nMp,S.mmOn?'Hide the minimap':'Show the minimap');
   var at=S.nAt; while(at.firstChild) at.removeChild(at.firstChild); at.setAttribute('data-go',hm);
-  if(hm&&p) at.appendChild(document.createTextNode(nname(p)+' › ')); h('b',null,at,nname(hm)); lab(at,hm?'You are at '+nname(hm)+(p?', in '+nname(p):'')+' (? for the keys)':'The whole world (? for the keys)');
+  if(hm&&p) at.appendChild(document.createTextNode(nname(p)+' › ')); h('b',null,at,nname(hm)); lab(at,hm?'You are at '+nname(hm)+(p?', in '+nname(p):'')+' (? for the keys)':'All of '+homeName().replace(/^Whole world$/,'the world')+' (? for the keys)');
   var mmOn=!!(S.mmOn&&hm&&S.ready); S.mmEl.classList.toggle('on',mmOn); S.root.classList.toggle('wp-mmon',mmOn); if(!mmOn) S.mmTip.hidden=true;
   var hp=placeOf(hm)||(ua(hm)>=0?null:null), hn=hp&&N(hp); if(hn){ S.mmHere.setAttribute('cx',hn.x); S.mmHere.setAttribute('cy',hn.y); S.mmHere.style.display=''; } else S.mmHere.style.display='none';
   mmBox(); hints(hm); }
@@ -918,7 +926,7 @@ function bindInput(){
 function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=S.root.clientWidth||r.width||window.innerWidth; S.vh=S.root.clientHeight||r.height||window.innerHeight;
   S.z=r.width&&S.root.clientWidth?r.width/S.root.clientWidth:1; S.rl=r.left; S.rt=r.top; var v=worldView(); S.kW=v.k;
   if(S.globe){ S.globe=0; S.kW=worldView().k; S.globe=1; } gSize();
-  if(!S.inited){ S.inited=1; S.cx=v.cx; S.cy=v.cy; S.k=v.k; } else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
+  if(!S.inited){ S.inited=1; if(one()) v=homeView(); S.cx=v.cx; S.cy=v.cy; S.k=v.k; } else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
 function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
   S.top=top; S.root.style.setProperty('--w-top',top+'px'); }
 
@@ -928,7 +936,7 @@ function chrome(){
   var ctl=S.ctlEl=h('div',{'class':'wp-bar wp-ctl'},root);
   var tb=S.tourBtn=h('button',{type:'button','class':'wp-btn wp-tt','aria-pressed':String(S.tour),title:'Tour the route stop by stop, or turn it off to roam the world (T)'},ctl,'Tour');
   h('span',{'class':'wp-sw','aria-hidden':'true'},tb); tb.addEventListener('click',function(){ A.tourMode(!S.tour); }); root.classList.toggle('wp-free',!S.tour);
-  var wb=h('button',{type:'button','class':'wp-btn',title:'The whole world'},ctl,'⤢ World'); wb.addEventListener('click',A.world);
+  var wb=h('button',{type:'button','class':'wp-btn',title:D().scope?'The whole of '+homeName():'The whole world'},ctl,D().scope?'⤢ '+homeName():'⤢ World'); wb.addEventListener('click',A.world);
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
   var narrow=(window.innerWidth||1000)<700||document.documentElement.classList.contains('mobile');      // (the map is not measured yet; a phone on its side too)
@@ -975,7 +983,7 @@ function back(){ var f=window._featuredNodeId, R=S.reopen; S.reopen=null;
 A.mount=function(data){
   if(S.root||!data||!window.fetch) return; A.data=data;
   var st=h('style',{id:'wpal-css'},document.head); st.textContent=WORLD_CSS; unitStyle();
-  var root=S.root=h('div',{id:'wpal-root','aria-label':'World map'},document.body);
+  var root=S.root=h('div',{id:'wpal-root','aria-label':data.scope?'Map':'World map','class':data.scope?'wp-one':''},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
   S.gl=h('canvas',{'class':'wp-globe','aria-hidden':'true'},root); S.gv=h('canvas',{'class':'wp-globe v','aria-hidden':'true'},root);
@@ -985,7 +993,7 @@ A.mount=function(data){
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail(); watchPage();
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
-    msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); settle(); watchBoard(); dim(); navSync();
+    msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); if(one()){ var hv=homeView(); S.cx=hv.cx; S.cy=hv.cy; S.k=hv.k; apply(); } settle(); watchBoard(); dim(); navSync();
     new MutationObserver(function(){ if(S.globe&&S.G) setTimeout(function(){ gPaint(); gDraw(); },60); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
     try{ if(localStorage.getItem('alto-world-globe')==='1'&&!phone()) A.globe(true); }catch(x){}
     emit('ready');
@@ -1058,5 +1066,5 @@ def world_data(b, nodes) -> str:
             "acts": [{"n": _unit_name(a.short or a.label), "c": a.color or ""} for a in b.acts],
             "u": [{"reg": u["reg"], "tops": u["tops"], "st": u["stops"], **({"hub": u["hub"]} if u.get("hub") else {})} for u in p["units"]],
             "nodes": out, "cl": p["cl"], "used": p["used"], "multi": p["multi"],
-            "names": {c: C[c]["n"] for c in p["used"] if c in C}}
+            "names": {c: C[c]["n"] for c in p["used"] if c in C}, **({"scope": p["country"]} if p.get("country") else {})}
     return "\nwindow._ALTO_WORLD=" + js_json(data, separators=(",", ":")) + ";" + WORLD_LOADER + WORLD_START
