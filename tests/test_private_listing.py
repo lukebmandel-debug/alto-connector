@@ -88,7 +88,7 @@ def test_a_title_from_firestore_is_not_parsed_as_markup(home):
     block = home[home.index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
     assert "const heading = pg.heading || pg.title" in block
-    assert ".tile-title').textContent = heading" in block
+    assert ".tile-title').textContent = String(heading)" in block        # textContent (the title goes through String(...).replace(...) for hyphen breaks), never innerHTML
     helper = home[home.index("function projectSlab("):]
     assert "kicker.textContent = name;" in helper[:600]
     assert "innerHTML = pg." not in block
