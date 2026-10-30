@@ -40,3 +40,26 @@ def test_a_card_to_card_hop_in_one_place_folds_and_grows(browser, origin):  # no
         assert not errors, errors
     finally:
         page.close()
+
+
+def test_a_tour_leg_flies_the_paper_plane_and_esc_lands_it(browser, origin):  # noqa: F811
+    page, errors = _open(browser, origin)
+    try:
+        page.evaluate("AltoWorld.tourMode(true); AltoWorld.select('sj', {instant: true})")
+        _settle(page, 600)
+        page.evaluate("AltoWorld.hop(1)")                                        # Mexico to Peru: a far leg
+        page.wait_for_timeout(500)
+        assert page.evaluate("AltoWorld.plane() && !!document.querySelector('#wpal-root .wp-plane') && !!document.querySelector('#wpal-root .wp-trail')")
+        _settle(page, 2600)
+        assert not page.evaluate("AltoWorld.plane()") and page.evaluate(ENL) == "erie"
+        page.evaluate("AltoWorld.hop(-1)")                                       # and back; Esc goes straight to the landing
+        page.wait_for_timeout(400)
+        assert page.evaluate("AltoWorld.plane()")
+        page.keyboard.press("Escape")
+        _settle(page, 900)
+        assert not page.evaluate("AltoWorld.plane()") and page.evaluate(ENL) == "sj"
+        page.evaluate("AltoWorld.select('ms', {instant: true}); AltoWorld.hop(1)")         # a near leg (Canada to the US) keeps the hand-off
+        assert not page.evaluate("AltoWorld.plane()")
+        assert not errors, errors
+    finally:
+        page.close()
