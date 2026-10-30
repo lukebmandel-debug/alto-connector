@@ -355,8 +355,9 @@ CHICAGO = {
         {"name": "Merchandise Mart"},
         {"name": "Wrigley Building"},
         {"name": "Tribune Tower", "floors": 36, "height_m": 141},
-        {"name": "Navy Pier"},
         {"name": "Cloud Gate", "label": "Cloud Gate (the Bean)"},
+        # Navy Pier stays a named landmark only: the lattice ends at the lakefront, so its card could only stand on the shore
+        # block, 13 blocks from the real pier (city_report.c_displacement fails it); drawing the pier needs a spur into the lake
     ],
     "diagonals": ["North Milwaukee Avenue", "North Ogden Avenue", "West Ogden Avenue", "North Kingsbury Street"],
     "parks": ["Millennium Park", "Grant Park", "Maggie Daley Park", "Burnham Park", "Northerly Island", "Skinner Park",

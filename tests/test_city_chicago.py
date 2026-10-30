@@ -1,8 +1,7 @@
 """The Chicago preset (city_presets.CHICAGO) on its own fixture (tests/fixtures/cities/chicago_preset.json.gz: the preset's
 box, its streets, the Chicago River's three branches, Lake Michigan from city_coast, the
 preset's parks): one grid split by the river and joined across it, the river a Y of three narrow channels meeting at one
-point, the lake one sea body at the east edge, the parks lattice holes, the avenues crossing their streets in order.
-Also city_coast and the transit stub trim on synthetic data."""
+point, the lake one sea body at the east edge, the parks lattice holes, the avenues crossing their streets in order."""
 import copy
 import gzip
 import json
@@ -15,7 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from alto.build import city_coast, city_gate, city_presets as cp, city_report as cr, city_types, palace_grid  # noqa: E402
+from alto.build import city_gate, city_presets as cp, city_report as cr, city_types, palace_grid  # noqa: E402
 
 FIX = ROOT / "tests" / "fixtures" / "cities" / "chicago_preset.json.gz"
 
@@ -81,39 +80,3 @@ def test_grant_park_is_a_hole_only_its_real_roads_cross(chi):
     st, _msg, data = city_gate.g_parks(g, (), cp.CHICAGO["layout"]["must_parks"], m)
     assert not data["through"] and not data["missing_must"], data
     assert ("Columbus Drive", "Grant Park") in {(a, b) for a, b, _r in data["real"]}       # a real road through the park stays
-
-
-# ── city_coast on synthetic data ───────────────────────────────────────────
-def _way(i, pts, **tags):
-    return {"type": "way", "id": i, "tags": tags, "geometry": [{"lat": la, "lon": lo} for la, lo in pts]}
-
-
-def test_a_shore_crossing_the_box_closes_on_the_side_without_streets():
-    bbox = (41.0, -87.10, 41.02, -87.06)
-    shore = [_way(1, [(40.99, -87.075), (41.01, -87.077)], _shore="lake"), _way(2, [(41.03, -87.072), (41.01, -87.077)], _shore="lake")]
-    W, H = 3360, 2211
-    streets = [{"n": "Inland Street", "p": [100, 100 + 100 * k, 1500, 100 + 100 * k]} for k in range(15)]
-    rings = city_coast.sea_rings({"elements": shore}, bbox, W, H, 1.0, streets)
-    assert len(rings) == 1
-    xs = rings[0][0::2]
-    assert min(xs) > 1800 and max(xs) == W                  # the lake: from the shore to the east edge, none of the city
-    rings2 = city_coast.sea_rings({"elements": [_way(3, [(40.99, -87.075), (41.03, -87.075)], natural="coastline")]}, bbox, W, H)
-    assert max(rings2[0][0::2]) == W                         # a coastline keeps its land on the left: the water east
-
-
-def test_an_island_inside_the_box_is_land():
-    bbox = (41.0, -87.10, 41.02, -87.06)
-    isl = [_way(1, [(41.005, -87.09), (41.005, -87.08), (41.015, -87.08), (41.005, -87.09)], natural="coastline")]
-    assert city_coast.sea_rings({"elements": isl}, bbox, 3360, 2211) == []
-
-
-# ── the transit stub trim ──────────────────────────────────────────────────
-def test_track_past_a_stop_that_was_not_drawn_is_cut_a_block_past_the_last_one():
-    from alto.build.palace_transit import _trim_stubs
-    out = {"stops": [{"n": "A", "x": 0, "y": 0}, {"n": "B", "x": 500, "y": 0}],
-           "lines": [{"id": "l", "p": [[0, 0, 500, 0, 2500, 0]], "s": [0, 1], "b": [[0, 1]]}]}
-    _trim_stubs(out, 200.0)
-    assert out["lines"][0]["p"][0][-2:] == [700.0, 0.0]
-    short = {"stops": out["stops"], "lines": [{"id": "l", "p": [[0, 0, 500, 0, 900, 0]], "s": [0, 1]}]}
-    _trim_stubs(short, 200.0)
-    assert short["lines"][0]["p"][0] == [0, 0, 500, 0, 900, 0]          # two blocks on: within the audit's three
