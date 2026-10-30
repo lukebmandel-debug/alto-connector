@@ -236,6 +236,9 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setattr(cs, "fetch_city", lambda bbox, **kw: calls.append(("fetch", tuple(bbox), kw.get("names"))) or
                         {"elements": []})
     monkeypatch.setattr(cs, "discover", lambda bbox, **kw: calls.append(("discover", tuple(bbox))) or {"elements": []})
+    monkeypatch.setattr("alto.build.palace_buses.fetch", lambda *a, **k: {})   # set_up's buses and fleet go straight to Overpass
+    monkeypatch.setattr("alto.build.palace_fleet.fetch", lambda *a, **k: {})
+    monkeypatch.setattr("alto.build.city_boroughs.fetch", lambda *a, **k: {"boroughs": {}, "missing": ["no network"]})   # NYC: Manhattan alone
 
     def draft():
         pid = srv.create_project("City", "a palace", "memory")["project_id"]

@@ -665,6 +665,8 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setattr(palace_map, "build_map", lambda raw, bbox, **kw: city_map())
     monkeypatch.setattr(palace_map, "fetch_buildings", lambda box, **kw: {"elements": []})
     monkeypatch.setattr(palace_map, "geocode", lambda *a, **k: pytest.fail("no network"))
+    monkeypatch.setattr("alto.build.palace_buses.fetch", lambda *a, **k: {})   # set_up's buses and fleet go straight to Overpass
+    monkeypatch.setattr("alto.build.palace_fleet.fetch", lambda *a, **k: {})
     yield calls
     srv.set_store(None)
 
