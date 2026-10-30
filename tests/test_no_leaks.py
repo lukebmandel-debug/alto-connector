@@ -44,6 +44,10 @@ EXEMPT = {
 # engine's own JavaScript.
 CONTENT_MARKERS = ("jacob", "marcy", "sonya", "conrad", "voss")
 
+# Real people who share a character's first name, allowed by their full name only (a bare "Jacob" still fails). Each entry is a decision:
+# "Jacob Maris" is the Dutch painter (1837-1899) of "The Bridge at Loosduinen" in the PMA wall table (alto/buildings/pma_wall.json and its generator).
+ALLOWED_PHRASES = ("Jacob Maris",)
+
 SHIPPABLE_SUFFIXES = {".py", ".js", ".json", ".html", ".md", ".sh", ".rules"}
 SKIP_DIRS = {".venv", ".git", "__pycache__", ".pytest_cache", ".claude"}
 
@@ -192,8 +196,26 @@ def test_no_tracked_file_carries_the_authors_characters(marker):
     templates — this one runs over everything that would be published."""
     import re
     pattern = re.compile(rf"\b{marker}\b", re.I)
+
+    def stripped(text):
+        for phrase in ALLOWED_PHRASES:
+            text = text.replace(phrase, "")
+        return text
+
     hits = [rel for rel, p in _tracked_files()
-            if pattern.search(p.read_text(encoding="utf-8", errors="ignore"))]
+            if pattern.search(stripped(p.read_text(encoding="utf-8", errors="ignore")))]
     assert not hits, (
         f"{marker!r} appears in tracked files: {hits}. That is the author's "
         "creative content, not part of the licensed software.")
+
+
+def test_the_allowed_phrases_stay_narrow():
+    """The exception is a full name, never a bare word: 'Jacob' alone, 'jacob maris' in another case or a name of the cast still fail."""
+    import re
+    assert ALLOWED_PHRASES == ("Jacob Maris",)
+    pattern = re.compile(r"\bjacob\b", re.I)
+    for text in ("Jacob", "Jacob Voss", "jacob maris", "Jacob  Maris", "the Jacob Maris and Jacob"):
+        stripped = text
+        for phrase in ALLOWED_PHRASES:
+            stripped = stripped.replace(phrase, "")
+        assert pattern.search(stripped), text
