@@ -658,7 +658,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         lat.keep = {(f, k, pk) for f in ("v", "h") for k, n in enumerate(names[f]) if n
                     for pk in set(lat.holes.values()) if norm(n) in park_streets.get(pk, ())}
         outs[did] = emit(lat, names, heavy, thr, root=abs(lat.a) < 1e-9, wet=wet, seams=seam_segs.get(did, ()))
-    T["emit"] = time.time() - t0 - sum(T.values())
+    T["emit"] = time.time() - t0 - sum(v for v in T.values() if isinstance(v, float))
 
     streets = join_hinges([s for did in outs for s in outs[did]["streets"]])
     # the seams are streets too: lines T into them, the walking graph crosses domains on them
@@ -854,7 +854,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         st = {"n": norm(a_["n"]), "k": 0, "d": 1, "j": [int(bool(lead_a)), int(bool(lead_b))],
               "p": [round(v, 1) for q in line for v in q]}
         streets.append(st)
-    T["avenues_draw"] = time.time() - t0 - sum(T.values())
+    T["avenues_draw"] = time.time() - t0 - sum(v for v in T.values() if isinstance(v, float))
 
     # 9b. bridges: a line the river interrupts, crossing it where the real street bridges it, is one line over it
     over = _bridges(streets, river, lines, by_id, m)
@@ -937,7 +937,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         new_streets.append(list(key))
     if transit.get("lines"):
         transit["new"] = new_streets
-    T["transit"] = time.time() - t0 - sum(T.values())
+    T["transit"] = time.time() - t0 - sum(v for v in T.values() if isinstance(v, float))
 
     # 10c. parks, per domain: each park on the lattice of the domain its real outline mostly stands in (by area),
     #      only on cells that domain draws (inside its region, out of its children's slabs, off the river); the
@@ -970,6 +970,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                        len(lat.yg)]
             park_cells.append(pk)
             taken_pk.add(pk["n"])
+    streets = _clip_parks(streets, park_cells, park_streets)
 
     # 12. blocks and lots of every domain (cut blocks at the seams and the river included)
     blocks = []
@@ -1461,6 +1462,85 @@ def _park_streets(m):
                             any(ring_inside(r, *q) or _ring_dist(q, r) < near for r in rings):
                         acc[n] = acc.get(n, 0.0) + L / k
         out.setdefault(pk["n"], set()).update(n for n, v in acc.items() if v >= run)
+    return out
+
+
+PARK_INSET = 3.0        # page px: a line this close to a park's edge runs along it (its framing street), not through it
+
+
+def _clip_parks(streets, parks, park_streets, inset=PARK_INSET, min_px=None):
+    """No drawn line (a heavy lattice line "L" or an avenue "d") through the green of a park its real street does not cross
+    (rules doc 5; a park too small to be a lattice hole is drawn over the lattice: Washington's Stanton Park, which
+    Maryland Avenue goes round). The line is cut at the park's edge, on the park's framing street. Root-frame parks only."""
+    from .palace_parks import short_name
+    rects = []
+    for pk in parks:
+        f = pk.get("f")
+        if not f or abs(f[0]) > 1e-9:
+            continue
+        _, ox, oy, x0, dx, _, y0, dy, _ = f
+        through = park_streets.get(pk.get("_full") or pk.get("n"), set()) | park_streets.get(pk.get("n"), set())
+        for i0, j0, i1, j1 in pk.get("c") or ():
+            rects.append(((ox + x0 + i0 * dx + inset, oy + y0 + j0 * dy + inset,
+                           ox + x0 + i1 * dx - inset, oy + y0 + j1 * dy - inset), through, short_name(pk.get("n") or "")))
+    if not rects:
+        return streets
+    min_px = min(CW, CH) / 2 if min_px is None else min_px
+
+    def inside_ts(a, b, r):
+        """The part (t0, t1) of segment ab inside rectangle r, or None (Liang-Barsky)."""
+        t0, t1 = 0.0, 1.0
+        dx_, dy_ = b[0] - a[0], b[1] - a[1]
+        for pp, qq in ((-dx_, a[0] - r[0]), (dx_, r[2] - a[0]), (-dy_, a[1] - r[1]), (dy_, r[3] - a[1])):
+            if abs(pp) < 1e-12:
+                if qq < 0:
+                    return None
+                continue
+            t = qq / pp
+            if pp < 0:
+                t0 = max(t0, t)
+            else:
+                t1 = min(t1, t)
+        return (t0, t1) if t1 - t0 > 1e-9 else None
+    out = []
+    for s in streets:
+        if not (s.get("L") or s.get("d")) or not s.get("n") or s.get("o"):
+            out.append(s)
+            continue
+        n = norm(s["n"])
+        mine = [r for r, thr, _ in rects if n not in thr]
+        P = _pairs(s["p"])
+        pieces, cur, cut = [], [P[0]], False
+        for a, b in zip(P, P[1:]):
+            ivs = sorted(iv for iv in (inside_ts(a, b, r) for r in mine) if iv)
+            merged = []
+            for t0, t1 in ivs:
+                if merged and t0 <= merged[-1][1] + 1e-9:
+                    merged[-1][1] = max(merged[-1][1], t1)
+                else:
+                    merged.append([t0, t1])
+            t_prev = 0.0
+            for t0, t1 in merged:
+                q0 = (a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0)
+                q1 = (a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1)
+                if t0 > t_prev:
+                    cur.append(q0)
+                pieces.append(cur)
+                cur, cut = [q1], True
+                t_prev = t1
+            cur.append(b)
+        pieces.append(cur)
+        if not cut:
+            out.append(s)
+            continue
+        for k, pc in enumerate(pieces):
+            pc = [q for i, q in enumerate(pc) if i == 0 or math.dist(q, pc[i - 1]) > .5]
+            if len(pc) < 2 or sum(math.dist(u, v) for u, v in zip(pc, pc[1:])) < min_px:
+                continue
+            st = dict(s, p=[round(v, 1) for q in pc for v in q])
+            if "j" in s:
+                st["j"] = [s["j"][0] if k == 0 else 0, s["j"][1] if k == len(pieces) - 1 else 0]
+            out.append(st)
     return out
 
 

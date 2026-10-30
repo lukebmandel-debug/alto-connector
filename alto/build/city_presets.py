@@ -289,7 +289,7 @@ DC = {
               "Georgetown Waterfront Park", "The Yards Park", "Canal Park", "Upper Senate Park", "Meridian Hill/Malcolm X Park"],
     "areas": _a([
         ["Capitol Hill", 38.8880, -76.9970, 1], ["Georgetown", 38.9097, -77.0654, 1], ["Downtown", 38.9020, -77.0300, 1],
-        ["National Mall", 38.8895, -77.0230, 1], ["Dupont Circle", 38.9096, -77.0434, 1], ["Foggy Bottom", 38.8990, -77.0500, 1],
+        ["National Mall", 38.8910, -77.0230, 1], ["Dupont Circle", 38.9096, -77.0434, 1], ["Foggy Bottom", 38.8990, -77.0500, 1],
         ["Navy Yard", 38.8760, -77.0030, 1],
         ["West End", 38.9050, -77.0500, 2], ["Logan Circle", 38.9096, -77.0298, 2], ["Shaw", 38.9126, -77.0215, 2],
         ["U Street", 38.9170, -77.0290, 2], ["Penn Quarter", 38.8960, -77.0220, 2], ["Chinatown", 38.8999, -77.0219, 2],

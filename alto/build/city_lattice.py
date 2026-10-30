@@ -338,12 +338,24 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
         return (m, k - 1) in drawn or (m, k) in drawn
 
     def park_mid(fam, k, m):
-        """The park on both sides of a segment, or None."""
+        """The parks on both sides of a segment (one, or two that meet: Washington's National Mall beside the Washington
+        Monument Grounds), or None."""
         if not parks:
             return None
         sides = ((k - 1, m), (k, m)) if fam == "v" else ((m, k - 1), (m, k))
-        pk = {parks.get(s_) for s_ in sides}
-        return pk.pop() if len(pk) == 1 and None not in pk else None
+        pk = {park_of(s_) for s_ in sides}
+        return pk if None not in pk else None
+
+    def park_of(c):
+        """The park a cell is part of: its own, or, for a landmark standing in a park (the Washington Monument on the
+        Mall), the park on at least two of its sides: no street is drawn round it."""
+        if c in parks:
+            return parks[c]
+        if c not in lat.lm_cells:
+            return None
+        nb = [parks.get(q) for q in ((c[0] + 1, c[1]), (c[0] - 1, c[1]), (c[0], c[1] + 1), (c[0], c[1] - 1))]
+        nb = [q for q in nb if q]
+        return max(sorted(set(nb)), key=nb.count) if len(nb) >= 2 else None
 
     def lm_side(fam, k, m):
         sides = ((k - 1, m), (k, m)) if fam == "v" else ((m, k - 1), (m, k))
@@ -367,7 +379,7 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
                 a, b = lat.seg(fam, k, m)
                 ivs = lat.seg_in(a, b)
                 in_park = park_mid(fam, k, m)
-                if in_park and (fam, k, in_park) not in lat.keep:
+                if in_park and not any((fam, k, pk_) in lat.keep for pk_ in in_park):
                     ivs = []                               # no line through a park, unless its real street crosses it
                 elif lat.own and not covered(fam, k, m) and not lm_side(fam, k, m) and not in_park:
                     ivs = []
