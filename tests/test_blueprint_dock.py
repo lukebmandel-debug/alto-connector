@@ -250,3 +250,22 @@ def test_on_a_phone_the_plan_is_never_under_the_dock(browser, w, h, preview):
         assert errors == []
     finally:
         page.close()
+
+
+# Art 2026-10-30 (alto-art-1030-1620-c): "Walk in" on one line at 768; the Retro name chip shows the whole name (it wraps instead of cutting short)
+@pytest.mark.parametrize("w", [1440, 768])
+@pytest.mark.parametrize("style", [None, "retro"])
+def test_walk_in_is_one_line_and_the_name_is_not_cut(browser, w, style):
+    page, errors = _page(browser, w, style=style)
+    try:
+        if style:
+            page.wait_for_function("document.documentElement.classList.contains('alto-retro')")
+        page.wait_for_timeout(400)
+        r = page.evaluate("""(() => { const g = document.querySelector('#bldg-root .bl-dock .bl-go:not(.bl-alt)'), s = g.querySelector('span'), h = document.querySelector('#bldg-root .bl-head h2');
+          const lh = parseFloat(getComputedStyle(s).lineHeight) || parseFloat(getComputedStyle(s).fontSize) * 1.3;
+          return {spanH: s.getBoundingClientRect().height, lh, shown: getComputedStyle(s).display !== 'none', cutX: h.scrollWidth - h.clientWidth, cutY: h.scrollHeight - h.clientHeight}; })()""")
+        assert r["shown"] and r["spanH"] < r["lh"] * 1.5, r                                      # one line
+        assert r["cutX"] <= 1 and r["cutY"] <= 1, r                                              # the whole name
+        assert errors == []
+    finally:
+        page.close()

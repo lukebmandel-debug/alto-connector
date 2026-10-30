@@ -179,6 +179,7 @@ html:not(.mobile):not(.pmin) #bldg-root .bl-foot{display:none;}
 #bldg-root .bl-cr.open{display:block;-webkit-line-clamp:unset;}
 @media (max-width:640px){html:not(.mobile):not(.pmin) #bldg-root :is(.bl-zo,.bl-zi),html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go span{display:none;}}
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go span{margin-right:2px;}
+#bldg-root .bl-dock .bl-go{white-space:nowrap;flex:none;}   /* (Art 2026-10-30: "Walk in" stays on one line, it wrapped at 768) */
 @media print{#bldg-root{display:none !important;}}
 @media (max-width:700px){#bldg-root .bl-head{max-width:calc(100% - 128px);}#bldg-root .bl-info{bottom:62px;}}
 """

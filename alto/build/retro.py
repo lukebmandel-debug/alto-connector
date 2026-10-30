@@ -346,6 +346,7 @@ FORMAT_CSS = r"""
   X #bldg-root .bl-cards button b{border-radius:0 !important;color:#000 !important;}
   X #bldg-root .bl-kind{color:#d9ae55 !important;letter-spacing:.28em !important;font-weight:400 !important;}
   X #bldg-root .bl-head h2{text-transform:uppercase;letter-spacing:.14em;font-weight:300 !important;}
+  X #bldg-root .bl-head h2:not(#_){white-space:normal;text-overflow:clip;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.35;}   /* (Art 2026-10-30: the spaced capitals cut the name short on one line: it wraps, two lines at most) */
 
   /* the Memory Atlas's map (palace_world.py): a navigator's chart, gold on night blue, the units in the poster's inks */
   X #wpal-root:not(#_){--w-sea1:#0a1b34;--w-sea2:#05070b;--w-land:#0b0d12;--w-edge:rgba(217,174,85,.32);--w-grat:rgba(217,174,85,.07);--w-text:#efe6cf;--w-sub:#b9b2a0;
