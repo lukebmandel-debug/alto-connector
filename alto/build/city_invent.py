@@ -47,6 +47,17 @@ _ROWS = ("Oak", "Elm", "Maple", "Cedar", "Birch", "Walnut", "Chestnut", "Spruce"
 _LANDMARKS = ("City Hall", "Central Library", "Museum of Art", "Opera House", "Court House", "Observatory", "Clock Tower",
               "Grand Hotel", "Market Hall", "University Hall", "Science Museum", "Concert Hall")
 ORD = {1: "st", 2: "nd", 3: "rd"}
+# an invented landmark's look: Alto's generic buildings only, never a real one (the page matches art by NAME, so an
+# invented "City Hall" or "Museum of Art" would otherwise be drawn as Philadelphia's). look -> art key.
+LOOKS = {"dome": "g-dome", "spire": "g-spire", "gable": "g-gable", "pyramid": "g-pyramid", "angled": "g-angled",
+         "flat": "g-flat", "classical": "ct-classical-city", "modern": "ct-modern-city", "tall": "ct-tower-city"}
+_LOOK_BY = [(r"hall|capitol|parliament|council|senate", ("dome", "classical", "spire", "gable")),
+            (r"court|justice", ("classical", "modern", "tall")),
+            (r"tower|clock|observatory|lighthouse|spire", ("spire", "pyramid", "tall")),
+            (r"museum|gallery|library|archive|university|college|school", ("classical", "dome", "gable", "angled")),
+            (r"opera|theat|concert|music|arena", ("angled", "dome", "pyramid")),
+            (r"hotel|bank|exchange|trade|office|plaza|centre|center", ("angled", "flat", "tall", "spire")),
+            (r"market|station|hall|church|temple|cathedral", ("gable", "pyramid", "spire"))]
 
 
 class InventError(ValueError):
@@ -55,6 +66,16 @@ class InventError(ValueError):
     def __init__(self, problems):
         self.problems = list(problems)
         super().__init__("; ".join(self.problems))
+
+
+def _look(city, name, kind, used=()):
+    """A landmark's look when the spec names none: from what its name says it is, varied by the city and the name
+    (seeded, so the same city always looks the same), avoiding looks the city has already used where it can."""
+    opts = next((o for rx, o in _LOOK_BY if re.search(rx, name, re.I)), None)
+    if opts is None:
+        opts = ("spire", "tall", "angled") if kind == "tower" else tuple(LOOKS)
+    fresh = [o for o in opts if o not in used] or list(opts)
+    return fresh[_seed(city + "|" + name) % len(fresh)]
 
 
 def _ord(i):
@@ -75,7 +96,8 @@ def template(kind=DEFAULT_TEMPLATE, name="") -> dict:
                   "radial": "Ringford", "blank": "New City"}[kind]
     if kind == "blank":
         return {"name": nm, "template": "blank", "districts": [], "streets": [], "water": [], "landmarks": [], "transit": []}
-    lm = list(_LANDMARKS[:8])
+    pool = sorted(_LANDMARKS, key=lambda x: _seed(nm + "|" + x))          # each city its own eight, in its own order
+    lm = pool[:8]
     if kind == "grid":
         ds = [{"name": "Downtown", "kind": "grid", "center": [1400, 1200], "size_km": [2.6, 2.2], "angle": 0}]
         streets, water = [], []
@@ -101,7 +123,8 @@ def template(kind=DEFAULT_TEMPLATE, name="") -> dict:
         streets = [{"name": "Crown Road", "class": "main", "from": "Centre", "to": "Newtown"}]
         water = []
     spots = [d["name"] for d in ds]
-    lms = [{"name": n, "at": spots[i % len(spots)], "kind": "civic" if i % 3 else "tower"} for i, n in enumerate(lm)]
+    lms = [{"name": n, "at": spots[i % len(spots)], "kind": "tower" if re.search(r"tower|observatory|hotel", n, re.I) else "civic"}
+           for i, n in enumerate(lm)]
     lms += [{"name": "Central Park" if kind != "radial" else "Ring Gardens", "at": spots[0], "kind": "park"},
             {"name": "Central Station", "at": spots[0], "kind": "station"},
             {"name": "Market Station", "at": spots[0], "kind": "station"},
@@ -202,6 +225,8 @@ def validate(spec) -> list:
         seen[_norm(n)] = lm.get("kind") or "civic"
         if (lm.get("kind") or "civic") not in ("tower", "civic", "station", "park"):
             P.append("landmark %r is a %r: a landmark is a tower, civic building, station or park" % (n, lm.get("kind")))
+        if lm.get("look") is not None and lm["look"] not in LOOKS:
+            P.append("landmark %r: a look is one of %s" % (n, ", ".join(LOOKS)))
         if lm.get("floors") is not None and not (_num(lm["floors"]) and 1 <= lm["floors"] <= 160):
             P.append("landmark %r: floors is a number from 1 to 160" % n)
     n_lm = sum(1 for lm in spec.get("landmarks") or [] if isinstance(lm, dict) and lm.get("kind") not in ("park", "station"))
@@ -449,7 +474,7 @@ def invent_city(spec) -> dict:
         return None
 
     # the spine: main streets between districts / points (they end on a district's street, so nothing starts from nowhere)
-    lm_pos, notes = {}, []
+    lm_pos, notes, used_looks = {}, [], []
     pend = []
     for s in spec.get("streets") or []:
         pend.append(s)
@@ -516,7 +541,13 @@ def invent_city(spec) -> dict:
             stations.append({"n": nm, "x": round(cx, 1), "y": round(cy, 1), "k": "rail", "l": []})   # (the line draws it)
         else:
             landmarks.append({"n": nm, "x": round(cx, 1), "y": round(cy, 1), "r": [_block_ring(cx, cy, bw, bh, 14.0)]})
-            lm_specs.append({"name": nm, **({"floors": int(lm["floors"])} if lm.get("floors") else {})})
+            look = lm.get("look") or _look(spec.get("name") or "", nm, kind, used_looks)
+            used_looks.append(look)
+            hs = _seed((spec.get("name") or "") + "|h|" + nm)
+            hm = float(lm["floors"]) * 4.0 if lm.get("floors") else (90 + hs % 120 if kind == "tower" else 28 + hs % 35)
+            fw = (40 + (hs >> 8) % 25) if kind == "tower" else (70 + (hs >> 8) % 35)     # m: a hall fills its block's front
+            lm_specs.append({"name": nm, "art": LOOKS[look], "height_m": round(hm, 1), "width_m": fw,
+                             **({"floors": int(lm["floors"])} if lm.get("floors") else {})})
         lm_pos[_norm(nm)] = (cx, cy)
     cells_of = {}
     for d in D:

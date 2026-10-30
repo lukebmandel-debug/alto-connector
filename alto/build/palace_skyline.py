@@ -1603,7 +1603,8 @@ __all__ = ["SCALE", "KV", "build", "build_all", "spec_from_osm", "parse_height",
 
 # the art hints a landmark_buildings entry carries (C1 city_courts / city presets) onto its map record (the page's l.kind,
 # l.lv, l.hm, l.cs): the engines (palace_grid v1, city_engine v2) copy them so keyOf()/art_key() and scaleOf() see them
-ART_HINTS = (("art", "art"), ("kind", "kind"), ("level", "lv"), ("lv", "lv"), ("height_m", "hm"), ("style", "cs"), ("cs", "cs"))
+ART_HINTS = (("art", "art"), ("kind", "kind"), ("level", "lv"), ("lv", "lv"), ("height_m", "hm"), ("width_m", "fw"),
+             ("style", "cs"), ("cs", "cs"))     # width_m: a generic building's width (the page's scaleOf reads l.fw)
 
 
 def art_hints(spec: dict) -> dict:
@@ -1611,7 +1612,7 @@ def art_hints(spec: dict) -> dict:
     for k, to in ART_HINTS:
         v = (spec or {}).get(k)
         if v not in (None, "", 0) and to not in out:
-            if to == "hm":
+            if to in ("hm", "fw"):
                 try:
                     v = round(float(v), 1)
                 except (TypeError, ValueError):
