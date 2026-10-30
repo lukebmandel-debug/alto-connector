@@ -497,10 +497,9 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-toast{pointer-events:none;}     /* a passing word: never in the way of a click */
   /* ── quiet glass (item 14, 2026-10-28): symbols, a live dot, a rail across the top, calm dashed cards ── */
   #alto-edit-rail{position:fixed;top:0;left:0;right:0;height:3px;z-index:9000;display:none;pointer-events:none;
-    background:linear-gradient(90deg,#38bdf8,#a78bfa,#f472b6,#38bdf8);background-size:200% 100%;animation:aedRail 9s linear infinite;}
+    background:linear-gradient(90deg,#38bdf8,#a78bfa,#f472b6,#38bdf8);background-size:200% 100%;}   /* static: a second infinite animation beside the live dot made WebKit card clicks flaky (test_drag_swap) and repaints the full width forever */
   html.alto-editing #alto-edit-rail{display:block;}
   html.printing #alto-edit-rail{display:none !important;}
-  @keyframes aedRail{to{background-position:-200% 0;}}
   @keyframes aedPop{from{opacity:0;transform:scale(.82);}to{opacity:1;transform:none;}}
   @keyframes aedDot{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.55);}60%{box-shadow:0 0 0 6px rgba(52,211,153,0);}}
   #alto-edit-exit{background:rgba(16,20,36,.9);color:#f4f6fc;border:1px solid rgba(255,255,255,.16);gap:9px;height:40px;
