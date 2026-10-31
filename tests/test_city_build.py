@@ -228,3 +228,18 @@ def test_invented_landmarks_never_take_a_real_buildings_art_and_cities_differ():
     sp["landmarks"][0]["look"] = "philly"
     with pytest.raises(ci.InventError):
         ci.invent_city(sp)
+
+
+@pytest.mark.parametrize("place,art", [("Lyon", "g-dome"), ("Philadelphia", "city")])
+def test_city_hall_art_is_philadelphias_only(place, art):
+    from alto.build import palace
+    from alto.build.palace_landmarks import art_key
+    sp = ci.template("grid")
+    sp["landmarks"][0]["name"] = "City Hall"
+    m = ci.invent_city(sp)
+    pl = m["plan"]
+    blds = [{"name": b["name"]} for b in pl["landmarks"]]                # no look of their own: art by name
+    pal = palace.set_up(place, list(m["bbox"]), majors=pl["majors"], landmarks=[b["name"] for b in blds], buildings=blds,
+                        parks=pl["parks"], areas=[], offline=True, fill=False, city_tiles=False, plan=m)
+    hall = next(l for l in palace.unpack(pal["data_z"])["map"]["landmarks"] if l["n"] == "City Hall")
+    assert art_key(hall) == art

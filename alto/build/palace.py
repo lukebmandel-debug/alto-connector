@@ -525,6 +525,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     real_trails = [dict(t) for t in (m.get("trails") or [])]                     # the grid drawing drops every path: the river trails are kept (palace_banks.py)
     real_rivers = [dict(r) for r in (m.get("rivers") or [])]                     # (and the real river lines, to read which bank a trail keeps)
     m = grid(m, majors=majors or (), diagonals=diagonals or (), lines=lines or (), landmarks=buildings or (), parks=parks or ())
+    from .palace_landmarks import scope_art
+    scope_art(m.get("landmarks"), place)                             # Philadelphia's City Hall art is Philadelphia's only
     from .city_highways import attach as attach_highways              # C3 (a no-op when city_engine attached them)
     attach_highways(m, {"highways": hw_real})
     try:
