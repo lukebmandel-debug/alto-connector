@@ -429,9 +429,13 @@
     if (ended) return true;
     ended = true; clearTimeout(pushTimer);
     try {
+      const st = document.createElement('style');
+      st.textContent = '#alto-beta-ended{position:fixed;top:0;left:0;right:0;z-index:2147483000;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top,0px));font:13px/1.4 system-ui,sans-serif;text-align:center;background:var(--surface,#fff);color:var(--text,#1a1a2e);border-bottom:1px solid var(--border,#c8c8d8);pointer-events:none}'
+        + '@media (max-width:640px){#alto-beta-ended{font-size:13px;line-height:1.35;padding:calc(8px + env(safe-area-inset-top,0px)) 16px 8px}}'
+        + 'html.alto-retro #alto-beta-ended{border-bottom-color:rgba(217,174,85,.32);border-radius:0;box-shadow:none}';
+      document.head.appendChild(st);
       const b = document.createElement('div');
       b.id = 'alto-beta-ended'; b.setAttribute('role', 'status'); b.textContent = BETA_ENDED_TEXT;
-      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483000;padding:8px 14px;font:13px/1.4 system-ui,sans-serif;text-align:center;background:var(--surface,#fff);color:var(--text,#1a1a2e);border-bottom:1px solid var(--border,#c8c8d8);pointer-events:none';
       document.body.appendChild(b);
     } catch (_) {}
     return true;
