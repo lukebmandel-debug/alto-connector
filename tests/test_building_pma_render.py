@@ -167,10 +167,12 @@ def test_the_blueprint_lies_level_and_symmetrical_with_the_east_entrance_at_the_
                     const e = [...s.querySelectorAll('.bl-ent')].map(p => { const q = p.getBoundingClientRect(); return [q.x + q.width / 2, q.y + q.height / 2, p.textContent]; });
                     return {W: r.width, H: r.height, L: b.left - r.left, R: r.right - b.right, w: b.width, h: b.height, e}; })()""")
                 assert box["w"] > box["h"], (lv, w, box)                                                        # horizontal
+                if lv == "l2":
+                    assert box["e"] == [], (lv, w, box["e"])                                                    # the floor plans carry no entrance arrows (PMA plan clean-up)
+                    continue
                 east = [e for e in box["e"] if e[2].startswith("East Entrance")][0]
                 assert abs(east[0] - box["W"] / 2) < box["W"] * .03, (lv, w, east)                              # the axis in the middle
-                if lv == "outside":
-                    assert abs(box["L"] - box["R"]) < box["W"] * .03, (lv, w, box)                              # balanced left and right
+                assert abs(box["L"] - box["R"]) < box["W"] * .03, (lv, w, box)                                  # balanced left and right
             page.evaluate("AltoBuilding.selectLevel('l2')")
             assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-lab')].every(t => !t.closest('[transform]'))")   # labels upright
             assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-pill')].every(p => !/rotate/.test(p.style.transform || ''))")

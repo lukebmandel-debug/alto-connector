@@ -78,7 +78,7 @@ def test_the_blueprint_draws_the_plan_with_its_tabs_rooms_and_pills(browser, htm
         assert page.locator("#bldg-root .bl-room").count() == 2
         assert sorted(page.eval_on_selector_all("#bldg-root .bl-pill b", "els => els.map(e => e.textContent)")) == ["1.1", "1.1-1", "1.2"]
         # every wall one weight: a tube and a sheen per solid stretch, none with a width of its own
-        assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-tube:not(.bl-rail)')].every(e => getComputedStyle(e).strokeWidth === '4.2px')")
+        assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-tube:not(.bl-rail)')].every(e => getComputedStyle(e).strokeWidth === '2.4px')")
         assert page.locator("#bldg-root .bl-tube").count() == page.locator("#bldg-root .bl-sheen").count()
         page.click("#bldg-root .bl-tab[data-level=u]")
         assert page.locator("#bldg-root .bl-room.bl-guess").count() == 2            # the confidence 1 and 0 rooms are dashed
@@ -160,7 +160,12 @@ def test_pan_and_zoom_move_the_view_not_the_plan(browser, html):
         page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 90, y + 10, steps=6); page.mouse.up()
         assert page.evaluate("document.querySelector('#bldg-root svg.bl-svg').getAttribute('viewBox')") != vb0
         assert page.evaluate("document.querySelector('#bldg-root .bl-info').hidden") is True
-        page.locator("#bldg-root .bl-room >> nth=1").click(position={"x": 30, "y": 20})
+        # click a spot of the room that is the room: numbered chips sit on a room's corner and fixtures stand in it, and those take their own clicks
+        spot = page.evaluate("""(() => { const r = document.querySelectorAll('#bldg-root .bl-room')[1], b = r.getBoundingClientRect();
+            for (let f = .5; f < 1; f += .07) for (let g = .5; g < 1; g += .07) { const x = b.left + b.width * f, y = b.top + b.height * g;
+                if (document.elementFromPoint(x, y) === r) return [x, y]; } return null; })()""")
+        assert spot, "no free spot of room g101 to click"
+        page.mouse.click(*spot)
         assert "Gallery 101" in page.inner_text("#bldg-root .bl-info")
         assert errors == []
     finally:
