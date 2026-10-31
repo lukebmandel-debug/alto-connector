@@ -86,7 +86,7 @@ NAVOPT_JS = r"""
 (function(){
 if(!window._altoSolarNavApi) return;
 var A=window._altoSolarNavApi, de=document.documentElement;
-var KEYS=[['Back', 'up to the one it belongs to'], ['Next', 'the next one at the same level'], ['Left / Right arrows, or scroll', 'round the ones beside the enlarged one'], ['1 – 9', 'fly to the one beside it with that number'], ['Esc or Backspace', 'up a level, then the whole system'], ['O', 'see the whole system']];
+var KEYS=[['Back', 'up to the one it belongs to'], ['Next', 'the next one at the same level'], ['Left / Right arrows, or scroll', 'round the ones beside the enlarged one'], ['1 – 9', 'fly to the one beside it with that number'], ['Esc or Backspace', 'up from a moon to its planet; then back out, then the whole system'], ['O', 'see the whole system']];
 function mk(t, id, cls, h){ var e=document.createElement(t); if(id) e.id=id; if(cls) e.className=cls; if(h!=null) e.innerHTML=h; return e; }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]; }); }
 function nm(id){ return esc(A.name(id)); }
@@ -278,7 +278,7 @@ function later(){ if(!PD || busy() || !enl()) return; var k=PD; PD=0; press(k); 
 /* a digit: the neighbour whose face shows that number, else the one in that place */
 function digit(h, k){ var s=scope(h), m=s.filter(function(i){ return i!==h && A.num(i)===String(k); }), to=m.length===1 ? m[0] : s[k-1]; if(to && to!==h) go(to); }
 /* one level up: a moon to its planet, a planet to its sun, then the enlarged one goes home; the whole system after that */
-function climb(){ var h=A.home(), f=window._focusedNodeId; if(f && !A.ov()){ var u=up(h); if(u) go(u); else A.step('let'); } else A.step('ov'); }
+function climb(){ var h=A.home(), f=window._focusedNodeId, b=A.geo()[h]; if(f && !A.ov()){ var u=up(h); if(u && b && /^(moon|sat)$/.test(b.role)) go(u); else A.step('let'); } else A.step('ov'); }   /* (a moon or satellite climbs to its planet; a planet or sun lets go as Esc always did) */
 function press(k){ if(/^Arrow/.test(k)) step(k==='ArrowRight' || k==='ArrowDown' ? 1 : -1); else digit(A.home(), +k); }
 function step(d){ var h=enl(); if(!h) return false; var to=round(h, d); if(to) go(to); return true; }
 window.addEventListener('keydown', function(e){
