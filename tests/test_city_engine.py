@@ -182,3 +182,30 @@ def test_the_glass_widens_to_show_a_lake_whose_shore_maps_past_its_edge():
     # never more than the reach
     far = [20000, 0, 21000, 0, 21000, 12000, 20000, 12000]
     assert ce._sea_glass([far], W, H) == int(W + ce.SEA_REACH)
+
+def test_a_bridge_over_the_wide_river_on_another_side_crosses_it_and_stops():
+    """Washington's Potomac lies west of the Mall: the bridge that leaves the street end runs to the river's far bank, not on
+    east across the whole city to the glass edge (the 'Arlington Memorial Bridge' line across the Mall). The Delaware/Hudson
+    (east edge) bridges still run to the glass."""
+    from alto.build import city_engine as ce
+    river = {"w": 230, "p": [3000, 0, 3000, 10000], "_q": [(3000.0, 0.0), (3000.0, 10000.0)]}
+    x, y = ce._far_bank((3230.0, 5000.0), river, "w", 18000)
+    assert abs(y - 5000) < 1e-6 and 2800 < x < 2900              # across the river's centre line and out the far bank
+    assert ce._far_bank((3230.0, 5000.0), river, "e", 18000) == (18050.0, 5000.0)
+    assert ce._far_bank((3230.0, 5000.0), river, None, 18000) == (18050.0, 5000.0)
+
+
+def test_streets_that_stop_short_of_the_wide_river_run_down_to_its_bank():
+    """Washington: the blocks in the Potomac's band are dropped and the streets stopped 150-300 px short of the bank. A street
+    end that faces the river within reach is carried on to the bank; one that is far off, or already there, is left alone."""
+    from alto.build import city_engine as ce
+    from alto.build.city_avenues import PolyIndex
+    river = [(0.0, float(y)) for y in range(-200, 2201, 50)]                  # a river down x = 0, 230 wide
+    ix = [(PolyIndex(river, 200.0), 230)]
+    near = {"n": "A", "k": 0, "p": [800.0, 500.0, 400.0, 500.0]}                # ends 400 off the centre: 255 off the bank edge
+    far = {"n": "B", "k": 0, "p": [3000.0, 900.0, 2500.0, 900.0]}
+    bridge = {"n": "C", "k": 0, "o": 1, "p": [800.0, 1500.0, 400.0, 1500.0]}
+    streets = [near, far, bridge]
+    ce._to_bank(streets, ix)
+    assert near["p"][-2] < 400 and near["p"][-2] <= 230 / 2 + ce.BANK_GAP + 1 and near["p"][-1] == 500.0
+    assert far["p"] == [3000.0, 900.0, 2500.0, 900.0] and bridge["p"] == [800.0, 1500.0, 400.0, 1500.0]
