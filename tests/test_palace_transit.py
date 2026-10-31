@@ -394,3 +394,33 @@ def test_the_civ_pro_bundles_trolleys_run_on_streets():
         assert not r["stops"], (lid, r["stops"])                                           # a floating stop
         assert r["invented"] <= 60, (lid, r["invented"])                                   # a street drawn for the trolley
     assert len(m["cols"]) <= 70 and len(m["rows"]) <= 65                                    # the grid did not sprawl for it
+
+
+def _dup_stop_page(browser, tmp_path):
+    d = _bundle()
+    data = palace.unpack(d["brief"]["palace"]["data_z"])
+    t = data["map"]["transit"]
+    t["stops"].append({"n": "West", "x": 160, "y": 500, "l": ["mfl"]})            # the same station again, a dot 10 px away (a second platform / track)
+    t["lines"][0]["s"] = [0, 1, 2, 4]
+    d["brief"]["palace"]["data_z"] = palace.pack(data)
+    out, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    f = tmp_path / "dup.html"
+    f.write_text(out, encoding="utf-8")
+    pg = browser.new_context(viewport={"width": 1500, "height": 900}).new_page()
+    pg.errs = []
+    pg.on("pageerror", lambda e: pg.errs.append(str(e)))
+    pg.goto(f.as_uri())
+    pg.wait_for_timeout(1800)
+    return pg
+
+
+def test_a_station_with_two_dots_prints_its_name_once(browser, tmp_path):
+    """Chicago/DC: a station whose lines part company has a dot per track, and each dot's label printed a few px from the other's: the doubled first letter."""
+    pg = _dup_stop_page(browser, tmp_path)
+    r = pg.evaluate("""() => { const all = [...document.querySelectorAll('.tr-lbl')].filter(t => t.textContent === 'West');
+      return {n: all.length, dup: all.filter(t => t.classList.contains('dup')).length, shown: all.filter(t => getComputedStyle(t).display !== 'none').length}; }""")
+    assert r == {"n": 2, "dup": 1, "shown": 1}, r
+    other = pg.evaluate("() => [...document.querySelectorAll('.tr-lbl')].filter(t => t.textContent !== 'West' && t.classList.contains('dup')).length")
+    assert other == 0                                                                  # only the repeat is hidden
+    assert pg.errs == []
+    pg.close()
