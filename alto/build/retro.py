@@ -448,6 +448,10 @@ HOME_CSS = r"""
   X.alto-home :is(.acct-title,#bin-panel .bin-head){color:#d9ae55;font-family:var(--rt-f);}
   X.alto-home :is(#account-modal,#dl-modal,#nt-modal,.share-menu) :is(button,input,select,.nt-kind,.dl-choice,.acct-provider):not(#_){border-radius:0;}
   X.alto-home :is(.nt-kind,.dl-choice,.share-menu button,.acct-provider):not(#_){border-color:rgba(217,174,85,.5);}
+  X:not(.alto-home) #account-modal:not(#_){background:#05070a !important;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X:not(.alto-home) #account-modal :is(.acct-title){color:#d9ae55;font-family:var(--rt-f);}
+  X:not(.alto-home) #account-modal :is(button,input,.acct-provider):not(#_){border-radius:0;}
+  X:not(.alto-home) #account-modal .acct-provider:not(#_){border-color:rgba(217,174,85,.5);}
 """
 
 JS = r"""(function(){

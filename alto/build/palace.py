@@ -872,7 +872,9 @@ PALACE_CSS = KEY_CSS + r"""
   /* the zoom controls: Alto's round glass (the search / info / key buttons), in a row beside the account toggle —
      the same inset, the same 35px, the same centre line; a grouped pill for closer / farther with a divider, and
      the whole city as a pill of its own. left = the account toggle's 24 + 35 + the row's 12.5 gap. */
-  #pal-ctl{position:fixed;left:71.5px;bottom:24px;z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
+  html.pal-tight:not(.mobile) :is(#account-btn,#pal-ctl,#search-btn,#info-btn,#mode-toggle,#alto-edit-pill){zoom:var(--pt-s);}
+  html:not(.mobile) #account-btn{bottom:30px !important;}   /* (the row's one baseline: search / info / the edit toggle sit at 30) */
+  #pal-ctl{position:fixed;left:71.5px;bottom:30px;z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
   #pal-ctl .pc-pill,#pal-ctl .pc-city{position:relative;height:35px;box-sizing:border-box;display:inline-flex;align-items:stretch;border-radius:17.5px;
     background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));
@@ -2266,6 +2268,31 @@ function ctl(){
   var k=document.createElement('div'); k.id='pal-key'; k.innerHTML=h;
   window._altoKeyToggle(k, 'alto-palace-key', 'Key to the city');
   ctlState();
+  /* a narrow window (a phone's whole-page view): the bottom controls would overlap, so they shrink together to a tight row of even gaps, the map buttons' own gaps too (item 10, option A1) */
+  (function(){ var H=document.documentElement, IDS=['account-btn','pal-ctl','search-btn','info-btn','mode-toggle','alto-edit-pill'], st=null, busy=0;
+    function off(){ if(!st) return; st=null; H.classList.remove('pal-tight'); H.style.removeProperty('--pt-s'); var c=document.getElementById('pal-ctl'); if(c) c.style.removeProperty('gap'); IDS.forEach(function(i){ var e=document.getElementById(i); if(e) ['left','right','bottom'].forEach(function(p){ e.style.removeProperty(p); }); }); if(window._altoAlignInfo) window._altoAlignInfo(); }
+    function vis(e){ return e && getComputedStyle(e).display!=='none' && e.getBoundingClientRect().width>0; }
+    /* every write is skipped when the element already holds that value (and values are rounded), so the fitter, which runs after every alignInfo and on a resize observer, never feeds its own observers: WebKit raised "ResizeObserver loop" and the row never settled */
+    function put(e,p,v){ if(e.style.getPropertyValue(p)!==v||e.style.getPropertyPriority(p)!=='important') e.style.setProperty(p,v,'important'); }
+    function r2(v){ return Math.round(v*100)/100; }
+    window._palRowFit=function(){ if(busy) return; busy=1;
+      try{ var W=H.clientWidth, az=parseFloat(getComputedStyle(H).getPropertyValue('--alto-zoom'))||.8, cur=st?st.s:1, P=document.getElementById('pal-ctl');
+        if(H.classList.contains('mobile')||H.classList.contains('detail-open')||!P||getComputedStyle(P).display==='none') return off();
+        var it=[], sum=0, kids=[].filter.call(P.children, vis);
+        IDS.forEach(function(i){ var e=document.getElementById(i); if(!vis(e)) return;
+          if(e===P) kids.forEach(function(k){ var w=r2(k.getBoundingClientRect().width/cur); it.push([k,w,P]); sum+=w; });
+          else { var w=r2(e.getBoundingClientRect().width/cur); it.push([e,w,e]); sum+=w; } });
+        if(W>520) return off();      /* (wider: the corners' own layout; narrower: one row, shrunk only as far as the width needs, its gaps all equal) */
+        var n=it.length, s=Math.round(Math.max(.7,Math.min(1,(W-24-(n-1)*10)/sum))*1000)/1000, g=(W-24-sum*s)/(n-1), k=az*s, x=12;
+        if(H.style.getPropertyValue('--pt-s')!==String(s)) H.style.setProperty('--pt-s',s); if(!H.classList.contains('pal-tight')) H.classList.add('pal-tight'); st={s:s};
+        put(P,'gap',r2(g/k)+'px');
+        var pin=0; it.forEach(function(a){ var e=a[2], w=a[1]*s;
+          if(e===P){ if(!pin){ pin=1; put(e,'left',r2(x/k)+'px'); put(e,'right','auto'); } }
+          else { var l=(e.id==='account-btn'); put(e,l?'left':'right',r2((l?x:W-x-w)/k)+'px'); put(e,l?'right':'left','auto'); }
+          put(e,'bottom',r2(30/(k/az))+'px'); put(e,'top','auto'); x+=w+g; });
+      }finally{ busy=0; } };
+    window.addEventListener('resize', function(){ setTimeout(window._palRowFit,0); }); setTimeout(window._palRowFit,0); setTimeout(window._palRowFit,400); setTimeout(window._palRowFit,1500);
+  })();
   [c,k].forEach(function(c){
   c.addEventListener('click', function(e){ var b=e.target.closest('[data-z]'); if(b){ var z=b.getAttribute('data-z'); if(window._focusedNodeId && window.exitFocus) window.exitFocus();
       zoomAnim(z==='fit'?zmin():Z*(z==='in'?1.6:1/1.6)); return; }

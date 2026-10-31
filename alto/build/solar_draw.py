@@ -1893,9 +1893,15 @@ window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
 var STYLES=[['system', 'System', 'System: the orbits in Alto\u2019s own glass look'],
   ['chart', 'Star chart', 'Star chart: the orbits as a painted space scene, with flights between bodies'],
   ['retro', 'Retro', 'Retro: a vintage space poster in black and gold'],
-  ['3d', '3D Star chart', '3D Star chart: turning globes lit by their suns, in depth']];
-function styleOf(){ return LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
+  ['3d', '3D Star chart', '3D Star chart: turning globes lit by their suns, in depth'],
+  ['holo', 'Holographic', 'Holographic: the System in one cyan light, square wireframe chrome, a faint grid (holo.py), light or dark']];
+/* Holographic (holo.py) is the System's look with the hosted Holographic layer on (the page's head script, window._altoHoloLayer) */
+function holoOn(){ var H=window._altoHoloLayer; return !!(H && H.get()); }
+function styleOf(){ return holoOn() ? 'holo' : LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
 function setStyle(v){
+  var H=window._altoHoloLayer;
+  if(v==='holo'){ if(H){ H.set(true); setLook('hub'); if(ready) ctl(); } return styleOf(); }
+  if(H && H.get()){ H.set(false); if(ready) ctl(); }
   if(v==='system') return setLook('hub'), styleOf();
   var t={chart:'classic', retro:'retro', '3d':'real'}[v]; if(!t) return styleOf();
   if(LOOK==='stars'){ if(t!==STY) setSty(t); }
@@ -1903,6 +1909,7 @@ function setStyle(v){
   return styleOf(); }
 window._altoSolarStyles={get:styleOf, set:setStyle, list:function(){ return STYLES.map(function(x){ return x[0]; }); }};
 stySync();
+if(holoOn() && LOOK!=='hub') setLook('hub');   /* (a page kept in Holographic opens on the System look) */
 /* normal mode: a scroll pans, an enlarged card or not (Luke's one way of moving: the engine's focus mode would step to a
    neighbour instead); the card goes home and the scroll pans */
 window.addEventListener('wheel', function(e){
