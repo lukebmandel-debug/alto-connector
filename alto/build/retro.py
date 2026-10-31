@@ -452,7 +452,120 @@ HOME_CSS = r"""
   X:not(.alto-home) #account-modal :is(.acct-title){color:#d9ae55;font-family:var(--rt-f);}
   X:not(.alto-home) #account-modal :is(button,input,.acct-provider):not(#_){border-radius:0;}
   X:not(.alto-home) #account-modal .acct-provider:not(#_){border-color:rgba(217,174,85,.5);}
+  /* B: the engraved plate (Art, Luke picked B 2026-10-31): a medallion with the format symbol, a ledger line, a foot of three cells */
+
+  X.alto-home .course-tile:not(.new-tile) .tile-emblem svg rect:first-child{rx:0;ry:0}
+  X.alto-home .t-actions button:not(#_){position:static !important;right:auto !important;bottom:auto !important;top:auto !important;width:100% !important;height:38px !important;border:0 !important;border-radius:0 !important;background:transparent !important;color:#d9ae55;display:grid;place-items:center;margin:0;padding:0}
+  X.alto-home .t-actions button+button:not(#_){border-left:1px solid rgba(217,174,85,.32) !important}
+  X.alto-home .t-actions button:hover{background:rgba(217,174,85,.14) !important}
+  X.alto-home .t-actions .tile-more{font-size:16px;line-height:1}
+  X.alto-home .slab-count{margin-left:14px;color:#b9b2a0;font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+  X.alto-home .course-tile.new-tile{min-height:0}
+  X.alto-home .course-tile :is(.t-no,.t-kind,.t-units),X.alto-home .slab-count{font-family:var(--rt-f)}
+
+  /* B: engraved plate with a medallion and a ledger foot */
+  X.alto-home .course-tile:not(.new-tile){display:grid !important;grid-template-columns:84px minmax(0,1fr);grid-template-rows:1fr auto;height:auto !important;min-height:170px;padding:0 !important;background:#06080c !important;border:1px solid rgba(217,174,85,.6) !important;overflow:visible}
+  X.alto-home .course-tile .tile-emblem{position:relative !important;inset:auto !important;width:auto !important;height:auto !important;min-width:0;max-width:none;margin:0 !important;opacity:1 !important;grid-column:1;grid-row:1;display:grid;place-items:center;border-right:1px solid rgba(217,174,85,.32);color:#d9ae55 !important;transform:none !important;
+    background:repeating-linear-gradient(0deg,rgba(217,174,85,.07) 0 1px,transparent 1px 10px),repeating-linear-gradient(90deg,rgba(217,174,85,.07) 0 1px,transparent 1px 10px),#090c11}
+  X.alto-home .course-tile .tile-emblem svg{width:48px;height:48px;stroke-width:.95}
+  X.alto-home .course-tile .tile-emblem .tile-sub{position:absolute !important;left:6px;top:6px;display:flex;color:#d9ae55}
+  X.alto-home .course-tile .tile-emblem .tile-sub svg{width:15px;height:15px}
+  X.alto-home .course-tile .tile-emblem .priv-sym svg[viewBox="0 0 36 24"]{width:22px;height:15px}
+  X.alto-home .course-tile .t-main{grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:12px 12px 12px;min-width:0}
+  X.alto-home .course-tile .t-top{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  X.alto-home .course-tile .t-no{color:#d9ae55;font-size:10px;letter-spacing:.22em}
+  X.alto-home .course-tile .t-kind{color:#b9b2a0;font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+  X.alto-home .course-tile .t-kind::before{content:"/";margin-right:10px;color:rgba(217,174,85,.32)}
+  X.alto-home .course-tile .tile-body{position:static !important;flex:1;padding:0 !important}
+  X.alto-home .course-tile .tile-title{font-size:15px !important;line-height:1.3;letter-spacing:.06em !important}
+  X.alto-home .course-tile .t-meta{margin-top:10px}
+  X.alto-home .course-tile .t-units{display:block;color:#b9b2a0;font-size:10px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
+  X.alto-home .course-tile .unit-strip{position:static !important;display:flex;gap:2px;height:4px !important;width:100%;inset:auto !important}
+  X.alto-home .course-tile .unit-strip span{flex:1;height:4px;display:block}
+  X.alto-home .course-tile .t-actions{grid-column:1/3;grid-row:2;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border-top:1px solid rgba(217,174,85,.32)}
+  X.alto-home .course-tile .t-actions button svg{width:16px;height:16px}
+  @media (max-width:600px){
+   X.alto-home .course-tile:not(.new-tile){grid-template-columns:1fr;grid-template-rows:76px 1fr auto;min-height:0}
+   X.alto-home .course-tile .tile-emblem{grid-column:1;grid-row:1;border-right:0;border-bottom:1px solid rgba(217,174,85,.32)}
+   X.alto-home .course-tile .tile-emblem svg{width:46px;height:46px}
+   X.alto-home .course-tile .t-main{grid-column:1;grid-row:2;padding:10px 12px}
+   X.alto-home .course-tile .t-no{display:none}
+   X.alto-home .course-tile .t-kind::before{display:none}
+   X.alto-home .course-tile .tile-title{font-size:13px !important}
+   X.alto-home .course-tile .t-actions{grid-column:1;grid-row:3}
+   X.alto-home .course-tile .t-actions button:not(#_){height:44px !important}   /* (a phone's tap target) */
+  }
+  X.alto-home .course-tile .tile-body{width:100% !important;max-width:none !important;min-width:0}
+  X.alto-home .course-tile .tile-title:not(#_){word-break:normal !important;overflow-wrap:normal !important;hyphens:manual !important;max-width:none !important;margin-right:0 !important;padding-right:0 !important}   /* (the Classic card's reserved zone beside its symbol is not the plate's) */
+  X.alto-home .course-tile .t-actions button:not(#_){display:flex !important;align-items:center;justify-content:center}
+  @media (max-width:600px){
+   X.alto-home .course-tile .t-actions .tile-download:not(#_){display:none !important}
+  }
+
+  X.alto-home .course-grid{align-items:stretch}
+  X.alto-home .course-tile:not(.new-tile):focus-visible{outline:2px solid #f0c15e;outline-offset:-3px}
+  X.alto-home .course-tile:not(.new-tile){align-self:stretch}
+  X.alto-home .course-tile .t-main .tile-body{flex:1 1 auto}
 """
+
+HOME_B_JS = r"""(function(){
+var NAMES={timeline:'Timeline',lanes:'Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Blueprint',world:'Atlas'};
+var mo=null, busy=false, raf=0;
+function el(t,c,x){var e=document.createElement(t); if(c) e.className=c; if(x!=null) e.textContent=x; return e;}
+function two(n){return n<10?'0'+n:''+n;}
+function live(){ return document.documentElement.classList.contains('alto-retro') && document.documentElement.classList.contains('alto-home'); }
+function decorate(){
+  if(!live()) return; busy=true;
+  document.querySelectorAll('.project-slab:not(.new-project-slab)').forEach(function(slab){
+    var k=slab.querySelector('.slab-kicker'), g=slab.querySelector('.course-grid'); if(!k||!g) return;
+    var tiles=g.querySelectorAll('.course-tile:not(.new-tile)');
+    var c=k.querySelector('.slab-count'); if(!c){ c=el('span','slab-count'); k.appendChild(c); }
+    c.textContent=tiles.length+(tiles.length==1?' timeline':' timelines');
+    tiles.forEach(function(t,i){
+      var no=t.querySelector('.t-no');
+      if(no){ no.textContent='Nº '+two(i+1); return; }   /* already decorated: only the number can change (a re-sort) */
+      var st=t.querySelector('.unit-strip'), em=t.querySelector('.tile-emblem'), body=t.querySelector('.tile-body'), sub=t.querySelector('.tile-sub');
+      var btns=['tile-download','tile-share','tile-reports','tile-more'].map(function(n){return t.querySelector('.'+n);}).filter(Boolean);
+      if(!st||!em||!body) return;
+      t._rhOrder=Array.prototype.slice.call(t.children);   /* the card's own child order, to put back exactly */
+      var units=st.querySelectorAll('span:not([data-acc])').length;
+      var main=el('div','t-main'), top=el('div','t-top'), meta=el('div','t-meta'), acts=el('div','t-actions');
+      top.appendChild(el('span','t-no','Nº '+two(i+1)));
+      if(NAMES[t.getAttribute('data-fmt')]) top.appendChild(el('span','t-kind',NAMES[t.getAttribute('data-fmt')]));
+      if(units) meta.appendChild(el('span','t-units',units+(units==1?' unit':' units')));
+      meta.appendChild(st);
+      main.appendChild(top); main.appendChild(body); main.appendChild(meta);
+      if(sub) em.appendChild(sub);                 /* the lock / shared glyph sits in the medallion's corner */
+      btns.forEach(function(b){acts.appendChild(b);});
+      t.appendChild(em); t.appendChild(main); t.appendChild(acts);
+    });
+  });
+  busy=false;
+}
+function undo(){
+  busy=true;
+  document.querySelectorAll('.course-tile:not(.new-tile)').forEach(function(t){
+    var main=t.querySelector('.t-main'); if(!main) return;
+    var body=main.querySelector('.tile-body'), em=t.querySelector('.tile-emblem'), sub=em&&em.querySelector('.tile-sub');
+    if(sub&&body) body.appendChild(sub);
+    (t._rhOrder||[]).forEach(function(n){ t.appendChild(n); });
+    main.remove(); var a=t.querySelector('.t-actions'); if(a) a.remove();
+    t._rhOrder=null;
+  });
+  document.querySelectorAll('.slab-count').forEach(function(n){n.remove();});
+  busy=false;
+}
+function watch(){
+  if(mo||typeof MutationObserver!=='function') return;
+  var root=document.documentElement;
+  mo=new MutationObserver(function(){ if(busy||raf) return; raf=requestAnimationFrame(function(){ raf=0; decorate(); }); });
+  mo.observe(root,{childList:true,subtree:true});
+}
+function unwatch(){ if(mo){ mo.disconnect(); mo=null; } }
+window._altoRetroHome={on:function(){ if(!document.documentElement.classList.contains('alto-home')) return; decorate(); watch(); }, off:function(){ unwatch(); undo(); }};
+})();
+"""
+
 
 JS = r"""(function(){
 if(window._altoRetro) return;
@@ -469,15 +582,17 @@ function art(){
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[—–-]\s+/)[0]; }
   else if(m) m.remove();
 }
+HOMEB
 __DARK__
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-retro-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);
-  r.classList.add('alto-retro'); window._altoRetroDark(1); art(); redraw();
+  r.classList.add('alto-retro'); window._altoRetroDark(1); art(); redraw(); if(window._altoRetroHome) window._altoRetroHome.on();
 }
 function off(){
   if(!r.classList.contains('alto-retro')) return;
+  if(window._altoRetroHome) window._altoRetroHome.off();
   r.classList.remove('alto-retro'); window._altoRetroDark(0); art(); redraw();
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', art);
@@ -519,7 +634,7 @@ def css() -> str:
             "@media print{#sk-frame,#sk-mark{display:none !important;}}")
 
 
-ASSET = _slim(JS.replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)))
+ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-retro-{V}.js"
 GUARD = "_altoRetro"
