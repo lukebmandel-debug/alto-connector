@@ -190,6 +190,16 @@ def pages(tmp_path_factory):
     return out
 
 
+def _home(pg, tries=5):
+    """Esc climbs a level at a time (Luke, 2026-10-28, item 20: moon, planet, sun, then nothing enlarged): press it until home."""
+    for _ in range(tries):
+        pg.keyboard.press("Escape")
+        pg.wait_for_function("() => !(window._altoSolarLock && window._altoSolarLock.riding()) && !(window._altoSolarFlight && window._altoSolarFlight())", timeout=9000)
+        pg.wait_for_timeout(300)
+        if not pg.evaluate("() => window._focusedNodeId"):
+            return
+
+
 def _open(browser, f, reduced=False, wait=1500):
     ctx = browser.new_context(viewport={"width": 1500, "height": 950}, reduced_motion="reduce" if reduced else "no-preference")
     pg = ctx.new_page()
@@ -877,7 +887,7 @@ def test_esc_and_arrows_from_an_enlarged_disc_and_back_to_a_circle(browser, page
     got = pg.evaluate("() => window._focusedNodeId")
     assert got and got != "u1"
     res = pg.evaluate("() => { var p=(" + DISC_WATCH.replace("u1-p1", "u1") + ")(); return p; }")
-    pg.keyboard.press("Escape")
+    _home(pg)
     pg.wait_for_timeout(1200)
     st = pg.evaluate("""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card');
       return {f:window._focusedNodeId||null, w:c.offsetWidth, h:c.offsetHeight, cls:n.className}; }""", got)

@@ -14,7 +14,7 @@ import pytest
 from alto.build.builder import build_timeline, load_brief
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_solar_draw import _open, browser, solar_doc  # noqa: E402,F401
+from test_solar_draw import _home, _open, browser, solar_doc  # noqa: E402,F401
 
 ROOT = Path(__file__).resolve().parent.parent
 TORTS = [[[2, 2, 2], [2, 0, 2]], [[0, 0, 2, 2, 2], [3, 2, 3, 2, 2], [0, 0, 2], [], []]]     # the shape of Luke's Torts
@@ -115,7 +115,7 @@ def test_a_body_beside_the_disc_is_enlarged_where_it_stands_and_esc_brings_all_h
     pg.wait_for_timeout(900)
     f = pg.evaluate("() => window._focusedNodeId")
     assert f == "u2-p2-m1-s1", f
-    pg.keyboard.press("Escape")
+    _home(pg)
     pg.wait_for_timeout(900)
     end = pg.evaluate("() => window._altoSolarGeo().bodies")
     assert not pg.evaluate("() => document.querySelectorAll('#world .node.sol-flank').length")
