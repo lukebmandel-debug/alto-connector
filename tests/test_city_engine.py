@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from alto.build import palace, palace_grid, palace_place as pp  # noqa: E402
-from alto.build.city_lattice import inside  # noqa: E402
+from alto.build.city_lattice import _segdist, inside  # noqa: E402
 
 FIX = ROOT / "tests" / "fixtures" / "cities" / "philadelphia.json.gz"
 MAJORS = ["Broad Street", "Market Street", "Baltimore Avenue", "Kensington Avenue", "Lancaster Avenue",
@@ -90,11 +90,13 @@ def test_blocks_lots_inside_and_no_two_domains_overlap(phil):
     inn = [lt for lt in free if any(inside(polys[k], lt[0], lt[1]) for k in idx.get((int(lt[0] // cell), int(lt[1] // cell)), ()))]
     assert len(inn) <= 0.02 * len(free)
     # no point is inside the blocks of two domains (the cut blocks of a seam meet on it, they do not overlap)
-    ov = 0
-    for b in g["blocks"][::7]:
+    bad = []
+    for n, b in enumerate(g["blocks"][::7]):
         k = [i for i in idx.get((int(b["x"] // cell), int(b["y"] // cell)), ()) if inside(polys[i], b["x"], b["y"])]
-        ov += len(k) > 1
-    assert ov == 0
+        if len(k) > 1:
+            d = [min(_segdist(b["x"], b["y"], *polys[i][j], *polys[i][(j + 1) % len(polys[i])]) for j in range(len(polys[i]))) for i in k]
+            bad.append((n * 7, round(b["x"], 3), round(b["y"], 3), k, [round(v, 4) for v in d], b.get("fr")))
+    assert not bad, bad[:3]                              # (a point exactly on a seam counts in both cut blocks; the detail says which)
     assert len(g["blocks"]) > 4000 and g["engine"]["t"]["total"] < 60
 
 

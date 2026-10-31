@@ -43,6 +43,7 @@ def test_a_gallery_maps_to_one_plan_room_and_pc_is_known():
         assert r["pc"] in ("room", "cand", "area")
 
 
-def test_the_table_is_what_the_generator_writes():
-    out = subprocess.run([sys.executable, str(ROOT / "docs" / "building-palace" / "build_pma_wall.py"), "--out", "/dev/stdout"], capture_output=True, text=True, check=True).stdout
-    assert json.loads(out.splitlines()[0]) == _t()
+def test_the_table_is_what_the_generator_writes(tmp_path):
+    dest = tmp_path / "pma_wall.json"                    # a real file: Windows has no /dev/stdout
+    subprocess.run([sys.executable, str(ROOT / "docs" / "building-palace" / "build_pma_wall.py"), "--out", str(dest)], capture_output=True, text=True, check=True)
+    assert json.loads(dest.read_text("utf-8").splitlines()[0]) == _t()
