@@ -117,6 +117,7 @@ BIN_JS = r"""function drawBin(pages){
   g.appendChild(btn); g.appendChild(panel);
   document.body.appendChild(g);
   binSlab = g;
+  alignSearch();
 }
 if(!window._altoBinClose){
   window._altoBinClose = 1;
@@ -143,6 +144,33 @@ def swap_titles(template: str) -> str:
         assert template.count(old) == 1, old
         body = old.split("textContent = ")[1].rstrip(";")
         template = template.replace(old, old.split("textContent = ")[0] + "textContent = String(" + body + ")" + _DASH + _SHY + ";")
+    return template
+
+
+ALIGN_PHONE_OLD = "  if(window.innerWidth <= 640) return;   // mobile: the media-query layout owns positions\n"
+ALIGN_PHONE_NEW = (
+    "  const bn = document.getElementById('bin-btn'), bp = document.getElementById('bin-panel');\n"
+    "  if(window.innerWidth <= 640){   // mobile: the media-query layout owns positions (the bin's computer-only placement is cleared)\n"
+    "    if(bn){ bn.style.right = ''; bn.style.bottom = ''; bn.style.left = ''; }\n"
+    "    if(bp){ bp.style.right = ''; bp.style.left = ''; }\n"
+    "    return;\n  }\n")
+ALIGN_LOOP_OLD = "  ['info-btn', 'search-btn'].forEach(id => {\n    const el = document.getElementById(id);\n    if(!el) return;\n"
+ALIGN_LOOP_NEW = (
+    "  // Luke 2026-10-31: on a computer the bin sits just right of the search toggle, search one place further left:\n"
+    "  // left to right [search] [bin] [info] [mode toggle]. No bin (nothing deleted): no gap.\n"
+    "  ['info-btn', 'bin-btn', 'search-btn'].forEach(id => {\n    const el = document.getElementById(id);\n    if(!el) return;\n"
+    "    if(id === 'bin-btn'){ el.style.left = 'auto'; if(bp){ bp.style.left = 'auto'; bp.style.right = right + 'px'; } }\n")
+
+
+ALIGN_GUARD_OLD = "  if(!mt || !mt.offsetWidth) return;\n"
+ALIGN_GUARD_NEW = "  if(!mt) return;   // (Retro hides the moon: the cluster is laid out all the same, the moon's slot stays empty as before)\n"
+
+
+def swap_align(template: str) -> str:
+    """On a computer the corner bin joins the bottom-right cluster, just right of the search toggle (search moves one place left)."""
+    for old, new in ((ALIGN_GUARD_OLD, ALIGN_GUARD_NEW), (ALIGN_PHONE_OLD, ALIGN_PHONE_NEW), (ALIGN_LOOP_OLD, ALIGN_LOOP_NEW)):
+        assert template.count(old) == 1, old
+        template = template.replace(old, new)
     return template
 
 

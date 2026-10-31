@@ -303,6 +303,7 @@ def build_home(projects: list[dict]) -> str:
                     "home runway (script)")
     # the cards (home_look.py): the strip is the timeline's own unit colours
     template = home_look.swap_bin(template)
+    template = home_look.swap_align(template)
     template = home_look.swap_titles(template)
     template = _rep(template, home_look.UNIT_STRIP_OLD, home_look.UNIT_STRIP_NEW, 1, "home unit strip")
     template = _rep(template, home_look.STATIC_STRIP_OLD, home_look.STATIC_STRIP_NEW, 1, "home static strip")
