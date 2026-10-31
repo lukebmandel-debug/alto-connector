@@ -1,4 +1,4 @@
-"""The third-person avatar, the hop and trips to cards in the Memory Blueprint walk (the test building, Chromium as the other building tests).
+"""The hop and trips to cards in the Memory Blueprint walk (the test building, Chromium as the other building tests).
 Its own module: the city tests hold a sync Playwright session of their own.
 
 Skipped without Playwright."""
@@ -30,35 +30,21 @@ def museum():
         except Exception as e:
             srv.close()
             pytest.skip(f"no chromium: {e}")
-        pg, errors = open_view(b, srv, built()[0], bs.fixture(), room="hall", view="third")
+        pg, errors = open_view(b, srv, built()[0], bs.fixture(), room="hall")
         yield pg, errors
         pg.close(); b.close()
     srv.close()
-
-
-def test_museum_third_person_draws_the_figure_inside_the_room(museum):
-    pg, errors = museum
-    pg.evaluate("AltoBuildingFPV.settle()")
-    st = pg.evaluate("AltoBuildingFPV.state()")
-    assert st["view"] == "third" and st["avatar"] and st["camD"] is not None and st["cam"]
-    assert pg.evaluate("AltoBuildingFPV._debug().camRoom !== null || AltoBuildingFPV._debug().room === null")
-    assert pg.evaluate("AltoBuildingFPV.stats().draws") > 0
-    pg.keyboard.press("t")
-    assert pg.evaluate("AltoBuildingFPV.state().view") == "first"
-    pg.keyboard.press("t")
-    assert pg.evaluate("AltoBuildingFPV.state().view") == "third"
-    assert not errors
 
 
 def test_museum_space_hops(museum):
     pg, _ = museum
     pg.evaluate("AltoBuildingFPV.place(5, 6, 0, 0, 0)")
     h0 = pg.evaluate("AltoBuildingFPV.state().hops")
-    pg.keyboard.down(" "); pg.wait_for_timeout(120); pg.keyboard.up(" "); pg.wait_for_timeout(900)
+    pg.keyboard.down(" "); pg.wait_for_timeout(120); pg.keyboard.up(" ")
+    pg.wait_for_function("AltoBuildingFPV.state().hops > %d" % h0, timeout=20000)
+    pg.wait_for_function("!AltoBuildingFPV.state().air", timeout=40000)          # a hop is ~0.65 s of game time; under a loaded machine frames (and so game time) run slow
     st = pg.evaluate("AltoBuildingFPV.state()")
     assert st["hops"] == h0 + 1 and not st["air"] and st["z"] == pytest.approx(0, abs=0.01)
-
-
 
 
 def test_museum_trip_to_a_card_walks_and_arrives_facing_it(museum):

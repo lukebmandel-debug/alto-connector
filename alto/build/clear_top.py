@@ -72,7 +72,7 @@ JS = r"""(function(){
     else if(t==='0px' && c._ctT){ c.style.setProperty('top', c._ctT, 'important'); } }
   if(typeof MutationObserver==='function'){ var c=document.getElementById('canvas');
     if(c) new MutationObserver(sync).observe(c, {attributes:true, attributeFilter:['style']});
-    new MutationObserver(sync).observe(de, {attributes:true, attributeFilter:['class']}); }
+    new MutationObserver(function(){ sync(); setTimeout(function(){ try{ place(); }catch(e){} }, 160); }).observe(de, {attributes:true, attributeFilter:['class']}); }   /* (edit mode adds a chip and re-centres the row: put the x clear of the first label again) */
   sync();
   __SHEET__
   /* the chips' reel, centred on the chip row (its place follows the row) */
@@ -83,8 +83,8 @@ JS = r"""(function(){
   var reel=bt.querySelector('.rl');
   function label(){ bt.setAttribute('aria-pressed', off ? 'true' : 'false'); bt.title=off ? 'Show the chips' : 'Hide the chips'; bt.setAttribute('aria-label', bt.title); }
   function place(){ var f=nav.querySelector('button.nav-btn') || items()[0], g=items()[0]; if(!f) return; var gl=g ? g.getBoundingClientRect().left : 0; var r=f.getBoundingClientRect();     /* in line with the chips: just before the first (hidden ones keep their place) */
-    if(!r.width) return; var z=bt.offsetWidth ? (bt.getBoundingClientRect().width/bt.offsetWidth || 1) : 1;      /* (the page's own zoom, .8: screen px -> css px) */
-    bt.style.top=Math.round((r.top+r.height/2)/z)+'px'; bt.style.left=Math.max(6, Math.round(Math.min(r.left, gl || r.left)/z-22-8))+'px'; }   /* (centred on a chip, before the row's first item) */
+    if(!r.width) return; var cw=parseFloat(getComputedStyle(bt).width) || bt.offsetWidth, z=cw ? (bt.getBoundingClientRect().width/cw || 1) : 1;      /* (the page's own zoom, .8: screen px -> css px; the css width, not offsetWidth, which WebKit rounds up) */
+    bt.style.top=Math.round((r.top+r.height/2)/z)+'px'; bt.style.left=Math.max(6, Math.round(Math.min(r.left, gl || r.left)/z-22-8/z))+'px'; }   /* (centred on a chip, 8 screen px before the row's first item) */
   function items(){ return [].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth && !(e.parentElement && e.parentElement.closest('#nav button')); }); }
   function quiet(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function turn(){
@@ -103,7 +103,8 @@ JS = r"""(function(){
   bt.addEventListener('click', function(e){ e.stopPropagation(); turn(); });
   document.body.appendChild(bt); de.classList.toggle('ct-chips-off', off); label(); place();
   window.addEventListener('resize', place); setTimeout(place, 300); setTimeout(place, 1200); if(document.fonts && document.fonts.ready) document.fonts.ready.then(place);   /* (after the row's own layout settles) */
-  if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);   /* (a frame later: never a change inside the observer's own pass) */
+  if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);
+  var pt=0; if(typeof MutationObserver==='function') new MutationObserver(function(){ requestAnimationFrame(place); clearTimeout(pt); pt=setTimeout(place, 400); }).observe(de, {attributes:true, attributeFilter:['class']});   /* (a style switch — Retro's wider labels — moves the row without resizing the bar: the x follows it, so it never sits on the first label) */   /* (a frame later: never a change inside the observer's own pass) */
 })();"""
 
 

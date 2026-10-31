@@ -288,13 +288,16 @@ def study_block(reg: dict, hl_key: str = "") -> str:
     share re-stamps like every other copy); progress lives under it + '-st'."""
     data = js_json(reg, separators=(",", ":"))
     return (f'<script id="alto-st-data">window._ALTO_ST={data};</script>\n'
-            + STUDY_CSS + "\n" + STUDY_JS.replace("__ALTO_HL_KEY__", hl_key) + "\n")
+            + STUDY_CSS + "\n" + STUDY_JS.replace("__ALTO_HL_KEY__", hl_key).replace("__ALTO_FAIL__", str(QUIZ_FAIL_PCT)) + "\n")
 
 
 def study_block_for(b, reg: dict) -> str:
     from .blocks import ID_PATTERNS
     return study_block(reg, ID_PATTERNS["hl_key"].format(tid=b.timeline_id))
 
+
+# A quiz graded under this percent is a "fail" (Luke, 2026-10-28, item 7: the Star chart's black hole, solar_hole.py).
+QUIZ_FAIL_PCT = 60
 
 STUDY_CSS = r"""<style id="alto-st-css">
   .ast{--ast-ok:#15803d;--ast-bad:#dc2626;--ast-okbg:rgba(22,163,74,.11);--ast-badbg:rgba(220,38,38,.09);--ast-acc:var(--accent,#7c6cf0);
@@ -409,7 +412,7 @@ STUDY_CSS = r"""<style id="alto-st-css">
 
 STUDY_JS = r"""<script id="alto-st">
 (function(){
-  var D = window._ALTO_ST || {}, KEY = '__ALTO_HL_KEY__-st', LET = 'ABCDEFGH';
+  var D = window._ALTO_ST || {}, KEY = '__ALTO_HL_KEY__-st', LET = 'ABCDEFGH', FAIL = __ALTO_FAIL__;
   function el(tag, cls, txt){ var e = document.createElement(tag); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
   function btn(cls, txt, fn){ var b = el('button', 'ast-btn ' + cls, txt); b.type = 'button'; if(fn) b.onclick = fn; return b; }
   function shuf(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
@@ -610,6 +613,8 @@ STUDY_JS = r"""<script id="alto-st">
       upd(key, function(r){ var t = Date.now(); r.l = {s: s, n: Q.length, t: t, bl: blind ? 1 : 0}; r.a = (r.a || 0) + 1;
         if(!r.b || s * r.b.n > r.b.s * Q.length) r.b = {s: s, n: Q.length, t: t}; });
       summary(); draw(); scrollTo_(box);
+      var pc = pct(s, Q.length);      // a failing grade says so (the Star chart's black hole listens: solar_hole.py)
+      if(pc < FAIL) try{ window.dispatchEvent(new CustomEvent('alto-quiz-fail', {detail: {key: key, p: pc, s: s, n: Q.length}})); }catch(e){}
     }
     function retake(blind){ picks = {}; graded = null; draw.blind = blind; draw(); scrollTo_(box); }
     function scrollTo_(e){ try{ var r = e.getBoundingClientRect(); if(r.top < 0 || r.top > window.innerHeight * .6) e.scrollIntoView({block:'start', behavior:'smooth'}); }catch(x){} }
@@ -622,6 +627,7 @@ STUDY_JS = r"""<script id="alto-st">
       if(body._up) body._up();
     });
     box._sync = function(){ summary(); };
+    box._retake = function(){ retake(false); };
     summary(); draw();
     box.appendChild(printQuiz(S));
     return box;

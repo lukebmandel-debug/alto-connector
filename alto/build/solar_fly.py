@@ -453,7 +453,7 @@ if(!F) return;
 function stars(){ var L=window._altoSolarLook; return !!S() && (L && L.get ? L.get()==='stars' : S().look!=='hub'); }
 /* the orbits are on (the Orbit switch, window._altoSolarMotion): off, the craft flies among still bodies */
 function moving(){ var M=window._altoSolarMotion; return !M || !M.get || !!M.get(); }
-var PR=null, WP=null, FLS=[];       /* (the craft's art, the warp's streaks, the two flashes: kept, not looked up each frame) */
+var PR=null, WP=null, GT=null, FLS=[];       /* (the craft's art, the warp's streaks, the two flashes: kept, not looked up each frame) */
 var FL=null, raf=0, Q=[], ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=null, gp=null, pth=null, trl=null, grd=null, ship=null, lastS=0, reduced=false, printing=0, held={}, calm=0;
 try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
   var mqf=function(){ reduced=mq.matches; }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
@@ -523,8 +523,8 @@ function layer(){
     ship=el('g', {'class':'fly-craft'}, gp);
     el('circle', {r:9, 'class':'fly-halo'}, ship);
     el('path', {d:'M7 0 L-5 -4.6 L-2.6 0 L-5 4.6 Z', 'class':'fly-hull'}, ship);
-    PR=el('g', {'class':'fly-ship'}, ship); WP=el('path', {'class':'fly-warp'}, ship);
-    FLS=[el('circle', {r:1, 'class':'fly-flash', fill:'url(#sol-fly-flash)', opacity:0}, gp), el('circle', {r:1, 'class':'fly-flash', fill:'url(#sol-fly-flash)', opacity:0}, gp)];
+    PR=el('g', {'class':'fly-ship'}, ship); WP=el('path', {'class':'fly-warp'}, ship); GT=el('path', {'class':'fly-gather', opacity:0}, gp);
+    FLS=[0, 0, 0].map(function(){ return el('circle', {r:1, 'class':'fly-flash', fill:'url(#sol-fly-flash)', opacity:0}, gp); });
     w.appendChild(svg);
   }
   /* the chosen craft (solar_craft.py), small and clear; Retro's a little bigger */
@@ -548,7 +548,8 @@ function draw(p, v, s, now, th){
   /* the craft every frame: its nose on the way's tangent, banking a little; braking on the way in, its engines firing
      (a rocket turned tail first: the way it turns, round the way its orbit will go) */
   var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, st=FL.st, e=A.engines ? A.engines(th) : {m:0, r:0, f:0}; FL.lt=now;
-  var fx=FL.fx || {vis:1, warp:0, fa:0, fb:0, fw:0};
+  var fx=FL.fx || {vis:1, warp:0, fa:0, fb:0, fw:0}, sx=Math.max(fx.warp, fx.ws||0);
+  if(fx.wu>.02) e.m=Math.max(e.m, fx.wu);                 /* (winding up: the engines spool up before the warp or the jump) */
   A.steer(st, v, dt); if(fx.warp>.02){ st.hs=st.ht=Math.atan2(v[1], v[0]); st.bk=0; }      /* (at warp: on its way exactly, whatever it turns between frames) */
   ship.setAttribute('transform', A.xf(p, st.hs+(FL.tr.sg||1)*Math.PI*e.f, st.bk*(1-e.f), k));
   var pr=PR; if(A.burn && pr && (e.m>.02 || e.r>.02 || FL.bu)){ FL.bu=e.m>.02 || e.r>.02; A.burn(pr, e, now); }
@@ -557,11 +558,15 @@ function draw(p, v, s, now, th){
   var fl=FLS, f2=function(v){ return Math.round(v*100)/100; };
   if(fx.vis<.99) tr.length=0;
   if(FL.vis!==fx.vis){ FL.vis=fx.vis; ship.setAttribute('opacity', f2(fx.vis)); trl.setAttribute('opacity', f2(fx.vis)); }
-  if(fx.warp>.001 || FL.wp){ FL.wp=fx.warp>.001; var kk=shipK(); pr.setAttribute('transform', FL.wp ? 'scale('+f2(kk*(1+1.2*fx.warp))+' '+f2(kk*(1-.25*fx.warp))+')' : 'scale('+kk+')');
+  if(sx>.001 || FL.wp){ FL.wp=sx>.001; var kk=shipK(); pr.setAttribute('transform', FL.wp ? 'scale('+f2(kk*(1+1.2*sx))+' '+f2(kk*(1-.25*sx))+')' : 'scale('+kk+')');
     WP.setAttribute('d', A.streaks ? A.streaks(fx.warp, now) : ''); }
-  [[fx.fa ? FL.pa : p, Math.max(fx.fa, fx.fw)], [FL.pb, fx.fb]].forEach(function(q, j){ var c=fl[j]; if(!c) return;
+  [[fx.fa ? FL.pa : p, Math.max(fx.fa, fx.fw)], [FL.pb, fx.fb], [fx.cg>.01 ? p : null, fx.cg, fx.gr]].forEach(function(q, j){ var c=fl[j]; if(!c) return;
     if(q[1]<.01 || !q[0]){ if(c._on){ c.setAttribute('opacity', '0'); c._on=false; } return; }
-    c.setAttribute('cx', f1(q[0][0])); c.setAttribute('cy', f1(q[0][1])); c.setAttribute('r', f1((16+40*q[1])/s)); c.setAttribute('opacity', f2(q[1])); c._on=true; });
+    c.setAttribute('cx', f1(q[0][0])); c.setAttribute('cy', f1(q[0][1])); c.setAttribute('r', f1((q[2] || 16+40*q[1])/s)); c.setAttribute('opacity', f2(q[1])); c._on=true; });
+  if(GT){ var on=rt && fx.cg>.01 && fx.gr;        /* (Retro's gathering: square tick marks closing in on the craft, gold, as the light gathers) */
+    if(on){ var gr=fx.gr/s, d='', a, q; for(a=0;a<8;a++){ q=a*Math.PI/4+.39; d+='M'+f1(p[0]+Math.cos(q)*gr)+' '+f1(p[1]+Math.sin(q)*gr)+'L'+f1(p[0]+Math.cos(q)*gr*.72)+' '+f1(p[1]+Math.sin(q)*gr*.72); }
+      GT.setAttribute('d', d); GT.setAttribute('opacity', f2(Math.min(1, fx.cg*1.2))); GT.setAttribute('stroke-width', f1(1.8/s)); GT._on=true; }
+    else if(GT._on){ GT.setAttribute('opacity', '0'); GT._on=false; } }
   if(cr.spin){ var sp=ship.querySelector('.sh-spin'); if(sp) sp.setAttribute('transform', 'rotate('+f1(now/1000*cr.spin*57.3%360)+')'); }
   if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
     pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', rt ? f1(1/s)+' '+f1(7/s) : f1(4/s)+' '+f1(8/s));
@@ -594,7 +599,7 @@ function fly(from, to, o){
   /* the craft's own travel: a warp between systems (the Explorer), a jump (the Halo): its own seconds on the screen,
      the orbit after it at the pace it ends on */
   var tv=A.travel && A.travel(craft().id, !!(W.B[from] && W.B[to] && W.B[from].si!==W.B[to].si));
-  if(tv){ FL.tv=tv; FL.S=tv.S(R.D*rk); FL.k=FL.S/(R.D*tv.dmap(1)); FL.pa=tr.at(0); FL.pb=tv.at ? tr.at(R.D*tv.map(tv.at)) : null; FL.fx=tv.fx(0); window._altoFlyMs=Math.round(FL.S*1000)+K.LAND_MS; }
+  if(tv){ FL.tv=tv; FL.S=tv.S(R.D*rk); FL.k=FL.S/(R.D*tv.dmap(1)); FL.pa=tr.at(0); FL.pb=tv.atw!=null ? tr.at(R.D*tv.atw) : null; FL.fx=tv.fx(0); window._altoFlyMs=Math.round(FL.S*1000)+K.LAND_MS; }
   layer(); route(R); pth.style.display=tv && tv.mode==='jump' ? 'none' : '';
   window._altoSolarDrive(F.clock(R, 0));
   de.classList.add('sol-flying');
@@ -744,6 +749,7 @@ FLY_CSS = r"""
   html.sk-retro #solar-fly-svg .fly-t0,html.sk-retro #solar-fly-svg .fly-t1{stop-color:#f0c15e !important;}
   html.sk-retro #solar-fly-svg .fly-t1{stop-opacity:.55 !important;}
   /* a warp's streaks and a warp's or a jump's flash (solar_craft.py travel): white-blue; Retro's gold */
+  #solar-fly-svg .fly-gather{fill:none;stroke:#d9ae55;stroke-linecap:butt;}
   #solar-fly-svg .fly-warp{fill:none;stroke:#cfe6ff;stroke-opacity:.75;stroke-width:1.1;stroke-linecap:round;}
   #solar-fly-svg .fly-f0{stop-color:#fff;stop-opacity:1;} #solar-fly-svg .fly-f1{stop-color:#a8d4ff;stop-opacity:.55;} #solar-fly-svg .fly-f2{stop-color:#a8d4ff;stop-opacity:0;}
   html.sk-retro #solar-fly-svg .fly-warp{stroke:#f0c15e;} html.sk-retro #solar-fly-svg .fly-f1,html.sk-retro #solar-fly-svg .fly-f2{stop-color:#f0c15e;}

@@ -19,6 +19,8 @@ jobs:
   # releases (see packaging/README.md), so CI and a laptop produce the same
   # kind of artifact.
   build:
+    # Only the repository owner's pushes and dispatches may cut a release (the token below has contents: write).
+    if: github.actor == 'lukebmandel-debug'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +47,8 @@ jobs:
   # fine statically — prove it launches before it ships.
   probe-windows:
     needs: build
+    # Only the repository owner's pushes and dispatches may cut a release (the token below has contents: write).
+    if: github.actor == 'lukebmandel-debug'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +64,8 @@ jobs:
 
   publish:
     needs: [build, probe-windows]
+    # Only the repository owner's pushes and dispatches may cut a release (the token below has contents: write).
+    if: github.actor == 'lukebmandel-debug'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -35,14 +35,24 @@ FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-
 # ── shared with the Star chart (solar_stars.RETRO_CSS splices these in; `X ` is the style's own selector) ──
 FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo", "bottom
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:4px;right:4px;top:3px;bottom:calc(3px + env(safe-area-inset-bottom,0px));}
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:calc(4px / var(--alto-zoom,.8));right:calc(4px / var(--alto-zoom,.8));top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));}
   X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
-  X #sk-frame i{position:absolute;width:46px;height:46px;border:0 solid #d9ae55;opacity:.8;}
-  X #sk-frame i:nth-child(1){left:0;top:0;border-width:1.5px 0 0 1.5px;} X #sk-frame i:nth-child(2){right:0;top:0;border-width:1.5px 1.5px 0 0;}
-  X #sk-frame i:nth-child(3){left:0;bottom:0;border-width:0 0 1.5px 1.5px;} X #sk-frame i:nth-child(4){right:0;bottom:0;border-width:0 1.5px 1.5px 0;}
-  X #sk-frame i::after{content:'';position:absolute;width:7px;height:7px;background:#d9ae55;transform:rotate(45deg);}
-  X #sk-frame i:nth-child(1)::after{left:8px;top:8px;} X #sk-frame i:nth-child(2)::after{right:8px;top:8px;}
-  X #sk-frame i:nth-child(3)::after{left:8px;bottom:8px;} X #sk-frame i:nth-child(4)::after{right:8px;bottom:8px;}
+  /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page";
+     the corners (Art's pick, option B): chamfered 45deg x 16px, so a rounded window cannot clip a corner point. Drawn as four straight gradient lines that stop 16px short
+     of each corner and the four <i>'s diagonals; every length is whole real px under the page zoom) */
+  X #sk-frame{--fz:var(--alto-zoom,.8);--fc:calc(16px / var(--fz));--ft:calc(1px / var(--fz));--fg:rgba(217,174,85,.8);
+    background:linear-gradient(var(--fg),var(--fg)) var(--fc) 0/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,linear-gradient(var(--fg),var(--fg)) var(--fc) 100%/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,
+      linear-gradient(var(--fg),var(--fg)) 0 var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat,linear-gradient(var(--fg),var(--fg)) 100% var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat;}
+  X #sk-frame i{position:absolute;width:var(--fc);height:var(--fc);}
+  X #sk-frame i:nth-child(1){left:0;top:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(2){right:0;top:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(3){left:0;bottom:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(4){right:0;bottom:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  /* (Art, 2026-10-28: the right rail and the X box sat on the frame's line, and the two bottom rows on different baselines: the rail and the X stand
+     inside the line, the left row rides the right row's baseline; all in whole real px, so the zoom doesn't blur them) */
+  X:not(.mobile):not(.detail-open) #tab-rail:not(#_){right:calc(6px / var(--alto-zoom,.8)) !important;}
+  X:not(.mobile):not(.detail-open) #ct-chips:not(#_){margin-left:calc(4px / var(--alto-zoom,.8));}
+  X:not(.mobile) :is(#account-btn,#pal-ctl):not(#_){bottom:30px !important;}
   X #sk-frame b{position:absolute;left:50%;top:31px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
     background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
   X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}
@@ -76,7 +86,7 @@ CHROME_CSS = r"""
   X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border-color:transparent !important;}
   X.detail-open :is(#title-bar,#nav,#node-nav-bar):not(#_){background:#000 !important;border-bottom:1px solid rgba(217,174,85,.35) !important;}
   X :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,X :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X #nav .nav-btn:not(#_){background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+  X #nav .nav-btn:not(#_){background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-size:10px !important;}
   X #nav .nav-btn:hover,X #nav .nav-btn.active{border-color:#d9ae55 !important;color:#d9ae55 !important;}
   X #nav .nav-btn :is(.nav-chip-count){color:#d9ae55 !important;background:transparent !important;}
@@ -113,10 +123,12 @@ CHROME_CSS = r"""
      place between the clef and the wordmark (Luke, 2026-10-22: "put it where Torts -- System would be, then eliminate that in retro
      mode because we already have the title at the bottom of the page"); a detail page, a narrow window and the horizontal timeline have
      no cartouche: there the name stays and the crown goes back to the very top */
-  @media (min-width:901px){ X:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:hidden !important;} }
-  @media (max-width:900px){ X #sk-frame b:not(#_){top:0;} }
+  /* (Luke, 2026-10-28: "don't try to squeeze in the title there underneath it. It kind of mushes it together": the crown stands alone, at every width and on the horizontal timeline too) */
+  X:not(.detail-open):not(.mobile) #title-bar #title-text:not(#_){visibility:hidden !important;}
   /* the rest of a detail page (Luke, 2026-10-22: "detail pages are the worst"): its back button, the page's chips, the study blocks' buttons */
-  X #desk-back:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
+  X:not(.mobile) #desk-back:not(#_){translate:0 7.6px;}   /* (Luke: "always centered with the alto glyph": the clef drops 8px in Retro, so Back drops with it) */
+  X:is(.mobile,.phone-whole) #detail-back-fixed:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #desk-back:not(#_){font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.14em;font-size:12px;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #detail-page .char-chip:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
   X #detail-page .ast-btn.pri:not(#_){background:#d9ae55 !important;color:#000 !important;}
@@ -143,7 +155,7 @@ CHROME_CSS = r"""
   X #fw-seg button:not(#_){border-radius:0 !important;background:transparent !important;color:#b9b2a0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
   X #fw-seg button[aria-selected="true"]:not(#_){background:#d9ae55 !important;color:#000 !important;}
   /* the filter's chips: square tabs, gold when on */
-  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
+  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
     font-family:var(--rt-f) !important;letter-spacing:.06em;}
   X .ef-chip:not(#_):hover{border-color:#d9ae55 !important;}
   X .ef-chip:is(.active,[aria-pressed=true]):not(#_){background:#d9ae55 !important;color:#000 !important;border-color:#d9ae55 !important;}
@@ -169,12 +181,12 @@ BOARD_CSS = r"""
   X:not(.alto-stars) #sk-mark{bottom:28px;font-size:12px;letter-spacing:.5em;padding:9px 4px 9px 16px;background:#000;font-family:var(--rt-f);text-transform:uppercase;}
   X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
   X.alto-lanes #sk-mark{display:none !important;}
-  X.alto-lanes #sk-frame b:not(#_){top:0;}   /* (the horizontal timeline has no cartouche: its name stays, the crown above it) */
-  @media (max-width:900px){ X #sk-mark{display:none !important;} X #title-text:not(#_){letter-spacing:.22em;font-size:13px;} }   /* (a narrow window: the name fits, no cartouche) */
-  X:is(.bldg-open,.wpal-open) #sk-frame i{display:none;}  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  @media (max-width:900px){ X #sk-mark{display:none !important;} }   /* (a narrow window: no cartouche) */
+  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
-  X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
+  X #page-bg:not(#_),X.alto-bg #page-bg:not(#_),X.alto-bg.mobile.rw #page-bg:not(#_){background:#000 !important;filter:none !important;}   /* (a saved background's own `html.alto-bg #page-bg` rule has the same weight: with .alto-bg here Retro wins whatever loads last) */
+  X #page-bg::before,X #page-bg::after{display:none !important;}
   X #glass-slab{background:none !important;box-shadow:none !important;border-color:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* the units: no glass bars; a fine gold rule, the unit's name in spaced capitals, its numeral in thin gold */
   X:not(.alto-lanes) #world .phase-band:not(#_){background:none !important;border:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
@@ -232,6 +244,41 @@ FORMAT_CSS = r"""
   X .lanes-unit:not(#_){background:none !important;box-shadow:none !important;border-color:rgba(217,174,85,.13) !important;}
   X :is(.lanes-tag,.ln-main-tag,.lanes-past,.lu-chip):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.16em;}
+  X .lanes-flag:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;max-width:34ch;}
+  X .lanes-box:not(#_){background:rgba(0,0,0,.8) !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
+  X .lanes-box .lb-g svg{stroke:#d9ae55;}
+  X #lanes-svg .ln-bstub{stroke:#d9ae55 !important;opacity:.55;}
+  X.phone-whole .lanes-box:not(#_){font-size:11px;letter-spacing:.08em;}
+  X .lanes-bchip:not(#_){background:none !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X .lanes-flag-n:not(#_){max-width:none !important;letter-spacing:.04em;}
+  X .lanes-flaglist:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X .lanes-fchip:not(#_){background:none !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X.phone-whole .lanes-flag:not(#_){letter-spacing:.08em;font-size:11px;max-width:19ch;}
+  X #lanes-svg .ln-fpole{stroke:#d9ae55 !important;stroke-width:1.5;opacity:.45 !important;}
+  X #lanes-svg .ln-fdia{fill:#d9ae55 !important;stroke:#000 !important;}
+  X #lanes-svg .ln-fera{fill:#d9ae55 !important;opacity:.4 !important;}
+  /* the mini timeline in a detail page (subtree.py, layout "timeline"): a black band with a gold rim, square gold-rimmed events */
+  X .amt:not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X .amt :is(.adt-bar,.adt-scroll):not(#_){border-color:rgba(217,174,85,.35) !important;}
+  X .amt .adt-name:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.26em;}
+  X .amt :is(.amt-ev,.amt-chip,.amt-flag,.amt-box,.amt-nav):not(#_){background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X .amt .amt-box:not(#_){border-style:dashed !important;color:rgba(217,174,85,.85) !important;text-transform:uppercase;letter-spacing:.1em;}
+  X .amt .amt-flag:not(#_){color:#d9ae55 !important;text-transform:uppercase;letter-spacing:.14em;}
+  X .amt .amt-when:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.12em;}
+  X .amt .adt-t:not(#_){font-family:var(--rt-f) !important;}
+  X .amt :is(.amt-axis,.amt-tick,.amt-con,.amt-pole):not(#_){stroke:#d9ae55 !important;}
+  X .amt .amt-con:not(#_){opacity:.6;}
+  X .amt .amt-dot:not(#_){fill:#d9ae55 !important;stroke:#000 !important;}
+  X .amt .amt-era:not(#_){fill:#d9ae55 !important;opacity:.5 !important;stroke:#d9ae55;stroke-width:1;stroke-opacity:.8;}
+  X .amt :is(.adt-btn,.adt-chip):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;font-size:11px !important;text-transform:uppercase;letter-spacing:.12em;}
+  X .amt .amt-tl:not(#_){fill:#d9ae55 !important;font-family:var(--rt-f);letter-spacing:.1em;}
+  X .amt .amt-fade.l:not(#_){background:linear-gradient(90deg,#000 55%,transparent) !important;}
+  X .amt .amt-fade.r:not(#_){background:linear-gradient(270deg,#000 55%,transparent) !important;}
+  X .amt .amt-row:not(#_)::before{border-top-color:rgba(217,174,85,.6) !important;}
   X #lanes-nav:not(#_),X #lanes-nav *:not(svg *){background-color:transparent;}
   X #lanes-nav:not(#_){background:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;color:#d9ae55 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #lanes-ov-sky{background:#000 !important;}
@@ -328,6 +375,79 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-btn.r:not(#_){border-radius:0;}                       /* (round in Classic: a deliberate square here, 1.9.160) */
   X #wpal-root .wp-key i:not(#_){border-radius:0;}
   X #wpal-root .wp-tour .c{color:#f0c15e;font-weight:400;letter-spacing:.06em;}
+  /* manual edit mode (item 14, quiet glass in Retro): black, square, a gold rim; the rail a gold dash line */
+  X #alto-edit-rail:not(#_){background:repeating-linear-gradient(90deg,#d9ae55 0 14px,transparent 14px 20px) !important;height:3px;animation:none !important;}
+  X #alto-edit-exit:not(#_){background:#000 !important;color:#efe6cf !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.7) !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;letter-spacing:.1em;}
+  X #alto-edit-exit .ee-dot{border-radius:0;transform:rotate(45deg);background:#d9ae55;box-shadow:none;animation:none !important;}
+  X #alto-edit-exit[data-st="error"] .ee-dot{background:#f87171;}
+  X #alto-edit-exit button:not(#_){background:transparent !important;color:#d9ae55 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.45) !important;}
+  X #alto-edit-exit button:hover{box-shadow:0 0 0 1px #d9ae55 !important;}
+  X #alto-edit-exit .ee-done:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X :is(.aed-uc,.aed-cc button,.aed-sc button,.aed-tc button,.aed-nadd,.aed-chadd):not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
+    box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X :is(.aed-uc,.aed-cc button,.aed-sc button,.aed-tc button,.aed-nadd,.aed-chadd):hover{box-shadow:0 0 0 1px #d9ae55 !important;transform:none !important;}
+  X .aed-uc.aed-unew:not(#_){box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;}
+  X :is(.aed-uc.aed-ux,.aed-cc button[data-x="delc"]):hover{color:#f87171 !important;box-shadow:0 0 0 1px #f87171 !important;}
+  X #aed-bar:not(#_){background:#000 !important;border-radius:0 !important;border:1px solid rgba(217,174,85,.6) !important;color:#efe6cf !important;}
+  X #aed-bar button:not(#_){border-radius:0 !important;color:#d9ae55 !important;}
+  X #aed-bar .ab-done:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X :where(#canvas .node-card){outline-color:rgba(217,174,85,.5);}
+  X :where(#canvas .node:hover .node-card){outline-color:#d9ae55;}
+  X :is(.aed-flags,.aed-chips,.aed-add):not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.5) !important;}
+"""
+
+# ── the homepage (home_look.py; Art's spec, Luke 2026-10-28 "8A": the homepage follows Classic | Retro): square plates, gold caps, solid dialogs ──
+HOME_CSS = r"""
+  X.alto-home,X.alto-home body{background:#000 !important;}
+  X.alto-home #page-glass{display:none !important;}
+  X.alto-home #sk-frame b{display:none !important;}   /* (the crown's diamond would sit on the Home chip) */
+  X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
+  /* the top row: the Home pill a square chip in gold capitals */
+  X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
+  X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;letter-spacing:.3em;}
+  /* projects: no glass, a fine gold rim, the name in gold capitals */
+  X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}
+  X.alto-home .slab-kicker .slab-rename{border-radius:0;color:#d9ae55;}
+  X.alto-home .home-section-label:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.3em;}
+  X.alto-home .home-section-label .hs-t{opacity:1;}
+  X.alto-home .home-sort:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  X.alto-home .home-sort:hover{color:#f0c15e;}
+  X.alto-home .home-sort-pop:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home .home-sort-pop button{border-radius:0;font-family:var(--rt-f);}
+  /* cards: square, a gold rim, a black plate; the title in capitals; the symbol in gold, very faint; the strip thin with square ends */
+  X.alto-home .course-tile:not(.new-tile):not(#_){background:#070a0f !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X.alto-home .course-tile.live:hover{transform:none;border-color:#d9ae55 !important;}
+  X.alto-home .course-tile .tile-title:not(#_){color:#efe6cf;font-family:var(--rt-f);font-size:15px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;}
+  X.alto-home .course-tile .tile-sub:not(#_){color:#b9b2a0;font-family:var(--rt-f);}
+  @media (max-width:900px){ X.alto-home .course-tile .tile-title:not(#_){font-size:13.5px;letter-spacing:.04em;} }   /* (a small card: the capitals stay whole words) */
+  X.alto-home .tile-emblem:not(#_){color:#d9ae55 !important;opacity:.16;}
+  X.alto-home .course-tile .unit-strip{height:3px;}
+  X.alto-home :is(.priv-sym,.fmt-sym){color:#d9ae55;}
+  X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):not(#_){width:28px;height:28px;border-radius:0;background:#000;border:1px solid rgba(217,174,85,.7);color:#d9ae55;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;}
+  X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):hover{color:#f0c15e;border-color:#d9ae55;}
+  X.alto-home .tile-more{width:32px;height:24px;}
+  X.alto-home .course-tile.new-tile:not(#_),X.alto-home .project-slab.new-project-slab:not(#_){background:transparent !important;border:1px dashed #d9ae55 !important;border-radius:0 !important;color:#d9ae55;text-transform:uppercase;letter-spacing:.14em;font-family:var(--rt-f);}
+  X.alto-home .new-project-note{color:#b9b2a0;}
+  X.alto-home .bin-group .bin-toggle:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  X.alto-home .bin-row:not(#_){background:#070a0f;border:1px solid rgba(217,174,85,.5);border-radius:0;}
+  X.alto-home .bin-row button{border-radius:0;border-color:rgba(217,174,85,.6);color:#d9ae55;background:#000;}
+  /* the corner controls: square chips with a gold rim (the light / dark button is gone: Retro is always dark) */
+  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
+  X.alto-home :is(#search-btn,#info-btn):not(.expanded) :is(#search-glyph,#info-icon){color:#d9ae55;}
+  X.alto-home #search-btn.expanded{background:#000 !important;}
+  X.alto-home #info-btn.expanded:not(#_){background:#05070a !important;}
+  X.alto-home #search-results:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home .search-result{border-radius:0;}
+  X.alto-home .search-result .sr-kind{border-radius:0;border-color:rgba(217,174,85,.6);color:#d9ae55;}
+  X.alto-home #claude-toast:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  /* dialogs: a solid plate, a gold rim, a black scrim: nothing shows through */
+  X.alto-home :is(#account-scrim,#dl-scrim,#nt-scrim,.share-scrim):not(#_){background:rgba(0,0,0,.72);-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home :is(#account-modal,#dl-modal,#nt-modal,.share-menu,#bin-panel):not(#_){background:#05070a !important;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home :is(.acct-title,#bin-panel .bin-head){color:#d9ae55;font-family:var(--rt-f);}
+  X.alto-home :is(#account-modal,#dl-modal,#nt-modal,.share-menu) :is(button,input,select,.nt-kind,.dl-choice,.acct-provider):not(#_){border-radius:0;}
+  X.alto-home :is(.nt-kind,.dl-choice,.share-menu button,.acct-provider):not(#_){border-color:rgba(217,174,85,.5);}
 """
 
 JS = r"""(function(){
@@ -390,7 +510,7 @@ def _slim(src: str) -> str:
 
 def css() -> str:
     """Every format's Retro rules, as the hosted script adds them."""
-    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS
+    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS + HOME_CSS
     return ("@media screen{\n" + _slim(scoped(body, "html.alto-retro")) + "\n}\n"     # (printing: the engine's black on white)
             "@media print{#sk-frame,#sk-mark{display:none !important;}}")
 

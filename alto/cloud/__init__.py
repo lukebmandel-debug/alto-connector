@@ -57,10 +57,15 @@ def load_config(raw: str | None = None) -> dict:
     return {k: str(cfg[k]) for k in _ALLOWED_KEYS if cfg.get(k)}
 
 
+def _terms_version() -> str:
+    from ..build import legal                  # alto/legal/VERSION: the one version the sign-in box and the Firestore record agree on
+    return legal.version()
+
+
 def emit_cloud_js(config: dict | None = None) -> str:
     """Return alto-cloud.js with `config` spliced in (default: the env one)."""
     cfg = config if config is not None else load_config()
-    src = SOURCE.read_text(encoding="utf-8")
+    src = SOURCE.read_text(encoding="utf-8").replace("__ALTO_TERMS_V__", _terms_version())
     if len(_CONFIG_RE.findall(src)) != 1:
         raise CloudConfigError(
             "alto-cloud.js: expected exactly one firebaseConfig literal — the "

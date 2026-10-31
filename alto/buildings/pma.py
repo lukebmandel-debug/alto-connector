@@ -25,7 +25,8 @@ def _plan() -> dict:
 
 def plan() -> dict:
     """A fresh copy of the PMA plan (safe to modify)."""
-    return copy.deepcopy(_plan())
+    from . import pma_frames
+    return pma_frames.merge(copy.deepcopy(_plan()))
 
 
 def credits() -> list:

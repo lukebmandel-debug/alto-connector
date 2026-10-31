@@ -377,6 +377,12 @@ def _target(key, brief, by_id, conns):
     # a horizontal timeline's flashback (lanes.py): the whole {id, label}, or None to remove it
     if kind == "fb" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]) and p[1] != "main":
         return brief, p[1], "flashback"
+    # a time flag of a horizontal timeline: the whole {id, label, at, to, node, color}, or None
+    if kind == "tf" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
+        return brief, p[1], "tflag"
+    # a box tag of a horizontal timeline: the whole {id, label, glyph, on, at, node, side}, or None
+    if kind == "bx" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
+        return brief, p[1], "boxtag"
     # who is on the page at a main-line event: the whole list of line ids
     if kind == "n" and len(p) == 3 and p[2] == "present":
         return (by_id[p[1]], "present", "present") if p[1] in by_id else None
@@ -434,7 +440,7 @@ def _target(key, brief, by_id, conns):
     if kind == "dt" and len(p) == 3 and p[2] == "tree":
         t = _dt_section(p[1], brief, by_id)
         return (t[0], "tree", "tree") if t and (t[0].get("tree") or {}).get("nodes") else None
-    if kind == "dt" and len(p) == 4 and p[3] in ("title", "text", "edge", "tag"):
+    if kind == "dt" and len(p) == 4 and p[3] in ("title", "text", "edge", "tag", "when", "to"):
         t = _dt_section(p[1], brief, by_id)
         if not t:
             return None
@@ -496,13 +502,20 @@ def _tree_from_list(v, old):
     not carry: the tree's own settings, a step section's provenance)."""
     steps_old = {s.get("id"): s for s in (old.get("nodes") or [])}
     out = []
+    tl = False
     for c in v or []:
         n = {"id": c["i"], "title": c.get("t") or ""}
         if c.get("p"):
             n["parent"] = c["p"]
-        for src, dst in (("x", "text"), ("g", "tag"), ("e", "edge"), ("c", "tone")):
+        for src, dst in (("x", "text"), ("g", "tag"), ("e", "edge"), ("c", "tone"),
+                         ("w", "when"), ("z", "to"), ("d", "side")):
             if c.get(src):
                 n[dst] = c[src]
+        if c.get("k"):                           # a step with a kind is a mini timeline's
+            tl = True
+            kind = {"e": "event", "f": "flag", "b": "box"}.get(c["k"], "event")
+            if kind != "event":
+                n["kind"] = kind
         if c.get("l"):
             n["link"] = c["l"][-1] if isinstance(c["l"], list) else c["l"]
         if c.get("s"):
@@ -517,6 +530,8 @@ def _tree_from_list(v, old):
         out.append(n)
     tree = {k: v2 for k, v2 in old.items() if k != "nodes"}
     tree["nodes"] = out
+    if tl:
+        tree["layout"] = "timeline"
     return tree
 
 
@@ -1118,6 +1133,64 @@ def fold(store, uid, tid) -> "dict | None":
                 fbs[at] = norm_fb(v)
             if not fbs:
                 holder.pop("flashbacks", None)
+        elif kind == "tflag":
+            # a time flag (lanes.py): the whole flag, or None to remove it
+            from .build.lanes import norm_flag
+            fl = holder.setdefault("time_flags", [])
+            at = next((j for j, q in enumerate(fl) if q.get("id") == f), None)
+
+            def nflag(q):
+                if not isinstance(q, dict):
+                    return None
+                z = norm_flag(dict(q, id=f))
+                return {k: z[k] for k in ("id", "label", "at", "to", "node", "color")}
+            cur = nflag(fl[at]) if at is not None else None
+            if cur == nflag(v):
+                already.append(k)
+                continue
+            if cur != nflag(b):
+                conflicts.append(k)
+                continue
+            if v is None:
+                fl.pop(at)
+            else:
+                keep = {kk: nflag(v)[kk] for kk in ("id", "label", "at", "to", "node", "color") if nflag(v)[kk]}
+                if at is None:
+                    fl.append(keep)
+                else:
+                    fl[at] = keep
+            if not fl:
+                holder.pop("time_flags", None)
+        elif kind == "boxtag":
+            # a box tag (lanes.py): the whole tag, or None to remove it
+            from .build.lanes import norm_box
+            bx = holder.setdefault("box_tags", [])
+            at = next((j for j, q in enumerate(bx) if q.get("id") == f), None)
+            BK = ("id", "label", "glyph", "on", "at", "node", "side")
+
+            def nbox(q):
+                if not isinstance(q, dict):
+                    return None
+                z = norm_box(dict(q, id=f))
+                return {k2: z[k2] for k2 in BK}
+            cur = nbox(bx[at]) if at is not None else None
+            if cur == nbox(v):
+                already.append(k)
+                continue
+            if cur != nbox(b):
+                conflicts.append(k)
+                continue
+            if v is None:
+                bx.pop(at)
+            else:
+                z = nbox(v)
+                keep = {k2: z[k2] for k2 in BK if z[k2] and not (k2 == "on" and z[k2] == "axis")}
+                if at is None:
+                    bx.append(keep)
+                else:
+                    bx[at] = keep
+            if not bx:
+                holder.pop("box_tags", None)
         elif kind == "present":
             # the characters on the page at a main-line event: compared as a set,
             # kept in the brief's line order
@@ -1498,8 +1571,11 @@ def fold(store, uid, tid) -> "dict | None":
 
     # a horizontal timeline: presence / flashback marks that no longer mean anything
     from .build.lanes import tidy as lanes_tidy
+    flags0 = copy.deepcopy((brief.get("time_flags"), brief.get("box_tags")))
     for i in lanes_tidy(brief, nodes):
         touched["nodes"].add(i)
+    if (brief.get("time_flags"), brief.get("box_tags")) != flags0:
+        touched["brief"] = True              # a flag pinned to a removed card lost its pin (or went)
 
     if written:
         # the result must still build; if it does not, nothing is written

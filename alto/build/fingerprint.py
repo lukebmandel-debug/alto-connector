@@ -20,6 +20,7 @@ stale page as current.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 from ..engine import RUNTIME_TEMPLATES, engine_dir
@@ -32,6 +33,11 @@ _PKG = Path(__file__).resolve().parent.parent      # alto/
 DIGEST_CHARS = 12
 
 META_NAME = "alto-build"
+
+# "blocks 2.py": the copy Finder or iCloud Drive makes beside a file it thinks
+# conflicts. It is never source, but the glob below used to hash it, so a stray
+# copy appearing mid-run moved the digest and the site looked stale.
+_FINDER_COPY = re.compile(r" \d+\.py$")
 
 
 def _sources() -> list[tuple[str, bytes]]:
@@ -46,6 +52,8 @@ def _sources() -> list[tuple[str, bytes]]:
     for name in sorted(RUNTIME_TEMPLATES):
         out.append((f"engine/{name}", (eng / name).read_bytes()))
     for p in sorted((_PKG / "build").glob("*.py")):
+        if _FINDER_COPY.search(p.name):
+            continue
         out.append((f"build/{p.name}", p.read_bytes()))
     for rel in ("hosted.py", "cloud/alto-cloud.js"):
         p = _PKG / rel

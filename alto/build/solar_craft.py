@@ -186,9 +186,9 @@ function flames(id){ var c=BY[id||cur()], o='', T=c.fl==='toon';          /* (to
       '<path class="sh-flame" d="M0 -2.6 C-4 -2.6 -9 -1.2 -16 0 C-9 1.2 -4 2.6 0 2.6 Z"/><path class="sh-flame2" d="M0 -1.3 C-3 -1.3 -6 -.6 -10 0 C-6 .6 -3 1.3 0 1.3 Z"/>')+'</g>'; }); });
   return o; }
 /* the engines a craft fires now, from a way's thr (solar_craft.py thrust(): g, b, f): m its main engines, r its retro
-   thrusters, f how far it has turned tail first (a rocket brakes so; the others fire forward) */
+   thrusters, f how far it has turned tail first (only a rocket brakes, tail first; the others fly on, no braking burn: Luke, 2026-10-28) */
 function engines(th, id){ var c=BY[id||cur()], fl=c.brake==='flip'; if(!th) return {m:0, r:0, f:0};
-  return {m:fl ? Math.max(th.g, th.b*th.f) : th.g, r:fl ? 0 : th.b, f:fl ? th.f : 0}; }
+  return {m:fl ? Math.max(th.g, th.b*th.f) : th.g, r:0, f:fl ? th.f : 0}; }
 /* the flat drawing's flames (root: its group; e: engines()), flickering a little */
 function burn(root, e, now){ var L=root._fl; if(!L || L.c!==root.firstChild){ L=root._fl=[].slice.call(root.querySelectorAll('.sh-fl')); L.c=root.firstChild; }
   L.forEach(function(g, j){ var k=g.getAttribute('data-f')==='m' ? e.m : e.r, on=k>.02, f=function(v){ return Math.round(v*100)/100; };
@@ -207,22 +207,39 @@ function burn(root, e, now){ var L=root._fl; if(!L || L.c!==root.firstChild){ L=
    stars streaking past — a flash as it drops out, and on impulse into its orbit (the approach and capture above).
    Jump (the Halo, any flight): a flash where it is, gone; a flash where it comes out, there easing into its orbit; no
    transit seen (the view moves on meanwhile). Under reduced motion no flight flies at all (solar_fly.py can()). ── */
-var WARP={a0:.16, a1:.36, w:.08, W:22, S:3}, JUMP={S:1.5, out:.18, back:.74, inS:.16};
+var WARP={a0:.16, a1:.36, w:.08, W:22, S:3}, JUMP={S:1.5, out:.18, back:.74, inS:.16, hold:.12}, WIND={warp:1, jump:1};
 function pulse(x, c, w){ var u=(x-c)/w; return Math.abs(u)>=1 ? 0 : (1-u*u)*(1-u*u); }
 var WT=null;
 function warpTab(){ if(WT) return WT; var n=400, v=[0], i, acc=0;
   function bump(x){ return ss((x-WARP.a0)/WARP.w)*(1-ss((x-WARP.a1)/WARP.w)); }
   for(i=1;i<=n;i++){ var x=(i-.5)/n; acc+=(1+(WARP.W-1)*bump(x))/n; v.push(acc); }
   WT={v:v.map(function(q){ return q/acc; }), n:n, bump:bump, d1:1/acc}; return WT; }
-function travel(id, cross){ var c=BY[id||cur()], m=c.travel==='jump' ? 'jump' : c.travel==='warp' && cross ? 'warp' : null; if(!m) return null;
-  if(m==='jump') return {mode:m, S:function(s){ return Math.min(s, JUMP.S); }, map:function(x){ return Math.min(1, Math.max(0, x)); }, dmap:function(){ return 1; },
-    fx:function(x){ return {vis:Math.max(1-ss(x/JUMP.out), ss((x-JUMP.back)/JUMP.inS)), warp:0, fa:pulse(x, JUMP.out*.55, JUMP.out*.75), fb:pulse(x, JUMP.back+JUMP.inS*.35, JUMP.inS*.9), fw:0}; },
-    at:JUMP.back+JUMP.inS*.35};
-  var T=warpTab();
-  return {mode:m, S:function(s){ return Math.min(s, WARP.S); },
-    map:function(x){ x=Math.min(1, Math.max(0, x)); var f=x*T.n, i=Math.min(T.n-1, Math.floor(f)); return T.v[i]+(T.v[i+1]-T.v[i])*(f-i); },
-    dmap:function(x){ x=Math.min(1, Math.max(0, x)); return (1+(WARP.W-1)*T.bump(x))*T.d1; },
-    fx:function(x){ return {vis:1, warp:T.bump(x), fa:0, fb:0, fw:pulse(x, WARP.a1+WARP.w*.6, .05)+.5*pulse(x, WARP.a0-WARP.w*.4, .04)}; }};
+/* (Luke, 2026-10-28: "warp speed and ship jumping happens only when you're going between solar systems, not within
+   solar systems", and "we need a little bit of start to the animation before a jump or a warp speed jump, so it doesn't
+   just look like a glitch".) Warp and jump are for a flight between systems only (cross); inside one system the
+   Explorer and the Halo fly as they are. A winding-up comes first, WIND seconds of the screen's clock with the craft
+   still where it is: the Explorer spools up (its engines rising, a faint glow, a light stretch coming on) and holds a
+   beat; the Halo charges (a glow growing round it, then light gathering in on it in a flash) — then the warp or the jump
+   as before. S(s) fixes the winding-up's share u of the clock (call it first); map, dmap and fx then take the whole
+   clock x (0-1), the way's own x being (x-u)/(1-u). fx adds wu (engines, 0-1), ws (a light stretch), cg and gr (the
+   charge glow and its radius in px, 0 = its own size). */
+function travel(id, cross){ var c=BY[id||cur()], m=cross && (c.travel==='jump' || c.travel==='warp') ? c.travel : null; if(!m) return null;
+  var u=0, W0=WIND[m], T=m==='warp' ? warpTab() : null;
+  function X(x){ x=Math.min(1, Math.max(0, x)); return u>0 ? Math.max(0, (x-u)/(1-u)) : x; }
+  function wind(x, y){ var w=u>0 ? Math.min(1, x/u) : 1, o;
+    if(m==='jump'){ var g=ss((w-.5)/.5), h=ss(w/.65);
+      o={wu:.5*h*(1-ss(y/.05)), ws:0, cg:Math.min(1, (.4*h+.65*g)*(1-ss(y/.06))), gr:w>=1 && y>0 ? 24 : 80-56*g}; }
+    else { var gl=ss((w-.1)/.6), lv=.7+.3*ss((w-.6)/.2), pl=w<.6 ? .3*(.5-.5*Math.cos(Math.PI*2*3*w/.6)) : 0;      /* (Art, 2026-10-28: the glow from .1 s to its peak at .7 s, the engines pulsing three times in the first .6 s, the stretch .25 to .45, then a .25 s hold) */
+      o={wu:Math.min(1, ss(w/.2)*(lv+pl))*(1-ss(y/.1)), ws:y<=WARP.a0+.7*WARP.w ? (.25+.2*ss((w-.3)/.4))*ss((w-.1)/.2) : 0, cg:.55*gl*(1-ss(y/.1)), gr:12+18*gl}; }
+    return o; }
+  function more(x, f){ var y=X(x), o=wind(x, y); f.wu=o.wu; f.ws=o.ws; f.cg=o.cg; f.gr=o.gr; return f; }
+  if(m==='jump') return {mode:m, S:function(s){ var b=Math.min(s, JUMP.S); u=W0/(b+W0); return b+W0; }, map:function(x){ return Math.max(0, (X(x)-JUMP.hold)/(1-JUMP.hold)); }, dmap:function(){ return 1/(1-u)/(1-JUMP.hold); },
+    fx:function(x){ var y=X(x); return more(x, {vis:Math.max(1-ss(y/JUMP.out), ss((y-JUMP.back)/JUMP.inS)), warp:0, fa:pulse(y, JUMP.out*.55, JUMP.out*.75), fb:pulse(y, JUMP.back+JUMP.inS*.35, JUMP.inS*.9), fw:0}); },
+    atw:(JUMP.back+JUMP.inS*.35-JUMP.hold)/(1-JUMP.hold), wind:W0};
+  return {mode:m, S:function(s){ var b=Math.min(s, WARP.S); u=W0/(b+W0); return b+W0; },
+    map:function(x){ x=X(x); var f=x*T.n, i=Math.min(T.n-1, Math.floor(f)); return T.v[i]+(T.v[i+1]-T.v[i])*(f-i); },
+    dmap:function(x){ x=X(x); return (1+(WARP.W-1)*T.bump(x))*T.d1/(1-u); },
+    fx:function(x){ var y=X(x); return more(x, {vis:1, warp:T.bump(y), fa:0, fb:0, fw:pulse(y, WARP.a1+WARP.w*.6, .05)+.5*pulse(y, WARP.a0-WARP.w*.4, .04)}); }, wind:W0};
 }
 /* the warp's streaks round the craft on the flat drawing (local to it, px on the screen: along its nose, drifting aft),
    as one path; k 0-1 */

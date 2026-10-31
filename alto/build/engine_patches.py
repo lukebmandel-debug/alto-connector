@@ -936,14 +936,7 @@ _DRAWER_OVERVIEW_NEW = (
     '<path d="M10 1.6 C10.9 6.2 13.8 9.1 18.4 10 C13.8 10.9 10.9 13.8 10 18.4 C9.1 13.8 6.2 10.9 1.6 10 C6.2 9.1 9.1 6.2 10 1.6 Z"/>'
     '</svg></span><span class="drawer-label">Overview</span></button>')
 
-_BACK_PILL_OLD = (
-    '<svg viewBox="0 0 100 100" width="16" height="16" style="display:block;pointer-events:none">'
-    '<polygon points="50,2 63,37 98,50 63,63 50,98 37,63 2,50 37,37" fill="currentColor"/>'
-    '</svg><span>BACK</span>')
-_BACK_PILL_NEW = (
-    '<svg viewBox="0 0 100 100" width="16" height="16" style="display:block;pointer-events:none">'
-    '<circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" stroke-width="7"/><ellipse cx="50" cy="50" rx="22" ry="44" fill="none" stroke="currentColor" stroke-width="6"/><line x1="6" y1="50" x2="94" y2="50" stroke="currentColor" stroke-width="6"/><path d="M14,27 Q50,18 86,27" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M14,73 Q50,82 86,73" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>'
-    '</svg><span>BACK</span>')
+# (the phone's Back is a plain chevron now, so the old diamond -> globe glyph swap for the Memory Palace's BACK tab is retired)
 
 
 # ── outline card numbers say whose child a card is ─────────────────────────
@@ -995,12 +988,6 @@ PATCHES = [
         "name": "drawer-overview-glyph-desktop-sparkle",
         "old": _DRAWER_OVERVIEW_OLD,
         "new": _DRAWER_OVERVIEW_NEW,
-        "count": 1,
-    },
-    {
-        "name": "mobile-back-pill-glyph-globe",
-        "old": _BACK_PILL_OLD,
-        "new": _BACK_PILL_NEW,
         "count": 1,
     },
     {
@@ -1714,6 +1701,11 @@ _CTRL_NEW = (_CTRL_OLD + "\n"
              # 26 - 35/2) and 80px in, ~20px clear of the clef's 59px right edge; it
              # zooms with the page, so the gap and the alignment hold at every width.
              "html.mobile #desk-back{ display:none !important; }\n"
+             # a phone: Back is a chevron-only round button beside the clef, centred on the clef's line
+             # (#nav is 52px + the safe area with a 1px border, and the clef is at 50% of its padding box; the button is as tall as the clef, 34px)
+             "html.mobile #detail-back-fixed{ top:calc((51px + env(safe-area-inset-top, 0px)) / 2 - 17px); bottom:auto; left:48px;\n"
+             "  width:34px; height:34px; padding:0; flex-direction:row; justify-content:center; gap:0; border:1px solid var(--card-glass-border);\n"
+             "  border-radius:17px; font-size:0; z-index:296; }\n"
              "html:not(.mobile) #desk-back{ display:none; position:fixed; left:80px; top:8.5px; z-index:103; height:35px;\n"
              "  align-items:center; justify-content:center; gap:7px; padding:0 15px 0 12px; border-radius:17.5px; cursor:pointer;\n"
              "  font-family:inherit; font-size:14px; letter-spacing:.05em; white-space:nowrap; color:var(--muted);\n"
@@ -1744,7 +1736,7 @@ _MODE_BTN_NEW = (
     '<line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>\n'
     '  <button id="desk-back" type="button" onclick="showTimeline()">'
     '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
-    'stroke-linejoin="round" aria-hidden="true"><path d="M16.5 10H3.8M9 4.6 3.6 10 9 15.4"/></svg><span class="db-label"></span></button>')
+    'stroke-linejoin="round" aria-hidden="true"><path d="M12.6 4.4 7 10l5.6 5.6"/></svg><span class="db-label">Back</span></button>')
 _MODE_TXT_OLD = "  document.getElementById('mode-toggle').textContent = isDark ? '\u2600 Light' : '\u263d Dark';\n"
 _MODE_TXT_NEW = "  document.getElementById('mode-toggle').title = isDark ? 'Switch to light' : 'Switch to dark';\n"
 _MODE_EARLY_OLD = "if(m)m.textContent='\u2600 Light';"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alto-connector"
-version = "1.9.185"
+version = "1.9.197"
 description = "Build interactive timelines from your own materials — an MCP connector for Claude"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,10 +37,13 @@ include = ["alto*"]
 [tool.setuptools.package-data]
 "alto" = [
   "interview_guide.md",
-  "privacy.html",
+  "legal/*.md",
+  "legal/VERSION",
   # Committed copy of ../firestore.rules (pinned identical by a test): the
   # rules have to travel with every install, or publishing cannot deploy them.
   "firestore.rules",
+  # Same for ../storage.rules: deny all client access to Firebase Storage.
+  "storage.rules",
   "assets/*.svg",
   "assets/png/*.png",
   "assets/backgrounds/*.jpg",

@@ -701,7 +701,6 @@ RETRO_CSS = (r"""
   X #sol-ctl .sol-seg,X #sol-ctl #sol-motion,X #sol-ctl .sol-opt{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border-radius:0 !important;}
   X #sol-ctl button{color:#c9d1dc !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}
   X #sol-ctl .sol-seg button.on,X #sol-ctl #sol-motion.on,X #sol-ctl .sol-opt.on{color:#000 !important;background:#d9ae55 !important;}
-  @media (max-width:1100px){ X #sk-frame i:nth-child(4){display:none;} }   /* (a narrow window: the chart's control row runs to the bottom-right corner) */
   X #sol-ctl>*{border-radius:0 !important;} X #sol-ctl .sol-sw{border-radius:0;background:#333;} X #sol-ctl .sol-sw::after{border-radius:0;background:#d9ae55;} X #sol-ctl .on .sol-sw{background:#000;}
   /* the enlarged disc: a navy plate rimmed in gold */
   X #world .node[data-solar]:is(.focused,.sol-closing) .sol-scrim{background:#0a1b34 !important;}

@@ -102,6 +102,7 @@ def test_the_only_dashes_left_are_the_materials_own_arcs():
     """Characters and flashbacks are solid now; the one dashed thing is an arc
     (a link the material draws between events), and the key's swatch of it."""
     css = re.sub(r"/\*.*?\*/", "", LANES_CSS, flags=re.S)
+    css = re.sub(r"\.lanes-(?:box|bchip)\{[^}]*\}", "", css)       # (a box tag is a dashed caption on purpose: it is not a path)
     css_dashes = [l for l in css.splitlines() if "dasharray" in l]
     assert len(css_dashes) == 1 and ".ln-rel" in css_dashes[0]
     assert "ln-fb" not in LANES_CSS and "ln-fb" not in LANES_JS and "'11 9'" not in LANES_JS

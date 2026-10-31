@@ -416,6 +416,22 @@ its floors, reached by an elevator inside the building.
   them keep theirs, so the main line dips into the past and rises back where
   the present resumes. Characters in a flashback scene are `present` there
   as anywhere else.
+- **Time flags**: `time_flags: [{id, label, at?, to?, node?, color?}]` in the
+  brief — a pennant on a pole standing on the time axis at a point in story
+  time (a date, the start of an era, a named moment). Only where the material
+  names it: `at` is written like an event's `when` ("1852-06", "500 BC",
+  "Day 3"); `to` ends an era that starts at `at` (the flag then carries a
+  bracket along the axis); `node` pins the flag where an event sits (use it
+  when events have no dates, or the label is a name like "The war years"). A
+  flag is not a card: no page, no step. Change them later with `set_lines`
+  (`time_flags`). Never invent a date for a flag.
+- **Box tags**: `box_tags: [{id, label, glyph?, on?, at?, node?, side?}]` in the
+  brief — a plain dashed labelled box on the board that is NOT a node: no
+  detail page, no step, no click. For a caption the material gives that has
+  no page of its own ("Siege begins", "Years of silence"). `on`: `axis`
+  (default; above the time axis), `main`, or a line id (beside that line);
+  `at` a date like an event's `when`, or `node` an event it sits beside.
+  Change them later with `set_lines` (`box_tags`). Never invent one.
 - `when` on every event, exactly as the material dates it ("1852",
   "1852-06-14", "March 1852", "500 BC", "Day 3"). Time is drawn to scale
   wherever events are dated and long empty stretches are squeezed (marked ≈);
@@ -437,7 +453,8 @@ its floors, reached by an elevator inside the building.
   the page — new ones use `present`.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
-  flashback (or a new one) or take it out, and add or rename lines.
+  flashback (or a new one) or take it out, add or rename lines, and add,
+  move, rename or remove time flags and box tags (the ⚑ and ▭ buttons while editing).
 
 ### §D-Solar. System (`mode: 'outline'`, `layout: 'solar'`)
 "System" is what the student calls it; `solar` is only the id in the
@@ -893,6 +910,27 @@ first) and `label` (the bar's name). Readers can fold any branch, switch
 between tree and list, and hover a step to light up its path. §0 as
 everywhere: every question, answer and outcome comes from the notes. A tree's
 steps are not cards on the map and need no ids anywhere else.
+
+**Mini timelines inside a page.** A concept or element whose page is really a
+sequence in time — the road to a statute, a case's procedural history, an
+element's development — can carry a small horizontal timeline instead of a
+long list. Offer it only when the notes give dates or a clear order, and only
+if the student wants it. It is a `tree` with `layout: "timeline"`
+(`add_nodes` → `sections: [{h, t?, tree: {layout: "timeline", nodes: [...]}}]`),
+drawn in that section under its text, with a time axis, events alternating
+above and below it. There are no parents: the items run in reading order.
+Each item is `{id, title, when?, text?, tag?, tone?, link?, sections?}` (an
+event: a small card; `link` opens a page of this timeline, `sections` a short
+panel under the band). `when` is a date as the notes write it ("1215", "June
+1215", "500 BC", "Day 3"); two or more dated events are placed to scale, undated
+ones evenly. Two more kinds: `kind: "flag"` is a pennant on the axis at `when`
+(`to` = where that era ends, drawn as a bracket), and `kind: "box"` is a dashed
+caption at `when`; both need `when` and are just their words. `side:
+"above"|"below"` pins an event to one side. On a phone it becomes one row of
+chips. A section carries one of tree / cards / quiz, so a timeline is its own
+section. §0 as everywhere: every date and event comes from the notes. The
+student can add, move, retitle and delete items by hand in edit mode ("+ Add a
+section" → Mini timeline).
 
 **Flash cards and quizzes inside a page.** A concept's or element's page can
 carry flash cards or a graded multiple-choice quiz so the student can study the

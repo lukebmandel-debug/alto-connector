@@ -79,5 +79,35 @@ if(withCards){ var seed=7, rnd=function(){ seed=(seed*16807)%2147483647; return 
     out.trips++; if(L.mode==='walk') out.tripWalk++; else out.tripFade++; if(L.stuckFade) out.tripStuckFade++; out.tripMaxS=Math.max(out.tripMaxS,+t.toFixed(1));
     var why=!L.arrived?'never arrived ('+(L.mode||'?')+(L.why?', '+L.why:'')+')':d>.5?'stopped '+d.toFixed(2)+' m from the spot':Math.abs(S.fz-it.room.l.e)>.2?'wrong floor':Math.abs(face)>.21?'not facing the sign ('+(face*57.3).toFixed(0)+' deg)':S.nets>nets0?'fell':S.rescues>res0?'stuck in geometry':'';
     if(why) fails.push({kind:'trip', id:id, why:why, from:f0.map(function(v){ return +v.toFixed(1); }), mode:L.mode, len:+(L.len||0).toFixed(1)}); } }
+/* ── low obstacles (Luke, 2026-10-29: "low obstacles, realistic height"): a hop clears a bench or a rope barrier (top <= 1.0 m, knee to waist) and a walker that hops lands past it;
+   it never clears a wall, a rail or a display case (nor the 1.1 m plinth). Each obstacle is approached from 8 directions, at a walk and a run, hopping at three distances;
+   "cleared" = ends beyond the far side, never rescued, never netted. ── */
+out.obst={low:{n:0,cleared:0,byWalk:0,byRun:0}, high:{n:0,cleared:0}, wall:{n:0,cleared:0}, bench:{n:0,cleared:0}, rope:{n:0,cleared:0}, boxed:[]}; var obFails=[];
+/* walk from `st` along `dir`, hopping once the capsule is `hopAt` m short of the obstacle's near face (tIn, metres along the line from `st`); cleared = the centre is past its far face (tOut), on the ground again, still on the line */
+function hopRun(dir,st,z,run,hopAt,tIn,tOut,maxT){ place(st[0],st[1],z,Math.atan2(dir[1],dir[0])); var nets0=S.nets, res0=S.rescues, t=0, hopped=false, lat=0;
+  while(t<maxT){ var d=(S.x-st[0])*dir[0]+(S.y-st[1])*dir[1], k={f:1,run:run?1:0}; if(!hopped&&d>=tIn-CFG.pr-hopAt){ k.hop=1; hopped=true; } A.step(DT,k,1); t+=DT;
+    lat=Math.max(lat,Math.abs((S.x-st[0])*dir[1]-(S.y-st[1])*dir[0])); d=(S.x-st[0])*dir[0]+(S.y-st[1])*dir[1];
+    if(d>tOut+.08&&hopped&&!S.air) return {ok:lat<.2&&S.rescues===res0&&S.nets===nets0, d:d, lat:lat}; }
+  return {ok:false}; }
+function spotOk(x,y,z){ var s=sup(x,y,z+.3); return s!=null&&Math.abs(s-z)<.15&&freeAt(x,y,z); }
+/* where the line st + t*dir enters and leaves a box prim (slab test in the box's own axes) */
+function slab(pr,st,dir){ var ox=st[0]-pr.x, oy=st[1]-pr.y, o=[ox*pr.c+oy*pr.s,-ox*pr.s+oy*pr.c], d=[dir[0]*pr.c+dir[1]*pr.s,-dir[0]*pr.s+dir[1]*pr.c], h=[pr.hx,pr.hy], t0=-1e9, t1=1e9;
+  for(var i=0;i<2;i++){ if(Math.abs(d[i])<1e-9){ if(Math.abs(o[i])>h[i]) return null; continue; } var a=(-h[i]-o[i])/d[i], b=(h[i]-o[i])/d[i]; t0=Math.max(t0,Math.min(a,b)); t1=Math.min(t1,Math.max(a,b)); } return t0<t1?[t0,t1]:null; }
+Object.keys(G.fxs).forEach(function(id){ var F=G.fxs[id], f=F.f, pr=G.prims.filter(function(q){ return q.tag===id&&q.k==='box'; })[0]; if(!pr) return;
+  var h=pr.z1-pr.z0, kind=h<=1.0?'low':'high'; if(h<.3) return; var z=F.l.e, cleared=false, tried=0, wk=false, rn=false, DIRS=[[pr.c,pr.s],[-pr.s,pr.c],[-pr.c,-pr.s],[pr.s,-pr.c]];
+  for(var a0=0;a0<8;a0++) DIRS.push([Math.cos(a0*Math.PI/4),Math.sin(a0*Math.PI/4)]);
+  for(var a=0;a<DIRS.length;a++){ var dir=DIRS[a], st=[pr.x-dir[0]*(pr.R+2.6),pr.y-dir[1]*(pr.R+2.6)], sl=slab(pr,st,dir); if(!sl) continue; var tIn=sl[0], tOut=sl[1], en=[st[0]+dir[0]*(tOut+1.0),st[1]+dir[1]*(tOut+1.0)],
+      pre=[st[0]+dir[0]*(tIn-.4),st[1]+dir[1]*(tIn-.4)], post=[st[0]+dir[0]*(tOut+.4),st[1]+dir[1]*(tOut+.4)];
+    if(!spotOk(st[0],st[1],z)||!spotOk(en[0],en[1],z)||!reach(st,pre,z)||!reach(post,en,z)) continue; tried++;          /* a clear run-up to it and a clear landing beyond it */
+    [false,true].forEach(function(run){ var ats=run?[1.6,2.2,2.8]:[.5,.8,1.1]; for(var q=0;q<ats.length;q++){ var r=hopRun(dir,st,z,run,ats[q],tIn,tOut,7); if(r.ok){ cleared=true; if(run) rn=true; else wk=true; return; } } }); }
+  if(!tried) return; var B=out.obst[kind]; B.n++; if(cleared) B.cleared++; if(kind==='low'){ if(wk) B.byWalk++; if(rn) B.byRun++; var C=out.obst[/^rope/.test(id)?'rope':'bench']; C.n++; if(cleared) C.cleared++; else out.obst.boxed.push(id); }          /* not cleared: boxed in by furniture or a wall on every line */
+  if(kind==='high'&&cleared) obFails.push({kind:'obstacle', id:id, what:f.k, h:+h.toFixed(2), why:'a hop CLEARED a tall obstacle (case or plinth)'}); });
+/* walls and rails: sampled mid-wall, perpendicular, only where plain walking is stopped (not a door); a hop must not get through */
+var wi=0; G.prims.forEach(function(q,i){ if(!q.wall||q.k!=='seg'||wi>=80||(i%7)) return; var L=Math.hypot(q.bx-q.ax,q.by-q.ay); if(L<1.2) return; var mx=(q.ax+q.bx)/2, my=(q.ay+q.by)/2, nx=-(q.by-q.ay)/L, ny=(q.bx-q.ax)/L, z=q.z0;
+  var lv=G.lvs.filter(function(l){ return Math.abs(l.e-z)<.05; })[0]; if(!lv) return; var st=[mx-nx*2,my-ny*2], en=[mx+nx*2,my+ny*2]; if(!spotOk(st[0],st[1],z)||!spotOk(en[0],en[1],z)) return;
+  place(st[0],st[1],z,Math.atan2(ny,nx)); for(var s=0;s<150;s++){ A.step(DT,{f:1},1); } if(((S.x-st[0])*nx+(S.y-st[1])*ny)>3.2) return; wi++; out.obst.wall.n++;
+  var got=false; [false,true].forEach(function(run){ [.5,1.1,1.8,2.6].forEach(function(at){ var r=hopRun([nx,ny],st,z,run,at,2-(q.r||.1),2+(q.r||.1),3); if(r.ok) got=true; }); });
+  if(got){ out.obst.wall.cleared++; obFails.push({kind:'obstacle', id:q.tag||('wall#'+i), what:'wall', h:+(q.z1-q.z0).toFixed(2), why:'a hop got through a wall'}); } });
+fails.push.apply(fails,obFails);
 out.cuts=G.cuts.length; out.stairCuts=(G.scuts||[]).length; out.closed=G.dead.map(function(d){ return d.w+'@'+d.a.toFixed(1)+' (onto '+d.by+')'; }); out.clipped=G.clipped||0; out.fails=fails; out.nets=S.nets; out.capsule={r:CFG.pr, h:CFG.head, minDoor:CFG.minDoor};
 console.log(JSON.stringify(out));

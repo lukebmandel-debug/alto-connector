@@ -135,12 +135,19 @@ def test_the_engine_reaches_the_map_and_a_page_puts_it_aside(browser, origin):
         page.evaluate("document.documentElement.classList.remove('detail-open')")
         _settle(page, 400)
         assert page.evaluate(ENL) == "hanna"                                                                 # and back on the map after
-        page.evaluate("document.documentElement.classList.add('alto-editing')")
-        _settle(page, 200)
-        assert page.evaluate("document.getElementById('wpal-root').hidden")
-        page.evaluate("document.documentElement.classList.remove('alto-editing')")
+        page.evaluate("document.documentElement.classList.add('alto-editing')")                              # editing by hand stays on the map (Luke, 2026-10-29)
         _settle(page, 400)
         assert not page.evaluate("document.getElementById('wpal-root').hidden")
+        assert page.evaluate(ENL) == "hanna"                                                                 # the card is still enlarged on it
+        page.evaluate("document.documentElement.classList.add('detail-open')")                               # ...and a page still puts the map aside while editing
+        _settle(page, 200)
+        assert page.evaluate("getComputedStyle(document.getElementById('wpal-root')).visibility") == "hidden"
+        page.evaluate("document.documentElement.classList.remove('detail-open')")
+        _settle(page, 400)
+        assert page.evaluate(ENL) == "hanna"
+        page.evaluate("document.documentElement.classList.remove('alto-editing')")
+        _settle(page, 400)
+        assert not page.evaluate("document.getElementById('wpal-root').hidden") and page.evaluate(ENL) == "hanna"
         assert not errors
     finally:
         page.close()

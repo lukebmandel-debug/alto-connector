@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import backgrounds
+from . import backgrounds, home_look
 from .brief import Brief, PALETTE, period_words
 from .emit import emit
 from .sanitize import js_json
@@ -232,12 +232,23 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
 
 # The homepage's and the reports page's background choice (backgrounds.py): one key
 # for both, applied in <head> ahead of everything else.
+# the beta's two legal pages (plus the OpenStreetMap credit), one quiet line at the foot of the homepage (REQUIRED-for-beta R1/R4; text in alto/legal/*.md, build/legal.py). It sits
+# after the project list in the page flow, not fixed, so it never covers a card; the list's own 140px foot makes room, the negative margin takes it back.
+_HOME_LEGAL = (
+    '<footer id="home-legal"><a href="/privacy/">Privacy</a><span aria-hidden="true">&middot;</span><a href="/terms/">Beta Terms</a>'
+    '<span aria-hidden="true">&middot;</span><a href="/credits/">Credits</a><br>'
+    '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Map data &copy; OpenStreetMap contributors (ODbL)</a></footer>'
+    '<style>#home-legal{position:relative;z-index:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:-104px 0 0;padding:0 20px 34px;'
+    'font-size:11px;line-height:1.6;font-family:inherit;letter-spacing:.04em;color:var(--muted,#5a5a80)}'
+    '#home-legal a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}#home-legal a:hover,#home-legal a:focus-visible{border-bottom-color:currentColor}'
+    '@media (max-width:768px){#home-legal{margin-top:0;padding-bottom:150px}}</style>')
+
 HOME_BG_KEY = "alto-bg-home-v1"
 # The homepage's title bar without its glass on a computer, as on every timeline (clear_top.py; Luke, 2026-10-22: "get rid
 # of the background of the top bar on the home page as well"): the background runs to the top of the window, the name keeps
 # a light frosted pad. html.alto-clear-top is set before the background script so a picture is drawn from the top
 # (backgrounds.py inset()); a phone (max-width:640px) keeps its bar.
-_HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=window.matchMedia && matchMedia('(min-width:641px)');
+_HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=window.matchMedia && matchMedia('(min-width:641px)'); r.classList.add('alto-home');
   function f(){ r.classList.toggle('alto-clear-top', !!(m && m.matches)); } f(); if(m && m.addEventListener) m.addEventListener('change', f); })();</script>
 <style id="alto-home-clear-top">
 @media (min-width:641px){
@@ -247,7 +258,7 @@ _HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=wind
     box-shadow:0 0 0 6px var(--ct-g);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);}
 }
 </style>"""
-_HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
+_HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=True) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
     "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim, #bg-panel")
 # Reports had none of the runway, and not even viewport-fit=cover until a
 # script re-applied the viewport 100ms after load — so Safari painted flat
@@ -258,7 +269,7 @@ _REPORTS_RW_HEAD_NEW = ('<meta name="viewport" content="width=device-width, init
                         'viewport-fit=cover">' + backgrounds.head_block(HOME_BG_KEY)
                         + _rw_head("#reports-wrap", _REPORTS_RW_FIXED, "#account-scrim, #bg-panel"))
 _HOME_RW_TAIL_OLD = "</body>"
-_HOME_RW_TAIL_NEW = runway_script() + "</body>"
+_HOME_RW_TAIL_NEW = home_look.CSS + runway_script() + "</body>"
 _BG_UI = backgrounds.ui_block("Homepage and reports", rail=False)
 
 
@@ -286,9 +297,17 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, _HOME_ROW_OLD, _HOME_ROW_NEW, 1, "home search expanded rows")
     template = _rep(template, _HOME_CLOSE_OLD, _HOME_CLOSE_NEW, 1, "home search render hook")
     template = _rep(template, _HOME_PROJ_OLD, _HOME_PROJ_NEW, 1, "home search card project")
+    template = _rep(template, '<div id="projects-wrap"></div>', '<div id="projects-wrap"></div>' + _HOME_LEGAL, 1, "home legal footer")
     template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
     template = _rep(template, _HOME_RW_TAIL_OLD, sx_block(HOME_ROW_JS) + _BG_UI + _HOME_RW_TAIL_NEW, 1,
                     "home runway (script)")
+    # the cards (home_look.py): the strip is the timeline's own unit colours
+    template = home_look.swap_bin(template)
+    template = home_look.swap_titles(template)
+    template = _rep(template, home_look.UNIT_STRIP_OLD, home_look.UNIT_STRIP_NEW, 1, "home unit strip")
+    template = _rep(template, home_look.STATIC_STRIP_OLD, home_look.STATIC_STRIP_NEW, 1, "home static strip")
+    template = _rep(template, "unitStrip(it.units)", "unitStrip(it.units, it.fmt)", 1, "home shared strip")
+    template = _rep(template, "unitStrip(pg.units)", "unitStrip(pg.units, pg.fmt)", 1, "home private strip")
     regions = {
         "projects": projects_const(projects),
         "search_course_fn": SEARCH_COURSE_FN,

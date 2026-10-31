@@ -35,3 +35,6 @@ DISTRIBUTION.md
 
 # Machine-specific permission rules (absolute paths to this laptop)
 .claude/settings.local.json
+
+# security test toolchain (tests/security)
+tests/security/node_modules/

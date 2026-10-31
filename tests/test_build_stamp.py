@@ -75,6 +75,19 @@ def test_a_rename_cannot_impersonate_an_edit(monkeypatch):
     assert build_fingerprint() != one
 
 
+def test_a_finder_copy_does_not_move_the_digest(monkeypatch, tmp_path):
+    """iCloud Drive drops "x 2.py" beside a file; that copy is not source."""
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "blocks.py").write_text("a = 1\n")
+    monkeypatch.setattr("alto.build.fingerprint._PKG", tmp_path)
+    one = _sources()
+    (tmp_path / "build" / "blocks 2.py").write_text("a = 2\n")
+    (tmp_path / "build" / "palace_tiles 13.py").write_text("b = 3\n")
+    assert _sources() == one
+    (tmp_path / "build" / "blocks2.py").write_text("c = 4\n")
+    assert _sources() != one, "a real new module still counts"
+
+
 # ── every hosted page carries it ────────────────────────────────────────────
 
 def test_every_hosted_page_is_stamped(built):
