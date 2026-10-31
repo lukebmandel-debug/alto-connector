@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from terms_fixture import real_cloud_js, terms_doc
+
 pw = pytest.importorskip("playwright.sync_api")
 
 from alto.build.builder import build_timeline, load_brief  # noqa: E402
@@ -23,7 +25,7 @@ from alto.cloud import SOURCE  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 TID = "contracts-outline"
 KEY = f"alto-hl-{TID}-st"
-JS = SOURCE.read_text(encoding="utf-8")
+JS = real_cloud_js(SOURCE.read_text(encoding="utf-8"))
 ENGINES = ["chromium", "webkit"]
 
 CARDS = {"label": "Elements", "cards": [
@@ -425,7 +427,7 @@ export const onSnapshot = (ref, cb) => {
 
 class Cloud:
     def __init__(self):
-        self.docs, self.lock = {}, threading.Lock()
+        self.docs, self.lock = terms_doc('U1'), threading.Lock()
 
     def op(self, source, a):
         with self.lock:
