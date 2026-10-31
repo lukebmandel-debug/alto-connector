@@ -228,13 +228,13 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing .aed-f:hover{outline-color:color-mix(in srgb,var(--accent,#a78bfa) 70%,transparent);}
   html.alto-editing .aed-on{outline:2px solid var(--accent,#a78bfa) !important;outline-offset:3px;cursor:text;}
   html.alto-editing .aed-on:focus{outline:2px solid var(--accent,#a78bfa) !important;}
-  html.alto-editing:not(.mobile) #canvas .node-card .node-title,
-  html.alto-editing:not(.mobile) #canvas .node-card .node-tag,
-  html.alto-editing:not(.mobile) #canvas .node-card .node-desc,
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-title,
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-tag,
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-desc,
   html.alto-editing:not(.mobile) #canvas .phase-label-float{outline:1.5px dashed transparent;outline-offset:2px;border-radius:3px;cursor:text;}
-  html.alto-editing:not(.mobile) #canvas .node-card .node-title:hover,
-  html.alto-editing:not(.mobile) #canvas .node-card .node-tag:hover,
-  html.alto-editing:not(.mobile) #canvas .node-card .node-desc:hover,
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-title:hover,
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-tag:hover,
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-desc:hover,
   html.alto-editing:not(.mobile) #canvas .phase-label-float:hover{outline-color:color-mix(in srgb,var(--accent,#a78bfa) 70%,transparent);}
   html.alto-editing:not(.mobile) #title-text{outline:1.5px dashed transparent;outline-offset:5px;border-radius:3px;cursor:text;}
   html.alto-editing:not(.mobile) #title-text:hover{outline-color:color-mix(in srgb,var(--accent,#a78bfa) 70%,transparent);}
@@ -248,8 +248,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #canvas .node.aed-shome{transition:translate .26s cubic-bezier(.2,.7,.3,1);}
   #canvas .node.aed-drop-ok .node-card{outline:3px solid var(--accent,#7c5cff);outline-offset:3px;}
   #canvas .node.aed-drop-no .node-card{outline:2px dashed #d9534f;outline-offset:3px;opacity:.62;}
-  html.alto-editing:not(.mobile) #canvas .node-card .node-order{pointer-events:auto;cursor:text;border-radius:4px;padding:0 3px;margin:-1px -3px;transition:background .15s;}
-  html.alto-editing:not(.mobile) #canvas .node-card .node-order:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);}
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-order{pointer-events:auto;cursor:text;border-radius:4px;padding:0 3px;margin:-1px -3px;transition:background .15s;}
+  html.alto-editing:not(.mobile) :is(#canvas,.wp-enl) .node-card .node-order:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);}
   .node.aed-moving .node-card{box-shadow:0 18px 44px var(--node-hover-shadow) !important;}
   .aed-body{font-size:17.5px;line-height:35px;min-height:35px;}
   .aed-para{white-space:pre-wrap;}
@@ -546,8 +546,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-bar .ab-hint{color:rgba(244,246,252,.7);}
   #aed-bar .ab-done{background:#f4f6fc;color:#12151f;}
   /* cards: a calm dashed outline while editing (zero specificity: drop targets, picking, moving keep theirs) */
-  :where(html.alto-editing #canvas .node-card){outline:2px dashed color-mix(in srgb,var(--text,#222) 42%,transparent);outline-offset:5px;transition:outline-color .18s,outline-offset .18s;}
-  :where(html.alto-editing #canvas .node:hover .node-card){outline-color:var(--accent,#a78bfa);outline-offset:6px;}
+  :where(html.alto-editing :is(#canvas,.wp-enl) .node-card){outline:2px dashed color-mix(in srgb,var(--text,#222) 42%,transparent);outline-offset:5px;transition:outline-color .18s,outline-offset .18s;}
+  :where(html.alto-editing :is(#canvas,.wp-enl) .node:hover .node-card){outline-color:var(--accent,#a78bfa);outline-offset:6px;}
   html.alto-editing .aed-f,html.alto-editing:not(.mobile) #canvas .node-card .node-title,html.alto-editing:not(.mobile) #canvas .node-card .node-tag,
   html.alto-editing:not(.mobile) #canvas .node-card .node-desc,html.alto-editing:not(.mobile) #canvas .phase-label-float,html.alto-editing:not(.mobile) #title-text{transition:outline-color .15s,background-color .15s;}
   html.alto-editing .aed-f:hover,html.alto-editing:not(.mobile) #canvas .node-card .node-title:hover,html.alto-editing:not(.mobile) #canvas .node-card .node-tag:hover,
@@ -3374,7 +3374,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   /* ── editing one field ────────────────────────────────────────────────── */
   var cur = null;    // {el, k, kind, orig, body?, hidden?}
   function canvasKey(t){
-    var nodeEl = t.closest('.node'); if(!nodeEl || !t.closest('#canvas')) return null;
+    var nodeEl = t.closest('.node'); if(!nodeEl || !t.closest('#canvas,.wp-enl')) return null;
     var wc = LN && t.closest('.lanes-when'); if(wc) return {el: wc, k: 'n|' + nodeEl.id.replace(/^node-/, '') + '|when'};
     var id = nodeEl.id.replace(/^node-/, ''), f = t.closest('.node-title,.node-tag,.node-desc'); if(!f) return null;
     return {el: f, k: 'n|' + id + '|' + f.className.match(/node-(title|tag|desc)/)[1]};
@@ -3399,7 +3399,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(f.kind === 'para') return startPara(el, k, f);
     var orig = f.get();
     cur = {el: el, k: k, kind: 'plain', orig: orig, html: el.innerHTML, ph: el.classList.contains('aed-ph')};
-    var cm = /^n\|([^|]+)\|(title|tag|desc)$/.exec(k), cc = cm && el.closest('#canvas .node-card');
+    var cm = /^n\|([^|]+)\|(title|tag|desc)$/.exec(k), cc = cm && el.closest('#canvas .node-card,.wp-enl .node-card');
     if(cc && structOK()) cur.box = {id: cm[1], w: cc.offsetWidth, h: cc.offsetHeight};
     el.classList.remove('aed-ph');
     if(k.indexOf('n|') === 0 && /\|desc$/.test(k) && el.classList.contains('alto-lead')){ cur.num = el.querySelector('.alto-lead-num'); }
@@ -3934,7 +3934,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t) || titleKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card,.amt-i') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
+    if(ck || f || body || t.closest('#canvas .node-card,.wp-enl .node-card') || t.closest('.adt-card,.amt-i') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -3978,7 +3978,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(f){ e.stopPropagation(); e.preventDefault(); startField(f, f.getAttribute('data-aed')); return; }
     var body = t.closest('.aed-bodypart');
     if(body){ var box = body.closest('[data-aed-body]'); if(box){ e.stopPropagation(); e.preventDefault(); startField(body, box.getAttribute('data-aed-body')); return; } }
-    if(t.closest('#canvas .node-card') || t.closest('.adt-card,.amt-i')){ e.stopPropagation(); e.preventDefault(); }
+    if(t.closest('#canvas .node-card,.wp-enl .node-card') || t.closest('.adt-card,.amt-i')){ e.stopPropagation(); e.preventDefault(); }
     if(cur) endField(true);
   }, true);
   // Leaving a field by clicking anywhere else saves it.

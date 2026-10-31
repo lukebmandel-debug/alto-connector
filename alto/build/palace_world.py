@@ -121,6 +121,8 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-btn.r{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
 #wpal-root .wp-ctl{right:16px;top:calc(var(--w-top,0px) + 12px);}html.mobile #wpal-root .wp-ctl{top:112px !important;}
 #wpal-root .wp-tour{left:50%;bottom:18px;transform:translateX(-50%);max-width:calc(100% - 32px);}
+/* the Editing bar (manual edit) rides 8px above the tour strip while it is up, covering none of its controls (Art, 2026-10-30) */
+html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit-exit{bottom:73px;}
 #wpal-root .wp-tour .d{color:var(--w-sub);overflow:hidden;text-overflow:ellipsis;max-width:180px;}
 #wpal-root .wp-tour .c{font-weight:650;overflow:hidden;text-overflow:ellipsis;}
 #wpal-root .wp-key{left:16px;bottom:66px;display:block;font-size:12px;line-height:20px;max-width:340px;white-space:normal;}
@@ -639,12 +641,12 @@ A.show=function(){ if(S.root){ S.root.hidden=false; resize(); } document.documen
 A.hide=function(){ giveBack(); if(S.root) S.root.hidden=true; document.documentElement.classList.remove('wpal-open'); };
 A.on=on;
 // a card's page hides the map (CSS) and takes its card back to the board; closing it brings the map back where the reader is — on the card
-// they stepped to through the pages, if they did. Editing by hand works on the board: the map steps aside until the editing ends.
-function watchDetail(){ var de=document.documentElement, was=de.classList.contains('detail-open'), ed=de.classList.contains('alto-editing');
-  new MutationObserver(function(){ var o=de.classList.contains('detail-open'), e=de.classList.contains('alto-editing');
+// they stepped to through the pages, if they did. Editing by hand stays on the map (Luke, 2026-10-29: "stay in the mode we are in"): the
+// edit layer works on the card the map has opened (manual_edit.py reaches #wpal-root), and the map is only ever hidden by a card's page.
+function watchDetail(){ var de=document.documentElement, was=de.classList.contains('detail-open');
+  new MutationObserver(function(){ var o=de.classList.contains('detail-open');
     if(o&&!was){ S.reopen=S.cl?{id:S.cl.id,at:S.cl.at,enl:S.cl.enl}:null; S.f0=window._featuredNodeId; giveBack(); }
-    if(!o&&was&&S.ready&&!e) back();
-    if(e!==ed){ ed=e; if(S.ready){ if(e) A.hide(); else { A.show(); back(); } } }
+    if(!o&&was&&S.ready) back();
     was=o; }).observe(de,{attributes:true,attributeFilter:['class']}); }
 // a card's page says where the card stands, under its kind (the engine writes the page afresh for every card)
 function watchPage(){ var dc=document.getElementById('detail-content'); if(!dc) return;
