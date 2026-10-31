@@ -46,6 +46,7 @@ TRANSIT_CSS = r"""
   .pal-svg.tr-focus .pl-streets,.pal-svg.tr-focus .pl-parks,.pal-svg.tr-focus .pl-washes,.pal-svg.tr-focus .pl-lms,.pal-svg.tr-focus .pl-lmb,.pal-svg.tr-focus .pl-blds,.pal-svg.tr-focus .pl-rails{opacity:.3;transition:opacity .2s;}
   html.alto-palace.tr-solo:not(.mobile) #world .node:not(.focused):not(.pal-chip-hot):not(.pal-hot){opacity:.3;}
   .pal-svg.tr-focus .tr-lbl:not(.lit){display:none;}
+  .pal-svg .tr-lbl.dup:not(.cur):not(.lit){display:none;}
   .pal-svg .tr-ring{fill:var(--pal-halo);stroke-width:2.8;}
   .pal-svg .tr-ring.hubr{stroke-width:3.2;}
   .pal-svg .tr-arc{fill:none;stroke-width:3.6;}
@@ -202,7 +203,7 @@ function lines(svg){
 }
 var RIN=4.6, RHUB=8;
 function stations(svg){
-  if(!T) return; var stl=el('g',{'class':'pl-stns pl-tstns'},svg); svg._tst=stl;
+  if(!T) return; var stl=el('g',{'class':'pl-stns pl-tstns'},svg); svg._tst=stl, named={};
   T.stops.forEach(function(s,i){ var ls=s.l.map(lineOf).filter(Boolean), busy=ls.length>0 && ls.every(function(l){ return l.k==='bus'; }), hub=ls.length>1 && !busy, c0=ls.length?col(ls[0]):E.NEUTRAL();
     var maj=ls.some(function(l){ return l.k==='rail'; }) && /station|terminal|center|centre/i.test(s.n||'');     /* a mainline station: seen at every zoom */
     var g=E.pin(stl, 'pl-stn tr-stn'+(hub?' hub':'')+(maj?' maj':'')+(busy?' bus':''), s.x, s.y, {'data-s':i, style:'--tc:'+c0});
@@ -213,7 +214,9 @@ function stations(svg){
       el('circle',{'class':'tr-sh', r:RHUB},d); }
     else { el('circle',{'class':'tr-ring', r:RIN, stroke:c0},d); el('circle',{'class':'tr-sh', r:RIN},d); }
     el('circle',{'class':'tr-pulse', r:8},g);
-    E.stLbl(stl, 'pl-stt tr-lbl'+(hub?' hub':'')+(maj?' maj':'')+(busy?' bus':''), s.n, s.x, s.y, hub||maj).setAttribute('data-s', i); });
+    /* a station whose lines part company has one dot per track: the name is printed once (a second copy a few px away read as a doubled first letter) */
+    var nk=String(s.n||'').toLowerCase(), seen=named[nk]||(named[nk]=[]), dup=nk&&seen.some(function(q){ return Math.hypot(q[0]-s.x,q[1]-s.y)<200; }); if(!dup) seen.push([s.x,s.y]);
+    E.stLbl(stl, 'pl-stt tr-lbl'+(hub?' hub':'')+(maj?' maj':'')+(busy?' bus':'')+(dup?' dup':''), s.n, s.x, s.y, hub||maj).setAttribute('data-s', i); });
 }
 /* A portal stands ON the station's building when the station is a landmark (30th Street, Suburban, Jefferson: a badge over its roof,
    drawn above every building), else at the station's stop. One portal per station, however many stops carry its name. */
