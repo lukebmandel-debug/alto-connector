@@ -375,6 +375,26 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-btn.r:not(#_){border-radius:0;}                       /* (round in Classic: a deliberate square here, 1.9.160) */
   X #wpal-root .wp-key i:not(#_){border-radius:0;}
   X #wpal-root .wp-tour .c{color:#f0c15e;font-weight:400;letter-spacing:.06em;}
+  /* manual edit mode (item 14, quiet glass in Retro): black, square, a gold rim; the rail a gold dash line */
+  X #alto-edit-rail:not(#_){background:repeating-linear-gradient(90deg,#d9ae55 0 14px,transparent 14px 20px) !important;height:3px;animation:none !important;}
+  X #alto-edit-exit:not(#_){background:#000 !important;color:#efe6cf !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.7) !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;letter-spacing:.1em;}
+  X #alto-edit-exit .ee-dot{border-radius:0;transform:rotate(45deg);background:#d9ae55;box-shadow:none;animation:none !important;}
+  X #alto-edit-exit[data-st="error"] .ee-dot{background:#f87171;}
+  X #alto-edit-exit button:not(#_){background:transparent !important;color:#d9ae55 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.45) !important;}
+  X #alto-edit-exit button:hover{box-shadow:0 0 0 1px #d9ae55 !important;}
+  X #alto-edit-exit .ee-done:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X :is(.aed-uc,.aed-cc button,.aed-sc button,.aed-tc button,.aed-nadd,.aed-chadd):not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
+    box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X :is(.aed-uc,.aed-cc button,.aed-sc button,.aed-tc button,.aed-nadd,.aed-chadd):hover{box-shadow:0 0 0 1px #d9ae55 !important;transform:none !important;}
+  X .aed-uc.aed-unew:not(#_){box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;}
+  X :is(.aed-uc.aed-ux,.aed-cc button[data-x="delc"]):hover{color:#f87171 !important;box-shadow:0 0 0 1px #f87171 !important;}
+  X #aed-bar:not(#_){background:#000 !important;border-radius:0 !important;border:1px solid rgba(217,174,85,.6) !important;color:#efe6cf !important;}
+  X #aed-bar button:not(#_){border-radius:0 !important;color:#d9ae55 !important;}
+  X #aed-bar .ab-done:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X :where(#canvas .node-card){outline-color:rgba(217,174,85,.5);}
+  X :where(#canvas .node:hover .node-card){outline-color:#d9ae55;}
+  X :is(.aed-flags,.aed-chips,.aed-add):not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.5) !important;}
 """
 
 # ── the homepage (home_look.py; Art's spec, Luke 2026-10-28 "8A": the homepage follows Classic | Retro): square plates, gold caps, solid dialogs ──
