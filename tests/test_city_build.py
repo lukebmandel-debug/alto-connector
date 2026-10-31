@@ -118,7 +118,7 @@ def test_blank_cannot_be_built_until_it_has_a_grid_district():
 
 @pytest.mark.parametrize("change,words", [
     (lambda sp: sp["transit"][0]["stops"].append("Atlantis"), "stops at 'Atlantis', which is not a station"),
-    (lambda sp: sp["transit"][0]["stops"].append("City Hall"), "a line stops at stations"),
+    (lambda sp: sp["transit"][0]["stops"].append(sp["landmarks"][0]["name"]), "a line stops at stations"),
     (lambda sp: sp["landmarks"].append({"name": "Tower X", "at": "Nowhere Street"}), "not a district or street"),
     (lambda sp: sp["districts"].append({"name": "Downtown", "size_km": 1}), "two districts are called 'Downtown'"),
     (lambda sp: sp["districts"].append({"name": "Twin", "center": [1450, 1200], "size_km": 2}), "overlap by more than a block"),
@@ -209,3 +209,22 @@ def test_a_line_through_a_landmark_is_found_and_has_a_fix():
     assert rows["I6"][0] == "warn" and ("Red Line", lm["n"]) in rows["I6"][2]["through"]
     why, fix = ci._plain("transit", rows, ci.template("grid"))
     assert lm["n"] in why and fix["op"] == "unpin" and lm["n"] in fix["names"]
+
+
+def test_invented_landmarks_never_take_a_real_buildings_art_and_cities_differ():
+    from alto.build.palace_landmarks import art_key
+    looks = {}
+    for kind in BUILT:
+        _m, g = ci.build(ci.template(kind))
+        keys = {l["n"]: art_key(l) for l in g["landmarks"]}
+        assert all(k in set(ci.LOOKS.values()) for k in keys.values()), keys      # never Philadelphia's City Hall, Museum...
+        assert len(set(keys.values())) >= 5                                       # a city of varied buildings
+        looks[kind] = keys
+    assert len({tuple(sorted(v.items())) for v in looks.values()}) == len(BUILT)   # no two cities alike
+    sp = ci.template("grid")
+    sp["landmarks"][0]["look"] = "pyramid"
+    _m, g = ci.build(sp)
+    assert art_key(next(l for l in g["landmarks"] if l["n"] == sp["landmarks"][0]["name"])) == "g-pyramid"
+    sp["landmarks"][0]["look"] = "philly"
+    with pytest.raises(ci.InventError):
+        ci.invent_city(sp)
