@@ -230,14 +230,14 @@ LIB_JS = r"""(function(){
 
   // ── the picker's "Yours" section ──
   function picker(s){ sec=s; style(); styles(); drop(); redraw(); pull().catch(function(){}); }
-  // the page's style, Classic | Retro (retro.py): a timeline's head script keeps the choice (window._altoStyle); its row heads the picker
+  // the page's style, Classic | Retro | Holographic (retro.py, holo.py): a timeline's head script keeps the choice (window._altoStyle); its row heads the picker
   function styles(){
     var S=window._altoStyle, ui=B.ui; if(!S || !ui || document.getElementById('bg-style')) return;
     var row=el('div', 'bg-sec'), seg=el('div', 'bg-seg'); row.id='bg-style'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Style');
     function mark(){ var c=S.get(); [].forEach.call(seg.children, function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
-    [['classic', 'Classic'], ['retro', 'Retro']].forEach(function(v){
+    [['classic', 'Classic'], ['retro', 'Retro'], ['holo', 'Holographic']].filter(function(v){ return !S.list || S.list.indexOf(v[0])>=0; }).forEach(function(v){
       var b=el('button', 'bg-segb', v[1]); b.type='button'; b.setAttribute('data-sty', v[0]);
-      b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : 'Classic: Alto\u2019s own look, with the background below';
+      b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : v[0]==='holo' ? 'Holographic: one cyan light, square wireframe cards, a faint grid, light or dark' : 'Classic: Alto\u2019s own look, with the background below';
       b.addEventListener('click', function(e){ e.stopPropagation(); S.set(v[0]); mark(); }); seg.appendChild(b); });
     row.appendChild(el('div', 'bg-h', 'Style')); row.appendChild(seg); ui.body.insertBefore(row, ui.body.firstChild); mark();
   }

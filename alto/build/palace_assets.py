@@ -11,6 +11,7 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
           each published Memory Blueprint's plan as plan-<hash>.json (building_schema.hosted_json), written from the briefs at publish (`assets(building_plans=...)`),
           and the first-person interior renderer (palace_building_fpv.py, fetched by the blueprint the first time someone walks in)
   retro   the Retro style of every format but the System (retro.py): its rules and frame, fetched only by a page set to Retro
+  holo    the Holographic style of every format (holo.py): its rules, fetched only by a page set to Holographic
   phone   the whole view on a phone (phone.py): the desktop page made for a finger, fetched only by a phone set to see the page whole;
           and the phone at rest (phone_minimal.py): FIND and MENU in the bottom corners, the rest in MENU, fetched by every phone
   world   the Memory Atlas (palace_view "world"): its renderer (palace_world.py) and the map it fetches (world_geo.py: base-<hash>.json the whole
@@ -32,6 +33,7 @@ ASSETS = (
     ("bldg", "palace_building_asset", "building_asset"),
     ("bldg", "palace_building_fpv", "fpv_asset"),
     ("retro", "retro", "retro_asset"),
+    ("holo", "holo", "holo_asset"),
     ("phone", "phone", "phone_asset"),
     ("phone", "phone_minimal", "phone_min_asset"),
     ("world", "palace_world", "world_asset"),

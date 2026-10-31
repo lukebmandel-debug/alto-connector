@@ -247,7 +247,7 @@ HEAD_JS = r"""(function(){
     try{
       var m=JSON.parse(localStorage.getItem('alto-bgq-v1')||'{}') || {};
       if(!c && !(k in m)) return;          // nothing chosen, nothing remembered: no write
-      if(c) m[k]=[c.k==='p'||c.k==='m' ? c.l.q : c.l[0], c.k==='p'||c.k==='m' ? c.d.q : c.d[0]]; else delete m[k];
+      if(c) m[k]=[c.k==='p'||c.k==='m'||c.k==='h' ? c.l.q : c.l[0], c.k==='p'||c.k==='m'||c.k==='h' ? c.d.q : c.d[0]]; else delete m[k];
       var ks=Object.keys(m); if(ks.length>60) delete m[ks[0]];
       localStorage.setItem('alto-bgq-v1',JSON.stringify(m));
     }catch(e){}
@@ -258,7 +258,7 @@ HEAD_JS = r"""(function(){
     var c=cur && get(cur), dark=isDark();
     if(!c && !touched) return;             // never chosen: the engine's own colour, untouched
     touched=!!c;
-    var v=c && (c.k==='p'||c.k==='m' ? (dark ? c.d.s : c.l.s) : (dark ? c.d[0] : c.l[0]));
+    var v=c && (c.k==='p'||c.k==='m'||c.k==='h' ? (dark ? c.d.s : c.l.s) : (dark ? c.d[0] : c.l[0]));
     m.setAttribute('content', v || (dark ? '#6b4326' : '#ffc59e'));
   }
   // The bars across the top, as far down as they reach, in the page-bg layer's own pixels.
@@ -285,7 +285,7 @@ HEAD_JS = r"""(function(){
   }
   function clear(){
     cur=''; sig='';
-    if(r.classList.contains('alto-bg')){ r.classList.remove('alto-bg'); r.classList.remove('alto-bg-map'); VARS.concat(PV).forEach(function(v){ r.style.removeProperty(v); }); PV=[]; bar(); tell(); }
+    if(r.classList.contains('alto-bg')){ r.classList.remove('alto-bg'); r.classList.remove('alto-bg-map'); r.classList.remove('alto-bg-h'); VARS.concat(PV).forEach(function(v){ r.style.removeProperty(v); }); PV=[]; bar(); tell(); }
     window._altoBgId=''; remember(null);
   }
   // a map ground changes what the map draws against (palace.py listens)
@@ -302,7 +302,7 @@ HEAD_JS = r"""(function(){
       bg=g ? g.bg : u ? 'url('+u+') '+(v.x*100)+'% '+(v.y*100)+'% / cover no-repeat' : 'none'; T=g ? g.T : (r.classList.contains('mobile') ? 132 : 84);
       top=v.a; q=v.q; bright=v.b; blur='6px'; mask='linear-gradient(transparent,#000 40px)';
       veil=(dark ? 'rgba(8,10,18,' : 'rgba(247,249,253,')+v.v+')';
-    } else if(c.k==='m'){
+    } else if(c.k==='m' || c.k==='h'){   // (h: a Holographic ground, holo.py: drawn as CSS like a map's, offered only in that style)
       var m=dark ? c.d : c.l; key=[cur,dark].join('|'); if(key===sig) return; sig=key;
       bg=m.b; top=m.a; q=m.q; pv=m.v||{};
     } else {
@@ -310,7 +310,7 @@ HEAD_JS = r"""(function(){
       bg=c.k==='x' ? pattern(c.p, w) : 'linear-gradient(160deg,'+w[0]+','+w[1]+')'; top=w[0]; q=w[0];
     }
     PV.forEach(function(n){ if(!(n in pv)) st.removeProperty(n); }); Object.keys(pv).forEach(function(n){ st.setProperty(n,pv[n]); }); PV=Object.keys(pv);
-    r.classList.toggle('alto-bg-map', c.k==='m');
+    r.classList.toggle('alto-bg-map', c.k==='m'); r.classList.toggle('alto-bg-h', c.k==='h');
     st.setProperty('--alto-bg',bg); st.setProperty('--alto-top',top); st.setProperty('--alto-q',q); st.setProperty('--alto-veil',veil);
     st.setProperty('--alto-bright',bright); st.setProperty('--alto-blur',blur); st.setProperty('--alto-t',T+'px'); st.setProperty('--alto-mask',mask);
     r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
@@ -320,12 +320,16 @@ HEAD_JS = r"""(function(){
     choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(id); }};
   window._altoBgId='';
   apply(read());
-  // the style, Classic or Retro (retro.py), kept per timeline; Retro's look is a hosted script, fetched only when Retro is chosen
-  if(__RETRO__){ var SK=/-bg$/.test(KEY) ? KEY.replace(/-bg$/,'-style') : KEY+'-style';
-    var sty=function(){ try{ return localStorage.getItem(SK)==='retro' ? 'retro' : 'classic'; }catch(e){ return 'classic'; } };
+  // the style, Classic, Retro (retro.py) or Holographic (holo.py), kept per timeline; the two looks are hosted scripts, fetched only when chosen
+  { var SK=/-bg$/.test(KEY) ? KEY.replace(/-bg$/,'-style') : KEY+'-style', LST=__LST__, OWN=__OWN__;
+    var sty=function(){ try{ var v=localStorage.getItem(SK); return LST.indexOf(v)>0 ? v : 'classic'; }catch(e){ return 'classic'; } };
     var ret=function(on){ if(on && web()) __LOAD__ var R=window._altoRetro; if(R) R[on ? 'on' : 'off'](); };
-    window._altoStyle={get:sty, set:function(v){ try{ localStorage.setItem(SK, v==='retro' ? 'retro' : 'classic'); }catch(e){} ret(v==='retro'); return sty(); }};
-    if(sty()==='retro') ret(1); }
+    var hol=function(on){ if(on && web()) __LOADH__ var H=window._altoHolo; if(H) H[on ? 'on' : 'off'](); };
+    var put=function(v){ try{ localStorage.setItem(SK, v); }catch(e){} };
+    if(!OWN){ window._altoStyle={get:sty, list:LST, set:function(v){ v=LST.indexOf(v)>0 ? v : 'classic'; put(v); ret(v==='retro'); hol(v==='holo'); return sty(); }};
+      if(sty()==='retro') ret(1); }
+    else window._altoHoloLayer={get:function(){ return sty()==='holo'; }, set:function(on){ put(on ? 'holo' : 'classic'); hol(on); return sty()==='holo'; }};
+    if(sty()==='holo') hol(1); }
   window.addEventListener('alto-bg', function(){ apply(read()); });
   window.addEventListener('storage', function(e){ if(e && (e.key===KEY || e.key===LK)) apply(read()); });
   // The engine sets the bar colour itself when the page loads and when the theme flips; ours goes last. A
@@ -339,17 +343,20 @@ HEAD_JS = r"""(function(){
 })();"""
 
 
-def head_block(key: str, palace: bool = False, retro: bool = False) -> str:
+def head_block(key: str, palace: bool = False, retro: bool = False, own: bool = False) -> str:
     """The <script> for <head>. `key` is the localStorage key of this page's choice; a Memory Palace
     page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it.
-    `retro`: the page offers the Classic | Retro style (retro.py; a timeline page or the homepage, not a System)."""
-    from . import retro as _rt
+    `retro`: the page offers Classic | Retro | Holographic (retro.py, holo.py; a timeline page or the homepage), else Classic | Holographic (the reports);
+    `own`: a System, whose own switch (solar_draw.py) carries Holographic through window._altoHoloLayer."""
+    from . import holo as _ho, retro as _rt
     from .palace_assets import loader
     js = (HEAD_JS.replace("__CATALOG__", catalog_json(palace))
           .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE))
           .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else ""))
           .replace("__LIBKEY__", json.dumps(LIB_KEY)).replace("__LIBPATH__", json.dumps(LIB_PATH))
-          .replace("__RETRO__", "1" if retro else "0").replace("__LOAD__", loader(_rt.PATH, _rt.GUARD) if retro else ";"))
+          .replace("__LST__", json.dumps(["classic", "retro", "holo"] if retro else ["classic", "holo"])).replace("__OWN__", "1" if own else "0")
+          .replace("__LOAD__", loader(_rt.PATH, _rt.GUARD) if retro else ";")
+          .replace("__LOADH__", loader(_ho.PATH, _ho.GUARD)))
     return '<script id="alto-bg-head">' + _lean(js) + "</script>"
 
 
@@ -461,6 +468,7 @@ UI_JS = r"""(function(){
     var id=B.read(), c=B.get(id); foot.textContent='';
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
     if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map, for the light and the dark theme.'; return; }
+    if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background, for the light and the dark theme.'; return; }
     if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+' — for the light and the dark theme.'; return; }
     // one of the account's own pictures: its name, rename and remove (the hosted library script)
     if(c.u){ foot.textContent=c.n; B.need(function(L){ L.credit(id, foot); }); return; }
@@ -483,6 +491,7 @@ UI_JS = r"""(function(){
       var v=variant(c), im=t.querySelector('img'), nm=t.querySelector('.bg-name');
       var src=c.th||B.base+'t/'+v.f; if(im && im.getAttribute('src')!==src) im.src=src; if(nm) nm.textContent=v.n; t.setAttribute('aria-label',v.n+', '+c.g);
     } else if(c.k==='m'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', for the map'); }
+    else if(c.k==='h'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', Holographic'); }
     else if(c.k==='c'){ var w=dark() ? c.d : c.l; t.style.background='linear-gradient(160deg,'+w[0]+','+w[1]+')'; }
     else { var q=B.pattern(c.p, dark() ? c.d : c.l); t.style.background=q; }
   }
@@ -515,12 +524,14 @@ UI_JS = r"""(function(){
     // is the ninth tile of that set, not a section of its own
     if(by['Memory Palace']) body.appendChild(sec('Memory Palace', by['Memory Palace'], tile('',null)));
     else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
+    // Holographic's own backgrounds (holo_backgrounds.py), in the catalog only while that style is on: next, ahead of the rest
+    if(by['Holographic']) body.appendChild(sec('Holographic', by['Holographic']));
     // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
     if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
       B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
-    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace') body.appendChild(sec(g, by[g])); });
+    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
   function open(v){
