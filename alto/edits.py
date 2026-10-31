@@ -992,6 +992,36 @@ def fold(store, uid, tid) -> "dict | None":
     for k in by_time([k for k in live if k.startswith(("sx|", "so|"))]):
         (_swap if k.startswith("sx|") else _order)(k)
 
+    # 0g. a Memory Atlas card's country, set by hand (`w|<id>|place` = {"c": iso3}, None to let the plan choose
+    #     again): brief.world.places, the same record set_up_world keeps (Luke, 2026-10-29: "Make sure user can
+    #     manually add countries"). Only an Atlas brief; any other format leaves the key waiting, untouched.
+    for k in by_time([k for k in live if k.startswith("w|")]):
+        p_ = k.split("|")
+        v = live[k].get("v")
+        if len(p_) != 3 or p_[2] != "place" or brief.get("palace_view") != "world" or p_[1] not in by_id:
+            missing.append(k)
+            continue
+        from .build import world_plan
+        places = (brief.get("world") or {}).get("places") or {}
+        have = (places.get(p_[1]) or {}).get("c")
+        want = (v or {}).get("c") if isinstance(v, dict) else None
+        if have == want:
+            already.append(k)
+            continue
+        if want is not None and want not in world_plan._countries():
+            conflicts.append(k)
+            continue
+        w = dict(brief.get("world") or {})
+        places = dict(places)
+        if want is None:
+            places.pop(p_[1], None)
+        else:
+            places[p_[1]] = {**world_plan._country_place(want), "s": "", "city": ""}
+        w["places"] = places
+        brief["world"] = w
+        touched["brief"] = True
+        written.append(k)
+
     kinds = {k: (_target(k, brief, by_id, conns) or (None, None, None))[2] for k in live}
 
     # 1. whole trees (a step's own words may change after, by step id)
@@ -1046,7 +1076,7 @@ def fold(store, uid, tid) -> "dict | None":
                                                     "newtree", "newtreef", "newunit", "unitname",
                                                     "newchip", "reparent", "unitmove", "unitdel",
                                                     "newaxis", "axisdel", "chipdel", "cardsize")
-               and not k.startswith(("nn|", "nu|", "nl|", "ne|", "rp|", "so|", "sx|", "ua|", "ud|", "na|", "xa|", "xe|", "sz|"))]
+               and not k.startswith(("nn|", "nu|", "nl|", "ne|", "rp|", "so|", "sx|", "ua|", "ud|", "na|", "xa|", "xe|", "sz|", "w|"))]
     for k in sorted(singles, key=lambda k: (0 if kinds[k] == "flags" else 1, live[k].get("t") or 0)):
         o = live[k]
         t = _target(k, brief, by_id, conns)
@@ -1432,6 +1462,10 @@ def fold(store, uid, tid) -> "dict | None":
         if any(c in pl for c in going):
             brief["placement"] = {i: h for i, h in pl.items() if i not in going}
             touched["brief"] = True
+        wpl = (brief.get("world") or {}).get("places") or {}
+        if any(c in wpl for c in going):                   # a Memory Atlas card taken out: its place goes with it
+            brief["world"] = {**brief["world"], "places": {i: q for i, q in wpl.items() if i not in going}}
+            touched["brief"] = True
         cs = brief.get("card_size") or {}
         if any(c in cs for c in going):
             brief["card_size"] = {i: h for i, h in cs.items() if i not in going}
@@ -1751,6 +1785,9 @@ def published(store, uid, tid) -> int:
             carried = _same(have, o.get("v"))
         elif t is not None and t[2] == "floor":
             carried = (t[0].get("parent") or "") == (o.get("v") or "")
+        elif p[0] == "w" and len(p) == 3 and p[2] == "place":
+            have = (((doc.get("brief") or {}).get("world") or {}).get("places") or {}).get(p[1]) or {}
+            carried = have.get("c") == ((o.get("v") or {}).get("c") if isinstance(o.get("v"), dict) else None)
         elif t is not None and t[2] == "parentswap":
             pn = by_id.get(o.get("v") or "")
             carried = bool(pn) and (pn.get("parent") or "") == p[1]

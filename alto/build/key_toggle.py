@@ -1,8 +1,9 @@
 """The key of a horizontal timeline's lines, or of a Memory Palace's city.
 
-A key is a toggle, not a panel that sits on the page: a round glass button like
-the search / info / light-dark ones, floating at the top left of the page just
-under the bars across the top, and the key opens beside it. Closed until asked
+A key is a toggle, not a panel that sits on the page: a round glass button in
+the bottom-right row of search / info / light-dark, between info and search
+(Luke picked Art's option A, 2026-10-30: one spot on every page; the engine's
+alignInfo places it), and the key opens above it. Closed until asked
 for; the choice is remembered per kind of key. Desktop only — a phone has no
 room for one, and neither horizontal timelines nor Memory Palaces draw their key
 there.
@@ -12,8 +13,8 @@ and hand the panel they built to window._altoKeyToggle.
 """
 
 KEY_CSS = """
-  /* the key's toggle: the round glass of search / info / light-dark, top left, under the bars (--nav-bottom is the bars' real bottom) */
-  #key-toggle{ position:fixed; z-index:310; left:30px; top:calc(var(--nav-bottom, 100px) + 14px); width:35px; height:35px; box-sizing:border-box; padding:0;
+  /* the key's toggle: a round glass of the bottom-right row (search / key / info / light-dark), on the row's line; alignInfo sets its right */
+  #key-toggle{ position:fixed; z-index:310; left:auto; top:auto; right:var(--kt-r, 172.5px); bottom:var(--alto-row-b, 24px); width:35px; height:35px; box-sizing:border-box; padding:0;
     border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--muted); touch-action:manipulation;
     background:var(--card-glass-bg, var(--surface));
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright, 1)); backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright, 1));
@@ -22,16 +23,16 @@ KEY_CSS = """
   #key-toggle:hover{ color:var(--text); border-color:var(--muted); }
   #key-toggle.active{ color:var(--accent, #6d5bd0); border-color:var(--accent, #6d5bd0); }
   #key-toggle svg{ display:block; }
-  /* the key, opened: the glass of the other panels, just under its toggle */
-  .key-pop{ position:fixed; z-index:309; left:30px; top:calc(var(--nav-bottom, 100px) + 14px + 35px + 10px); width:300px; max-width:calc(100vw - 80px);
+  /* the key, opened: just above its toggle, its right edge on the toggle's; an opaque plate, so no card or line shows through it
+     (Luke, 2026-10-30: card text must not show behind it; a frosted glass let it through wherever the blur did not draw) */
+  .key-pop{ position:fixed; z-index:309; left:auto; top:auto; right:var(--kt-r, 172.5px); bottom:calc(var(--alto-row-b, 24px) + 35px + 10px); width:300px; max-width:calc(100vw - 80px);
     max-height:min(62vh, 560px); overflow:auto; box-sizing:border-box; padding:10px 12px 11px; border-radius:14px; display:none;
     font-size:12px; line-height:1.35; color:var(--text);
-    background:var(--panel-glass-bg, var(--surface));
-    -webkit-backdrop-filter:blur(30px) saturate(185%); backdrop-filter:blur(30px) saturate(185%);
+    background:var(--surface, #fff); -webkit-backdrop-filter:none; backdrop-filter:none;
     border:1px solid var(--card-glass-border, var(--border)); box-shadow:0 18px 48px var(--node-hover-shadow); }
   .key-pop.open{ display:block; }
-  /* the text size: A- / A+ in the heading scale the whole panel from its top-left corner (a transform, so it stays put) */
-  .key-pop{ transform-origin:0 0; transform:scale(var(--kp-s,1)); max-height:calc(min(62vh, 560px) / var(--kp-s,1)); }
+  /* the text size: A- / A+ in the heading scale the whole panel from its bottom-right corner, over its toggle (a transform, so it stays put) */
+  .key-pop{ transform-origin:100% 100%; transform:scale(var(--kp-s,1)); max-height:calc(min(62vh, 560px) / var(--kp-s,1)); }
   .key-pop .kp-sz{ margin-left:auto; display:inline-flex; gap:2px; letter-spacing:0; text-transform:none; }
   .key-pop .kp-sz button{ font:inherit; font-weight:700; line-height:1; min-width:24px; height:20px; padding:0 5px; border-radius:6px; cursor:pointer; color:var(--muted);
     background:transparent; border:1px solid color-mix(in srgb, var(--muted) 40%, transparent); }
@@ -73,6 +74,7 @@ window._altoKeyToggle=function(panel, store, title){
   if(h){ var xx=h.querySelector('.kp-x'); h.insertBefore(sz, xx||null); } size(si);
   document.addEventListener('keydown', function(e){ if(e.key==='Escape' && panel.classList.contains('open') && !window._focusedNodeId) set(false); });
   document.body.appendChild(b); document.body.appendChild(panel);
+  if(typeof window._altoAlignInfo==='function') try{ window._altoAlignInfo(); }catch(e){}   /* into its slot in the row */
   var was=false; try{ was=localStorage.getItem(store)==='1'; }catch(e){}
   set(was, true);
   return {button:b, panel:panel, set:set};

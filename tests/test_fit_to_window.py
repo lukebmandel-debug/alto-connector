@@ -95,7 +95,7 @@ def test_the_blink_compensation_tracks_the_chosen_scale(html, prop):
 
 def test_the_overview_panel_and_the_glass_slab_track_it_too(html):
     assert "width:max(1700px, calc(100vw / var(--alto-zoom, 0.8))) !important;" in html
-    assert "height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;" in html
+    assert "height:calc(100vh / var(--alto-zoom, 0.8) - var(--nav-bottom, 104px)) !important;" in html   # (to the foot)
 
 
 # ── Safari 26+: standardized zoom, the same viewport bug as Chrome ──────────

@@ -13,7 +13,11 @@ Luke's design (2026-10-22):
   (a state at its capital), and the country's other cards stay at the capital. (A single Oregon card pins at Washington, D.C. — Luke confirmed.)
 
 The brief keeps only what set_up_world was told: brief.world = {"level": "country"|"deep"|"cluster", "places": {node id: place}, "regions": [region names per
-unit, "" for auto]}, a place being resolve()'s dict plus "r": 1 when the notes name it.
+unit, "" for auto], "country": iso3 (optional)}, a place being resolve()'s dict plus "r": 1 when the notes name it.
+
+One country (Art's sheet, "World or a country", notes atlas-build (c)): with brief.world.country the map is that country. Its states / regions
+are the places: each top card stands on a state (at its capital), the route walking from the most populous to the nearest unused one, and the
+cards under it take that state's largest cities. Everything else (units, hubs, clusters, the Tour) is as on the world map.
 """
 from __future__ import annotations
 
@@ -257,6 +261,8 @@ def plan(b, nodes) -> dict:
     "cl": {placed id: [cluster ids in outline order]}, "used": {country: unit}, "multi": [countries with their own state / city pins]}."""
     from .palace import structure
     w = getattr(b, "world", None) or {}
+    if w.get("country") in _countries():
+        return _plan_country(b, nodes, w)
     level = w.get("level") or "country"
     given = dict(w.get("places") or {})
     want_regions = list(w.get("regions") or [])
@@ -371,6 +377,106 @@ def plan(b, nodes) -> dict:
     return {"level": level, "units": out_units, "places": out, "cl": cl, "used": used, "multi": multi}
 
 
+def _states(cid) -> dict:
+    """A country's states / regions: {name: (pin row, population, towns largest first)}; a state's pin is its capital."""
+    by = {}
+    for r in _places():
+        if r[2] == cid and r[3]:
+            by.setdefault(r[3], []).append(r)
+    return {s: (_state_pin(rows), sum(r[6] for r in rows), sorted(rows, key=lambda r: (-r[6], r[0]))) for s, rows in by.items()}
+
+
+def _plan_country(b, nodes, w) -> dict:
+    """plan() for a map of one country: its states are the places (see the module's note)."""
+    from .palace import structure
+    cid = w["country"]
+    C = _countries()
+    level = w.get("level") or "country"
+    given = {k: v for k, v in dict(w.get("places") or {}).items() if v.get("c") == cid}
+    units, floors, _of = structure(b, nodes)
+    par = {n.id: n.parent for n in nodes if n.parent}
+    kids = {}
+    for n in nodes:
+        if n.parent:
+            kids.setdefault(n.parent, []).append(n.id)
+    S = _states(cid)
+    home = _at(cid)
+    size = math.sqrt(max(C[cid].get("area", 1.0), 1.0))
+    near = {s: v for s, v in S.items() if _dist(home, project(v[0][4], v[0][5])) <= REACH_K * size} or S      # (not its far-off territories)
+    xy = {s: project(v[0][4], v[0][5]) for s, v in S.items()}
+    taken = {norm(p.get("s") or "") for p in given.values()}
+    sep = SEP_K * size * .35
+    used_xy, out_units, places, cur, hubs = [], [], {}, None, {}
+    name = C[cid]["n"]
+
+    def state_place(s):
+        r = S[s][0]
+        return {"c": cid, "s": s, "city": "", "lon": r[4], "lat": r[5], "label": f"{s}, {name}", "k": "sub"}
+
+    for a, tops in enumerate(units):
+        if len(tops) == 1 and len(kids.get(tops[0], [])) >= 2:
+            hubs[a] = tops[0]
+            tops = list(kids[tops[0]])
+        route = []
+        for t in tops:
+            if t in given:
+                p = dict(given[t])
+                p.setdefault("k", "sub" if p.get("s") and not p.get("city") else "city" if p.get("city") else "sub")
+            else:
+                free = [s for s in near if norm(s) not in taken] or list(near)
+                s0 = (max(free, key=lambda s: (near[s][1], s)) if cur is None else min(free, key=lambda s: (_dist(cur, xy[s]), s)))
+                p = state_place(s0)
+            taken.add(norm(p.get("s") or ""))
+            places[t] = p
+            cur = _xy(p)
+            used_xy.append(cur)
+            route.append(t)
+        stops = []
+        for t in route:
+            stops.append(t)
+            if level == "cluster":
+                continue
+            st = places[t].get("s")
+            towns = [r for r in (S.get(st, (None, 0, []))[2]) if r[0] != places[t].get("city")]
+
+            def place_kids(n, at):
+                for ch in kids.get(n, []):
+                    if ch in given:
+                        q = dict(given[ch], k="city")
+                    else:
+                        pool = [r for r in towns if all(_dist(project(r[4], r[5]), u) >= sep for u in used_xy)]
+                        if not pool:
+                            continue
+                        r = pool[0] if at is None else min(pool[:6], key=lambda r: (_dist(at, project(r[4], r[5])), r[0]))
+                        towns.remove(r)
+                        q = {"c": cid, "s": r[3], "city": r[0], "lon": r[4], "lat": r[5], "label": f"{r[0]}, {r[3]}", "k": "city", "auto": 1}
+                    places[ch] = q
+                    used_xy.append(_xy(q))
+                    stops.append(ch)
+                    place_kids(ch, _xy(q))
+            place_kids(t, None)
+        out_units.append({"reg": [name], "tops": route, "stops": stops, **({"hub": hubs[a]} if a in hubs else {})})
+    out = {}
+    for nid, p in places.items():
+        x, y = _xy(p)
+        rec = {"c": cid, "x": round(x, 2), "y": round(y, 2), "label": p.get("city") or p.get("s") or name, "k": p.get("k") or "sub"}
+        if p.get("r"):
+            rec["r"] = 1
+        out[nid] = rec
+    cl = {}
+    for a, tops in enumerate(units):
+        for t in tops:
+            for f in [t] + floors.get(t, []):
+                if f in out or f == hubs.get(a):
+                    continue
+                up = par.get(f)
+                while up and up not in out:
+                    up = par.get(up)
+                if up:
+                    cl.setdefault(up, []).append(f)
+    return {"level": level, "units": out_units, "places": out, "cl": cl, "used": {cid: 0}, "multi": [cid], "country": cid}
+
+
 def summary(b, nodes) -> dict:
     """What set_up_world reports: per unit its region(s) and each top card's place, the countries with pins of their own per state / city."""
     p = plan(b, nodes)
@@ -395,6 +501,8 @@ def validate(world) -> None:
     for nid, p in (world.get("places") or {}).items():
         if not isinstance(p, dict) or p.get("c") not in _countries():
             raise ValueError(f"world.places[{nid!r}]: not a resolved place (set_up_world resolves them)")
+    if world.get("country") is not None and world.get("country") not in _countries():
+        raise ValueError(f"world.country {world.get('country')!r}: not a country id (an ISO 3 code, e.g. USA)")
     for r in world.get("regions") or []:
         if r and not region_of(r):
             raise ValueError(f"world.regions: {r!r} is not a region (one of {', '.join(n for n, _ in REGIONS)})")

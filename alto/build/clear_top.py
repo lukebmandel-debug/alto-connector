@@ -19,6 +19,18 @@ html.ct-on :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,html.ct-on :is(#ti
   background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;}
 /* the board still opens below the bars and anything scrolled into view lands below them: it slides beneath only as it scrolls */
 html.ct-on #canvas{padding-top:var(--nav-bottom,0px);scroll-padding-top:var(--nav-bottom,0px);}
+/* a panel over the board runs the window's full height (Luke, 2026-10-30, his Torts Overview: "You see the problem at the top?
+   Fix it across everything that is affected"): with no glass on the bars any more, a panel that began under them left the board
+   showing above it as a cut strip, and the Overview's fixed height stopped short of the foot. Each starts at the top instead,
+   its content padded down by the bars' height, and the chips float on its glass (the Notes rail's own z-index is higher than
+   the bars', so while it is open they rise over it) */
+/* (open only, and not on a phone held sideways, html.phone-whole: there the closed Overview is a shut accordion, not a panel
+   parked off to the right, and sized to the window it would sit invisible over the board and take its touches) */
+html.ct-on:not(.phone-whole) #summary-wrap.open:not(#_){top:0 !important;bottom:0 !important;height:auto !important;max-height:none !important;
+  box-sizing:border-box;padding-top:var(--nav-bottom,0px);}
+html.ct-on:not(.phone-whole) #notes-panel:not(#_){top:0 !important;bottom:0 !important;box-sizing:border-box;padding-top:var(--nav-bottom,0px);}
+html.ct-on.np-open:not(.phone-whole) :is(#title-bar,#nav):not(#_){z-index:401;}
+html.ct-on.np-open:not(.phone-whole) #ct-chips{z-index:402;}
 /* each thing on the bars keeps itself legible over whatever scrolls under it: the chips have their own glass already;
    the name and the group labels get a light pad of the same frosted glass, nothing more (the clef and the wordmark
    stand as on the homepage: Luke, "like other toggles … but use it sparingly"). Retro's Star chart restyles its own. */

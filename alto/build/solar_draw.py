@@ -124,7 +124,7 @@ SOLAR_CSS = r"""
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
   /* the style switch (System | Star chart | Retro | 3D Star chart) and the switches beside it */
-  #sol-ctl{position:fixed;z-index:310;left:71.5px;bottom:24px;min-height:35px;max-width:calc(100vw - 90px);display:flex;flex-wrap:wrap-reverse;gap:8px 12.5px;align-items:center;font-family:inherit;}   /* in the bottom row beside the account toggle, as palace.py #pal-ctl (round 10) */
+  #sol-ctl{position:fixed;z-index:310;left:71.5px;bottom:var(--alto-row-b,24px);min-height:35px;max-width:calc(100vw - 90px);display:flex;flex-wrap:wrap-reverse;gap:8px 12.5px;align-items:center;font-family:inherit;}   /* in the bottom row beside the account toggle, as palace.py #pal-ctl (round 10) */
   #sol-ctl>*{height:35px;box-sizing:border-box;border-radius:17.5px !important;}
   #sol-ctl .sol-sw{position:relative;display:inline-block;width:26px;height:15px;border-radius:8px;background:color-mix(in srgb,var(--text) 22%,transparent);transition:background .15s;flex:none;}
   #sol-ctl .sol-sw::after{content:'';position:absolute;left:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--surface,#fff);transition:transform .15s;}

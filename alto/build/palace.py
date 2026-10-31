@@ -873,8 +873,8 @@ PALACE_CSS = KEY_CSS + r"""
      the same inset, the same 35px, the same centre line; a grouped pill for closer / farther with a divider, and
      the whole city as a pill of its own. left = the account toggle's 24 + 35 + the row's 12.5 gap. */
   html.pal-tight:not(.mobile) :is(#account-btn,#pal-ctl,#search-btn,#info-btn,#mode-toggle,#alto-edit-pill){zoom:var(--pt-s);}
-  html:not(.mobile) #account-btn{bottom:30px !important;}   /* (the row's one baseline: search / info / the edit toggle sit at 30) */
-  #pal-ctl{position:fixed;left:71.5px;bottom:30px;z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
+  html:not(.mobile) #account-btn{bottom:var(--alto-row-b,24px) !important;}   /* (the row's one baseline: the shared foot line) */
+  #pal-ctl{position:fixed;left:71.5px;bottom:var(--alto-row-b,24px);z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
   #pal-ctl .pc-pill,#pal-ctl .pc-city{position:relative;height:35px;box-sizing:border-box;display:inline-flex;align-items:stretch;border-radius:17.5px;
     background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));
