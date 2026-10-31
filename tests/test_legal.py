@@ -99,7 +99,7 @@ export class GoogleAuthProvider {}
 const U = {uid:'u1', displayName:'T', email:'t@example.com', photoURL:''};
 export async function signInWithPopup(){ window.__signins++; window.__user = U; window.__cb(U); }
 export async function signInWithRedirect(){} export async function getRedirectResult(){ return null; }
-export async function signOut(){ window.__signouts++; window.__user = null; window.__cb(null); }
+export async function signOut(){ window.__signouts++; try{ sessionStorage.setItem('__out','1'); sessionStorage.setItem('__so', String((+sessionStorage.getItem('__so')||0)+1)); }catch(e){} window.__user = null; window.__cb(null); }
 export const browserLocalPersistence = {}; export async function setPersistence(){}
 export function onAuthStateChanged(a, cb){ window.__cb = cb; setTimeout(()=>cb(window.__user || null),0); return ()=>{}; }
 """,
@@ -159,7 +159,7 @@ def _open(browser, site, docs=None, user=False, flags=""):
     pg.route("https://www.gstatic.com/firebasejs/**", lambda r: r.fulfill(status=200, content_type="text/javascript", body=STUBS[r.request.url.rsplit("/", 1)[1]]))
     init = "window.__fs={docs:%s,writes:[]};window.__signins=0;window.__signouts=0;%s" % (json.dumps(docs or {}), flags)
     if user:
-        init += "window.__user={uid:'u1',displayName:'T',email:'t@example.com',photoURL:''};"
+        init += "if(!sessionStorage.getItem('__out')) window.__user={uid:'u1',displayName:'T',email:'t@example.com',photoURL:''};"      # a signed-out person stays signed out after a reload
     pg.add_init_script(init)
     pg.goto(site + "/index.html")
     pg.wait_for_function("window.AltoCloud && window.AltoCloud.terms && document.querySelector('#acct-signed-out .acct-legal')", timeout=15000)
@@ -225,10 +225,15 @@ def test_a_new_version_asks_again_and_declining_signs_out(browser, site):
     pg, errors = _open(browser, site, docs=old, user=True)
     try:
         pg.wait_for_selector("#alto-terms-scrim", timeout=5000)
+        assert pg.evaluate("localStorage.getItem('alto-account-v1') && localStorage.getItem('alto-local-owner-v1')") == "u1"      # signed in, account recorded here
         pg.click("#alto-terms-no")
-        pg.wait_for_function("window.__signouts === 1", timeout=5000)
-        assert pg.locator("#alto-terms-scrim").count() == 0
+        pg.wait_for_function("sessionStorage.getItem('__so') === '1'", timeout=5000)       # signOut() ran once (the page then reloads: the counter lives in sessionStorage)
+        pg.wait_for_function("window.AltoCloud && window.AltoCloud.known && !window.AltoCloud.user && !document.getElementById('alto-terms-scrim')", timeout=10000)
+        # declining really signed the person out: after the reload no account on the page or in this browser, nothing written
+        assert pg.evaluate("window.AltoCloud.user") is None
+        assert pg.evaluate("localStorage.getItem('alto-account-v1')") is None and pg.evaluate("localStorage.getItem('alto-local-owner-v1')") is None
         assert pg.evaluate("window.__fs.writes.filter(w => w[0].startsWith('terms_acceptance')).length") == 0
+        assert pg.evaluate("sessionStorage.getItem('__so')") == "1"
         assert errors == []
     finally:
         pg.close()
