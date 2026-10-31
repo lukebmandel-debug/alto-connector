@@ -983,6 +983,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     if m.get("coast"):                                  # a lake or the sea at the glass edge (city_coast): one sea body
         try:
             g["sea"] = _sea(m, cmap)
+            g["W"] = max(W, _sea_glass(g["sea"], W, H))
         except Exception:                               # noqa: BLE001 — water that cannot be read is left off, never a failed city
             pass
     from .city_highways import attach as attach_highways      # C3: the highways as named route lines (g["hw"])
@@ -1378,6 +1379,28 @@ def _sea(m, cmap, step=50.0):
         if len(pg) >= 3:
             out.append([round(v, 1) for q in pg for v in q])
     return out
+
+
+SEA_STRIP = 700.0       # page px of open water the glass shows beyond a shore that lies past its east edge
+SEA_REACH = 2400.0      # ... and the most the glass is widened for it
+
+
+def _sea_glass(sea, W, H, step=200.0):
+    """The glass width that shows the lake. The lattice stops at the shore road, so the real shore of a lake city
+    (Chicago) can map past the glass's east edge, and the clip then hides all of it but the corner where the shore bends
+    in. Each row's shore is the west-most sea point of that row; the glass is widened to the middle of those that lie
+    beyond it, plus a strip of water."""
+    rows = {}
+    for ring in sea:
+        for i in range(0, len(ring) - 1, 2):
+            x, y = ring[i], ring[i + 1]
+            if 0 <= y <= H:
+                k = int(y // step)
+                rows[k] = min(rows.get(k, x), x)
+    beyond = sorted(x for x in rows.values() if x > W)
+    if not beyond:
+        return W
+    return int(min(beyond[len(beyond) // 2] + SEA_STRIP, W + SEA_REACH))
 
 
 def _bridges(streets, river, lines, by_id, m):
