@@ -26,4 +26,6 @@ If you give us feedback, we may use it freely.
 To the extent the law allows, we are not liable for losses from using the beta, and our total liability to you is limited to $100.
 
 ## 9. Ending, changes and law
+If the beta ends, or we end your access, Bass and saving to the Alto cloud stop for you. What you already saved to your account stays there for you to open and read for as long as we run Alto. Alto's free local app, and any file you saved to your own computer, keep working. Use Save on the Home page regularly to keep a copy of your work. Documents you added to Bass cannot be opened or exported once your access ends, so keep your own copies; the original files are yours anyway.
+
 You can stop using Alto and ask us to delete your account at any time. We may update these terms and will tell you in the beta. See the Alto [Privacy Policy](/privacy/) for how we handle data. These terms are governed by Pennsylvania law. Contact: lukebmandel@gmail.com.
