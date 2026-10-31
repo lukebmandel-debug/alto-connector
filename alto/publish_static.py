@@ -516,7 +516,7 @@ def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=
         # A hosted palace script (the fleet, the Retro style, ...) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
-            *([_ANY_ORIGIN] if f == "world" else []),
+            _ANY_ORIGIN,
         ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
         # bldg: the Memory Blueprint's renderers and plans, one literal immutable rule per file that exists: a plan a page names before the
         # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
@@ -565,7 +565,8 @@ def _art_names(site_dir) -> list:
     return sorted(p.name for p in d.iterdir() if p.is_file() and ART_RE.match(p.name)) if d.is_dir() else []
 
 
-# A shared page runs in a sandboxed frame (share_shell.py), an opaque origin: its fetches of these hashed public files are cross-origin.
+# A shared page runs in a sandboxed frame (share_shell.py), an opaque origin: its fetches of these hashed public files are cross-origin, the
+# hosted scripts included (palace_assets.loader reads them by XHR). alto-cloud.js stays out of this: a sandboxed page has no business with it.
 _ANY_ORIGIN = {"key": "Access-Control-Allow-Origin", "value": "*"}
 
 BLDG_RE = re.compile(r"^(palace-building-(fpv-)?[0-9a-f]{10}\.js|plan-[0-9a-f]{12}\.json)$")

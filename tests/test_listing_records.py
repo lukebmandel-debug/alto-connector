@@ -73,7 +73,7 @@ def test_the_redirect_check_no_longer_gates_every_page_load():
 
 
 def test_sign_in_opens_inside_the_tap_once_firebase_is_up():
-    assert "signIn:  () => _isReady ? _signIn() : ready.then(() => _signIn())," in CLOUD_JS
+    assert "signIn:  () => !termsGate() ? Promise.resolve(null) : _isReady ? _signIn() : ready.then(() => _signIn())," in CLOUD_JS     # the terms gate first (1.9.191), then _signIn inside the tap once Firebase is up
 
 
 # ── the homepage ────────────────────────────────────────────────────────────
