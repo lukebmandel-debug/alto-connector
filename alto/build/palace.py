@@ -1186,12 +1186,15 @@ function streetLabels(svg, defs, g){
     kept.forEach(function(q, pi){
       var p=q.p.slice(), dx=p[p.length-2]-p[0], dy=p[p.length-1]-p[1];
       if((Math.abs(dx)>=Math.abs(dy) && dx<0) || (Math.abs(dx)<Math.abs(dy) && dy>0)){ var r=[]; for(var i=p.length-2;i>=0;i-=2) r.push(p[i],p[i+1]); p=r; }
-      var id='pls'+(svg._sid||'')+'-'+(uid++); el('path',{id:id, d:pts(p)},defs);
+      var id='pls'+(svg._sid||'')+'-'+(uid++); el('path',{id:id, d:pts(p)},defs); var rp=null, rid=id+'r';
       var every=1150, n0=Math.max(1,Math.floor(q.L/every));
-      for(var j=0;j<n0;j++){ var off=(q.L/n0)*(j+.5);
+      for(var j=0;j<n0;j++){ var off=(q.L/n0)*(j+.5), pid=id, pp=p, po=off;
+        /* a road that bends back on itself runs the other way at this label (the shore road at Chicago's top): it is set along the
+           reversed path there, so it never reads upside-down */
+        if(Math.cos(atLen(p, off)[2])<-.35){ if(!rp){ rp=[]; for(var i=p.length-2;i>=0;i-=2) rp.push(p[i],p[i+1]); el('path',{id:rid, d:pts(rp)},defs); } pid=rid; pp=rp; po=q.L-off; }
         var t=el('text',{'class':'pl-st'+(TOP[n]?' top':'')+(q.k>=2?' minor':'')+(pi===0 && j===(n0>>1)?' r0':''), dy:'.35em'},g);
-        t._g=atLen(p, off); t._pr=(TOP[n]?600:q.k>=2?150:300)+Math.min(90, q.L/400)+(pi===0 && j===(n0>>1)?5:0)-pi;   /* the label pass (lblFit) */
-        t.setAttribute('data-n', n); var tp=el('textPath',{href:'#'+id, startOffset:off, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=n; }
+        t._g=atLen(pp, po); t._pr=(TOP[n]?600:q.k>=2?150:300)+Math.min(90, q.L/400)+(pi===0 && j===(n0>>1)?5:0)-pi;   /* the label pass (lblFit) */
+        t.setAttribute('data-n', n); var tp=el('textPath',{href:'#'+pid, startOffset:po, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+pid); tp.textContent=n; }
     });
   });
 }
