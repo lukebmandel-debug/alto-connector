@@ -41,7 +41,7 @@ def test_a_digit_is_the_number_a_body_shows(browser, page, style):
 
 @pytest.mark.parametrize("key", ["Escape", "Backspace"])
 @pytest.mark.parametrize("style", STYLES)
-def test_up_a_level_climbs_moon_planet_sun_system_and_never_lands_beside(browser, page, style, key):
+def test_up_a_level_climbs_moon_to_planet_then_lets_go_then_the_whole_system(browser, page, style, key):
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     moon = _hood(pg)["kids"][0]
     _at(pg, at=moon, style=style)
@@ -49,12 +49,9 @@ def test_up_a_level_climbs_moon_planet_sun_system_and_never_lands_beside(browser
     assert h["up"] == AT and len(h["sibs"]) == 2
     pg.keyboard.press(key)
     _arrive(pg, AT)                                          # a moon: its planet (not the other moon)
-    sun = _hood(pg, AT)["up"]
-    pg.keyboard.press(key)
-    _arrive(pg, sun)                                         # a planet: its sun (not another planet)
-    pg.keyboard.press(key)
+    pg.keyboard.press(key)                                   # a planet lets go, as Esc always did (no ride to its sun)
     pg.wait_for_function("() => !window._focusedNodeId && !window._altoSolarLock.riding()", timeout=9000)
-    pg.keyboard.press(key)                                   # the sun gone home: the whole system
+    pg.keyboard.press(key)                                   # nothing enlarged: the whole system
     pg.wait_for_function("() => window._altoSolarNavApi.ov()", timeout=9000)
     pg.context.close()
     assert not errs, errs

@@ -14,7 +14,7 @@ import pytest
 from alto.build.builder import build_timeline, load_brief
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_solar_draw import _home, _open, browser, solar_doc  # noqa: E402,F401
+from test_solar_draw import _open, browser, solar_doc  # noqa: E402,F401
 from test_solar_pool import SMALL, SMALL_LINKS  # noqa: E402
 
 NAMES = ["Duty", "Breach of care", "Proximate cause", "Damages", "Consent"]
@@ -236,13 +236,13 @@ def test_realistic_3d_is_a_3d_scene_with_a_free_camera(browser, page):
     nx = pg.evaluate("() => { var s=window._altoNavOpt.scope('u1-p2'), i=s.indexOf('u1-p2'); return i<0 ? s[0] : s[(i+1)%s.length]; }")
     pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(1500)             # (close up, a scroll goes round what is beside it: Luke, 2026-10-26)
     assert pg.evaluate("() => window._focusedNodeId") == nx
-    _home(pg); pg.wait_for_timeout(1100)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1100)
     c1 = pg.evaluate("() => window._altoSolar3D.cam()")
     pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(1100)             # (nothing enlarged: scrolling out flies back out)
     assert pg.evaluate("() => window._altoSolar3D.cam().d") > c1["d"] * 1.2 and not pg.evaluate("() => window._focusedNodeId")
     pg.click("#sk3d-reset"); pg.wait_for_timeout(1000)
     c2 = pg.evaluate("() => window._altoSolar3D.cam()")
-    assert abs(math.remainder(c2["az"] + .6, 2 * math.pi)) < .01 and abs(c2["el"] - .62) < .01, c2      # (the same view a turn round: the camera's angle is not wrapped)
+    assert abs(c2["az"] + .6) < .01 and abs(c2["el"] - .62) < .01, c2
     # Classic: no scene
     pg.keyboard.press("Escape"); pg.wait_for_timeout(600)
     pg.evaluate("() => window._altoSolarStyle.set('classic')"); pg.wait_for_timeout(800)
@@ -272,7 +272,7 @@ def test_an_enlarged_body_is_its_globe_close_up(browser, page):
     assert q["lock"] == "u1-p2", q
     assert abs(q["px"] - q["cx"]) < 4 and abs(q["py"] - q["cy"]) < 4 and abs(q["pr"] / q["r"] - 1) < .06, q   # the globe fills the disc's circle
     assert q["bg"] in ("rgba(0, 0, 0, 0)", "transparent") and float(q["op"]) > .95, q                        # no flat disc: the content over the globe
-    _home(pg); pg.wait_for_timeout(1300)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1300)
     c1 = pg.evaluate("() => window._altoSolar3D.cam()")
     assert abs(c1["d"] / c0["d"] - 1) < .05 and abs(c1["az"] - c0["az"]) < .05, (c0, c1)                   # and back to where it was
     pg.context.close()
@@ -307,7 +307,7 @@ def test_3d_small_bodies_are_varied_real_objects_and_nothing_blocks_the_close_up
       Object.keys(G).forEach(function(k){ var p=P.project(k); if(k===id || !p) return; var r=G[k].d/2*p.s, d=Math.hypot(p.x-f.x, p.y-f.y);
         if(r>rf*1.25 || (p.w<f.w*.93 && d<r+rf*1.1)) out.push([k, F[k]==null ? 1 : F[k]]); }); return {lock:P.closeup().lock, out:out}; }""", sat)
     assert q["lock"] == sat and all(f < .1 for _, f in q["out"]), q
-    _home(pg); pg.wait_for_timeout(1400)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1400)
     assert pg.evaluate("() => Object.keys(window._altoSolar3D.fades()).length") == 0                     # all back on the way out
     pg.context.close()
     assert not errs, errs
@@ -318,7 +318,7 @@ def test_the_3d_scene_is_small_and_on_system_pages_only():
     from alto.build import blocks
     from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
-    assert size < 23400, size                   # (~23.2 KB with item 20's whole-system fit from the minimap, 2026-10-30; ~22.3 KB with 1.9.187's camera keep-out shell and sun-side choice; ~21.2 KB with 1.9.17x's flame plumes, rocket flip, warp streaks and flashes; ~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~20.2 KB with 1.9.146's moon kinds, satellites, stations, asteroids, comets and black holes)
+    assert size < 23400, size                   # (~23.2 KB with item 20's whole-system fit from the minimap, 2026-10-30: slimming it keeps ~800 B and drops behaviour, cap raise approved by the CEO; ~22.3 KB with 1.9.187's camera keep-out shell and sun-side choice; ~21.2 KB with 1.9.17x's flame plumes, rocket flip, warp streaks and flashes; ~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~20.2 KB with 1.9.146's moon kinds, satellites, stations, asteroids, comets and black holes)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
 
 
@@ -449,7 +449,7 @@ def test_ships_point_along_their_way_and_arrive_into_an_orbit(browser, page):
     a = pg.evaluate(S); pg.wait_for_timeout(600); b = pg.evaluate(S)
     assert a and a["on"] and a["lock"] == "u1-p1" and a["d"] > a["R"] + 4 and abs(a["d"] - b["d"]) < 2, (a, b)   # round the globe, never in it
     assert 0.5 < math.hypot(a["x"] - b["x"], a["y"] - b["y"]) < a["d"], (a, b)                                    # slowly round
-    _home(pg); pg.wait_for_timeout(1500)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1500)
     assert not pg.evaluate("() => window._altoCraft.orbiting()")
     pg.context.close()
     assert not errs, errs

@@ -14,7 +14,7 @@ import pytest
 from alto.build.builder import build_timeline, load_brief
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_solar_draw import _home, _open, browser, solar_doc  # noqa: E402,F401
+from test_solar_draw import _open, browser, solar_doc  # noqa: E402,F401
 from test_solar_pool import SMALL, SMALL_LINKS  # noqa: E402
 
 
@@ -84,7 +84,7 @@ def test_the_orbits_say_why_they_wait_and_come_back_after_a_hover_or_an_enlarged
     pg.wait_for_timeout(400)                                                           # the button says it is on but waiting, and why
     b = pg.evaluate("() => { var m=document.getElementById('sol-motion'); return [m.classList.contains('sol-wait'), m.querySelector('.sol-ow').textContent, m.title]; }")
     assert b[0] and b[1].endswith("paused") and "while a body is enlarged" in b[2], b
-    _home(pg); pg.wait_for_timeout(1300)                            # Esc: the card goes home first
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1300)                            # Esc: the card goes home first
     assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarHold()]") == [None, ""]
     t0 = pg.evaluate("() => window._altoSolarT"); pg.wait_for_timeout(500)
     assert pg.evaluate("() => window._altoSolarT") != t0                              # and the orbits turn again
