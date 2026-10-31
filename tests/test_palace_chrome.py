@@ -267,9 +267,10 @@ def check_edges(pg, label):
             pg.mouse.wheel(dx * 700, dy * 700)
         pg.wait_for_timeout(250)
         g = pg.evaluate(GAPS)
-        # no empty page between the bars and the city (or past its other three sides)
-        assert g[side] <= 0.6, (label, name, g)
-        assert g["bars"] <= 1.5, (label, name, g)                  # the canvas starts where the bars end
+        # no empty page between the bars and the city (or past its other three sides). Since the clear top bars the canvas runs the full window
+        # and the city starts where the bars end, so the top side's gap is the bars' own band (about 86 px) and nothing more.
+        assert g[side] <= (g["bars"] if side == "top" else 0) + 0.6, (label, name, g)
+        assert 0 <= g["bars"] <= 120, (label, name, g)             # the bars' band keeps its size
 
 
 def test_panning_never_shows_the_page_beyond_the_city(browser, page_file):
@@ -281,9 +282,11 @@ def test_panning_never_shows_the_page_beyond_the_city(browser, page_file):
         check_edges(pg, "zoomed")
     # setting the scroll directly (the engine does: scrollTop = 0), dragging, and the keyboard
     pg.evaluate("document.getElementById('canvas').scrollTop = 0")
-    assert pg.evaluate(GAPS)["top"] <= 0.6
+    g = pg.evaluate(GAPS)
+    assert g["top"] <= g["bars"] + 0.6, g                       # the city starts where the clear bars end
     pg.mouse.move(500, 400); pg.mouse.down(); pg.mouse.move(520, 900, steps=8); pg.mouse.up(); pg.wait_for_timeout(200)
-    assert pg.evaluate(GAPS)["top"] <= 0.6
+    g = pg.evaluate(GAPS)
+    assert g["top"] <= g["bars"] + 0.6, g                       # the city starts where the clear bars end
     pg.evaluate("document.getElementById('canvas').scrollLeft = 1e6; document.getElementById('canvas').scrollTop = 1e6")
     g = pg.evaluate(GAPS)
     assert g["bottom"] <= 0.6 and g["right"] <= 0.6

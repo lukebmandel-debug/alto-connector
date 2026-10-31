@@ -39,10 +39,10 @@ def _html(d):
 # ── the module ──────────────────────────────────────────────────────────────
 def test_every_tower_has_its_art_and_a_name_pattern():
     keys = {k for k, _, _ in pt.TOWERS}
-    assert len(keys) == 8
+    assert len(keys) == 18                                                             # the Philadelphia eight and ten New York towers
     for k in keys:
         a = pl.ART[k]
-        assert a["h"] > a["w"] * 1.6 and "<" in a["svg"] and "{s}" in a["svg"]        # tall and narrow
+        assert a["h"] > a["w"] * (1.4 if k == "muni" else 1.6) and "<" in a["svg"] and "{s}" in a["svg"]        # tall and narrow (the Municipal Building, a wide block under its tower, is the squattest: 1.52)
         assert "<script" not in a["svg"] and "<filter" not in a["svg"]
     for k, p in pl.MATCH:
         assert isinstance(re.compile(p, re.I), re.Pattern)
@@ -50,7 +50,7 @@ def test_every_tower_has_its_art_and_a_name_pattern():
                       ("Comcast Technology Center", "ctc"), ("BNY Mellon Center", "bny"), ("Three Logan Square", "tls"),
                       ("Cira Centre", "cira"), ("FMC Tower", "fmc")]:
         assert pt.tower_key(name) == key, name
-    assert len({pl.ART[k]["svg"] for k in keys}) == 8                                  # each its own silhouette
+    assert len({pl.ART[k]["svg"] for k in keys}) == len(keys)                         # each its own silhouette
     hs = [pl.ART[k]["h"] for k in ("ctc", "ccc", "lib1", "lib2", "bny", "tls", "fmc", "cira")]
     assert hs == sorted(hs, reverse=True)                                              # true proportions: Comcast Technology Center tallest, Cira shortest
 

@@ -237,7 +237,7 @@ def lm_art(l: dict) -> dict:
 
 
 def tower_lots(m: dict, blocks: list, at: dict, tw: dict) -> list:
-    """A tower's building chip stands in the corner of its landmark's card: one more block, one lot,
+    """A tower's building chip stands on the corner of its landmark's card: one more block, one lot,
     appended after the buildings have been placed (so no ordinary building can take it)."""
     if not tw:
         return blocks
@@ -253,9 +253,9 @@ def tower_lots(m: dict, blocks: list, at: dict, tw: dict) -> list:
         left, cy, _nw, _nh = card(lm["box"], lm_art(lm), lm)          # the tower's card (its footprint) ...
         left += lm_dx(m).get(t["n"], 0.0)                           # ... slid aside of a tower in front / behind
         w = max(30.0, min(lw, left - lm["box"][0] - 18))
-        h = lh * w / lw                                             # the chip stands at the card's left edge, a little over it
+        h = lh * w / lw                                             # the chip stands ON the tower's card, at its left end (Philadelphia beta: it used to stand beside it)
         bid = len(blocks)
-        cx, cy, deg = left + 10 - w / 2, cy + 22 + h / 2, 0
+        cx, cy, deg = left + 4 + w / 2, cy + 22 + h / 2, 0
         if lm.get("a"):                                             # a landmark of a tilted domain (city_lattice): turned with it
             deg = lm["a"]
             r = math.radians(deg)
