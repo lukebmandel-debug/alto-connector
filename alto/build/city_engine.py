@@ -1381,8 +1381,8 @@ def _sea(m, cmap, step=50.0):
     return out
 
 
-SEA_STRIP = 700.0       # page px of open water the glass shows beyond a shore that lies past its east edge
-SEA_REACH = 2400.0      # ... and the most the glass is widened for it
+SEA_STRIP = 1900.0      # page px of open water the glass shows beyond a shore that lies past its east edge (clear of Navy Pier's tip)
+SEA_REACH = 3300.0      # ... and the most the glass is widened for it
 
 
 def _sea_glass(sea, W, H, step=200.0):
