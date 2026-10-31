@@ -858,6 +858,9 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         streets.append(st)
     T["avenues_draw"] = time.time() - t0 - sum(v for v in T.values() if isinstance(v, float))
 
+    if (m.get("bank") or {}).get("side") not in (None, "", "e"):    # the wide river on the west or south: the streets run down to its bank
+        _to_bank(streets, [(ix, w) for ix, w in r_ix if w == WIDE_W])
+
     # 9b. bridges: a line the river interrupts, crossing it where the real street bridges it, is one line over it
     over = _bridges(streets, river, lines, by_id, m)
     # the wide river's bridges: from the end of the street they leave to the far side (as v1)
@@ -875,8 +878,9 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                     best = (dd, e)
         wide = next((rv for rv in river if rv["w"] == WIDE_W), None)
         if best and wide:
+            far = _far_bank(best[1], wide, (m.get("bank") or {}).get("side"), W)
             over.append({"n": br["n"], "k": 0, "o": 1, "br": 1,
-                         "p": [round(best[1][0], 1), round(best[1][1], 1), W + 50, round(best[1][1], 1)]})
+                         "p": [round(best[1][0], 1), round(best[1][1], 1), round(far[0], 1), round(far[1], 1)]})
             bridge_names.add(norm(br["n"]))
 
     # 10b. the railways (lines=): straight, above ground, through their stops (v1 rule, page coordinates)
@@ -1664,6 +1668,61 @@ def _ponds(m, cmap):
         pg = [cmap(x, y) for x, y in rp]
         out.append((pg, (min(q[0] for q in pg), min(q[1] for q in pg), max(q[0] for q in pg), max(q[1] for q in pg))))
     return out
+
+
+BANK_REACH = 3 * CW     # page px: a street that stops this near the wide river's bank is carried on down to it
+BANK_GAP = 30.0         # ... ending this far off the river's edge (the green margin)
+
+
+def _to_bank(streets, r_ix, reach=BANK_REACH, step=20.0):
+    """The lattice stops where the blocks in the river band were dropped, so the streets of a city that stands on a wide river
+    (Washington's Potomac) end 150-300 px short of its bank and leave bare ground. Each street end that faces the river and
+    lies within `reach` of its edge is carried straight on to the bank."""
+    for s in streets:
+        if s.get("o") or s.get("sm") or len(s.get("p") or ()) < 4:
+            continue
+        q = _pairs(s["p"])
+        for end in (0, -1):
+            e = q[end]
+            a = next((p_ for p_ in (q[1:] if end == 0 else q[-2::-1]) if math.dist(p_, e) > 4.0), None)
+            if a is None:
+                continue
+            d0 = math.dist(e, a)
+            u = ((e[0] - a[0]) / d0, (e[1] - a[1]) / d0)
+            for ix, w in r_ix:
+                edge = w / 2 + BANK_GAP
+                if ix.dist(e, edge + reach + 1) <= edge:
+                    continue                                   # already at the bank (or in it)
+                t = step
+                while t <= reach:
+                    pt = (e[0] + u[0] * t, e[1] + u[1] * t)
+                    if ix.dist(pt, edge + 1) <= edge:
+                        new = (round(pt[0], 1), round(pt[1], 1))
+                        q.insert(0, new) if end == 0 else q.append(new)
+                        break
+                    t += step
+        s["p"] = [round(v, 1) for p_ in q for v in p_]
+
+
+def _nearest_on(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = dx * dx + dy * dy
+    t = 0.0 if L < 1e-9 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L))
+    return (a[0] + t * dx, a[1] + t * dy)
+
+
+def _far_bank(e, wide, side, W):
+    """Where a bridge that leaves the street end e comes ashore. Along the glass's east edge (the Delaware, the Hudson) the
+    river runs off the glass, so the bridge runs straight to it; the wide river on another side (Washington's Potomac, west
+    and south) is crossed at the nearest point of its course, to its far bank, never on across the city."""
+    if side in (None, "", "e"):
+        return (W + 50.0, e[1])
+    q = wide.get("_q") or _pairs(wide["p"])
+    c = min((_nearest_on(e, a, b) for a, b in zip(q, q[1:])), key=lambda p: math.hypot(p[0] - e[0], p[1] - e[1]))
+    d = math.hypot(c[0] - e[0], c[1] - e[1])
+    u = ((c[0] - e[0]) / d, (c[1] - e[1]) / d) if d > 1e-6 else (-1.0, 0.0)
+    r = wide["w"] / 2 + 60.0
+    return (c[0] + u[0] * r, c[1] + u[1] * r)
 
 
 def _bridges(streets, river, lines, by_id, m):

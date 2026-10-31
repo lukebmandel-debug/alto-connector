@@ -1294,7 +1294,10 @@ function riverLabels(svg, defs, parent, r, k){
   var lo=-1, hi=-1; for(i=0;i<n;i++){ var x=p[2*i], y=p[2*i+1], on=x>40 && x<M.W-40 && y>40 && y<M.H-40; if(on){ if(lo<0) lo=i; hi=i; } }
   if(lo<0 || hi-lo<4) return;
   var s0=cum[lo], s1=cum[hi], fs=Math.max(20, (r.w||100)*.21), tot=cum[n-1], L=s1-s0;
-  var fw=null, bw=null, cnt=Math.max(1,Math.round(L/(fs*r.n.length*1.5+1500)));
+  /* the name is as large as the whole-city view sets it (13px on the screen): two copies a nominal spacing apart then overprint,
+     and one set too near the course's end runs off it ("OCK CREEK"); so the copies stand that far apart and clear of both ends */
+  var tl=r.n.length*.68*Math.max(13/fitZ(), fs), mg=Math.min(L*.3, tl*.55); s0+=mg; L-=2*mg;
+  var fw=null, bw=null, cnt=Math.max(1,Math.round(L/Math.max(fs*r.n.length*1.5+1500, tl*1.4)));
   function tangent(s){ for(var q=1;q<n-1 && cum[q]<s;q++); var a=Math.max(0,q-3), b=Math.min(n-1,q+3); return [p[2*b]-p[2*a], p[2*b+1]-p[2*a+1]]; }
   for(var j=0;j<cnt;j++){ var s=s0+L*(j+.5)/cnt, tg=tangent(s), tl=Math.hypot(tg[0],tg[1])||1, rev=tg[0]<-.35*tl?true:tg[0]>.35*tl?false:tg[1]>0, id='plr'+(svg._sid||'')+k+(rev?'b':'f');
     if(rev? !bw : !fw){ var pp=p; if(rev){ pp=[]; for(i=n-1;i>=0;i--) pp.push(p[2*i],p[2*i+1]); } el('path',{id:id, d:smoothD(pp)},defs); if(rev) bw=1; else fw=1; }
