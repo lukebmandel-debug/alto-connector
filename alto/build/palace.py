@@ -29,6 +29,7 @@ import base64
 import lzma
 import gzip
 import json
+import copy
 import math
 import re
 
@@ -51,7 +52,7 @@ from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
                "buildings", "parks", "areas", "portals", "scale", "data_z", "made", "transit", "preset",
-               "fill_z", "banners", "boroughs"}      # boroughs: what New York's full boroughs drew (city_outer_lattice.nyc); banners: giant words across a river (palace_areas.py); fill_z: the simulated buildings (palace_fillin.py; absent = off)
+               "fill_z", "banners", "boroughs", "gate", "invented"}      # gate: the city gate's verdict on a city a user's Claude or the editor made ({pass, score, draft, failing}); invented: an invented city's spec (city_invent.py); boroughs: what New York's full boroughs drew (city_outer_lattice.nyc); banners: giant words across a river (palace_areas.py); fill_z: the simulated buildings (palace_fillin.py; absent = off)
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -442,8 +443,10 @@ def check_portals(portals) -> list:
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
            cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
            raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
-           far_bank: bool = False, fill: bool = False, city_tiles: bool = True) -> dict:
-    """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
+           far_bank: bool = False, fill: bool = False, city_tiles: bool = True, layout=None, river_names=None,
+           channels=None, plan=None) -> dict:
+    """plan: an invented city's map (city_invent.invent_city: the dict build_map would make), drawn instead of a fetched
+    one; nothing is fetched. lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
     neighbourhood names drawn label-only, [{name, lat, lon, rank 1-4}] (palace_areas; omitted: Philadelphia's own).
@@ -453,12 +456,18 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     the transit reader. preset: the city preset's id (or "auto" for the generic set-up), kept for the record.
     far_bank: keep the land across a wide river (Brooklyn and Queens facing Manhattan, Cambridge across the
     Charles) instead of cutting it away as the city's edge (palace_map's wide-river rule). city_tiles: the detail past the districts
-    (+ about 1.5 km) goes to hosted tiles the page loads as it is zoomed in (palace_tiles.py), and the fill-in covers the whole city."""
+    (+ about 1.5 km) goes to hosted tiles the page loads as it is zoomed in (palace_tiles.py), and the fill-in covers the whole city.
+    layout: the city's LayoutSpec (city_spec: a dict, or a registered name; the NYC preset's is "manhattan" whatever is passed);
+    river_names: [[name, lat, lon]] points on the named water, each water band named by the nearest (city_water.hints_of);
+    channels: the rivers drawn whatever their length (Chicago's three branches). A layout whose shore is "sea" gets its lake
+    or sea from the shore's own OSM ways (city_coast)."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
     from .palace_areas import check_areas, default_areas
     areas = default_areas(place, bbox) if areas is None else areas
     check_areas(areas)
+    if plan is not None:
+        raw = {"elements": []}
     if raw is None and (tiled or offline):
         from .city_setup import fetch_city
         raw = fetch_city(tuple(bbox), cache_dir=cache_dir, names=landmarks or None, offline=offline)
@@ -468,8 +477,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     if far_bank:
         pm.FAR_BANK_SHARE = -1.0                      # palace_map keeps a far bank holding more than this share
     try:
-        m = pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None,
-                         landmarks=landmarks or None)
+        m = copy.deepcopy({k: v for k, v in plan.items() if k != "plan"}) if plan is not None else \
+            pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None, landmarks=landmarks or None)
     finally:
         pm.FAR_BANK_SHARE = share
     # a landmark found both as an outline and as a point (a station node beside
@@ -484,6 +493,19 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     m["landmarks"] = [l for l in lms if l.get("r") or not any(
         o.get("r") and math.hypot(o["x"] - l["x"], o["y"] - l["y"]) < 260 and alike(o.get("n") or "", l.get("n") or "")
         for o in lms)]
+    if layout and preset != "nyc":                       # a layout spec (city_spec): the engine's lattices plus what data decides
+        m["layout"] = layout
+    if river_names:
+        m["river_names"] = [list(r) for r in river_names]
+    if channels:
+        m["channels"] = list(channels)
+    from .city_spec import resolve as _resolve
+    if getattr(_resolve(layout), "shore", "") == "sea" and preset != "nyc":
+        try:                                             # a lake or the sea at the glass edge (city_coast: Lake Michigan)
+            from . import city_coast
+            city_coast.attach(m, city_coast.fetch(tuple(bbox), cache_dir=cache_dir, offline=offline))
+        except Exception:                                # noqa: BLE001 — a busy Overpass: the city without its lake, as before
+            pass
     if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
         from .city_manhattan import LAYOUT
         from . import city_outer_lattice                 # ... and every street of the other boroughs, from the cached tiles
@@ -503,6 +525,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     real_trails = [dict(t) for t in (m.get("trails") or [])]                     # the grid drawing drops every path: the river trails are kept (palace_banks.py)
     real_rivers = [dict(r) for r in (m.get("rivers") or [])]                     # (and the real river lines, to read which bank a trail keeps)
     m = grid(m, majors=majors or (), diagonals=diagonals or (), lines=lines or (), landmarks=buildings or (), parks=parks or ())
+    from .palace_landmarks import scope_art
+    scope_art(m.get("landmarks"), place)                             # Philadelphia's City Hall art is Philadelphia's only
     from .city_highways import attach as attach_highways              # C3 (a no-op when city_engine attached them)
     attach_highways(m, {"highways": hw_real})
     try:

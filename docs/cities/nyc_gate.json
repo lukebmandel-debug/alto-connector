@@ -1,0 +1,383 @@
+{
+ "blind_audit": null,
+ "checks": {
+  "G1": {
+   "data": {
+    "domains": {
+     "domains": [
+      {
+       "a": 0.0,
+       "id": 0,
+       "kind": "grid",
+       "km2": 58.27,
+       "legacy": false,
+       "theta": 29.5
+      },
+      {
+       "a": -30.0,
+       "id": 1,
+       "kind": "grid",
+       "km2": 3.94,
+       "legacy": false,
+       "theta": -0.5
+      },
+      {
+       "a": -10.5,
+       "id": 2,
+       "kind": "grid",
+       "km2": 45.28,
+       "legacy": false,
+       "theta": 19.0
+      }
+     ],
+     "free_share": 0.0,
+     "root_km2": 58.27
+    }
+   },
+   "msg": "domains: 3 domains (grid 29.5\u00b0 58.3 km\u00b2, grid -0.5\u00b0 3.9 km\u00b2, grid 19.0\u00b0 45.3 km\u00b2)",
+   "rule": "domains sane",
+   "status": "ok",
+   "w": 3
+  },
+  "G10": {
+   "msg": "no highways drawn",
+   "rule": "highways",
+   "status": "ok",
+   "w": 4
+  },
+  "G11": {
+   "data": {
+    "cut": {
+     "cut": 111,
+     "share": 0.08,
+     "total": 1390
+    }
+   },
+   "msg": "cut: 111 of 1390 blocks cut or open (8.0%)",
+   "rule": "cut blocks",
+   "status": "warn",
+   "w": 3
+  },
+  "G12": {
+   "data": {
+    "size": {
+     "H": 22825,
+     "W": 11682,
+     "kb": 23.2,
+     "ratio": 0.65
+    }
+   },
+   "msg": "size: 11682x22825 px, 169 streets, 23 kB packed (0.65x Philadelphia 1.9.78 per km\u00b2)",
+   "rule": "data size per km2",
+   "status": "ok",
+   "w": 3
+  },
+  "G13": {
+   "data": {
+    "overlap": {
+     "bad": []
+    }
+   },
+   "msg": "overlap: 0 overlapping domain pairs",
+   "rule": "page overlap",
+   "status": "ok",
+   "w": 3
+  },
+  "G14": {
+   "msg": "spacing: no landmark pairs to compare; fronts: no landmark fronts a drawn line",
+   "rule": "landmark spacing / fronts",
+   "status": "ok",
+   "w": 6
+  },
+  "G15": {
+   "data": {
+    "bands": {
+     "East River": 250,
+     "Hudson River": 330
+    },
+    "missing": [],
+    "thin": [],
+    "wet": []
+   },
+   "msg": "0 points in water (-); 2 bands, 0 under 40 px; channels missing: none",
+   "rule": "dry land",
+   "status": "ok",
+   "w": 5
+  },
+  "G16": {
+   "data": {
+    "missing": [],
+    "missing_must": [
+     "Battery Park"
+    ],
+    "on": [],
+    "through": []
+   },
+   "msg": "0 parks drawn; must-parks missing 1, named missing 0; 0 streets through a park; 0 landmarks on a park",
+   "rule": "parks",
+   "status": "fail",
+   "w": 3
+  },
+  "G17": {
+   "data": {
+    "overlaps": []
+   },
+   "msg": "0 landmarks drawn (8-24); 0 card overlaps",
+   "rule": "landmarks",
+   "status": "fail",
+   "w": 4
+  },
+  "G18": {
+   "data": {
+    "off": [],
+    "overlaps": []
+   },
+   "msg": "0 top names at the whole-city zoom (x0.039): 0 overlapping pairs, 0 off the glass",
+   "rule": "labels",
+   "status": "ok",
+   "w": 4
+  },
+  "G2": {
+   "data": {
+    "phantom": {
+     "lines": 239,
+     "low": 79,
+     "median": 0.531,
+     "share": 0.331,
+     "unnamed": 5,
+     "worst": [
+      [
+       0.0,
+       "(unnamed)",
+       3.7
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       4.8
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       6.9
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       8.7
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       8.7
+      ],
+      [
+       0.0,
+       "Barclay Street",
+       1.5
+      ],
+      [
+       0.0,
+       "Battery Place",
+       1.2
+      ],
+      [
+       0.0,
+       "Broadway",
+       1.2
+      ],
+      [
+       0.0,
+       "Broadway",
+       9.7
+      ],
+      [
+       0.0,
+       "Chambers Street",
+       17.6
+      ],
+      [
+       0.0,
+       "Church Street",
+       1.5
+      ],
+      [
+       0.0,
+       "Church Street",
+       6.1
+      ],
+      [
+       0.0,
+       "Church Street",
+       6.1
+      ],
+      [
+       0.0,
+       "Clinton Street",
+       1.5
+      ],
+      [
+       0.0,
+       "Columbia Street",
+       1.5
+      ]
+     ]
+    }
+   },
+   "msg": "phantom: 79 of 239 lattice lines (33%) are under 25% real (median coverage 0.53)",
+   "rule": "phantom lines",
+   "status": "warn",
+   "w": 6
+  },
+  "G3": {
+   "data": {
+    "displacement": {
+     "n": 0,
+     "over": 0,
+     "rel_median": null,
+     "unmatched": [],
+     "worst": []
+    }
+   },
+   "msg": "displacement: 0 points; 0 over 1.5 blocks, worst 0.00 (-)",
+   "rule": "landmark/stop displacement",
+   "status": "ok",
+   "w": 6
+  },
+  "G4": {
+   "data": {
+    "order": {
+     "avenues": [],
+     "stops": []
+    }
+   },
+   "msg": "order: 0 stop-order swaps; 0 of 0 avenues cross streets out of order",
+   "rule": "order",
+   "status": "ok",
+   "w": 6
+  },
+  "G5": {
+   "data": {
+    "side": {
+     "bad": [
+      "Hudson River: lot 226",
+      "Hudson River: lot 226",
+      "Hudson River: lot 226",
+      "Hudson River: lot 227",
+      "Hudson River: lot 227",
+      "Hudson River: lot 227",
+      "Hudson River: lot 240",
+      "Hudson River: lot 240",
+      "Hudson River: lot 240",
+      "Hudson River: lot 240",
+      "Hudson River: lot 240",
+      "Hudson River: lot 240",
+      "Hudson River: lot 241",
+      "Hudson River: lot 241",
+      "Hudson River: lot 241",
+      "Hudson River: lot 241",
+      "Hudson River: lot 241",
+      "Hudson River: lot 241",
+      "Hudson River: lot 254",
+      "Hudson River: lot 254"
+     ],
+     "n_bad": 392
+    }
+   },
+   "msg": "side: 392 of 6551 points on the wrong side (6551 lots checked)",
+   "rule": "side of river/seam",
+   "status": "fail",
+   "w": 8
+  },
+  "G6": {
+   "data": {
+    "cross_seam": {
+     "bad": []
+    },
+    "seam_fidelity": {
+     "seams": []
+    }
+   },
+   "msg": "seam_fidelity: no seams; tjoin: no lines end on a seam; cross_seam: 0 non-hinge lines cross a seam",
+   "rule": "seams",
+   "status": "ok",
+   "w": 6
+  },
+  "G7": {
+   "data": {
+    "ends": {
+     "examples": [],
+     "free_dead_ends": 0,
+     "n": 0,
+     "overhang": 0,
+     "overhang_examples": []
+    }
+   },
+   "msg": "ends: 0 line ends land on nothing inside the grid; 0 run past its edge",
+   "rule": "dangling ends",
+   "status": "ok",
+   "w": 5
+  },
+  "G8": {
+   "data": {
+    "avenues": {
+     "avenues": {},
+     "bad": []
+    }
+   },
+   "msg": "avenues: 0 avenues; 0 break the rules",
+   "rule": "avenues",
+   "status": "ok",
+   "w": 3
+  },
+  "G9": {
+   "msg": "transit: no transit",
+   "rule": "transit",
+   "status": "ok",
+   "w": 6
+  }
+ },
+ "city": {
+  "input": "tests/fixtures/cities/manhattan.json.gz (street/water fixture: no landmarks, parks or transit)",
+  "layout": "manhattan (city_spec.NYC)",
+  "preset": "nyc",
+  "unchanged": "palace_grid.grid on this fixture hashes 334b3e50a5e1edc1 on v1.9.189 and on alto-city-core (tests/test_city_core.py pins it); G16/G17 fail here only because the fixture carries no parks or landmarks; G19-G22 need a full NYC build (five-borough fetch), not run in the cloud"
+ },
+ "fail": [
+  "G5 side of river/seam: side: 392 of 6551 points on the wrong side (6551 lots checked)",
+  "G16 parks: 0 parks drawn; must-parks missing 1, named missing 0; 0 streets through a park; 0 landmarks on a park",
+  "G17 landmarks: 0 landmarks drawn (8-24); 0 card overlaps"
+ ],
+ "pass": false,
+ "ran": [
+  "G1",
+  "G2",
+  "G3",
+  "G4",
+  "G5",
+  "G6",
+  "G7",
+  "G8",
+  "G9",
+  "G10",
+  "G11",
+  "G12",
+  "G13",
+  "G14",
+  "G15",
+  "G16",
+  "G17",
+  "G18"
+ ],
+ "score": 76.8,
+ "skipped": [
+  "G19",
+  "G20",
+  "G21",
+  "G22"
+ ],
+ "warn": [
+  "G2 phantom lines: phantom: 79 of 239 lattice lines (33%) are under 25% real (median coverage 0.53)",
+  "G11 cut blocks: cut: 111 of 1390 blocks cut or open (8.0%)"
+ ]
+}
