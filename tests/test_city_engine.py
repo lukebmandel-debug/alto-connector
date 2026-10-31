@@ -165,3 +165,20 @@ def test_free_domains_drawn(phil):
     from alto.build import palace_place
     gr = palace_place.graph({"streets": g["streets"]})
     assert len(gr["e"]) > 0
+
+
+def test_the_glass_widens_to_show_a_lake_whose_shore_maps_past_its_edge():
+    """Chicago: the lattice stops at the shore road, so the real shore maps past the glass's east edge and the clip hid all of
+    the lake but the corner where the shore bends in. The glass is widened to the shore plus a strip of water; a shore inside
+    the glass leaves it alone."""
+    from alto.build import city_engine as ce
+    W, H = 9000, 12000
+    # a lake east of x = 10400 from y 4000 down, bending in to x = 8800 above that; the ring closes along the box edge
+    ring = [8800, 0, 14000, 0, 14000, 12000, 10400, 12000, 10400, 4000, 8800, 3000]
+    w = ce._sea_glass([ring], W, H)
+    assert w == int(10400 + ce.SEA_STRIP) and w > W
+    # a shore inside the glass everywhere: unchanged
+    assert ce._sea_glass([[8000, 0, 9000, 0, 9000, 12000, 8000, 12000]], W, H) == W
+    # never more than the reach
+    far = [20000, 0, 21000, 0, 21000, 12000, 20000, 12000]
+    assert ce._sea_glass([far], W, H) == int(W + ce.SEA_REACH)
