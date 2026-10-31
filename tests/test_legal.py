@@ -38,6 +38,7 @@ def test_three_pages_render_from_the_markdown_with_the_one_version():
             assert f'<a href="/{k}/"' in html and n in html          # the footer line on every page
         assert "https://www.openstreetmap.org/copyright" in html and "OpenStreetMap contributors (ODbL)" in html
     assert "Privacy Policy" in pages["privacy"] and "Beta Terms" in pages["terms"]
+    assert "Google records the name, email address and profile photo" in pages["privacy"]      # the feedback form (a Google Form), Strategy v6
     assert "Storage on your device" in pages["privacy"] and "Alto sets no cookies" in pages["privacy"]
     assert '<a href="/privacy/">Privacy Policy</a>' in pages["terms"]
     assert "__ALTO" not in "".join(pages.values())

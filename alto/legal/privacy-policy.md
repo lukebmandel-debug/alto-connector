@@ -11,7 +11,7 @@ Alto is a study tool that turns course notes into timelines, outlines and memory
 - **Bass (our AI builder), if you use it.** Each request sends Anthropic, which runs the Claude AI model: our instructions to Bass, the text and files you submit, the conversation so far, the parts of your timeline Bass reads, and Bass's replies. It does not send your name, email or account ID. What Bass builds is stored as your content. The live conversation stays only in our server's memory until that server restarts. We keep a record of each request: time, credits used, action and status, not the text.
 - **Technical records.** Our server logs (time, account ID, action; IP address and browser type) and security logs of refused access (including IP address) are kept for 30 days. Google's hosting servers also see your IP address and browser when your browser loads Alto, under Google's own policies.
 - **Your agreement.** When you accept the Beta Terms we record your account ID, the version, the time and that you confirmed you are 18 or over.
-- **Feedback.** If you use our feedback form, we receive what you type, any file you attach, and your email address.
+- **Feedback.** If you use our feedback form (a Google Form), Google records the name, email address and profile photo of your Google account when you submit it or upload a file, and we receive those along with what you type and any file you attach. Google handles the form under its own privacy policy.
 - **Tester list.** The email addresses of invited testers.
 
 ## What we do not do
