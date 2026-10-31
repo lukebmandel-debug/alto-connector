@@ -14,7 +14,7 @@ import pytest
 from alto.build.builder import build_timeline, load_brief
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_solar_draw import _open, browser, solar_doc  # noqa: E402,F401
+from test_solar_draw import _home, _open, browser, solar_doc  # noqa: E402,F401
 from test_solar_pool import SMALL, SMALL_LINKS  # noqa: E402
 
 NAMES = ["Duty", "Breach of care", "Proximate cause", "Damages", "Consent"]
@@ -307,7 +307,7 @@ def test_3d_small_bodies_are_varied_real_objects_and_nothing_blocks_the_close_up
       Object.keys(G).forEach(function(k){ var p=P.project(k); if(k===id || !p) return; var r=G[k].d/2*p.s, d=Math.hypot(p.x-f.x, p.y-f.y);
         if(r>rf*1.25 || (p.w<f.w*.93 && d<r+rf*1.1)) out.push([k, F[k]==null ? 1 : F[k]]); }); return {lock:P.closeup().lock, out:out}; }""", sat)
     assert q["lock"] == sat and all(f < .1 for _, f in q["out"]), q
-    pg.keyboard.press("Escape"); pg.wait_for_timeout(1400)
+    _home(pg); pg.wait_for_timeout(1400)                                       # (a satellite: up to its moon, then home)
     assert pg.evaluate("() => Object.keys(window._altoSolar3D.fades()).length") == 0                     # all back on the way out
     pg.context.close()
     assert not errs, errs

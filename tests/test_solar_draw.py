@@ -190,6 +190,16 @@ def pages(tmp_path_factory):
     return out
 
 
+def _home(pg, tries=4):
+    """Esc from a moon or satellite climbs to the one it belongs to (Luke, 2026-10-28, item 20), a planet or sun lets go: press it until home."""
+    for _ in range(tries):
+        pg.keyboard.press("Escape")
+        pg.wait_for_function("() => !(window._altoSolarLock && window._altoSolarLock.riding()) && !(window._altoSolarFlight && window._altoSolarFlight())", timeout=9000)
+        pg.wait_for_timeout(300)
+        if not pg.evaluate("() => window._focusedNodeId"):
+            return
+
+
 def _open(browser, f, reduced=False, wait=1500):
     ctx = browser.new_context(viewport={"width": 1500, "height": 950}, reduced_motion="reduce" if reduced else "no-preference")
     pg = ctx.new_page()
