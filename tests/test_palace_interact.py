@@ -98,7 +98,7 @@ def _focus(pg, id_):
 def _geo(pg):
     return pg.evaluate("""() => { const n = document.querySelector('.node.focused'); if (!n) return null;
       const f = e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, r: r.right, b: r.bottom, cx: r.x + r.width / 2, cy: r.y + r.height / 2 }; };
-      return { card: f(n.querySelector('.node-card')), ghost: f(n.querySelector('.pal-ghost')), tail: f(n.querySelector('.pal-tail')),
+      return { card: f(n.querySelector('.node-card')), ghost: f(n.querySelector(':scope > svg') || n.querySelector('.pal-ghost')), tail: f(n.querySelector('.pal-tail')),
                below: n.classList.contains('pal-below'), cv: f(document.getElementById('canvas')) }; }""")
 
 
@@ -122,7 +122,7 @@ def test_an_enlarged_card_rises_above_its_building(browser, page_file):
     assert not g["below"]
     assert g["card"]["b"] <= g["ghost"]["y"] + 1                  # the card's bottom edge is above the building
     assert g["ghost"]["r"] - g["ghost"]["x"] > 10                  # the building is still there, whole
-    assert abs(g["card"]["cx"] - g["ghost"]["cx"]) < 3            # centred over it
+    assert abs(g["card"]["cx"] - g["ghost"]["cx"]) < 6            # centred over it (the building's box carries its shadow on the right)
     assert g["card"]["b"] <= g["tail"]["y"] + 14 and g["tail"]["b"] <= g["ghost"]["y"] + 3   # the notch sits between
     assert g["card"]["y"] >= g["cv"]["y"] - 1                      # all on screen
     # Esc closes it, the building stays
@@ -360,7 +360,10 @@ def test_a_focused_building_shows_the_same_pill_and_has_a_label(browser, page_fi
 def test_a_neighbourhood_name_brightens_and_click_docks_its_card(browser, page_file):
     pg = _open(browser, page_file)
     pg.evaluate("document.getElementById('canvas').scrollTo(0, 0)")
+    # a spot of the name that is the name: building chips stand over the middle of a neighbourhood's name and take that pointer
     box = pg.evaluate("""() => { const t = document.querySelector('#palace-svg .pl-dist'); const r = t.getBoundingClientRect();
+      for (let f of [.5, .1, .9, .2, .8, .3, .7, .05, .95]) for (let g of [.5, .3, .7]) { const x = r.left + r.width * f, y = r.top + r.height * g;
+        const hit = document.elementFromPoint(x, y); if (hit && hit.closest('#palace-svg .pl-dist')) return [x, y]; }
       return [r.left + r.width / 2, r.top + r.height / 2]; }""")
     pg.mouse.move(*box)
     pg.wait_for_timeout(300)
