@@ -85,8 +85,8 @@ def template(kind=DEFAULT_TEMPLATE, name="") -> dict:
                    {"name": "Union Avenue", "class": "main", "from": [300, 2100], "to": [2500, 300], "diagonal": True}]
         water = []
     elif kind == "organic_grid":
-        ds = [{"name": "Old Town", "kind": "organic", "center": [900, 1100], "size_km": 1.4},
-              {"name": "New Town", "kind": "grid", "center": [2550, 1100], "size_km": [1.7, 1.8], "angle": 0}]
+        ds = [{"name": "Old Town", "kind": "organic", "center": [1200, 1200], "size_km": 2.0},
+              {"name": "New Town", "kind": "grid", "center": [3000, 1200], "size_km": [1.4, 2.0], "angle": 0}]
         streets = [{"name": "Harbour Road", "class": "main", "from": "Old Town", "to": "New Town"}]
         water = []
     elif kind == "river":
@@ -342,58 +342,38 @@ class _D:
         self.ring = [R(x0, y0), R(x1, y0), R(x1, y1), R(x0, y1)]
 
     def _organic(self, pool):
-        """An old town: crooked lanes at every angle inside a ring road, each running from the ring to the ring (so every
-        lane ends on a street); read by the engine as a free domain beside the grid, drawn as smoothed geometry."""
-        rng = _Rng(_seed(self.name))
-        rx, ry = self.w / 2, self.h / 2
-        ring = [(self.cx + rx * math.cos(2 * math.pi * t / 48), self.cy + ry * math.sin(2 * math.pi * t / 48)) for t in range(49)]
-        n = max(5, int(round(min(self.w, self.h) / 160)))
-        for k in range(n):
-            a0 = 2 * math.pi * (k / n + .07 * rng())
-            a1 = a0 + math.pi * (.55 + .5 * rng())
-            p0 = (self.cx + rx * math.cos(a0), self.cy + ry * math.sin(a0))
-            p1 = (self.cx + rx * math.cos(a1), self.cy + ry * math.sin(a1))
-            bend = (rng() - .5) * .25 * min(rx, ry)
-            mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
-            L = math.dist(p0, p1) or 1
-            nx, ny = -(p1[1] - p0[1]) / L, (p1[0] - p0[0]) / L
-            pts = [(p0[0] + (p1[0] - p0[0]) * t / 8 + nx * bend * math.sin(math.pi * t / 8),
-                    p0[1] + (p1[1] - p0[1]) * t / 8 + ny * bend * math.sin(math.pi * t / 8)) for t in range(9)]
-            nm = "%s Lane" % pool.pop(0) if pool else "Lane %d" % k
-            self.streets.append({"n": nm, "k": 3, "p": _flat(pts)})
-        ring[-1] = ring[0]
-        self.streets.append({"n": "%s Ring" % self.name, "k": 2, "p": _flat(ring)})
-        for i in range(4):
-            for j in range(4):
-                x, y = self.cx + (-.75 + i * .5) * rx, self.cy + (-.75 + j * .5) * ry
-                if ((x - self.cx) / rx) ** 2 + ((y - self.cy) / ry) ** 2 <= .7:
-                    self.cells.append(((x, y), (i, j)))
-        self.nodes = [q for t, q in enumerate(ring[:-1]) if t % 4 == 0]
-        self.ring = ring[:-1]
+        """An old town: a crooked ring-and-lane web (the radial district's bones, every ring and lane bent, uneven and seeded
+        by the district's name), so each lane ends on a ring; the engine reads it as a free domain beside the grid and
+        draws it as smoothed geometry, not graph paper."""
+        self._radial(pool, crooked=_Rng(_seed(self.name)))
 
-    def _radial(self, pool):
+    def _radial(self, pool, crooked=None):
+        """Three rings and ten straight spokes from the inner ring to the outer one (every spoke ends on a ring). crooked
+        (an organic old town): the rings wobble. (The spokes stay straight, evenly turned, inner ring to outer, with 4
+        points: bent, uneven or shorter ones are no longer read as a free domain by the engine, which keeps a free street's
+        points inside its domain.)"""
         R = min(self.w, self.h) / 2
         rings = [R * f for f in (.3, .62, .95)]
-        for j, r in enumerate(rings):
-            pts = [(self.cx + r * math.cos(2 * math.pi * t / 64), self.cy + r * math.sin(2 * math.pi * t / 64)) for t in range(65)]
-            self.streets.append({"n": "%s Circle" % (pool.pop(0) if pool else "Ring %d" % j), "k": 2 if j == 1 else 3,
-                                 "p": _flat(pts)})
+        wob = [(crooked() * 2 * math.pi, .06 + .06 * crooked()) for _ in rings] if crooked else [(0, 0)] * len(rings)
+        rad = lambda j, a: rings[j] * (1 + wob[j][1] * math.sin(3 * a + wob[j][0]))  # noqa: E731 — a: the absolute angle
+        at = lambda j, a: (self.cx + rad(j, a) * math.cos(a), self.cy + rad(j, a) * math.sin(a))  # noqa: E731
+        kind = ("Lane", "Ring") if crooked else ("Road", "Circle")
+        for j in range(len(rings)):
+            self.streets.append({"n": "%s %s" % (pool.pop(0) if pool else "Ring %d" % j, kind[1]), "k": 2 if j == 1 else 3,
+                                 "p": _flat([at(j, 2 * math.pi * t / 64) for t in range(65)])})
         n = 10
         for i in range(n):
             a = 2 * math.pi * i / n + self.a
-            self.streets.append({"n": "%s Road" % (pool.pop(0) if pool else "Spoke %d" % i), "k": 2 if i % 5 == 0 else 3,
-                                 "p": _flat([(self.cx + (rings[0] + (rings[-1] - rings[0]) * t / 3) * math.cos(a),
-                                              self.cy + (rings[0] + (rings[-1] - rings[0]) * t / 3) * math.sin(a))
-                                             for t in range(4)])})      # (4 points: the engine keeps a free street's points inside its domain, and reads the spokes as a free domain)
+            p0, p1 = at(0, a), at(len(rings) - 1, a)
+            self.streets.append({"n": "%s %s" % (pool.pop(0) if pool else "Spoke %d" % i, kind[0]), "k": 2 if i % 5 == 0 else 3,
+                                 "p": _flat([(p0[0] + (p1[0] - p0[0]) * t / 3, p0[1] + (p1[1] - p0[1]) * t / 3) for t in range(4)])})
         for j in range(len(rings) - 1):
-            r = (rings[j] + rings[j + 1]) / 2
             for i in range(n):
                 a = 2 * math.pi * (i + .5) / n + self.a
-                self.cells.append(((self.cx + r * math.cos(a), self.cy + r * math.sin(a)), (i, j)))
-        self.nodes = [(self.cx + r * math.cos(2 * math.pi * i / n + self.a), self.cy + r * math.sin(2 * math.pi * i / n + self.a))
-                      for r in rings for i in range(n)]
-        self.ring = [(self.cx + rings[-1] * math.cos(2 * math.pi * t / 32), self.cy + rings[-1] * math.sin(2 * math.pi * t / 32))
-                     for t in range(32)]
+                (xa, ya), (xb, yb) = at(j, a), at(j + 1, a)
+                self.cells.append((((xa + xb) / 2, (ya + yb) / 2), (i, j)))
+        self.nodes = [at(j, 2 * math.pi * i / n + self.a) for j in range(len(rings)) for i in range(n)]
+        self.ring = [at(len(rings) - 1, 2 * math.pi * t / 32) for t in range(32)]
 
     def diagonal(self, A, B):
         """A diagonal avenue of a grid district from the node nearest A toward B, one block across for every block down
@@ -454,7 +434,10 @@ def invent_city(spec) -> dict:
     def free_cell(d, near=None, gap=2):
         """A block of district d no landmark holds, at least `gap` blocks from every taken one (fewer when it is full)."""
         cand = [c for c in d.cells if (d.name, c[1]) not in taken and
-                not any(_poly_dist(dl, *c[0]) < .8 * max(d.bw, d.bh) for dl in diag_lines)]   # no avenue runs through it
+                not (abs(c[0][0] - d.cx) < 1.6 * d.bw and abs(c[0][1] - d.cy) < 1.2 * d.bh) and   # its name stands there
+                not any(_poly_dist(dl, *c[0]) < .8 * max(d.bw, d.bh) for dl in diag_lines) and   # no avenue runs through it
+                not any(-.6 * d.bh < c[0][1] - y < 1.6 * d.bh and x0 - d.bw < c[0][0] < x1 + d.bw   # nor a line (nor the row
+                        for y, x0, x1 in rail_rows)]                                                 # below, whose art rises)
         if near is not None:
             cand.sort(key=lambda c: (c[0][0] - near[0]) ** 2 + (c[0][1] - near[1]) ** 2)
         else:                                           # spread: the middle first, then outwards in a fixed order
@@ -480,10 +463,10 @@ def invent_city(spec) -> dict:
             return d.nearest_node(*p)
         d = byname.get(_norm(v))
         if d:
-            return d.nearest_node(d.cx, d.cy) if d.kind != "radial" else d.nodes[len(d.nodes) // 2]
+            return d.nearest_node(d.cx, d.cy) if d.kind == "grid" else d.nodes[len(d.nodes) // 2]   # (a ring-and-lane district: from its middle ring)
         return None
     # the diagonals that do not run to a landmark are planned first, so no landmark or park block lies under one
-    diag_lines = []
+    diag_lines, rail_rows = [], []
     lmn = {_norm(l.get("name")) for l in spec.get("landmarks") or []}
     for s in spec.get("streets") or []:
         if s.get("diagonal") and not ({_norm(s["from"]) if not _pt(s["from"]) else "", _norm(s["to"]) if not _pt(s["to"]) else ""} & lmn):
@@ -578,6 +561,31 @@ def invent_city(spec) -> dict:
                             l_["r"] = [_block_ring(cx, cy, d.bw, d.bh, 18.0)]
             lm_pos[n] = (cx, cy)
             prev = cx
+        xs_ = [lm_pos[n][0] for n in st if n in lm_pos and abs(lm_pos[n][1] - y0) < 1]
+        if len(xs_) >= 2:
+            rail_rows.append((y0, min(xs_), max(xs_)))
+    # the line runs straight along its row: a landmark or park standing on it between its ends moves off it
+    stn = {_norm(s_["n"]) for s_ in stations}
+    for coll in (landmarks, parks):
+        for l_ in coll:
+            if _norm(l_["n"]) in stn:
+                continue
+            x_, y_ = lm_pos.get(_norm(l_["n"]), (None, None))
+            if x_ is None or not any(-.6 * BLOCK[1] < y_ - y < 1.6 * BLOCK[1] and x0 - BLOCK[0] < x_ < x1 + BLOCK[0]
+                                     for y, x0, x1 in rail_rows):
+                continue
+            d = min((d_ for d_ in D if d_.kind == "grid"), key=lambda d_: (d_.cx - x_) ** 2 + (d_.cy - y_) ** 2)
+            c = free_cell(d, (x_, y_), gap=1)
+            if c is None:
+                continue
+            taken.discard(where.pop((round(x_, 1), round(y_, 1)), (None, None)))
+            taken.add((d.name, c[1]))
+            (cx, cy) = c[0]
+            pad = 4.0 if coll is parks else 14.0
+            if coll is landmarks:
+                l_["x"], l_["y"] = round(cx, 1), round(cy, 1)
+            l_["r"] = [_block_ring(cx, cy, d.bw, d.bh, pad)]
+            lm_pos[_norm(l_["n"])] = (cx, cy)
     for s in pend:
         a, b = s["from"], s["to"]
         pa = lm_pos.get(_norm(a)) if not _pt(a) else None
@@ -852,7 +860,13 @@ def i_rows(m, g) -> dict:
     lost = free if free and drawn_free < len(free) else []
     rows["I7"] = ("warn" if lost else "ok", "%d organic or radial districts drawn as grid" % len(lost) if lost else
                   "every district drawn as its kind", {"districts": lost})
-    rows["I6"] = ("warn" if back else "ok", "%d lines double back or lost a station" % len(back), {"lines": back})
+    through = []
+    for r in g.get("rails") or []:                          # a line drawn through a landmark's block
+        p = r.get("p") or []
+        through += [(r.get("n"), l["n"]) for l in g.get("landmarks") or [] if l.get("box") and len(p) == 4 and
+                    l["box"][1] < p[1] < l["box"][3] and min(p[0], p[2]) < l["box"][2] and max(p[0], p[2]) > l["box"][0]]
+    rows["I6"] = ("warn" if back or through else "ok", "%d lines double back or lost a station; %d run through a landmark" % (
+        len(back), len({t[0] for t in through})), {"lines": back, "through": through})
     return rows
 
 
@@ -871,7 +885,8 @@ def _plain(cid, rows, spec):
         if bad("I2", "G7"):
             ss = d.get("I2", {}).get("streets") or []
             mine = [x["name"] for x in spec.get("streets") or [] if x["name"] in ss]
-            return ("%s stop%s in the middle of nowhere." % (", ".join(ss[:4]) or "Some streets", "" if len(ss) == 1 else "s"),
+            return ("%s in the middle of nowhere." % ((", ".join(ss[:4]) + (" stops" if len(ss) == 1 else " stop")) if ss
+                                                     else "Some streets stop"),
                     {"label": "Take off the loose streets", "op": "drop_streets", "names": mine or ss})
     elif cid == "blocks":
         if bad("G13", "G11", "G1"):
@@ -913,6 +928,10 @@ def _plain(cid, rows, spec):
             return ("Some landmarks are crowded or drawn away from where you put them.",
                     {"label": "Space the landmarks out", "op": "unpin", "kinds": ["tower", "civic", "station"]})
     elif cid == "transit":
+        thr = d.get("I6", {}).get("through") or []
+        if thr and not d["I6"].get("lines"):
+            return ("%s runs through %s." % (thr[0][0], ", ".join(sorted({t[1] for t in thr}))),
+                    {"label": "Move the landmarks off the line", "op": "unpin", "names": sorted({t[1] for t in thr})})
         if bad("I6", "G9"):
             ls = d.get("I6", {}).get("lines") or []
             return ("%s double%s back or lost a station." % (", ".join(ls) or "A line", "s" if len(ls) <= 1 else ""),
@@ -940,7 +959,12 @@ def check(spec, m=None, g=None) -> dict:
         except InventError as e:
             return {"pass": False, "score": 0.0, "problems": e.problems, "checks": [], "rows": {}, "notes": []}
     mm = {k: v for k, v in m.items() if k != "plan"}
-    rep = city_gate.gate(g, mm, preset={"parks": (m.get("plan") or {}).get("parks") or ()})
+    try:                                                    # the district names where the page lays them out (the names row)
+        from .palace_areas import layout as area_layout
+        areas = area_layout(g, (m.get("plan") or {}).get("areas") or [], [])
+    except Exception:                                       # noqa: BLE001 — a city with nothing to name
+        areas = []
+    rep = city_gate.gate(g, mm, preset={"parks": (m.get("plan") or {}).get("parks") or ()}, areas=areas)
     rows = {r: (c["status"], c["msg"], c.get("data") or {}) for r, c in rep["checks"].items() if r not in DROP}
     rows.update(i_rows(m, g))
     weight = {r: w for r, _n, w in city_gate.ROWS}
