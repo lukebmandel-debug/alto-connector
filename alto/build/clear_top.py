@@ -72,7 +72,7 @@ JS = r"""(function(){
     else if(t==='0px' && c._ctT){ c.style.setProperty('top', c._ctT, 'important'); } }
   if(typeof MutationObserver==='function'){ var c=document.getElementById('canvas');
     if(c) new MutationObserver(sync).observe(c, {attributes:true, attributeFilter:['style']});
-    new MutationObserver(sync).observe(de, {attributes:true, attributeFilter:['class']}); }
+    new MutationObserver(function(){ sync(); setTimeout(function(){ try{ place(); }catch(e){} }, 160); }).observe(de, {attributes:true, attributeFilter:['class']}); }   /* (edit mode adds a chip and re-centres the row: put the x clear of the first label again) */
   sync();
   __SHEET__
   /* the chips' reel, centred on the chip row (its place follows the row) */
