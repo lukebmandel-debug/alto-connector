@@ -30,7 +30,7 @@ def patch_js(js: str) -> str:
 # names ("k": "w", in the rivers' blue, italic). Spliced only for Manhattan's layout with such names, so every other palace
 # page is byte-identical. Each name's size on the screen is its CSS size, so the names' fit (lblFS) reads it from the text.
 AREA_ANCHOR = ("t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; });")
-AREA_JS = ("t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; if(a.k){ t.classList.add('pl-a'+a.k); t._prb=a.k==='b'?480:20;"
+AREA_JS = ("t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; if(a.k){ t.classList.add('pl-a'+a.k); t._prb=a.k==='b'?640:20;"
            " t._fs=a.k==='b'?function(z){ return Math.max(14, Math.min(24, 11+14*z)); }:function(z){ return Math.max(10, Math.min(15, 8.5+7*z)); }; } });"
            "if(!document.getElementById('pl-nyc-css')){ var nyc=document.createElement('style'); nyc.id='pl-nyc-css'; nyc.textContent="
            "'.pal-svg .pl-area.pl-ab{--afs:clamp(14px, calc(11px + 14px * var(--pz,1)), 24px);font-weight:750;letter-spacing:.32em;opacity:.8;}"

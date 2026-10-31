@@ -900,8 +900,10 @@ def test_in_a_browser_the_city_button_shows_the_whole_city_and_bridges_are_decke
           return {cw:cv.clientWidth, ch:cv.clientHeight, w:s.width, h:s.height, top:cv.scrollTop, left:cv.scrollLeft}; }""")
         assert r["w"] <= r["cw"] + 1 and r["h"] <= r["ch"] + 1, r          # all of it, at once
         deck = pg.evaluate("""()=>({pier:document.querySelectorAll('#palace-svg .pl-br-pier').length, edge:document.querySelectorAll('#palace-svg .pl-br-edge').length,
-          deck:document.querySelectorAll('#palace-svg .pl-bridges .pl-casing').length})""")
-        assert deck["pier"] == deck["edge"] == deck["deck"] and deck["deck"] >= 1, deck
+          deck:document.querySelectorAll('#palace-svg .pl-bridges .pl-casing').length, cable:document.querySelectorAll('#palace-svg .pl-bridges .br-cable').length,
+          arch:window._palBr.plans.filter(function(p){ return p.type==='arch'; }).length, sus:window._palBr.plans.filter(function(p){ return p.type==='sus'; }).length})""")
+        assert deck["edge"] == deck["deck"] >= 1, deck
+        assert deck["pier"] == deck["arch"] and deck["cable"] == deck["sus"], deck     # piers on an arch bridge, cables on a suspension one (palace_bridges.under)
         assert not errs, errs
     finally:
         b.close()

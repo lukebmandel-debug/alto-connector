@@ -1570,6 +1570,9 @@ function lblFit(svg, viewOnly){
     function cells(b, f){ for(var i=Math.floor(b.l/CELL);i<=Math.floor(b.r/CELL);i++) for(var j=Math.floor(b.t/CELL);j<=Math.floor(b.b/CELL);j++) f(i+','+j); }
     function put(b){ cells(b, function(c){ (grid[c]=grid[c]||[]).push(b); }); }
     var hitBy=null;
+    /* a landmark name's leader line keeps off the names of boroughs and neighbourhoods already laid out (they go first): the first pass refuses a spot whose leader would run through one (NYC beta: leaders crossed Brooklyn's name) */
+    function leadCrossesArea(ld, lf){ if(!ld) return false; var a=lmToBoard([ld[0], ld[1]], lf), c=lmToBoard([ld[2], ld[3]], lf), ax=(a[0]+MX)*k, ay=(a[1]+MY)*k, cx=(c[0]+MX)*k, cy=(c[1]+MY)*k, L=Math.hypot(cx-ax, cy-ay); if(L<1) return false;
+      var th=obb((ax+cx)/2, (ay+cy)/2, Math.atan2(cy-ay, cx-ax), L/2, 1.5), hit=false; cells(th, function(g){ if(!hit) (grid[g]||[]).some(function(o){ return o.it && o.it.k==='pl-area' && (hit=obbHit(th, o)); }); }); return hit; }
     function hitKept(b){ var hit=false; cells(b, function(c){ if(!hit) (grid[c]||[]).some(function(o){ return (hit=obbHit(b, o)) && (hitBy=o); }); }); return hit; }
     [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl,.pl-portal'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); b.el=e; b.portal=e.classList.contains('pl-portal'); obs.push(b); } });
     if(!phone) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0) { var nb=rbox(r, sr); nb.el=e; nodes.push(nb);
@@ -1601,7 +1604,7 @@ function lblFit(svg, viewOnly){
         var b=null;
         if(card){ spots=lmSpots(card, [g[0], g[1]], alt, fs, it.q*fs, z, it.spot); ok=false;
           for(var tier=0;tier<2 && !ok;tier++) for(var si=0;si<spots.length;si++){ var sp=spots[si], q=lmToBoard([sp.x, sp.y], tf);
-            if(tf && !/rotate/.test(tf)) q[2]=0; b=boxAt(q); if(free(b, tier)){ ok=true; it.spot=sp.id; it.tier=tier;
+            if(tf && !/rotate/.test(tf)) q[2]=0; b=boxAt(q); if(free(b, tier) && (tier>0 || !leadCrossesArea(lmLead(card, sp.x, sp.y, fs, it.q*fs, z), tf))){ ok=true; it.spot=sp.id; it.tier=tier;
               t.setAttribute('y', sp.y); t.setAttribute('x', sp.x); if(t.firstChild) t.firstChild.setAttribute('x', sp.x);
               var ld=lmLead(card, sp.x, sp.y, fs, it.q*fs, z), ln=t._lead;
               if(ld){ if(!ln){ ln=t._lead=document.createElementNS('http://www.w3.org/2000/svg','line'); ln.setAttribute('class','lm-lead'); t.parentNode.insertBefore(ln, t); }
