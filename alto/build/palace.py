@@ -1591,7 +1591,7 @@ function lblFit(svg, viewOnly){
         function free(b, relax){ it.why='';
           if(hitKept(b)){ it.why='name:'+(hitBy.it?hitBy.it.t.textContent:''); return false; }
           var ho=null; if(obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && ((o.own && !(relax && o.el.classList.contains('lm-card')) && o.own.getAttribute('data-name')!==t.parentNode.getAttribute('data-name')) || o.portal))) && obbHit(b, o) && (ho=o); })){ it.why='card:'+(ho.el.getAttribute('class')||'')+':'+(ho.own?ho.own.getAttribute('data-name'):''); return false; }   /* a landmark's name never under another's card (unless nothing else is free) */
-          var hn=null; if((it.k==='pl-area' || it.k==='lm-name') && nodes.some(function(o){ return obbHit(b, (it.k==='lm-name' && o.ext) || o) && (hn=o); })){ it.why='node:'+(hn.el?hn.el.getAttribute('data-id')||hn.el.id:''); return false; }
+          var hn=null; if((it.k==='pl-area' || it.k==='lm-name' || it.k==='pl-pkt') && nodes.some(function(o){ return obbHit(b, (it.k==='lm-name' && o.ext) || o) && (hn=o); })){ it.why='node:'+(hn.el?hn.el.getAttribute('data-id')||hn.el.id:''); return false; }
           return true; }
         var b=null;
         if(card){ spots=lmSpots(card, [g[0], g[1]], alt, fs, it.q*fs, z, it.spot); ok=false;
