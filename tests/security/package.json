@@ -4,7 +4,8 @@
   "description": "Firestore/Storage rules and share viewer tests, run against the Firebase emulator only.",
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore,storage,auth --project demo-alto-security \"node --test --test-concurrency=1 *.test.mjs\""
+    "prep": "mkdir -p build && cp ../../firestore.rules ../../storage.rules build/",
+    "test": "npm run prep && firebase emulators:exec --only firestore,storage,auth --project demo-alto-security \"node --test --test-concurrency=1 *.test.mjs\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "3.0.4",

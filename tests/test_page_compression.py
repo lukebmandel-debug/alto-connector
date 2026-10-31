@@ -85,9 +85,15 @@ const serverTimestamp = () => ({ seconds: 1 });
 async function setDoc(ref, v, opt){ store[ref] = (opt && opt.merge) ? Object.assign({}, store[ref], v) : v; }
 async function getDoc(ref){ const v = store[ref]; return { exists: () => !!v, data: () => v }; }
 async function getDocs(){ return { docs: [], forEach(){} }; }
-const f = new Function('auth','db','doc','collection','serverTimestamp','setDoc','getDoc','getDocs','Bytes',
+function writeBatch(){
+  const ops = [];
+  return { set: (r, v) => ops.push(() => setDoc(r, v)),
+           delete: (r) => ops.push(() => { delete store[r]; }),
+           commit: async () => { for (const o of ops) await o(); } };
+}
+const f = new Function('auth','db','doc','collection','serverTimestamp','setDoc','getDoc','getDocs','Bytes','writeBatch',
   SRC + '; return { _packPage, _unpackPage, _putPage, _getPage, _putShare, _getShare, _sharePush };');
-const api = f(auth, db, doc, collection, serverTimestamp, setDoc, getDoc, getDocs, Bytes);
+const api = f(auth, db, doc, collection, serverTimestamp, setDoc, getDoc, getDocs, Bytes, writeBatch);
 const b64 = u8 => Buffer.from(u8).toString('base64');
 const fromB64 = s => new Uint8Array(Buffer.from(s, 'base64'));
 
@@ -128,8 +134,10 @@ const fromB64 = s => new Uint8Array(Buffer.from(s, 'base64'));
 def _js(tmp_path, cmd: dict) -> dict:
     a = CLOUD_JS.index("  const MAX_PAGE_BYTES")
     b = CLOUD_JS.index("  async function _revokeShare")
-    src = CLOUD_JS[a:b] + CLOUD_JS[CLOUD_JS.index("  const KEY_ALPHABET"):
-                                   CLOUD_JS.index("  async function _shareRevoke")]
+    src = (CLOUD_JS[a:b]
+           + CLOUD_JS[CLOUD_JS.index("  const _ownerRef"):CLOUD_JS.index("  // Shares made before owner records")]
+           + CLOUD_JS[CLOUD_JS.index("  const KEY_ALPHABET"):
+                      CLOUD_JS.index("  async function _shareRevoke")])
     runner = tmp_path / "h.js"
     runner.write_text("const SRC = " + json.dumps(src) + ";\n" + _HARNESS, encoding="utf-8")
     arg = tmp_path / "cmd.json"
@@ -191,7 +199,8 @@ def test_a_share_is_packed_and_the_shell_still_gets_html(tmp_path):
     r = _js(tmp_path, {"op": "share", "html": page})
     assert r.get("error") is None, r
     assert "z" in r["stored"] and "html" not in r["stored"]
+    assert "owner" not in r["stored"], "the public share must not name its owner"
     assert r["reidentified"] is True
     assert "html" in r["gotKeys"] and "z" not in r["gotKeys"]
     # A project share has no page to pack.
-    assert r["projectShare"] == ["items", "owner", "title", "updatedAt"]
+    assert r["projectShare"] == ["items", "title", "updatedAt"]   # owner is in its own record

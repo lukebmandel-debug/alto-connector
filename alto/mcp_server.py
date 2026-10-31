@@ -3224,7 +3224,7 @@ def _remove_timeline(st, tid: str, doc: dict) -> bool:
     key = doc.get("private_key")
     if key and hasattr(st, "delete_page"):
         st.delete_page(uid(), key)
-    st.delete_share(tid)
+    st.delete_share(tid, uid())
     st.delete_timeline(uid(), tid)
     return on_web
 

@@ -137,6 +137,22 @@ def test_deleting_a_private_page_also_revokes_its_share_link(cloud, fake):
     fake.docs[f"{base}/shares/S"] = {"html": {"stringValue": "<html>"}}
     cloud.delete_page("U1", "k1")
     assert not [n for n in fake.docs if n.endswith(("/pages/k1", "/pagemeta/k1", "/shared/S", "/shares/S"))]
+    # Revoking is checked against the share's owner record, written with it
+    # when the share predates them; it stays, so the key stays this owner's.
+    assert fake.docs[f"{base}/shares/S/private/owner"] == {"owner": {"stringValue": "U1"}}
+
+
+def test_revoking_a_share_with_an_owner_record_does_not_rewrite_it(cloud, fake):
+    base = "projects/proj/databases/(default)/documents"
+    fake.docs[f"{base}/users/U1/pagemeta/k1"] = {"shareKey": {"stringValue": "S"}}
+    fake.docs[f"{base}/shares/S"] = {"html": {"stringValue": "<html>"}}
+    fake.docs[f"{base}/shares/S/private/owner"] = {"owner": {"stringValue": "U1"}}
+    seen = []
+    orig = cloud._commit
+    cloud._commit = lambda w: (seen.extend(w), orig(w))
+    cloud.delete_page("U1", "k1")
+    assert not [w for w in seen if "update" in w and "/private/" in w["update"]["name"]]
+    assert f"{base}/shares/S" not in fake.docs
 
 
 # ── the whole MCP flow, on the cloud store ─────────────────────────────────

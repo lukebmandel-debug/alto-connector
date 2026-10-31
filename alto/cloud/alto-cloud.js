@@ -256,7 +256,7 @@
            getRedirectResult, signOut, onAuthStateChanged, browserLocalPersistence,
            setPersistence },
          { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
-           onSnapshot, serverTimestamp, Bytes }] =
+           onSnapshot, serverTimestamp, Bytes, writeBatch, deleteField }] =
     await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
@@ -426,7 +426,7 @@
   }
 
   async function syncNow(trigger) {
-    if (!cloud.user || remoteUser === undefined) return;
+    if (_stale || !cloud.user || remoteUser === undefined) return;
     if (TID && (remoteMain === undefined || remoteReports === undefined)) return;
     if (syncing) { rerun = true; return; }
     syncing = true;
@@ -616,6 +616,9 @@
   // On the prototype, not the localStorage object: Safari ignores an override of
   // the method on the object itself, so local changes never triggered a sync there.
   Storage.prototype.setItem = function (k, v) {
+    // A page whose account is not the one this browser's data now belongs to
+    // (another tab signed someone in or out) must not write that data.
+    if (this === localStorage && _blocked(k)) return;
     nativeSet.call(this, k, v);
     if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY || k === HBG_KEY || (BG_KEY && k === BG_KEY))) requestSync('local-change');
   };
@@ -1183,19 +1186,61 @@
       delete body.html;
       body = Object.assign(body, packed.fields);
     }
-    // owner is what the rules check on every later update and delete, so it is
-    // written here and never taken from the caller.
-    await setDoc(doc(db, 'shares', key),
-                 Object.assign(body, { owner: u.uid,
-                                       updatedAt: serverTimestamp() }));
+    // The public document carries content only. Who may change or revoke it
+    // is shares/{key}/private/owner, written once, in the same batch as the
+    // first write that needs it, and always as this account.
+    body.title = String(body.title || '').slice(0, 300);
+    const batch = writeBatch(db);
+    if (!(await _ownsShare(key, u.uid))) batch.set(_ownerRef(key), { owner: u.uid });
+    batch.set(doc(db, 'shares', key), Object.assign(body, { updatedAt: serverTimestamp() }));
+    await batch.commit();
     return true;
   }
 
   async function _revokeShare(key) {
     const u = auth.currentUser;
     if (!u || !key) return false;
-    await deleteDoc(doc(db, 'shares', key));
+    const batch = writeBatch(db);
+    if (!(await _ownsShare(key, u.uid))) batch.set(_ownerRef(key), { owner: u.uid });
+    batch.delete(doc(db, 'shares', key));
+    await batch.commit();
     return true;
+  }
+
+  const _ownerRef = (key) => doc(db, 'shares', key, 'private', 'owner');
+
+  // Only its owner may read an owner record, so a refusal and a missing
+  // record both read as "not ours yet".
+  async function _ownsShare(key, uid) {
+    try {
+      const s = await getDoc(_ownerRef(key));
+      return s.exists() && (s.data() || {}).owner === uid;
+    } catch (e) { return false; }
+  }
+
+  // Shares made before owner records named their owner in the public
+  // document. Move that into the owner record (same key, same content, so
+  // every link already handed out keeps working), once per account here.
+  async function _migrateShares(uid) {
+    const flag = 'alto-shares-owner-v1-' + uid;
+    try { if (origGet(flag)) return; } catch (e) {}
+    const keys = new Set();
+    (await getDocs(collection(db, 'users', uid, 'pagemeta'))).forEach(d => {
+      const k = (d.data() || {}).shareKey;
+      if (k) keys.add(k);
+    });
+    let left = 0;
+    for (const key of keys) {
+      try {
+        const s = await getDoc(doc(db, 'shares', key));
+        if (!s.exists() || (s.data() || {}).owner !== uid) continue;
+        const batch = writeBatch(db);
+        if (!(await _ownsShare(key, uid))) batch.set(_ownerRef(key), { owner: uid });
+        batch.update(doc(db, 'shares', key), { owner: deleteField(), updatedAt: serverTimestamp() });
+        await batch.commit();
+      } catch (e) { left++; }
+    }
+    if (!left) { try { origSet(flag, '1'); } catch (e) {} }
   }
 
   // Same alphabet as the connector's _share_slug: 32 symbols with no look-alike
@@ -1321,6 +1366,106 @@
   // navigation, to finish a redirect sign-in that almost never happened.
   // onAuthStateChanged reports a completed redirect on its own.
   getRedirectResult(auth).catch(() => {});
+
+  /* ── whose local data this is ───────────────────────────────────────────
+     Highlights, notes, reports and the rest are kept in this browser first
+     and merged into the signed-in account. On a computer more than one
+     person uses, that merge must only ever take an account's own data: the
+     uid the data belongs to is recorded beside it, data recorded for another
+     account is removed rather than merged, and data with no recorded owner
+     (made signed out, or before this record existed) is never added to any
+     account: it is held on this device while someone is signed in and put
+     back when they sign out, so it stays readable (and exportable) signed
+     out. ──────────────────────────────────────────────────────────────── */
+  const OWNER_KEY = 'alto-local-owner-v1';
+  const UNCLAIMED_KEY = 'alto-local-unclaimed-v1';
+  const _perAccount = k => /^alto-(hl|rp|doc)-|^alto-cloud-meta-v3|^alto-share-v1:/.test(k)
+    || k === SORT_KEY || k === HBG_KEY;
+  function _localKeys() {
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && _perAccount(k)) out.push(k);
+      }
+    } catch (e) {}
+    return out;
+  }
+  function _clearLocal() {
+    for (const k of _localKeys()) { try { localStorage.removeItem(k); } catch (e) {} }
+  }
+  // Held (see above): { data: { key: value } }, never synced.
+  function _hold(keys) {
+    const data = {};
+    for (const k of keys) { try { data[k] = localStorage.getItem(k); } catch (e) {} }
+    try { origSet(UNCLAIMED_KEY, JSON.stringify({ data })); } catch (e) {}
+    _clearLocal();
+  }
+  function _held() {
+    try {
+      const v = JSON.parse(origGet(UNCLAIMED_KEY) || 'null');
+      return v && v.data && typeof v.data === 'object' ? v.data : null;
+    } catch (e) { return null; }
+  }
+  // Returns whether anything was moved out of the open page's reach.
+  function _adoptLocal(user) {
+    let owner = null;
+    try { owner = origGet(OWNER_KEY); } catch (e) {}
+    if (owner === user.uid) return false;
+    const data = _localKeys().filter(k => !/^alto-cloud-meta-v3/.test(k));
+    let moved = false;
+    if (owner) {
+      _clearLocal();                                  // another account's
+      moved = data.length > 0;
+    } else if (data.length) {
+      _hold(data);                                    // nobody's: kept, never added
+      moved = true;
+    } else {
+      _clearLocal();                                  // stray sync bookkeeping
+    }
+    try { origSet(OWNER_KEY, user.uid); } catch (e) {}
+    meta = loadMeta();
+    return moved;
+  }
+  // Signed out: the account's data goes, what was held comes back.
+  function _releaseLocal() {
+    let changed = false;
+    let owner = null;
+    try { owner = origGet(OWNER_KEY); } catch (e) {}
+    if (owner) {
+      changed = _localKeys().length > 0;
+      _clearLocal();
+      try { localStorage.removeItem(OWNER_KEY); } catch (e) {}
+    }
+    const held = _held();
+    if (held) {
+      for (const k of Object.keys(held))
+        if (_perAccount(k) && typeof held[k] === 'string') { try { origSet(k, held[k]); } catch (e) {} }
+      try { localStorage.removeItem(UNCLAIMED_KEY); } catch (e) {}
+      changed = true;
+    }
+    meta = loadMeta();
+    return changed;
+  }
+  // Set when this page must reload before anything syncs: it may still hold,
+  // in memory, data that is not the signed-in account's.
+  let _stale = false;
+  function _blocked(k) {
+    try {
+      if (!_perAccount(String(k))) return false;
+      if (_stale) return true;
+      return cloud.known && (origGet(OWNER_KEY) || null) !== (cloud.user ? cloud.user.uid : null);
+    } catch (e) { return false; }
+  }
+  // Another tab changed whose data this browser holds: start again.
+  window.addEventListener('storage', ev => {
+    if (!ev || ev.storageArea !== localStorage || ev.key !== OWNER_KEY || !cloud.known) return;
+    if ((ev.newValue || null) !== (cloud.user ? cloud.user.uid : null)) {
+      _stale = true;
+      try { location.reload(); } catch (e) {}
+    }
+  });
+  let _lastUid = null, _sawSignedOut = false;
 
   let unsubUser = null, unsubMain = null, unsubRp = null;
 
@@ -1533,6 +1678,14 @@
   }
 
   onAuthStateChanged(auth, (user) => {
+    // Before anything can sync: this browser's data must be this account's.
+    // A page that was open signed out may hold other data in memory (here, or
+    // moved aside by another tab's sign-in), so it starts again.
+    if (user && ((_adoptLocal(user) && _lastUid !== user.uid) || _sawSignedOut && _held())) {
+      _stale = true;
+      try { location.reload(); } catch (e) {}
+      return;
+    }
     cloud.user = user || null;
     // Pages draw from what this browser remembers until this is set; after it,
     // cloud.user is the truth, including a null that means signed out.
@@ -1557,8 +1710,13 @@
       }, e => console.warn('[AltoCloud] user listener', e));
 
       subscribeTl(user);
+      _migrateShares(user.uid).catch(e => console.warn('[AltoCloud] shares', e));
       termsCheck(user);
     } else {
+      // Signing out leaves nothing of the account behind for whoever signs
+      // in next, and reloads so no open page still holds it in memory.
+      const was = _releaseLocal() || _lastUid;
+      _sawSignedOut = true;
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
       // Cached listings and pages belong to the account that just left.
       try { localStorage.removeItem('alto-pages-cache-v1'); } catch (e) {}
@@ -1566,7 +1724,9 @@
       // and so do the backgrounds it imported (their copies in this browser)
       try { localStorage.removeItem('alto-bg-lib-v1'); indexedDB.deleteDatabase('alto-bg-lib'); } catch (e) {}
       if (typeof window.renderAccount === 'function') { try { window.renderAccount(); } catch (e) {} }
+      if (was) { try { location.reload(); } catch (e) {} }
     }
+    _lastUid = user ? user.uid : null;
   });
 
   _resolveReady();
