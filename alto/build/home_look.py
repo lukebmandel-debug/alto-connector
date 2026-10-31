@@ -27,8 +27,8 @@ UNIT_STRIP_NEW = """function unitStrip(units, fmt){
   // (the map lives inside the function: unitStrip runs before a top-level const further down the script would be set)
   const HOME_FMT_ACCENT = %s;
   const ok = (units || []).filter(c => c && /^#[0-9a-fA-F]{3,8}$/.test(c)).slice(0, 7);
-  const u = ok.length ? ok : [HOME_FMT_ACCENT[fmt] || HOME_FMT_ACCENT.timeline];
-  return u.map(c => '<span style="background:' + c + '"></span>').join('');
+  if(!ok.length) return '<span data-acc="1" style="background:' + (HOME_FMT_ACCENT[fmt] || HOME_FMT_ACCENT.timeline) + '"></span>';   // (not a unit: the Retro plate does not count it)
+  return ok.map(c => '<span style="background:' + c + '"></span>').join('');
 }""" % __import__("json").dumps(FMT_ACCENT)
 STATIC_STRIP_OLD = """    const strip = (c.units || [null,null,null,null,null,null,null])
       .map(u => '<span' + (u ? ' style="background:'+u+'"' : '') + '></span>').join('');"""
@@ -143,6 +143,15 @@ def swap_titles(template: str) -> str:
         assert template.count(old) == 1, old
         body = old.split("textContent = ")[1].rstrip(";")
         template = template.replace(old, old.split("textContent = ")[0] + "textContent = String(" + body + ")" + _DASH + _SHY + ";")
+    return template
+
+
+def swap_fmt(template: str) -> str:
+    """Each live card carries its format as an invisible data-fmt (the Retro plate names it: retro.HOME_B_JS)."""
+    for who in ("it", "pg"):
+        old = "{ const em = tileEmblem(%s.fmt, %s.units);" % (who, who)
+        assert template.count(old) == 1, old
+        template = template.replace(old, "{ el.setAttribute('data-fmt', %s.fmt || ''); const em = tileEmblem(%s.fmt, %s.units);" % (who, who, who))
     return template
 
 
