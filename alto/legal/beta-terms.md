@@ -1,5 +1,5 @@
 # Alto Beta Terms (closed beta)
-Version 1.0. Last updated 3 November 2026.
+Version 1.0. Last updated 1 November 2026.
 
 ## 1. A free beta, as is
 Alto is a free, unfinished beta run by Luke Mandel, an individual ("we"). It is provided as is, with no warranty of any kind. It may change, break or lose data, so keep your own copies. We may end the beta or your access at any time.

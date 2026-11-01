@@ -1,5 +1,5 @@
 # Alto Privacy Policy (closed beta)
-Version 1.0. Last updated 3 November 2026.
+Version 1.0. Last updated 1 November 2026.
 
 ## Who we are
 Alto is a study tool that turns course notes into timelines, outlines and memory palaces. During the closed beta it is run by Luke Mandel, an individual ("we"). Questions, requests and complaints: lukebmandel@gmail.com.
