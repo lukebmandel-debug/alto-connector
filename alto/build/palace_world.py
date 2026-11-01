@@ -174,7 +174,7 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-btn{border:1px solid var(--w-edge);background:none;color:var(--w-text);font:inherit;font-size:12.5px;padding:5px 11px;border-radius:9px;cursor:pointer;}
 #wpal-root .wp-btn:hover{background:color-mix(in srgb,var(--w-text) 7%,transparent);}
 #wpal-root .wp-btn.r{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
-#wpal-root .wp-ctl{right:16px;top:calc(var(--w-top,0px) + 12px);}html.mobile #wpal-root .wp-ctl{top:112px !important;}
+#wpal-root .wp-ctl{right:16px;top:calc(var(--w-top,0px) + 12px);}html.mobile #wpal-root .wp-ctl{top:calc(var(--w-top,0px) + 112px) !important;}   /* (the map runs to the top edge now, so the 112 px below the edge tabs is counted from the bottom of the title bar, where the root used to start: v1.9.168) */
 #wpal-root .wp-tour{left:50%;bottom:18px;transform:translateX(-50%);max-width:calc(100% - 32px);}
 /* the Editing bar (manual edit) rides 8px above the tour strip while it is up, covering none of its controls (Art, 2026-10-30) */
 html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit-exit{bottom:73px;}

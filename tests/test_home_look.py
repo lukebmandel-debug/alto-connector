@@ -14,10 +14,11 @@ def test_the_strip_is_the_timelines_own_unit_colours():
     assert set(home_look.FMT_ACCENT) >= {"timeline", "lanes", "outline", "system", "palace", "building", "world"}
 
 
-def test_the_title_keeps_clear_of_the_symbol_and_a_phone_gets_two_up():
+def test_the_title_keeps_clear_of_the_symbol_and_a_tablet_gets_three_up_a_phone_one_column():
     css = home_look.CSS
     assert "margin-right:115px" in css
-    assert "repeat(2, minmax(0, 1fr))" in css and "repeat(3, minmax(0, 1fr))" in css
+    assert "@media (min-width:641px) and (max-width:900px){" in css and "repeat(3, minmax(0, 1fr))" in css     # a tablet only
+    assert "repeat(2, minmax(0, 1fr))" not in css                                                           # a phone is never two up (1.9.152's one column)
     assert "min-height:132px" in css and "inset:-8px -3px" in css
     assert css in _page()
 
@@ -119,7 +120,7 @@ def test_a_phone_card_title_never_splits_a_word_and_a_word_too_long_takes_the_ro
               const cs = getComputedStyle(el), w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), m = document.createElement('span');
               m.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'; el.appendChild(m);
               const worst = Math.max(...el.textContent.split(/\\s+/).map(x => { m.textContent = x; return m.getBoundingClientRect().width; })); el.removeChild(m);
-              return [el.textContent, worst <= w + 1, parseFloat(cs.fontSize), el.closest('.course-tile').classList.contains('tt-wide'), el.textContent.includes('\\u00ad')]; })""")
+              return [el.textContent, worst <= w + 1, parseFloat(cs.fontSize), el.closest('.course-tile').classList.contains('tt-wide'), el.textContent.includes('\\u00ad'), Math.round(el.closest('.course-tile').getBoundingClientRect().width)]; })""")
             b.close()
     finally:
         srv.shutdown()
@@ -127,6 +128,7 @@ def test_a_phone_card_title_never_splits_a_word_and_a_word_too_long_takes_the_ro
     assert all(r[1] and not r[4] for r in rows), rows                       # every word whole on its line, no soft hyphen
     assert all(r[2] >= (12 if retro else 14) for r in rows), rows           # never below Art's floor
     assert rows[2][3] is False                                              # "Property" fits: no wide card for it
+    assert len({r[5] for r in rows}) == 1 and rows[0][5] > 300             # one full-width column, every tile the same width (1.9.152)
 
 
 @pytest.mark.skipif(pw is None, reason="no Playwright")
@@ -154,7 +156,7 @@ def test_a_phone_homepage_backs_the_buttons_row_and_the_title_bar_with_one_glass
             b.close()
     finally:
         srv.shutdown()
-    assert r[0] and r[1] == "-52px" and r[2] == "rgb(255, 255, 255)" and r[3] == "1px" and r[4] == "rgba(0, 0, 0, 0)"
+    assert r[0] and r[1] == "-52px" and r[2].startswith("rgba(") and r[2] != "rgba(255, 255, 255, 1)" and r[3] == "1px" and r[4] == "rgba(0, 0, 0, 0)"   # the 1.9.152 frosted glass, not a solid block
     assert r[5] <= 52 + 52                                                         # the band reaches past the bottom of the buttons row
 
 

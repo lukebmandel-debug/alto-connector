@@ -46,19 +46,20 @@ _CLASSIC = """
 .course-tile.tt-wide:has(.tile-share):has(.tile-reports):not(:has(.tile-download)) .tile-share{ left:calc(50% - 31px); }
 .course-tile.tt-wide:has(.tile-share):has(.tile-reports):not(:has(.tile-download)) .tile-reports{ left:calc(50% + 3px); }
 /* A6 (Art): on a phone the buttons row and the HOME bar are one glass band, so a card scrolling up never shows through them: the title
-   bar's own backing (pages.py, html.rw) runs down past the row (title bar 52 px, the row 63-97 px, both plus the safe area), solid in the page surface (the pseudo's backdrop blur
-   does not draw in WebKit, so any see-through let a card title ghost), ending in the one bar hairline in place of the title bar's own */
+   bar's own backing (pages.py, html.rw) runs down past the row (title bar 52 px, the row 63-97 px, both plus the safe area), in the 1.9.152 frosted glass (--header-glass-bg and its blur, the look Testing's phone matrix
+   wants back; the first build made it a solid white block), ending in the one bar hairline in place of the title bar's own */
 @media (max-width:640px){
   html.rw #title-bar:not(#_){ border-bottom-color:transparent !important; }
-  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:var(--surface,#fff); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:var(--header-glass-bg); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
     border-bottom:1px solid var(--header-hairline, rgba(120,124,150,.22)); }
   html.alto-retro.rw #title-bar:not(#_)::before{ background:#000 !important; border-bottom-color:rgba(217,174,85,.32) !important; }   /* (Retro clears every bar's backing with !important: retro.py) */
 }
 html.dark .tile-emblem{ opacity:.22; }
 /* Q3B: the strip is the timeline's own colours; in the dark theme the same hues a tenth dimmer */
 html.dark .course-tile .unit-strip{ filter:brightness(.9); }
-/* Q7A: two cards to a row on a phone, three on a tablet; a card is smaller: title top left, the symbol bottom right, the buttons along the bottom */
-@media (max-width:900px){
+/* Q7A: three cards to a row on a tablet; a card is smaller: title top left, the symbol bottom right, the buttons along the bottom. A phone (640 px or less) keeps the
+   homepage's own one full-width column, as in 1.9.152 (Luke 2026-11-01, old toggles back): no card is half a row, so no title is ever narrow */
+@media (min-width:641px) and (max-width:900px){
   .course-tile{ --em:88px; min-height:132px; display:flex; flex-direction:column; }
   .course-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
   .project-slab{ padding:30px 22px 32px; }
@@ -80,10 +81,9 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .course-tile :is(.tile-reports, .tile-share, .tile-download)::after{ content:''; position:absolute; inset:-8px -3px; }
   .course-tile .tile-more::after{ content:''; position:absolute; inset:-11px -8px; }
 }
-@media (max-width:600px){
-  .course-tile{ --em:72px; }
-  .course-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
-  .project-slab{ padding:26px 12px 28px; }
+/* A5b: a phone's card title wraps at spaces only; the full-width card holds the longest word, so nothing is split or cut */
+@media (max-width:640px){
+  .course-tile .tile-title{ overflow-wrap:normal; -webkit-hyphens:manual; hyphens:manual; }
 }
 """
 

@@ -323,3 +323,20 @@ def test_the_world_opens_centred(browser, origin, size):
         assert not [e for e in errors if "ResizeObserver loop" not in e]                        # (WebKit's notice for the engine's card observer)
     finally:
         ctx.close()
+
+
+@pytest.mark.parametrize("size", [(390, 844), (844, 390)])
+def test_on_a_phone_the_tour_toolbar_sits_below_the_edge_tabs(browser, origin, size):
+    # Testing's phone matrix: the Tour / World / +/- toolbar stood under the Search pill and the MAP and MENU tabs (top 104 px, 50 px high). 1.9.168 put it 112 px
+    # below the title bar (52 px): 164 px
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    ctx = browser.new_context(viewport={"width": size[0], "height": size[1]}, user_agent=ua, has_touch=True)
+    page = ctx.new_page()
+    try:
+        page.goto(origin + "/index.html")
+        page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+        _settle(page, 900)
+        top = page.evaluate("document.querySelector('#wpal-root .wp-ctl').getBoundingClientRect().top")
+        assert top >= 154, top
+    finally:
+        ctx.close()
