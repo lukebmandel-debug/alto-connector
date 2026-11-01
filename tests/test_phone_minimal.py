@@ -179,7 +179,7 @@ def test_they_fade_without_a_touch_and_a_touch_brings_them_back(pg, site):
     pg.wait_for_timeout(4200)
     assert pg.evaluate(_IDLE)
     pg.wait_for_timeout(800)
-    assert pg.evaluate("+getComputedStyle(document.getElementById('hamburger-tab')).opacity") < .05
+    assert abs(pg.evaluate("+getComputedStyle(document.getElementById('hamburger-tab')).opacity") - .7) < .03    # at rest 70%, not gone (A11)
     pg.evaluate(_TOUCH, "touchstart")                                               # a finger down: back, and kept while it stays
     assert not pg.evaluate(_IDLE)
     pg.wait_for_timeout(4200)

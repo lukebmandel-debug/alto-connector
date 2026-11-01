@@ -10,7 +10,7 @@ an outline one card at a time or whole, the System, the horizontal timeline, the
   * MAP, INFO ("How to use"), FILTER, NOTES, MARK and each format's own controls (the System's looks and toggles, the
     Atlas's Tour / World) are square buttons in the MENU grid; MARK and NOTES come back on an enlarged card, where
     there is text to mark (the detail page's own BACK and FIND are its own).
-  * the controls fade after a few seconds without a touch; any touch brings them back, and a control still answers its
+  * the controls rest at 70% after a few seconds without a touch (Art: .7 is the lowest that keeps the glyph at 3:1); any touch brings them back, and a control still answers its
     first tap. Nothing fades while a finger is down, a field has the keyboard or a panel / drawer / sheet is open.
     With reduced motion they stay put (no fade at all).
   * search is a sheet, never a bar on the page (Luke: "I don't want search up at the top ... But I also don't want search
@@ -71,7 +71,7 @@ WH #bldg-root :is(.bl-head,.bl-tabs){top:62px !important;}
 WH #bldg-root .bl-head{font-size:12px !important;padding:8px 12px !important;max-width:calc(100% - 96px) !important;}
 /* the fade */
 html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{transition:opacity .6s ease !important;}
-html.pmin.pmin-idle :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{opacity:0 !important;}
+html.pmin.pmin-idle :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{opacity:.7 !important;}
 @media (prefers-reduced-motion:reduce){html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{transition:none !important;}}
 /* the search sheet: full screen, its field pinned at the top */
 P.msearch-open #m-search X{position:fixed !important;top:0 !important;bottom:auto !important;left:0 !important;right:0 !important;transform:none !important;width:auto !important;max-width:none !important;
