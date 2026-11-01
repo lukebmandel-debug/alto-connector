@@ -361,7 +361,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
         var sp = document.createElement('span'); sp.className = 'ink-ent'; sp.textContent = t; b.parentNode.replaceChild(sp, b);
       });
       cl.querySelectorAll('button').forEach(function(b){ b.removeAttribute('title'); b.removeAttribute('onclick'); });
-      // A System (hub-and-spoke) page keeps the number, tag, title and description inside a .sol-body that only shows when the
+      // A System page keeps the number, tag, title and description inside a .sol-body that only shows when the
       // disc is enlarged, and draws the resting disc with a .sol-face, skin canvases and a scrim. A sheet shows the card, so the
       // text comes back out to the card (in its own order), the disc's dressing goes, and the chips lose the places pool() gave them.
       var sb = cl.querySelector(':scope > .sol-body');
