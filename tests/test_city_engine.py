@@ -5,6 +5,7 @@ import copy
 import gzip
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -100,7 +101,9 @@ def test_blocks_lots_inside_and_no_two_domains_overlap(phil):
             d = [min(_segdist(b["x"], b["y"], *polys[i][j], *polys[i][(j + 1) % len(polys[i])]) for j in range(len(polys[i]))) for i in k]
             bad.append((n * 7, round(b["x"], 3), round(b["y"], 3), k, [round(v, 4) for v in d], b.get("fr")))
     assert not bad, bad[:3]                              # (a point exactly on a seam counts in both cut blocks; the detail says which)
-    assert len(g["blocks"]) > 4000 and g["engine"]["t"]["total"] < 60
+    # (wall clock: 60 s on a developer machine; a shared CI runner is ~2.3x slower than this Mac, so CI gets 120 s. The build is ~26 s here)
+    limit = 120 if os.environ.get("CI") else 60
+    assert len(g["blocks"]) > 4000 and g["engine"]["t"]["total"] < limit
 
 
 def test_v2_page_mapping_round_trips(phil):
