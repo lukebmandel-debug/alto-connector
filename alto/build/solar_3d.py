@@ -438,7 +438,7 @@ function fly(G, now){
   else if(A && A.orbiting()){ id=window._focusedNodeId; var g=id && G.bodies[id]; o=g && A.parked(id, [g.x, g.y]);
     if(o){ p=o.p; v=o.v; m='park'; } else A.unpark(); }              /* (left the close-up: the orbit is over) */
   if(!p){ if(SH.on){ SH.on=false; SH.end=now; SH.m=null; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
-  var f0=F ? F.from : R ? R.from : id, t0=F ? F.to : R ? R.to : id, p2=keepOff(G, p, f0, t0);        /* (a way or orbit through a body goes round its edge: one plane) */
+  var p2=keepOff(G, p);        /* (a way or orbit through a body goes round its edge: one plane) */
   if(p2!==p){ if(v && dt>0 && SH.p && SH.m===m) v=[(p2[0]-SH.p[0])/dt, (p2[1]-SH.p[1])/dt]; p=p2; }
   SH.cla=nearest(G, p);        /* (clearance by this frame's bodies: what a test reads) */
   var cr=A ? A.get() : {};
@@ -457,12 +457,9 @@ function fly(G, now){
    flown in (Luke, 2026-10-25: ships "end up going above"; 2026-10-28: "everything should be on the same plane, even in
    3D"). It never rises over a body to clear it: solar_craft.py's course keeps its way in that plane clear of every body */
 function lift(){ return K3.Y; }
-/* the way kept 8 px off every body (4 off the two it goes between, whose orbits are that close): where it would cross
-   one, the nearest point of its edge */
-/* the nearest body's surface to the craft in the plane (px; the bodies as this frame has them) */
-function nearest(G, p){ var m=1e9; Object.keys(G.bodies).forEach(function(i){ var g=G.bodies[i], h=Math.hypot(p[0]-g.x, p[1]-g.y)-g.d/2; if(h<m) m=h; }); return m; }
-function keepOff(G, p, skip, to){ var q=p, k, ch=false;
-  for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], mg=g.d/2+(id===to || id===skip ? 4 : 8), dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
+/* the way and the orbits kept 3 px off every body: where one would cross a body, the nearest point of its edge */
+function keepOff(G, p){ var q=p, k, ch=false;
+  for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], mg=g.d/2+3, dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
     if(d<mg){ if(d<1e-6){ dx=1; dy=0; d=1; } q=[g.x+dx/d*mg, g.y+dy/d*mg]; ch=true; } });
   return ch ? q : p; }
 /* the model's scale: small and clear on the way (Luke, 2026-10-22: "we don't need the ship to be massive, just clear"),

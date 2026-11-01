@@ -469,7 +469,7 @@ function orbR(W, id, T){ var b=W.B[id], d=b ? b.d : 20, P=b && b.p && W.B[b.p], 
   function gap(j){ var q=F.pos(W, j, T), g=Math.hypot(c[0]-q[0], c[1]-q[1])-W.B[j].d/2-half()-6; room=room>0 ? Math.min(room, g) : g; }
   if(P) gap(b.p);
   var r=A.orbitR(d, half(), room);
-  if(plane() && c && P){ var qp=F.pos(W, b.p, T), gp=Math.hypot(c[0]-qp[0], c[1]-qp[1])-P.d/2-6; r=Math.min(r, Math.max(d/2+4.5, gp)); }     /* (a moon close under its parent: an orbit just clear of the body, the nearest reach of it 6 px off the parent, never nearer the moon than 4.5) */
+  if(plane() && c && P){ var qp=F.pos(W, b.p, T), gp=Math.hypot(c[0]-qp[0], c[1]-qp[1])-P.d/2-6; r=Math.min(r, Math.max(d/2+3, gp)); }     /* (a moon close under its parent: an orbit just clear of the body, the nearest reach of it 6 px off the parent, never nearer the moon than 3) */
   if(plane() && c) for(var pass=0;pass<2;pass++) Object.keys(W.B).forEach(function(j){ var k=W.B[j]; if(k.p!==id) return;     /* (the 3D board is one plane: its own moons are not passed over, the orbit keeps clear of each one's band) */
     var q=F.pos(W, j, T), a=Math.hypot(q[0]-c[0], q[1]-c[1]), m=k.d/2+half()+6, inner=a-m, outer=a+m;
     if(r>inner && r<outer){ if(inner>=d/2+4) r=inner; else if(!(room>0 && outer>room)) r=outer; } });
