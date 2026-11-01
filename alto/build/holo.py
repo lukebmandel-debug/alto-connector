@@ -143,7 +143,7 @@ def ink(css: str) -> str:
     for a, b in (("#f0c15e", "var(--ho-ac2)"), ("#d9ae55", "var(--ho-ac)"), ("#efe6cf", "var(--ho-tx)"), ("#b9b2a0", "var(--ho-mu)"), ("#7f9cc4", "var(--ho-mu)"),
                  ("#0a1b34", "var(--ho-sf2)"), ("#e3dccb", "var(--ho-tx)")):
         css = css.replace(a, b)
-    css = _re.sub(r"#(?:030407|05070a|05070b|06080c|070a0f|0b0d12|0d1016)(?![0-9a-fA-F])", "var(--ho-sf)", css)
+    css = _re.sub(r"#(?:030407|05070a|05070b|06080c|070a0f|090c11|0b0d12|0d1016)(?![0-9a-fA-F])", "var(--ho-sf)", css)
     css = _re.sub(r"#000(?![0-9a-fA-F])", "var(--ho-bg)", css)
     css = css.replace("sepia(1) saturate(2) hue-rotate(-8deg) brightness(.85)", "grayscale(1) sepia(1) hue-rotate(125deg) saturate(3)")
     css = _re.sub(r"font-family:[^;}]*(;|(?=}))", "", css)
