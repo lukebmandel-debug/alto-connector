@@ -21,6 +21,7 @@ EYE = r"""() => { var P=window._altoSolar3D, G=window._altoSolarGeo(), e=P.eye()
 REC = r"""() => { window.__R=[]; (function g(){ var P=window._altoSolar3D, G=window._altoSolarGeo(), e=P.eye(), s=P.ship(), m=1e9, q=1e9;
   Object.keys(G.bodies).forEach(function(i){ var o=G.bodies[i], R=o.d/2; m=Math.min(m, Math.hypot(e[0]-o.x, e[1], e[2]-o.y)-R);
     if(s && s.on) q=Math.min(q, Math.hypot(s.x-o.x, s.lift||3, s.y-o.y)-R); });
+  if(s && s.on && s.cla!=null) q=s.cla;          /* (the ship's clearance of every body from the frame's own bodies: read a frame later the moons have moved several px) */
   window.__R.push([m, q]); requestAnimationFrame(g); })(); }"""
 
 
