@@ -356,7 +356,7 @@ def test_the_guide_offers_source_links_for_notes_and_outlines():
     a4 = g[g.index("4. **Offer source links**"):g.index("### A2.")]
     for must in ("always for an outline", "Google Docs", "Saved copies",
                  "Never ask the user where a file is", "`local_files`",
-                 'href="src:<id>"', "download the timeline for offline use",
+                 'href="src:<id>"', "a timeline you download for offline use",
                  "with no internet it does\n   not open at all",
                  "Changes go through Claude"):
         assert must in a4, must
