@@ -1017,7 +1017,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       Only Claude builds a city (the homepage sends the user to Claude for it).
       The MEMORY BLUEPRINT (palace_view 'building', §D-Building) is a Memory
       Palace inside ONE real building (a museum, a courthouse, a school):
-      a blueprint and a first-person view; cards stand in its rooms or on its
+      a blueprint (the first-person walk is off for now); cards stand in its rooms or on its
       walls — then set_up_building. The MEMORY ATLAS (palace_view 'world',
       §D-World) puts the outline on the world map: units are regions,
       concepts countries, the cards under them clustered round them; no

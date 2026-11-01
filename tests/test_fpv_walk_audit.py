@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from alto.build import building_schema as bs, palace_building_fpv as fpv  # noqa: E402
 from tests import building_fpv_plans  # noqa: E402
+from tests.building_fpv_support import needs_fpv  # noqa: E402
 
 AUDIT = ROOT / "tests" / "fpv_walk" / "walk_audit.js"
 NODE = shutil.which("node") or (os.path.expanduser("~/.local/node/bin/node") if os.path.exists(os.path.expanduser("~/.local/node/bin/node")) else None)
@@ -48,6 +49,7 @@ def _pma():
 
 
 @pytest.mark.parametrize("name,cards", [("pma", True), ("pma", False), ("stress", True), ("fixture", True)])
+@needs_fpv
 def test_every_door_and_stair_walks_clean(tmp, name, cards):
     plan = {"pma": _pma, "stress": building_fpv_plans.stress_plan, "fixture": bs.fixture}[name]()
     r = _audit(tmp, name, plan, cards)
@@ -69,6 +71,7 @@ def test_every_door_and_stair_walks_clean(tmp, name, cards):
         assert r["tripStuckFade"] <= max(2, r["trips"] // 10)              # rarely stuck on the way (the fade then still gets you there)
 
 
+@needs_fpv
 def test_every_pma_room_can_be_walked_to(tmp):
     """the inferred doorways (build_pma_plan.INFERRED_DOORS) join every room to the Great Stair Hall on foot, stairs and lifts included; a trip to a
     card walks unless it is far. Lift cabs never hold a card (circulation), so only they may be reached by their floor rather than the card's spot."""
@@ -94,6 +97,7 @@ console.log(JSON.stringify(out));
 """
 
 
+@needs_fpv
 def test_the_hop_is_one_per_press_and_never_through_a_ceiling(tmp):
     plan = bs.fixture()
     (tmp / "hop.js").write_text(HOP_JS, "utf-8")

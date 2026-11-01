@@ -96,17 +96,22 @@ def test_the_seams_for_the_first_person_view_and_the_data_agent(browser, html):
             == ["Alto Test Pavilion", bs.plan_hash(bs.fixture()), 1, "function", "function"]
         assert page.evaluate("AltoBuilding.roomOf('c')") == {"room": "u201", "slot": None}
         assert page.evaluate("AltoBuilding.nodesIn('hall')") == ["a", "a1"]
-        # no implementation yet: an event, and the panel says so
-        page.evaluate("window.__fpv = null; addEventListener('alto-building-fpv', e => window.__fpv = e.detail)")
-        page.evaluate("AltoBuilding.selectRoom('g101')")
-        page.click("#bldg-root .bl-info .bl-go")
-        page.wait_for_function("window.__fpv")
-        assert page.evaluate("window.__fpv") == {"room": "g101", "opts": {"from": "plan"}}
-        assert "not available yet" in page.inner_text("#bldg-root .bl-info")
-        # a later module registers itself
-        page.evaluate("window.__got = []; AltoBuilding.registerFPV({enter: (id, ctx) => { window.__got.push([id, ctx.from, ctx.plan.id, ctx.data.h]); return true; }, exit() {}})")
-        assert page.evaluate("AltoBuilding.enterFPV('u201', {from: 'link', slot: 'sl-201a'})") is True
-        assert page.evaluate("window.__got") == [["u201", "link", "test-pavilion", bs.plan_hash(bs.fixture())]]
+        from alto.build.palace_building_asset import BLUEPRINT_FPV
+        if not BLUEPRINT_FPV:                                       # off for users: no Walk in button on the room panel, and the seam answers 'off'
+            page.evaluate("AltoBuilding.selectRoom('g101')")
+            assert page.query_selector("#bldg-root .bl-info .bl-go") is None and page.evaluate("AltoBuilding.enterFPV('g101', {from: 'plan'})") == 'off'
+        else:
+            # no implementation yet: an event, and the panel says so
+            page.evaluate("window.__fpv = null; addEventListener('alto-building-fpv', e => window.__fpv = e.detail)")
+            page.evaluate("AltoBuilding.selectRoom('g101')")
+            page.click("#bldg-root .bl-info .bl-go")
+            page.wait_for_function("window.__fpv")
+            assert page.evaluate("window.__fpv") == {"room": "g101", "opts": {"from": "plan"}}
+            assert "not available yet" in page.inner_text("#bldg-root .bl-info")
+            # a later module registers itself
+            page.evaluate("window.__got = []; AltoBuilding.registerFPV({enter: (id, ctx) => { window.__got.push([id, ctx.from, ctx.plan.id, ctx.data.h]); return true; }, exit() {}})")
+            assert page.evaluate("AltoBuilding.enterFPV('u201', {from: 'link', slot: 'sl-201a'})") is True
+            assert page.evaluate("window.__got") == [["u201", "link", "test-pavilion", bs.plan_hash(bs.fixture())]]
         assert errors == []
     finally:
         page.close()

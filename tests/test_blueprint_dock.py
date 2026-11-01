@@ -183,7 +183,8 @@ def test_the_dock_has_a_name_for_every_control_and_the_keyboard_works(browser):
     page, errors = _page(browser, 1440)
     try:
         names = page.eval_on_selector_all("#bldg-root .bl-dock button", "els => els.map(e => e.getAttribute('aria-label') || e.textContent)")
-        for want in ("Zoom in", "Zoom out", "Fit to screen", "Cards, in order", "Key and credits", "Walk in"):
+        from alto.build.palace_building_asset import BLUEPRINT_FPV
+        for want in ("Zoom in", "Zoom out", "Fit to screen", "Cards, in order", "Key and credits") + (("Walk in",) if BLUEPRINT_FPV else ()):
             assert any(n.startswith(want) for n in names), (want, names)
         vbw = lambda: page.evaluate("+document.querySelector('#bldg-root svg.bl-svg').getAttribute('viewBox').split(' ')[2]")
         w0 = vbw()
@@ -253,6 +254,7 @@ def test_on_a_phone_the_plan_is_never_under_the_dock(browser, w, h, preview):
 
 
 # Art 2026-10-30 (alto-art-1030-1620-c): "Walk in" on one line at 768; the Retro name chip shows the whole name (it wraps instead of cutting short)
+@pytest.mark.skipif(not __import__("alto.build.palace_building_asset", fromlist=["x"]).BLUEPRINT_FPV, reason="Blueprint FPV is off (palace_building_asset.BLUEPRINT_FPV)")
 @pytest.mark.parametrize("w", [1440, 768])
 @pytest.mark.parametrize("style", [None, "retro"])
 def test_walk_in_is_one_line_and_the_name_is_not_cut(browser, w, style):

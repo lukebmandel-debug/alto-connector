@@ -143,3 +143,8 @@ def test_leaving_tells_the_blueprint_where_the_walker_stood(env):
     assert page.evaluate("document.querySelector('#bldg-root .bl-walker') !== null && !document.getElementById('bldg-root').hidden")
     assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').getAttribute('data-level')") == "g"
     assert errors == []
+
+
+from tests.building_fpv_support import needs_fpv  # noqa: E402
+
+pytestmark = needs_fpv      # the Blueprint first-person walk is off for users (palace_building_asset.BLUEPRINT_FPV)
