@@ -408,9 +408,6 @@ class Brief:
     # regions: [a region per unit, "" for the route's own]}. set_up_world writes it;
     # the map itself is hosted (/world/, world_geo.py).
     world: dict = field(default_factory=dict)
-    # The student's study plan (study_plan.py draws it; plan_check.py validates what the Claude tool and Bass save): {v: 1, exam_date, days_per_week,
-    # minutes_per_day, items: [{node, day "YYYY-MM-DD", why, signal}]}. Empty: no plan, and the page is byte-identical to one without the feature.
-    study_plan: dict = field(default_factory=dict)
     # A tree's lines down a branch's spine. "fan": a section's lines spread
     # across the top of its first card and drop to each child at its own point,
     # so every child has a line of its own to hover and follow; "trunk": one

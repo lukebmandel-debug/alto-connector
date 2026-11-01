@@ -47,7 +47,7 @@ def test_a_page_without_a_plan_carries_only_the_invitation():
     assert _build("outline", plan={}) == base
     assert _build("outline", plan={"v": 1, "items": []}) == base
     assert _build("outline", plan={"v": 1, "items": [dict(node="not-a-node", day="2026-11-05", why="x", signal="marks")]}) == base
-    assert "_ALTO_SP" not in base and 'id="alto-sp"' in base               # (no data: the script draws only the tab "Make a study plan")
+    assert 'id="alto-sp-data"' not in base and 'id="alto-sp"' in base               # (no data: the script draws only the tab "Make a study plan")
 
 
 def test_a_plan_adds_only_its_own_block():
