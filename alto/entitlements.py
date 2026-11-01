@@ -9,7 +9,7 @@ In the beta every format is open to every account: FORMAT_MIN_PLAN says "free" f
 table (which format sits at which level is a business decision, not code's) and turns the one switch on (ALTO_PAYWALL=1
 on the server) and supplies the account's plan with `set_plan_lookup`; no route has to change. The same call guards
 the connector's tools (create_timeline, build_timeline, set_up_palace / _world / _building), the homepage's "Turn into
-another format…" and the Bass route, so there is no free back door around it. Beta guard order on a server route: IP
+another format…" and a build's own model route, so there is no free back door around it. Beta guard order on a server route: IP
 limit, allowlist, account limiter, terms, THEN this, then the credit hold; a refusal costs no upstream call.
 """
 from __future__ import annotations

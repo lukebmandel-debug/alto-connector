@@ -1714,7 +1714,7 @@ function altoPrintMenu(pg){
 // The format ids are the ones the file badges use (alto/entitlements.py holds the same list, a test keeps them equal).
 // Which formats this person may make is decided on the server (entitlements.allowed); the page only reads the answer, if the
 // account layer supplied one (window._altoFormatAccess = { id: { ok, plan } }): none given = all open (the beta).
-// A build with its own route (the Bass one) adds {id, label, formats?, when?(), run(pg, fmt, ui: {place, status(text), confirm(text, label) -> Promise<bool>, close})} to window._altoConvertRoutes (formats: the ones it can make); Claude's route,
+// A build with its own route (the model route) adds {id, label, formats?, when?(), run(pg, fmt, ui: {place, status(text), confirm(text, label) -> Promise<bool>, close})} to window._altoConvertRoutes (formats: the ones it can make); Claude's route,
 // a prompt to copy, is always there and needs no server.
 const CONVERT_FORMATS = [['timeline', 'Timeline (sketch)', ''], ['outline', 'Outline', ''], ['system', 'System', ''],
   ['lanes', 'Horizontal timeline', ''], ['palace', 'Mind Palace (a city)', 'city'], ['world', 'World-map palace', 'set of countries'],
