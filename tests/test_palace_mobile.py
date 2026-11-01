@@ -212,7 +212,7 @@ def test_search_finds_a_building_by_name_number_and_station(phone):
     assert phone.pg.evaluate("document.querySelector('#pal-mmap .pm-list li .pm-bd').textContent") == "1.1"
     phone.tap("#pal-mmap .pm-list li")
     s = phone.pm()
-    assert s["mode"] == "place" and s["det"] in ("half", "full")
+    assert s["mode"] == "place" and s["det"] == "half"                         # a result lands with the map in view (A10: it stayed at full, 60 px of map)
 
 
 def test_tapping_a_building_opens_its_place_card_and_open_goes_inside(phone):

@@ -216,7 +216,7 @@ function pmSelect(p, fly){ PM.sel=p; var sv=MM.svg;
   drawRoutes(sv, p.k==='b'?p.id:null); sv.querySelectorAll('.pm-sel').forEach(function(n){ n.classList.remove('pm-sel'); });
   if(p.k==='b'){ var b=sv.querySelector('.pl-bld[data-id="'+p.id+'"]'); if(b) b.classList.add('pm-sel'); }
   pmMark(p); pmMode('place');
-  if(PM.det==='peek') pmSnap('half'); if(fly && p.x!=null) pmGoto(p.x, p.y, Math.max(PM.z,.85), 520, pmDet().half);
+  if(PM.det==='peek' || PM.det==='full') pmSnap('half'); if(fly && p.x!=null) pmGoto(p.x, p.y, Math.max(PM.z,.85), 520, pmDet().half);
   else if(p.x!=null) pmGoto(p.x, p.y, Math.max(PM.z,.85), 520, pmDet().half); }
 function pmDesc(id){ var n=TT[id]||{}, t=String(n.desc||n.body||n.text||n.summary||'').replace(/<[^>]+>/g,' ').replace(/[*_`#>]+/g,'').replace(/\s+/g,' ').trim();
   if(t.length>300){ t=t.slice(0,300); t=t.replace(/\s+\S*$/,'')+'…'; } return t; }
@@ -269,6 +269,7 @@ function pmSheetClicks(){
     var pk=t.closest('[data-pick]'); if(pk){ var bp=DIR.bldPlace(pk.getAttribute('data-pick')); if(bp) pmSelect(bp, true); return; } });
 }
 function pmDirections(from){ var o={}; if(from) o.to=from; 
+  if(PM.det==='full') pmSnap('half');      /* (the "choose start" banner needs the map to tap: not 60 px of it) */
   DIR.open(PM.ad, o); }
 
 /* ── building it, opening it, closing it ── */

@@ -104,7 +104,15 @@ html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;
 /* a timeline or an outline seen whole: a card shows its name alone until it is enlarged (Luke, 2026-10-24: "just have node
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
-html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:break-word;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}
+html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:normal;word-break:normal;hyphens:manual;-webkit-hyphens:manual;}
+/* a card's name stays 12px on the glass at the readable scales (the board's own size shrinks with the zoom): bigger on the board, never past 22px, never under its own 16px */
+html.phone-whole.ph-ov:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){font-size:max(16.25px, min(22px, calc(12px / var(--ph-os,1))));}
+/* the glass has no edge at the sides of the screen (Art A4: no seam) */
+html.phone-whole:not(.alto-lanes):not(.alto-solar) #glass-slab:not(#_){box-shadow:none !important;border-left-color:transparent !important;border-right-color:transparent !important;}
+/* an enlarged card is the desktop's 1.7x (the engine zooms it) unless that is wider than the phone: then a little less, as large as leaves 16px each side (--ph-fk, set by the script below) */
+html.phone-whole .node.focused .node-card:not(#_){transform:scale(var(--ph-fk,1)) !important;}
+/* an enlarged card has the screen: the unit numerals (they ride the right edge) and the Alto wordmark do not sit on it */
+html.phone-whole #canvas.focus-mode .phase-numeral:not(#_){opacity:0 !important;pointer-events:none !important;}
 /* what a hover showed, on a long press */
 html.phone-whole .node-card :is(.csym-btn,.esym-btn,.tsym-btn).ph-hover ~ .chip-tip{opacity:1;transform:translateX(-50%) translateY(0);}
 html.phone-whole.alto-solar #world .node[data-solar].ph-hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
@@ -149,7 +157,7 @@ function gev(type, scale, x, y){
 
 /* ── the vertical timeline / outline: the board fitted to the phone, scaled by two fingers ── */
 /* the board's own zoom (CSS zoom, not a transform: WebKit keeps a transformed board's full-size scroll extent) */
-var OV={s:1, w:0}, ovA=0;
+var OV={s:1, w:0}, ovA=0, START=.6;     /* (the board opens readable: a card's name 12px on the glass at least, two columns across; pinch out for all of it) */
 function world(){ return document.getElementById('world'); }
 function fitS(){ var c=cv(), w=world(); if(!c || !w) return 1; if(OV.s>=.999 || !OV.w) OV.w=w.offsetWidth||1; return Math.min(1, (c.clientWidth-8)/OV.w); }
 function ovSet(s, px, py){                       /* scale s, the board point under (px, py) on screen staying there */
@@ -160,24 +168,43 @@ function ovSet(s, px, py){                       /* scale s, the board point und
   OV.s=s;
   if(s>=.999){ OV.s=1; w.style.zoom=''; de.classList.remove('ph-ov'); }
   else { w.style.zoom=s.toFixed(4); de.classList.add('ph-ov'); }
+  de.style.setProperty('--ph-os', OV.s.toFixed(3));
+  slabFit();
   var b=w.getBoundingClientRect(); c.scrollLeft+=b.left+wx*OV.s-px; c.scrollTop+=b.top+wy*OV.s-py;
 }
+/* the timeline's glass slab ends where its last unit does: seen small, a short board left the page's plain gradient under it (a hard edge mid-screen).
+   Its height grows to the window's foot (the last unit's tint carrying on), so the glass runs the full height at any scale. */
+function slabFit(){ var sl=document.getElementById('glass-slab'), c=cv(); if(!sl || !c) return;
+  if(sl._h0==null){ sl._h0=parseFloat(sl.style.height)||sl.offsetHeight; var m=/(#[0-9a-fA-F]{6,8}|rgba?\([^)]*\))\s+100%\)\s*$/.exec(sl.style.backgroundImage||''); sl._last=m ? m[1] : ''; }
+  var top=parseFloat(sl.style.top)||0, h=Math.max(sl._h0, c.clientHeight/OV.s-top);
+  sl.style.height=h+'px';
+  if(h>sl._h0+1 && sl._last){ sl.style.backgroundSize='100% '+sl._h0+'px'; sl.style.backgroundRepeat='no-repeat'; sl.style.backgroundColor=sl._last; }
+  else { sl.style.backgroundSize=''; sl.style.backgroundRepeat=''; sl.style.backgroundColor=''; } }
 function ovAnim(s1, x, y, done){
   cancelAnimationFrame(ovA); var s0=OV.s, t0=now(), ms=reduced() ? 1 : 320;
   (function fr(t){ var k=Math.min(1, (t-t0)/ms), e=1-Math.pow(1-k, 3);
     ovSet(Math.exp(Math.log(s0)+(Math.log(s1)-Math.log(s0))*e), x, y);
     if(k<1) ovA=requestAnimationFrame(fr); else if(done) done(); })(t0);
 }
-/* a tap on a card while the board is small: back to full size round it, then the desktop's own click */
+function fsSet(){ de.style.setProperty('--ph-fk', Math.min(1, (innerWidth-32)/(290*1.7)).toFixed(3)); }
+fsSet(); window.addEventListener('resize', fsSet); window.addEventListener('orientationchange', function(){ setTimeout(fsSet, 150); });
+/* a tap on a card enlarges it where it is (the desktop's focus mode: Luke, 2026-11-01, "you cannot enlarge a node without
+   going into it"); a tap on the enlarged card goes in (its own click), a tap on the board leaves (the engine's own click
+   rule). A board still small first returns to full size round the card. */
 document.addEventListener('click', function(e){
-  if(!on() || fmt()!=='tl' || OV.s>=.999 || e._alto) return;
+  if(!on() || fmt()!=='tl' || e._alto || detail() || !window.enterFocus) return;
   var n=e.target.closest && e.target.closest('#world .node'); if(!n) return;
+  var id=n.id.slice(5); if(window._focusedNodeId===id) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  var r=n.getBoundingClientRect(), x=r.left+r.width/2, y=r.top+r.height/2, card=n.querySelector('.node-card')||n;
-  ovAnim(1, x, y, function(){ var c=cv(), rr=n.getBoundingClientRect(), cr=c.getBoundingClientRect();
-    c.scrollLeft+=rr.left+rr.width/2-(cr.left+cr.width/2); c.scrollTop+=rr.top+rr.height/2-(cr.top+cr.height/2);
-    var ev=new MouseEvent('click', {bubbles:true, cancelable:true, clientX:x, clientY:y}); ev._alto=1; card.dispatchEvent(ev); });
+  enterFocus(id);
 }, true);
+/* enlarging a card (a tap, MAP's list, a search result) from a board still small: full size round the card first, then the engine's own enlarge
+   (its scroll sums are for a board at full size) */
+function wrapFocus(){ var o=window.enterFocus; if(typeof o!=='function' || o._ph) return;
+  var w=function(id){ var a=arguments, me=this, el=id && document.getElementById('node-'+id);
+    if(!(on() && fmt()==='tl' && OV.s<.999 && el)) return o.apply(me, a);
+    var r=el.getBoundingClientRect(); ovAnim(1, r.left+r.width/2, r.top+r.height/2, function(){ o.apply(me, a); }); };
+  w._ph=1; window.enterFocus=w; }
 
 /* ── touches on the board ── */
 var G=null, T=null, lastTap=null, LP=null, hov=[];
@@ -206,7 +233,7 @@ function pinchStart(e){
 function pinchMove(e){
   var m=mid(e), s=dist(e)/G.d0, c=cv(), dx=m[0]-G.m[0], dy=m[1]-G.m[1]; G.m=m; G.s=s;
   if(Math.abs(s-1)>.04 || Math.hypot(m[0]-G.m0[0], m[1]-G.m0[1])>12) G.moved=true;
-  if(G.own==='?'){ if(s<.97) G.own='me'; else if(s>1.03){ G.own='engine'; gev('gesturestart', 1, G.m0[0], G.m0[1]); } }
+  if(G.own==='?'){ if(s<.97){ G.own='me'; if(window._focusedNodeId && window.exitFocus) exitFocus(); } else if(s>1.03){ G.own='engine'; gev('gesturestart', 1, G.m0[0], G.m0[1]); } }
   if(G.own==='engine'){ if(c && G.f!=='solar' && G.f!=='lanes'){ c.scrollLeft-=dx; c.scrollTop-=dy; } gev('gesturechange', s, m[0], m[1]); }   /* (the horizontal timeline's zoom keeps the pinched point under the fingers itself) */
   else if(G.own==='me'){ if(c){ c.scrollLeft-=dx; c.scrollTop-=dy; } ovSet(G.ov0*s, m[0], m[1]); }
 }
@@ -218,7 +245,7 @@ function pinchEnd(){
 }
 function zoomBy(f, x, y){                          /* a double tap (in) or a two-finger tap (out), gliding */
   var k=fmt();
-  if(k==='tl'){ if(f<1 || OV.s<.999) ovAnim(Math.max(fitS(), Math.min(1, OV.s*f)), x, y); return; }
+  if(k==='tl'){ if(f<1 && window._focusedNodeId && window.exitFocus) exitFocus(); if(f<1 || OV.s<.999) ovAnim(Math.max(fitS(), Math.min(1, OV.s*f)), x, y); return; }
   var t0=now(), ms=reduced() ? 1 : 300; gev('gesturestart', 1, x, y);
   (function fr(t){ var p=Math.min(1, (t-t0)/ms), e=1-Math.pow(1-p, 3); gev('gesturechange', Math.exp(Math.log(f)*e), x, y);
     if(p<1) requestAnimationFrame(fr); else gev('gestureend', f, x, y); })(t0);
@@ -250,7 +277,7 @@ document.addEventListener('touchcancel', function(){ if(G) pinchEnd(); T=null; c
    their rules are written for html.mobile, so here the ones for that chrome are copied for html.phone-whole and the
    desktop rules for the same pieces stand down. A board's own rules (the cards, the canvas, a detail page) are left
    to the desktop. ── */
-var BOARD=/#(canvas|world|river-svg|solar-svg|glass-slab|detail-page|detail-content|detail-[\w-]+|sol-[\w-]+|lanes-[\w-]+|pal-[\w-]+|bldg-[\w-]+|wpal-[\w-]+)(?![\w-])|\.(node|node-[\w-]+|unit-bar|phase-[\w-]+|edge[\w-]*|detail-[\w-]+|mobile-featured)(?![\w-])|(^|[\s>+~])mark(?![\w-])/;
+var BOARD=/#(canvas|world|river-svg|solar-svg|glass-slab|detail-page|detail-content|detail-[\w-]+|sol-[\w-]+|sk3d(?:-[\w-]+)?|lanes-[\w-]+|pal-[\w-]+|bldg-[\w-]+|wpal-[\w-]+)(?![\w-])|\.(node|node-[\w-]+|unit-bar|phase-[\w-]+|edge[\w-]*|detail-[\w-]+|mobile-featured)(?![\w-])|(^|[\s>+~])mark(?![\w-])/;
 var done=typeof WeakSet==='function' ? new WeakSet() : null, extra=[];
 function parts(s){ var o=[], d=0, b=0; for(var i=0;i<s.length;i++){ var c=s[i]; if(c==='('||c==='[') d++; else if(c===')'||c===']') d--; else if(c===','&&!d){ o.push(s.slice(b,i)); b=i+1; } } o.push(s.slice(b)); return o; }
 function rules(list, wrap){
@@ -304,9 +331,9 @@ function drawer(){
 }
 function build(){
   if(!on() || !document.body) return;
-  remap(); unrail(); drawer(); cardsBtn(); de.classList.add('ph-ready');
+  remap(); unrail(); drawer(); cardsBtn(); wrapFocus(); de.classList.add('ph-ready');
 }
-function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(s<.999 && c){ var r=c.getBoundingClientRect(); ovSet(s, r.left, r.top); c.scrollLeft=0; c.scrollTop=0; } } }
+function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(s<.999 && c){ var r=c.getBoundingClientRect(); ovSet(Math.max(s, START), r.left, r.top); c.scrollLeft=0; c.scrollTop=0; } } }
 document.addEventListener('DOMContentLoaded', function(){ build(); });
 window.addEventListener('load', function(){ build(); fit(); setTimeout(build, 900); });
 window.addEventListener('resize', function(){ if(OV.s<1) ovSet(OV.s); });

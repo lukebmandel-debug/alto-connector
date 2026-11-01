@@ -39,7 +39,7 @@ def pages():
     sys.path.insert(0, str(ROOT / "tests"))
     import test_palace_transit as tt
     city = build_timeline(*load_brief(copy.deepcopy(tt._bundle())))[0]
-    return {"outline": _build("outline"), "system": _build("outline", layout="solar"), "lanes": _build("lanes_v2"), "city": city}
+    return {"outline": _build("outline"), "timeline": _build("contracts"), "system": _build("outline", layout="solar"), "lanes": _build("lanes_v2"), "city": city}
 
 
 def _head(page):
@@ -262,7 +262,7 @@ def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
     assert s1 > s0 * 1.5
     pg.evaluate(_PINCH, [195, 400, 260, 60])
     pg.wait_for_timeout(500)
-    assert abs(pg.evaluate("window._altoPhone.ov.s") - s0) < 1e-6                 # never smaller than the phone's width
+    assert 0.2 < pg.evaluate("window._altoPhone.ov.s") < 0.25 and s0 > 0.5       # never smaller than the phone's width (it opens readable, 0.6, above that)
 
 
 def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_clef(pg, site):
@@ -277,3 +277,90 @@ def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_c
     pg.tap("#detail-back-fixed")
     pg.wait_for_timeout(1000)
     assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")
+
+
+def test_the_3d_star_chart_canvas_shows_on_a_phone(pg, site):
+    """The phone remap turned `html.sk-3d:not(.mobile) #sk3d` into `...:not(.phone-whole)`, so on a phone the canvas stayed
+    display:none (0x0), the DOM bodies were hidden by the 3D rules and only the stars showed (Luke's iPhone, 2026-11-01)."""
+    _go(pg, site + "/system.html?view=card")
+    pg.evaluate("window._altoSolarStyles.set('3d')")
+    pg.wait_for_timeout(1800)
+    box = pg.evaluate("""(() => { const c = document.getElementById('sk3d'), r = c.getBoundingClientRect(), s = getComputedStyle(c);
+      const G = window._altoSolarGeo(), n = Object.keys(G.bodies).filter(id => { const q = window._altoSolar3D.project(id); return q && isFinite(q.x) && isFinite(q.y); }).length;
+      return [s.display, s.position, Math.round(r.width), Math.round(r.height), innerWidth, innerHeight, n > 0]; })()""")
+    assert box[:2] == ["block", "fixed"] and box[2:4] == box[4:6] and box[6]
+
+
+# ── a tap enlarges a card where it is (Luke, 2026-11-01: "you cannot enlarge a node without going into it") ──
+_CARDS = """() => [...document.querySelectorAll('#world .node')].map(n => { const r = n.querySelector('.node-card').getBoundingClientRect();
+  return [n.id, r.left + r.width/2, r.top + r.height/2]; }).filter(a => a[1] > 20 && a[1] < innerWidth - 20 && a[2] > 130 && a[2] < innerHeight - 130)"""
+_FOCUS = """() => { const f = document.querySelector('#world .node.focused'), c = f && f.querySelector('.node-card'), r = c && c.getBoundingClientRect();
+  return {foc: window._focusedNodeId || null, det: document.documentElement.classList.contains('detail-open'), s: window._altoPhone.ov.s, W: innerWidth,
+    box: r && [r.left, r.right, r.top, r.bottom],
+    num: [...document.querySelectorAll('#world .phase-numeral')].map(e => +getComputedStyle(e).opacity)}; }"""
+
+
+@pytest.mark.parametrize("name", ["outline", "timeline"])
+def test_a_tap_enlarges_a_whole_card_in_place_then_goes_in_and_a_tap_on_the_board_leaves(pg, site, name):
+    _go(pg, f"{site}/{name}.html?view=whole")
+    cards = pg.evaluate(_CARDS)
+    assert cards
+    nid, x, y = cards[0]
+    pg.touchscreen.tap(x, y)
+    pg.wait_for_timeout(1600)
+    f = pg.evaluate(_FOCUS)
+    assert f["foc"] == nid[5:] and not f["det"] and f["s"] == 1, f                  # enlarged, not opened; the board back at full size
+    left, right, top, bottom = f["box"]
+    assert left >= 15.5 and right <= f["W"] - 15.5 and abs((left + right) / 2 - f["W"] / 2) <= 2, f   # Art: centred, 16px clear each side
+    assert top > 0 and bottom < pg.evaluate("innerHeight") and all(o == 0 for o in f["num"]), f       # the unit numerals are out of its way
+    pg.touchscreen.tap(sum(f["box"][:2]) / 2, sum(f["box"][2:]) / 2)                 # a tap on the enlarged card goes in
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate("document.documentElement.classList.contains('detail-open')")
+    pg.tap("#detail-back-fixed")
+    pg.wait_for_timeout(1200)
+    cards = pg.evaluate(_CARDS)
+    pg.touchscreen.tap(cards[0][1], cards[0][2])
+    pg.wait_for_timeout(1600)
+    assert pg.evaluate("window._focusedNodeId")
+    empty = pg.evaluate("""() => { for (let y = 120; y < innerHeight - 100; y += 18) for (let x = 6; x < innerWidth - 6; x += 18) {
+      const e = document.elementFromPoint(x, y); if (e && e.closest('#canvas') && !e.closest('.node')) return [x, y]; } return null; }""")
+    assert empty
+    pg.touchscreen.tap(*empty)                                                         # a tap on the board leaves
+    pg.wait_for_timeout(900)
+    assert not pg.evaluate("window._focusedNodeId")
+
+
+def test_a_card_name_in_the_whole_view_wraps_at_spaces_only(pg, site):
+    _go(pg, site + "/outline.html?view=whole")
+    h = pg.evaluate("""() => [...document.querySelectorAll('#world .node:not(.focused) .node-title')].map(t => { const c = getComputedStyle(t);
+      return [c.webkitHyphens || c.hyphens, c.overflowWrap]; })""")
+    assert h and all(x[0] == "manual" and x[1] == "normal" for x in h), h[:3]
+
+
+def test_the_whole_board_opens_readable_and_maps_list_lands_on_a_card_in_view(pg, site):
+    """A3 (Luke's 'text ~3 px, unreadable'): the board opens at ~0.6 (two columns across) with a card's name 12 px on the glass at least,
+    and MAP's list (a board still small) enlarges the card where it can be seen: the engine's scroll sums are for a board at full size."""
+    _go(pg, site + "/outline.html?view=whole")
+    s, px = pg.evaluate("""() => { const t = document.querySelector('#world .node:not(.focused) .node-title'), s = window._altoPhone.ov.s;
+      return [s, parseFloat(getComputedStyle(t).fontSize) * s]; }""")
+    assert 0.55 <= s <= 0.65 and px >= 11.9, (s, px)
+    pg.evaluate("""() => { const m = document.getElementById('minimap-toggle'), e = new Event('touchend', {bubbles: true, cancelable: true});
+      Object.defineProperty(e, 'changedTouches', {value: []}); Object.defineProperty(e, 'touches', {value: []}); m.dispatchEvent(e); }""")
+    pg.wait_for_timeout(700)
+    pg.tap("#minimap-nav-panel .mnp-node-btn >> nth=8")
+    pg.wait_for_timeout(2500)
+    f = pg.evaluate(_FOCUS)
+    assert f["foc"] and f["s"] == 1 and f["box"], f
+    left, right, top, bottom = f["box"]
+    assert left >= 15.5 and right <= f["W"] - 15.5 and top > 0 and bottom < pg.evaluate("innerHeight"), f
+
+
+def test_the_glass_slab_runs_to_the_foot_of_the_window_when_the_timeline_is_seen_small(pg, site):
+    """A4 (Art: extend the tint to the full height, no seam): a short board left the page's plain gradient under the slab."""
+    _go(pg, site + "/timeline.html?view=whole")
+    pg.evaluate(_PINCH, [195, 400, 260, 60])                                       # all the way out
+    pg.wait_for_timeout(600)
+    r = pg.evaluate("""() => { const s = document.getElementById('glass-slab'), q = s.getBoundingClientRect(), w = document.getElementById('world').getBoundingClientRect(), c = getComputedStyle(s);
+      return {bottom: q.bottom, worldBottom: w.bottom, H: innerHeight, shadow: c.boxShadow, os: window._altoPhone.ov.s}; }""")
+    assert r["worldBottom"] < r["H"] - 40, r                                        # (the board itself is shorter than the window here)
+    assert r["bottom"] >= r["H"] - 2 and r["shadow"] == "none", r
