@@ -333,8 +333,8 @@ def test_a_closed_overview_leaves_no_line_on_the_page(pg, site):
 
 
 def test_the_detail_text_keeps_clear_of_the_edge_tabs(pg, site):
-    for url, left in (("/timeline.html", 44), ("/system.html", 18)):              # the tabs on both edges; the tiles low on the right only
-        _go(pg, site + url)
+    for url, left in (("/timeline.html", 44), ("/timeline.html?pm=1", 18)):  # the tabs on both edges; the tiles low on the right only
+        _go(pg, site + url, raw=True)
         pg.evaluate("document.querySelector('#world .node .node-card').click()")
         pg.wait_for_timeout(1200)
         pad = pg.evaluate("(() => { const c = getComputedStyle(document.getElementById('detail-page')); return [parseInt(c.paddingLeft), parseInt(c.paddingRight)]; })()")
