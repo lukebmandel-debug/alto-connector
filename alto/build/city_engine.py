@@ -1798,7 +1798,42 @@ def _bridges(streets, river, lines, by_id, m):
                 used |= {a, best[1]}
                 p, q = es[a][0], es[best[1]][0]
                 out.append({"n": n, "k": 1, "o": 1, "p": [round(p[0], 1), round(p[1], 1), round(q[0], 1), round(q[1], 1)]})
+        # a river that runs closer to one bank than the lattice gap's middle (Philadelphia's Schuylkill, whose columns
+        # leave a gap of 4 streets): two facing ends left over, and the straight line between them crosses the river
+        for a in range(len(es)):
+            if a in used:
+                continue
+            best = None
+            for b in range(a + 1, len(es)):
+                if b in used:
+                    continue
+                p, pin = es[a]
+                q, qin = es[b]
+                d = math.dist(p, q)
+                if d < 40 or d > BRIDGE_GAP_MAX:
+                    continue
+                u = (p[0] - pin[0], p[1] - pin[1]); v = (q[0] - p[0], q[1] - p[1])
+                if u[0] * v[0] + u[1] * v[1] <= 0.6 * math.hypot(*u) * math.hypot(*v):
+                    continue
+                if not any(_seg_x(p, q, x, y) for rv in river for x, y in zip(rv["_q"], rv["_q"][1:])):
+                    continue
+                if best is None or d < best[0]:
+                    best = (d, b)
+            if best:
+                used |= {a, best[1]}
+                p, q = es[a][0], es[best[1]][0]
+                out.append({"n": n, "k": 1, "o": 1, "p": [round(p[0], 1), round(p[1], 1), round(q[0], 1), round(q[1], 1)]})
     return out
+
+
+BRIDGE_GAP_MAX = 1000.0    # px: the longest bridge drawn between two facing street ends that the river lies across
+
+
+def _seg_x(p, q, a, b):
+    """Do segments pq and ab cross?"""
+    def side(o, s, t):
+        return (s[0] - o[0]) * (t[1] - o[1]) - (s[1] - o[1]) * (t[0] - o[0])
+    return side(p, q, a) * side(p, q, b) < 0 and side(a, b, p) * side(a, b, q) < 0
 
 
 def _dom_out(td, lat, mp, is_root):

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import heapq
 import math
+from bisect import bisect_left, bisect_right
 import re
 
 from .palace_grid import CW, CH, LEAD, norm, numbered, _dp, _inside
@@ -513,7 +514,7 @@ def _cost(path, S, back, bound=None):
 
 
 def _crossings(path, xs, ys):
-    """{("v", x) | ("h", y): arc length along path where it first crosses that lattice column / row}."""
+    """{("v", x) | ("h", y): arc length along path where it first crosses that lattice column / row}. xs, ys: sorted."""
     out, acc = {}, 0.0
     for a, b in zip(path, path[1:]):
         L = math.dist(a, b)
@@ -523,8 +524,9 @@ def _crossings(path, xs, ys):
             lo, hi = sorted((a[k], b[k]))
             if hi - lo < 1e-9:
                 continue
-            for v in vals:
-                if lo < v < hi and (o, v) not in out:
+            for i in range(bisect_right(vals, lo), bisect_left(vals, hi)):     # vals is sorted: only the lines inside the span
+                v = vals[i]
+                if (o, v) not in out:
                     out[(o, v)] = acc + (v - a[k]) / (b[k] - a[k]) * L
         acc += L
     return out
@@ -592,13 +594,25 @@ def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.
                 pen = bend_px * (len(path) - 2) + 0.15 * (ia + ib) * bend_px
                 if best is not None and pen >= best["cost"]:
                     continue
-                c = _cost(path, S, back, None if best is None else best["cost"] - pen) + pen
-                if best is not None and c >= best["cost"]:
+                # the two penalties below only add: the fit cost may stop at what is left of the best cost after them
+                # (the same paths win; the fit cost is the slow part and a loose bound let most of it run on)
+                extra = 0.0
+                if best is not None:
+                    if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
+                        extra += shared(path, avoid) / cw * 3 * bend_px
+                    if want:
+                        extra += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
+                    if pen + extra >= best["cost"]:
+                        continue
+                c = _cost(path, S, back, None if best is None else best["cost"] - pen - extra) + pen
+                if best is not None and c + extra >= best["cost"]:
                     continue
-                if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
-                    c += shared(path, avoid) / cw * 3 * bend_px
-                if want and (best is None or c < best["cost"]):
-                    c += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
+                if best is None:
+                    if avoid:
+                        extra += shared(path, avoid) / cw * 3 * bend_px
+                    if want:
+                        extra += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
+                c += extra
                 if best is None or c < best["cost"]:
                     best = {"p": path, "bends": len(path) - 2, "cost": c, "a": ia, "b": ib}
     if best:
