@@ -1,5 +1,5 @@
-# Alto Privacy Policy (closed beta) — DRAFT v0.3, 30 Oct 2026
-Research draft, not legal advice. Facts checked against IT's inventory (ORG/it/privacy-inventory.md, 30 Oct). Brackets need a decision or a final check.
+# Alto Privacy Policy (closed beta)
+Version 1.0. Last updated 3 November 2026.
 
 ## Who we are
 Alto is a study tool that turns course notes into timelines, outlines and memory palaces. During the closed beta it is run by Luke Mandel, an individual ("we"). Questions, requests and complaints: lukebmandel@gmail.com.
@@ -9,6 +9,7 @@ Alto is a study tool that turns course notes into timelines, outlines and memory
 - **Your content.** The notes, pages, timelines, cards, highlights, study progress, files you attach, backgrounds you import and settings you create or upload.
 - **Items you share.** Anything you share by link can be opened by anyone who has the link, until you turn the link off.
 - **Bass (our AI builder), if you use it.** Each request sends Anthropic, which runs the Claude AI model: our instructions to Bass, the text and files you submit, the conversation so far, the parts of your timeline Bass reads, and Bass's replies. It does not send your name, email or account ID. What Bass builds is stored as your content. The live conversation stays only in our server's memory until that server restarts. We keep a record of each request: time, credits used, action and status, not the text.
+- **Documents you add to Bass.** The text of files you add (PDF, Word, text) is stored in our database under your account. We do not keep the original file. When Bass uses a document, its text is sent to Anthropic with your request, like anything else you submit to Bass. Deleting a document hides it at once and erases it from our storage within 7 days; Anthropic keeps what it received for up to 30 days.
 - **Technical records.** Our server logs (time, account ID, action; IP address and browser type) and security logs of refused access (including IP address) are kept for 30 days. Google's hosting servers also see your IP address and browser when your browser loads Alto, under Google's own policies.
 - **Your agreement.** When you accept the Beta Terms we record your account ID, the version, the time and that you confirmed you are 18 or over.
 - **Feedback.** If you use our feedback form (a Google Form), Google records the name, email address and profile photo of your Google account when you submit it or upload a file, and we receive those along with what you type and any file you attach. Google handles the form under its own privacy policy.
@@ -22,7 +23,7 @@ To run Alto, keep accounts secure, fix bugs, answer feedback, and prevent abuse.
 
 ## Who handles it for us
 - **Google**: Firebase sign-in, database and hosting; Cloud Functions, storage, logging and secret storage; Google Forms for feedback.
-- **Anthropic**: Bass only. Anthropic deletes API inputs and outputs within 30 days; inputs its safety systems flag can be kept up to 2 years. Under its commercial terms Anthropic does not train its models on content sent through its API [confirm before publishing]. [Anthropic may process requests outside the United States / Anthropic processes requests in the United States: Luke decides.]
+- **Anthropic**: Bass only. Anthropic deletes API inputs and outputs within 30 days; inputs its safety systems flag can be kept up to 2 years. Under its commercial terms Anthropic does not train its models on content sent through its API. Anthropic may process requests outside the United States.
 They process your data for us under their own terms. Your content is stored in the United States. We may disclose information if the law requires it.
 
 ## Storage on your device
@@ -38,7 +39,7 @@ You can ask us for a copy of your data, to correct it, or to delete it. If you l
 Alto is for people 18 and over and is not directed to children. We ask you to confirm you are 18 or over when you first sign in. If we learn that someone under 13 has an account, we will delete it the same day.
 
 ## Security
-Data is encrypted in transit (HTTPS). [IT security sign-off pending: the sentence about who can see your account goes here.] No system is perfect. If a breach affects you, we will tell you as the law requires.
+Data is encrypted in transit (HTTPS). No system is perfect. If a breach affects you, we will tell you as the law requires.
 
 ## Do Not Track
 We do not track you across other websites, so there is nothing to change when your browser sends a Do Not Track signal.

@@ -7,6 +7,7 @@ terms_acceptance/{uid}_{version}, no copy kept in the browser, a blocking questi
 import functools
 import http.server
 import json
+import re
 import socketserver
 import sys
 import threading
@@ -61,6 +62,16 @@ def test_the_markdown_is_escaped_and_small():
     assert "<script>" not in body and "&lt;script&gt;" in body
     assert '<p class="note">a note</p>' in body
     assert "<a" not in legal._inline("[x](javascript:alert(1))")
+
+
+def test_the_final_text_is_version_1_0_with_no_draft_marks():
+    assert legal.version() == "1.0"
+    for name in ("privacy-policy.md", "beta-terms.md"):
+        md = (ROOT / "alto" / "legal" / name).read_text(encoding="utf-8")
+        assert "DRAFT" not in md and "Research" not in md and "Version 1.0." in md
+        assert not re.search(r"\[(?![^\]]*\]\()", md)                                   # no bracketed placeholder: a [ only opens a link
+    priv = (ROOT / "alto" / "legal" / "privacy-policy.md").read_text(encoding="utf-8")
+    assert "Google records the name, email address and profile photo" in priv and "stored in our database under your account" in priv
 
 
 def test_the_version_is_one_file_the_cloud_script_reads():
