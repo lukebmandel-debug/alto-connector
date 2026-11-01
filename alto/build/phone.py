@@ -105,6 +105,8 @@ html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:break-word;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}
+/* an enlarged card has the screen: the unit numerals (they ride the right edge) and the Alto wordmark do not sit on it */
+html.phone-whole #canvas.focus-mode .phase-numeral:not(#_){opacity:0 !important;pointer-events:none !important;}
 /* what a hover showed, on a long press */
 html.phone-whole .node-card :is(.csym-btn,.esym-btn,.tsym-btn).ph-hover ~ .chip-tip{opacity:1;transform:translateX(-50%) translateY(0);}
 html.phone-whole.alto-solar #world .node[data-solar].ph-hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
@@ -168,15 +170,16 @@ function ovAnim(s1, x, y, done){
     ovSet(Math.exp(Math.log(s0)+(Math.log(s1)-Math.log(s0))*e), x, y);
     if(k<1) ovA=requestAnimationFrame(fr); else if(done) done(); })(t0);
 }
-/* a tap on a card while the board is small: back to full size round it, then the desktop's own click */
+/* a tap on a card enlarges it where it is (the desktop's focus mode: Luke, 2026-11-01, "you cannot enlarge a node without
+   going into it"); a tap on the enlarged card goes in (its own click), a tap on the board leaves (the engine's own click
+   rule). A board still small first returns to full size round the card. */
 document.addEventListener('click', function(e){
-  if(!on() || fmt()!=='tl' || OV.s>=.999 || e._alto) return;
+  if(!on() || fmt()!=='tl' || e._alto || detail() || !window.enterFocus) return;
   var n=e.target.closest && e.target.closest('#world .node'); if(!n) return;
+  var id=n.id.slice(5); if(window._focusedNodeId===id) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  var r=n.getBoundingClientRect(), x=r.left+r.width/2, y=r.top+r.height/2, card=n.querySelector('.node-card')||n;
-  ovAnim(1, x, y, function(){ var c=cv(), rr=n.getBoundingClientRect(), cr=c.getBoundingClientRect();
-    c.scrollLeft+=rr.left+rr.width/2-(cr.left+cr.width/2); c.scrollTop+=rr.top+rr.height/2-(cr.top+cr.height/2);
-    var ev=new MouseEvent('click', {bubbles:true, cancelable:true, clientX:x, clientY:y}); ev._alto=1; card.dispatchEvent(ev); });
+  var r=n.getBoundingClientRect(), go=function(){ enterFocus(id); };
+  if(OV.s<.999) ovAnim(1, r.left+r.width/2, r.top+r.height/2, go); else go();
 }, true);
 
 /* ── touches on the board ── */
@@ -206,7 +209,7 @@ function pinchStart(e){
 function pinchMove(e){
   var m=mid(e), s=dist(e)/G.d0, c=cv(), dx=m[0]-G.m[0], dy=m[1]-G.m[1]; G.m=m; G.s=s;
   if(Math.abs(s-1)>.04 || Math.hypot(m[0]-G.m0[0], m[1]-G.m0[1])>12) G.moved=true;
-  if(G.own==='?'){ if(s<.97) G.own='me'; else if(s>1.03){ G.own='engine'; gev('gesturestart', 1, G.m0[0], G.m0[1]); } }
+  if(G.own==='?'){ if(s<.97){ G.own='me'; if(window._focusedNodeId && window.exitFocus) exitFocus(); } else if(s>1.03){ G.own='engine'; gev('gesturestart', 1, G.m0[0], G.m0[1]); } }
   if(G.own==='engine'){ if(c && G.f!=='solar' && G.f!=='lanes'){ c.scrollLeft-=dx; c.scrollTop-=dy; } gev('gesturechange', s, m[0], m[1]); }   /* (the horizontal timeline's zoom keeps the pinched point under the fingers itself) */
   else if(G.own==='me'){ if(c){ c.scrollLeft-=dx; c.scrollTop-=dy; } ovSet(G.ov0*s, m[0], m[1]); }
 }
@@ -218,7 +221,7 @@ function pinchEnd(){
 }
 function zoomBy(f, x, y){                          /* a double tap (in) or a two-finger tap (out), gliding */
   var k=fmt();
-  if(k==='tl'){ if(f<1 || OV.s<.999) ovAnim(Math.max(fitS(), Math.min(1, OV.s*f)), x, y); return; }
+  if(k==='tl'){ if(f<1 && window._focusedNodeId && window.exitFocus) exitFocus(); if(f<1 || OV.s<.999) ovAnim(Math.max(fitS(), Math.min(1, OV.s*f)), x, y); return; }
   var t0=now(), ms=reduced() ? 1 : 300; gev('gesturestart', 1, x, y);
   (function fr(t){ var p=Math.min(1, (t-t0)/ms), e=1-Math.pow(1-p, 3); gev('gesturechange', Math.exp(Math.log(f)*e), x, y);
     if(p<1) requestAnimationFrame(fr); else gev('gestureend', f, x, y); })(t0);
