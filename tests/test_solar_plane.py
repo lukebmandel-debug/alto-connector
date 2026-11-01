@@ -19,7 +19,7 @@ LINKS = [("u1-p1", "u2-p2"), ("u1-p1-m1", "u1-p3")]
 
 # every frame of a flight: the ship's height, and its centre's distance in the plane to each body's surface
 REC = r"""(X) => { window.__R=[]; window.__stop=false; (function g(){ if(window.__stop) return; var P=window._altoSolar3D, G=window._altoSolarGeo(), s=P.ship();
-  if(s && s.on && s.cl!=null && s.vis>.99 && !(s.warp>.02)) window.__R.push([s.cl, '', s.lift, s.x, s.y]);       /* (cl: the craft's clearance of every body but the two it goes between, from the frame's own bodies) */
+  if(s && s.on && s.cla!=null && s.vis>.99 && !(s.warp>.02)) window.__R.push([s.cla, '', s.lift, s.x, s.y]);       /* (cla: the craft's clearance of every body, from the frame's own bodies) */
   requestAnimationFrame(g); })(); }"""
 
 

@@ -438,10 +438,9 @@ function fly(G, now){
   else if(A && A.orbiting()){ id=window._focusedNodeId; var g=id && G.bodies[id]; o=g && A.parked(id, [g.x, g.y]);
     if(o){ p=o.p; v=o.v; m='park'; } else A.unpark(); }              /* (left the close-up: the orbit is over) */
   if(!p){ if(SH.on){ SH.on=false; SH.end=now; SH.m=null; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
-  if(m==='fly'){ var p2=keepOff(G, p, F ? F.from : R && R.from, F ? F.to : R && R.to);        /* (a way that would pass through a body goes round its edge instead: one plane, nothing flown over) */
-    if(p2!==p){ if(v && dt>0 && SH.p && SH.m==='fly') v=[(p2[0]-SH.p[0])/dt, (p2[1]-SH.p[1])/dt]; p=p2; } }
-  SH.cla=nearest(G, p, null, null);
-  SH.cl=nearest(G, p, F ? F.from : R ? R.from : id, F ? F.to : R ? R.to : id);          /* (how clear the way is, as this frame sees the bodies: what a test reads, not its own later look) */
+  var f0=F ? F.from : R ? R.from : id, t0=F ? F.to : R ? R.to : id, p2=keepOff(G, p, f0, t0);        /* (a way or orbit through a body goes round its edge: one plane) */
+  if(p2!==p){ if(v && dt>0 && SH.p && SH.m===m) v=[(p2[0]-SH.p[0])/dt, (p2[1]-SH.p[1])/dt]; p=p2; }
+  SH.cla=nearest(G, p);        /* (clearance by this frame's bodies: what a test reads) */
   var cr=A ? A.get() : {};
   if(!SH.on){ SH.on=true; SH.hs=null; SH.ht=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.m=null; }
   if(SH.cr!==cr.id){ SH.cr=cr.id; SH.hs=SH.ht=null; }      /* (a new pick shows at once, in orbit too: the ship stays on between flights) */
@@ -458,10 +457,10 @@ function fly(G, now){
    flown in (Luke, 2026-10-25: ships "end up going above"; 2026-10-28: "everything should be on the same plane, even in
    3D"). It never rises over a body to clear it: solar_craft.py's course keeps its way in that plane clear of every body */
 function lift(){ return K3.Y; }
-/* the way kept 8 px off every body's surface (4 off the one it goes to, whose orbit is that close; the margin covers the frame the moons move between the ship's step and a reader's) but the one it leaves
-   (it sets off from an orbit round that): where it would cross a body, the nearest point of the edge */
-/* the nearest body's surface to the craft in the plane, but the two it goes between (px; the bodies as this frame has them) */
-function nearest(G, p, a, b){ var m=1e9; Object.keys(G.bodies).forEach(function(i){ if(i===a || i===b) return; var g=G.bodies[i], h=Math.hypot(p[0]-g.x, p[1]-g.y)-g.d/2; if(h<m) m=h; }); return m; }
+/* the way kept 8 px off every body (4 off the one it goes to) but the one it leaves: where it would cross one, the nearest
+   point of its edge */
+/* the nearest body's surface to the craft in the plane (px; the bodies as this frame has them) */
+function nearest(G, p){ var m=1e9; Object.keys(G.bodies).forEach(function(i){ var g=G.bodies[i], h=Math.hypot(p[0]-g.x, p[1]-g.y)-g.d/2; if(h<m) m=h; }); return m; }
 function keepOff(G, p, skip, to){ var q=p, k, ch=false;
   for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ if(id===skip) return; var g=G.bodies[id], mg=g.d/2+(id===to ? 4 : 8), dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
     if(d<mg){ if(d<1e-6){ dx=1; dy=0; d=1; } q=[g.x+dx/d*mg, g.y+dy/d*mg]; ch=true; } });
@@ -740,7 +739,7 @@ function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, eye:function(){ return EYE; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
-  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, cl:SH.cl, cla:SH.cla, e:SH.e, nose:SH.nose, vis:SH.fx ? SH.fx.vis : 1, warp:SH.fx ? SH.fx.warp : 0}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
+  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, cla:SH.cla, e:SH.e, nose:SH.nose, vis:SH.fx ? SH.fx.vis : 1, warp:SH.fx ? SH.fx.warp : 0}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
 
