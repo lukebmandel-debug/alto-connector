@@ -146,11 +146,14 @@ def test_lanes_draw_the_same_classes(browser, site):
 
 def test_the_date_moving_on_changes_the_rings_and_a_tick_is_the_readers_own(browser, site):
     ctx, pg, errs = _open(browser, site + "/o.html")
-    pg.click("#sp-row")                                                   # (the row sits in the notes panel: open it first if hidden)
+    pg.evaluate("toggleNotes()")                                          # (the row sits in the notes panel)
+    pg.wait_for_timeout(500)
+    pg.click("#sp-row")
     pg.wait_for_timeout(200)
     assert pg.evaluate("document.getElementById('sp-sheet').classList.contains('open')")
     text = pg.evaluate("document.getElementById('sp-sheet').innerText")
-    assert "Late" in text and "Today" in text and "This week" in text and "you marked 4 cards Still learning" in text and "Exam" in text
+    text = text.lower()                                                    # (the group names are set in capitals)
+    assert "late" in text and "today" in text and "this week" in text and "you marked 4 cards still learning" in text and "exam" in text
     pg.evaluate("document.querySelector('#sp-sheet .sp-it input').click()")          # tick the first (the late one)
     pg.wait_for_timeout(200)
     st = pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/-st$/.test(k))))")
@@ -162,13 +165,15 @@ def test_the_date_moving_on_changes_the_rings_and_a_tick_is_the_readers_own(brow
     assert pg.evaluate(CLASSES)["acceptance"][0] == "sp-done"                          # kept
     pg.evaluate("window._altoSpNow='2026-11-06T09:00:00'; window._altoStudyPlan.paint()")
     got = pg.evaluate(CLASSES)
-    assert got["formation"][0] == "sp-late" and got["offer"][0] == "sp-soon" and got["revocation"][0] == "sp-soon" or got["revocation"][0] == "sp-soon"
+    assert got["formation"][0] == "sp-late" and got["offer"][0] == "sp-soon" and "revocation" not in got          # (the 20th is still two weeks off)
     assert not errs, errs
     ctx.close()
 
 
 def test_go_to_node_and_make_my_plan(browser, site):
     ctx, pg, errs = _open(browser, site + "/o.html")
+    pg.evaluate("toggleNotes()")
+    pg.wait_for_timeout(500)
     pg.click("#sp-row")
     pg.click("#sp-sheet .sp-go >> nth=0")
     assert pg.evaluate("document.querySelector('.node.sp-go') !== null")

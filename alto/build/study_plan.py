@@ -100,6 +100,7 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-mk:hover{border-color:var(--accent);}
   #sp-sheet .sp-pr{margin-top:8px;font-size:12px;color:var(--muted);} #sp-sheet .sp-pr textarea{width:100%;box-sizing:border-box;height:84px;margin-top:6px;font:inherit;font-size:12px;
     background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;resize:none;}
+  @media (max-width:640px){ #sp-row,#sp-sheet,.sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;} }
   @media print{ .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;} .sp-tag,#sp-row,#sp-sheet{display:none !important;} }
 </style>"""
 
@@ -204,7 +205,8 @@ JS = r"""<script id="alto-sp">
     clearTimeout(timer); var n = now(), nx = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 2);
     timer = setTimeout(function(){ paint(); midnight(); }, Math.min(Math.max(nx - n, 1000), 2147483000));
   }
-  function start(){ build(); paint(); midnight(); }
+  /* the cards are drawn after this script runs (the page lays itself out on load; the System draws its discs a little later): paint again then */
+  function start(){ build(); paint(); midnight(); window.addEventListener('load', paint); [300, 1200, 3000].forEach(function(ms){ setTimeout(paint, ms); }); }
   window._altoStudyPlan = {paint: paint, states: states};
   window.addEventListener('alto-study-sync', paint); window.addEventListener('storage', function(e){ if(e.key === KEY) paint(); });
   document.addEventListener('visibilitychange', function(){ if(!document.hidden){ paint(); midnight(); } });
