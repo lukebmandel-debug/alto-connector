@@ -41,6 +41,11 @@ def test_it_offers_the_four_kinds_tailored_capped_and_only_where_the_notes_suppo
     assert "Never reclassify, regroup or relabel anything the student named" in s
     assert "A direct invitation" in s and "Never answer it with a refusal" in s
     assert "40 words or fewer" in s
+    assert "A stated habit IS the study style" in s
+    assert "if you have none, I'll write them only from your notes" in s
+    assert "ask ONE question per message, never two" in s
+    assert "indentation or numbering" in s and "Where would you break this up, if anywhere?" in s
+    assert "at least two parts" in s
 
 
 def test_everyday_words_and_the_closed_system_still_stand():
