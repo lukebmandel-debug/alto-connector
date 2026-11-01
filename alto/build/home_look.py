@@ -48,10 +48,10 @@ _CLASSIC = """
    one bar hairline in place of the title bar's own */
 @media (max-width:640px){
   html.rw #title-bar:not(#_){ border-bottom-color:transparent !important; }
-  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:rgba(255,255,255,.97); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:rgba(255,255,255,.99); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
     border-bottom:1px solid var(--header-hairline, rgba(120,124,150,.22)); }
-  html.dark.rw #title-bar:not(#_)::before{ background:rgba(14,15,22,.97); }
-  html.alto-retro.rw #title-bar:not(#_)::before{ background:rgba(0,0,0,.97); border-bottom-color:rgba(217,174,85,.32); }
+  html.dark.rw #title-bar:not(#_)::before{ background:rgba(14,15,22,.99); }
+  html.alto-retro.rw #title-bar:not(#_)::before{ background:rgba(0,0,0,.99); border-bottom-color:rgba(217,174,85,.32); }
 }
 html.dark .tile-emblem{ opacity:.22; }
 /* Q3B: the strip is the timeline's own colours; in the dark theme the same hues a tenth dimmer */
