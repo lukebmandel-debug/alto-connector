@@ -275,3 +275,15 @@ def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_c
     pg.tap("#detail-back-fixed")
     pg.wait_for_timeout(1000)
     assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")
+
+
+def test_the_3d_star_chart_canvas_shows_on_a_phone(pg, site):
+    """The phone remap turned `html.sk-3d:not(.mobile) #sk3d` into `...:not(.phone-whole)`, so on a phone the canvas stayed
+    display:none (0x0), the DOM bodies were hidden by the 3D rules and only the stars showed (Luke's iPhone, 2026-11-01)."""
+    _go(pg, site + "/system.html?view=card")
+    pg.evaluate("window._altoSolarStyles.set('3d')")
+    pg.wait_for_timeout(1800)
+    box = pg.evaluate("""(() => { const c = document.getElementById('sk3d'), r = c.getBoundingClientRect(), s = getComputedStyle(c);
+      const G = window._altoSolarGeo(), n = Object.keys(G.bodies).filter(id => { const q = window._altoSolar3D.project(id); return q && isFinite(q.x) && isFinite(q.y); }).length;
+      return [s.display, s.position, Math.round(r.width), Math.round(r.height), innerWidth, innerHeight, n > 0]; })()""")
+    assert box[:2] == ["block", "fixed"] and box[2:4] == box[4:6] and box[6]

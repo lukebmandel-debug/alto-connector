@@ -253,7 +253,7 @@ document.addEventListener('touchcancel', function(){ if(G) pinchEnd(); T=null; c
    their rules are written for html.mobile, so here the ones for that chrome are copied for html.phone-whole and the
    desktop rules for the same pieces stand down. A board's own rules (the cards, the canvas, a detail page) are left
    to the desktop. ── */
-var BOARD=/#(canvas|world|river-svg|solar-svg|glass-slab|detail-page|detail-content|detail-[\w-]+|sol-[\w-]+|lanes-[\w-]+|pal-[\w-]+|bldg-[\w-]+|wpal-[\w-]+)(?![\w-])|\.(node|node-[\w-]+|unit-bar|phase-[\w-]+|edge[\w-]*|detail-[\w-]+|mobile-featured)(?![\w-])|(^|[\s>+~])mark(?![\w-])/;
+var BOARD=/#(canvas|world|river-svg|solar-svg|glass-slab|detail-page|detail-content|detail-[\w-]+|sol-[\w-]+|sk3d(?:-[\w-]+)?|lanes-[\w-]+|pal-[\w-]+|bldg-[\w-]+|wpal-[\w-]+)(?![\w-])|\.(node|node-[\w-]+|unit-bar|phase-[\w-]+|edge[\w-]*|detail-[\w-]+|mobile-featured)(?![\w-])|(^|[\s>+~])mark(?![\w-])/;
 var done=typeof WeakSet==='function' ? new WeakSet() : null, extra=[];
 function parts(s){ var o=[], d=0, b=0; for(var i=0;i<s.length;i++){ var c=s[i]; if(c==='('||c==='[') d++; else if(c===')'||c===']') d--; else if(c===','&&!d){ o.push(s.slice(b,i)); b=i+1; } } o.push(s.slice(b)); return o; }
 function rules(list, wrap){
