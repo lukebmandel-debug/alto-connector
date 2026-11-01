@@ -668,6 +668,75 @@ def seam_node(p_page, seam_segs=None, snaps=None, r=CW):
     return tuple(p_page)
 
 
+SPLIT_NEAR = 0.6         # blocks: a node this near a forced diagonal's real course may take a split (_order_split)
+SPLIT_MAX = 12           # nodes tried per piece, nearest the course first
+SPLIT_END = 1.5          # blocks: no split this near a piece's end
+
+
+REAL_TIE = 50.0          # real px: real crossings closer than this have no order (city_report TH order_tie_m)
+
+
+def _inv_of(chain, path, nodes, real=None):
+    """Swapped pairs of lattice lines along path: against the real crossings (real: city_engine._real_order) when given,
+    else against the mapped chain's own."""
+    xs = sorted({round(q[0], 1) for q in nodes})
+    ys = sorted({round(q[1], 1) for q in nodes})
+    if real:
+        return _order_inv(real, _crossings(path, xs, ys), REAL_TIE, (CW + CH) / 4)
+    return _order_inv(_crossings(chain, xs, ys), _crossings(path, xs, ys), ORDER_TIE * CH, (CW + CH) / 4)
+
+
+def _xpt(a, b, c, d):
+    """Where segments ab and cd cross, or None."""
+    den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0])
+    if abs(den) < 1e-9:
+        return None
+    t = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den
+    u = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den
+    return (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])) if 0 <= t <= 1 and 0 <= u <= 1 else None
+
+
+def _order_split(loc, res, nodes, fixed, mode, bend_px, avoid, real=None, depth=2):
+    """A forced diagonal piece that crosses two lattice lines in the other order than the real avenue does (a 45-degree run
+    standing for Washington's 24-degree Rhode Island Avenue passes Q Street and 10th Street the wrong way round) is split
+    once, at the drawn node its real course passes nearest: both lines then meet the avenue at that node, in no order,
+    and each half keeps at most 2 bends. -> [res] or [res_a, res_b]."""
+    if not nodes or len(loc) < 3:
+        return [res]
+    core = res["p"][(1 if res["j"][0] and fixed[0] is None else 0):len(res["p"]) - (1 if res["j"][1] and fixed[1] is None else 0)]
+    inv0 = _inv_of(loc, core, nodes, real)
+    if not inv0:
+        return [res]
+    acc = [0.0]
+    for a, b in zip(loc, loc[1:]):
+        acc.append(acc[-1] + math.dist(a, b))
+    gap, near = SPLIT_END * CW, SPLIT_NEAR * min(CW, CH)
+    ix = PolyIndex(loc, 120.0)
+    cand = sorted((ix.dist(q, near + 1), q) for q in nodes if ix.dist(q, near + 1) <= near)[:SPLIT_MAX]
+    best = None
+    for _, q in cand:
+        k = min(range(len(loc)), key=lambda j: math.dist(loc[j], q))
+        if not (gap <= acc[k] <= acc[-1] - gap):
+            continue
+        a = draw_piece(loc[:k + 1], nodes, (fixed[0], q), mode=mode, bend_px=bend_px, avoid=avoid)
+        b = draw_piece(loc[k:], nodes, (q, fixed[1]), mode=mode, bend_px=bend_px, avoid=avoid)
+        if not a or not b:
+            continue
+        ca = a["p"][(1 if a["j"][0] and fixed[0] is None else 0):]
+        cb = b["p"][:len(b["p"]) - (1 if b["j"][1] and fixed[1] is None else 0)]
+        inv = _inv_of(loc, ca + cb[1:], nodes, real)
+        key = (inv, a["fit"] + b["fit"])
+        if inv < inv0 and (best is None or key < best[0]):
+            best = (key, a, b, k, q)
+    if not best:
+        return [res]
+    if best[0][0] and depth > 1:                 # still a swap: each half may be split once more
+        _, a, b, k, q = best
+        return (_order_split(loc[:k + 1], a, nodes, (fixed[0], q), mode, bend_px, avoid, real, depth - 1) +
+                _order_split(loc[k:], b, nodes, (q, fixed[1]), mode, bend_px, avoid, real, depth - 1))
+    return [best[1], best[2]]
+
+
 def draw(recs, domains, nodes, seams=None, mode="page45", bend_px=BEND_PX):
     """Page polylines of every avenue's diagonal pieces. domains: [Domain] with `mapping` (real -> local; a
     palace_grid.Mapping or any callable) and a/o. nodes: {dom id: [(x, y) local drawn lattice nodes]}.
@@ -714,9 +783,12 @@ def draw(recs, domains, nodes, seams=None, mode="page45", bend_px=BEND_PX):
                              avoid=taken.get(pc["dom"], ()))
             if not res:
                 continue
-            taken.setdefault(pc["dom"], []).extend(zip(res["p"][1:-2], res["p"][2:-1]))
-            page = [to_page(dom, q) for q in res["p"]]
-            drawn.append((i, page, res, pc["dom"]))
+            parts = _order_split(loc, res, nodes.get(pc["dom"], []), tuple(fixed), mode, bend_px,
+                                 taken.get(pc["dom"], ()), pc.get("rx")) if rec.get("forced") else [res]
+            for res in parts:
+                taken.setdefault(pc["dom"], []).extend(zip(res["p"][1:-2], res["p"][2:-1]))
+                page = [to_page(dom, q) for q in res["p"]]
+                drawn.append((i, page, res, pc["dom"]))
         # pieces that meet at a seam node are one street
         merged = []
         for i, page, res, d in drawn:

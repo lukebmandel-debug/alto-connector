@@ -420,13 +420,35 @@
   let remoteTombs = new Set();
   let syncing = false, rerun = false, pushTimer = null;
 
+  /* Cloud saving is off for this account (not on the beta list, or its access ended): the rules refuse its writes (permission-denied), and only that. Say so once, plainly,
+     and stop pushing. Offline, timeouts and every other error keep the old behaviour. */
+  const BETA_ENDED_TEXT = 'Saving to the Alto cloud is off for this account (it is not on the beta list, or its beta access has ended). Your changes are not being saved there. Your work stays here to read, and Save on the Home page keeps a copy.';
+  let ended = false;
+  function writeRefused(e) {
+    if (!e || e.code !== 'permission-denied') return false;
+    if (ended) return true;
+    ended = true; clearTimeout(pushTimer);
+    try {
+      const st = document.createElement('style');
+      st.textContent = '#alto-beta-ended{position:fixed;top:0;left:0;right:0;z-index:2147483000;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top,0px));font:13px/1.4 system-ui,sans-serif;text-align:center;background:var(--surface,#fff);color:var(--text,#1a1a2e);border-bottom:1px solid var(--border,#c8c8d8);pointer-events:none}'
+        + '@media (max-width:640px){#alto-beta-ended{font-size:13px;line-height:1.35;padding:calc(8px + env(safe-area-inset-top,0px)) 16px 8px}}'
+        + 'html.alto-retro #alto-beta-ended{border-bottom-color:rgba(217,174,85,.32);border-radius:0;box-shadow:none}';
+      document.head.appendChild(st);
+      const b = document.createElement('div');
+      b.id = 'alto-beta-ended'; b.setAttribute('role', 'status'); b.textContent = BETA_ENDED_TEXT;
+      document.body.appendChild(b);
+    } catch (_) {}
+    return true;
+  }
+
   function requestSync(trigger) {
+    if (ended) return;
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => { syncNow(trigger).catch(e => console.warn('[AltoCloud] sync failed', e)); }, 250);
+    pushTimer = setTimeout(() => { syncNow(trigger).catch(e => { if (!writeRefused(e)) console.warn('[AltoCloud] sync failed', e); }); }, 250);
   }
 
   async function syncNow(trigger) {
-    if (!cloud.user || remoteUser === undefined) return;
+    if (ended || !cloud.user || remoteUser === undefined) return;
     if (TID && (remoteMain === undefined || remoteReports === undefined)) return;
     if (syncing) { rerun = true; return; }
     syncing = true;

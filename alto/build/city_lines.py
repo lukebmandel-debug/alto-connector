@@ -21,8 +21,9 @@ domain's turned frame (real px turned by -theta about `center`), exactly what pa
 from __future__ import annotations
 
 import math
+import re
 
-from .palace_grid import CW, CH, SNAP_DEG, _dp, _pairs, norm, numbered, Mapping
+from .palace_grid import CW, CH, SNAP_DEG, _dp, _pairs, norm, numbered, lettered, Mapping
 
 MIN_LEN = 380.0          # px of street before a line counts (palace_grid's rule)
 MIN_LEN_MINOR = 700.0    # a residential (k = 4) street must be about half a kilometre long
@@ -107,7 +108,7 @@ def candidates(streets, theta, center, majors=(), must=()):
             k = kbest.get(n, 9)
             for g in groups:
                 tot = sum(it[3] for it in g)
-                need = MIN_LEN if (k <= 3 or numbered(n)) else MIN_LEN_MINOR
+                need = MIN_LEN if (k <= 3 or numbered(n) or lettered(n)) else MIN_LEN_MINOR
                 if tot < need and not imp:
                     continue
                 pos = sum(it[0] * it[3] for it in g) / tot
@@ -124,7 +125,7 @@ def candidates(streets, theta, center, majors=(), must=()):
                 spans.append([lo, hi])
                 lines.append({"n": n, "pos": pos, "spans": spans, "major": n in majors_n, "len": tot,
                               "bridges": bridges, "k": k,
-                              "must": bool(imp or numbered(n) or k <= 1)})
+                              "must": bool(imp or numbered(n) or lettered(n) or k <= 1)})
         lines.sort(key=lambda l: l["pos"])
         kept = []
         for l in lines:
@@ -134,6 +135,9 @@ def candidates(streets, theta, center, majors=(), must=()):
                 # stations and addresses name (P4: the Market-Frankford jog between Spring Garden and Girard)
                 rank = lambda z: (z.get("k", 9) != 0, z["must"], z["major"], z["len"])          # noqa: E731
                 keep, drop = (q, l) if rank(q) >= rank(l) else (l, q)
+                if drop["n"] != keep["n"] and _base(drop["n"]) == _base(keep["n"]):
+                    # one street, two quadrant names on one line (Washington's I Street Northwest / Northeast)
+                    keep["alt"] = sorted(set(keep.get("alt") or [keep["n"]]) | set(drop.get("alt") or [drop["n"]]))
                 keep["spans"] = sorted(keep["spans"] + drop["spans"])
                 keep["bridges"] += drop["bridges"]
                 keep["must"] = keep["must"] or drop["must"]
@@ -213,7 +217,24 @@ def _must_names(domain, avenues, must):
     return out
 
 
-FILL_AT = 1.6           # a kept gap this many targets wide is filled with unnamed slots (see fill)
+_QUAD = re.compile(r"\s+(Northwest|Northeast|Southwest|Southeast|North|South|East|West|NW|NE|SW|SE)$")
+
+
+def _base(n):
+    return _QUAD.sub("", n or "")
+
+
+def _diagonal_names(domain, avenues):
+    """The avenues whose piece in this domain is a diagonal (city_avenues.classify)."""
+    out = set()
+    for av in avenues or ():
+        if isinstance(av, dict) and av.get("kind") == "diagonal" and av.get("dom", av.get("domain")) == getattr(domain, "id", None):
+            if av.get("n") or av.get("name"):
+                out.add(norm(av.get("n") or av.get("name")))
+    return out
+
+
+FILL_AT = 1.6          # a kept gap this many targets wide is filled with unnamed slots (see fill)
 ISO_SLACK = 1.10        # a family whose median kept gap exceeds this many targets sets the domain's own (smaller) scale
 
 
@@ -311,7 +332,11 @@ def select(domain, avenues=None, majors=(), sigma=1.0, must=(), cw=CW, ch=CH, th
     th = domain.theta if theta is None else theta
     ctr = center or centroid(domain.poly)
     mn = _must_names(domain, avenues, must)
-    cand = candidates(domain.streets, th, ctr, majors, mn)
+    # a diagonal avenue is drawn once, as a diagonal (city_avenues.draw): within 25 degrees of an axis it would also be
+    # taken as a row (Washington's Pennsylvania, Rhode Island and New York Avenues, 21-24 degrees off)
+    dg = _diagonal_names(domain, avenues) - mn
+    cand = candidates([s for s in domain.streets if norm(s.get("n") or "") not in dg] if dg else domain.streets,
+                      th, ctr, majors, mn)
     roles = getattr(domain, "roles", "vh") or "vh"
     gv = (cw if roles[0] == "v" else ch)
     gh = (ch if roles[0] == "v" else cw)

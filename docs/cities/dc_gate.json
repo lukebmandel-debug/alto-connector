@@ -1,0 +1,1166 @@
+{
+ "blind_audit": null,
+ "checks": {
+  "G1": {
+   "data": {
+    "domains": {
+     "domains": [
+      {
+       "a": 0.0,
+       "id": 0,
+       "kind": "grid",
+       "km2": 33.93,
+       "legacy": false,
+       "theta": -0.1
+      },
+      {
+       "a": -0.5,
+       "id": 1,
+       "kind": "free",
+       "km2": 3.17,
+       "legacy": false,
+       "theta": 0.0
+      },
+      {
+       "a": -0.1,
+       "id": 2,
+       "kind": "free",
+       "km2": 1.21,
+       "legacy": false,
+       "theta": 0.0
+      }
+     ],
+     "free_share": 0.085,
+     "root_km2": 33.93
+    }
+   },
+   "msg": "domains: 3 domains (grid -0.1\u00b0 33.9 km\u00b2, free 0.0\u00b0 3.2 km\u00b2, free 0.0\u00b0 1.2 km\u00b2)",
+   "rule": "domains sane",
+   "status": "ok",
+   "w": 3
+  },
+  "G10": {
+   "data": {
+    "problems": [],
+    "roads": {
+     "hw0": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 13.3,
+      "n": "12th Street Expressway",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "",
+      "river_x": 0,
+      "river_x_real": 1,
+      "stray": 1.09,
+      "stray90": 0.99,
+      "tunnels": 1,
+      "turns": 1,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 2
+     },
+     "hw1": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 11.8,
+      "n": "9th Street Expressway",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "",
+      "river_x": 0,
+      "river_x_real": 0,
+      "stray": 0.54,
+      "stray90": 0.31,
+      "tunnels": 2,
+      "turns": 0,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 2
+     },
+     "hw12": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 8.0,
+      "n": "Anacostia Freeway",
+      "octi": null,
+      "parts": 1,
+      "ref": "DC-295",
+      "river_x": 0,
+      "river_x_real": 0,
+      "stray": 0.22,
+      "stray90": 0.15,
+      "tunnels": 0,
+      "turns": 1,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 0,
+      "x_real": 2
+     },
+     "hw2": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 3.7,
+      "n": "E Street Expressway",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "",
+      "river_x": 0,
+      "river_x_real": 0,
+      "stray": 0.3,
+      "stray90": 0.29,
+      "tunnels": 1,
+      "turns": 0,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 2
+     },
+     "hw4": {
+      "bridges": 1,
+      "fill_blocks": 0.0,
+      "len_blocks": 14.1,
+      "n": "Custis Memorial Parkway",
+      "octi": 1.0,
+      "parts": 2,
+      "ref": "I-66",
+      "river_x": 1,
+      "river_x_real": 2,
+      "stray": 0.89,
+      "stray90": 0.82,
+      "tunnels": 2,
+      "turns": 1,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 2
+     },
+     "hw5": {
+      "bridges": 1,
+      "fill_blocks": 0.0,
+      "len_blocks": 54.4,
+      "n": "Interstate 395 HOV Lanes",
+      "octi": 1.0,
+      "parts": 2,
+      "ref": "I-395",
+      "river_x": 1,
+      "river_x_real": 3,
+      "stray": 0.75,
+      "stray90": 0.51,
+      "tunnels": 0,
+      "turns": 7,
+      "x": 5,
+      "x_off_line": 0,
+      "x_on_street": 4,
+      "x_real": 5
+     },
+     "hw6": {
+      "bridges": 1,
+      "fill_blocks": 6.2,
+      "len_blocks": 33.1,
+      "n": "Southeast Freeway",
+      "octi": 1.0,
+      "parts": 2,
+      "ref": "I-695",
+      "river_x": 1,
+      "river_x_real": 1,
+      "stray": 1.78,
+      "stray90": 0.97,
+      "tunnels": 0,
+      "turns": 4,
+      "x": 3,
+      "x_off_line": 0,
+      "x_on_street": 3,
+      "x_real": 4
+     },
+     "hw7": {
+      "bridges": 1,
+      "fill_blocks": 0.0,
+      "len_blocks": 8.1,
+      "n": "14th Street Southwest",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "US-1",
+      "river_x": 1,
+      "river_x_real": 1,
+      "stray": 0.5,
+      "stray90": 0.4,
+      "tunnels": 0,
+      "turns": 2,
+      "x": 1,
+      "x_off_line": 0,
+      "x_on_street": 1,
+      "x_real": 1
+     },
+     "hw8": {
+      "bridges": 1,
+      "fill_blocks": 0.0,
+      "len_blocks": 9.7,
+      "n": "Whitehurst Freeway",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "US-29",
+      "river_x": 1,
+      "river_x_real": 1,
+      "stray": 1.09,
+      "stray90": 0.89,
+      "tunnels": 0,
+      "turns": 1,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 2
+     },
+     "hw9": {
+      "bridges": 0,
+      "fill_blocks": 0.0,
+      "len_blocks": 4.8,
+      "n": "Arlington Boulevard",
+      "octi": 1.0,
+      "parts": 1,
+      "ref": "US-50",
+      "river_x": 0,
+      "river_x_real": 0,
+      "stray": 0.56,
+      "stray90": 0.52,
+      "tunnels": 0,
+      "turns": 2,
+      "x": 2,
+      "x_off_line": 0,
+      "x_on_street": 2,
+      "x_real": 2
+     }
+    },
+    "warnings": [
+     "I-395: 1 of 5 interchanges not on a crossing street",
+     "DC-295: 2 of 2 interchanges not on a crossing street"
+    ]
+   },
+   "msg": "10 highways, 0 problems, 2 warnings (12th Street Expressway 1 turns stray 1.1 x 2/2, 9th Street Expressway 0 turns stray 0.5 x 2/2, E Street Expressway 0 turns stray 0.3 x 2/2, I-66 1 turns stray 0.9 x 2/2, I-395 7 turns stray 0.8 x 5/5, I-695 4 turns stray 1.8 x 3/4, US-1 2 turns stray 0.5 x 1/1, US-29 1 turns stray 1.1 x 2/2, US-50 2 turns stray 0.6 x 2/2, DC-295 1 turns stray 0.2 x 2/2)",
+   "rule": "highways",
+   "status": "warn",
+   "w": 4
+  },
+  "G11": {
+   "data": {
+    "cut": {
+     "cut": 0,
+     "share": 0.0,
+     "total": 2550
+    }
+   },
+   "msg": "cut: 0 of 2550 blocks cut or open (0.0%)",
+   "rule": "cut blocks",
+   "status": "ok",
+   "w": 3
+  },
+  "G12": {
+   "data": {
+    "size": {
+     "H": 16120,
+     "W": 18031,
+     "kb": 42.1,
+     "ratio": 0.84
+    }
+   },
+   "msg": "size: 18031x16120 px, 372 streets, 42 kB packed (0.84x Philadelphia 1.9.78 per km\u00b2)",
+   "rule": "data size per km2",
+   "status": "ok",
+   "w": 3
+  },
+  "G13": {
+   "msg": "overlap: one page region",
+   "rule": "page overlap",
+   "status": "ok",
+   "w": 3
+  },
+  "G14": {
+   "data": {
+    "fronts": {
+     "bad": []
+    },
+    "spacing": {
+     "bad": [],
+     "median": {
+      "E-W": 1.1,
+      "N-S": 1.09
+     },
+     "pairs": 87
+    }
+   },
+   "msg": "spacing: 135 landmark pair-axes; 0 drawn too far or too close in blocks; median drawn/real N-S 1.09, E-W 1.1; fronts: 4 landmark fronts; 0 over 1.0 block from the line of the street they stand on",
+   "rule": "landmark spacing / fronts",
+   "status": "ok",
+   "w": 6
+  },
+  "G15": {
+   "data": {
+    "bands": {
+     "Anacostia River": 100,
+     "Potomac River": 230,
+     "Rock Creek": 100,
+     "Washington Channel": 100
+    },
+    "missing": [],
+    "thin": [],
+    "wet": []
+   },
+   "msg": "0 points in water (-); 4 bands, 0 under 40 px; channels missing: none",
+   "rule": "dry land",
+   "status": "ok",
+   "w": 5
+  },
+  "G16": {
+   "data": {
+    "missing": [
+     "Logan Circle",
+     "Thomas Circle",
+     "Scott Circle",
+     "Washington Circle Park"
+    ],
+    "missing_must": [],
+    "on": [
+     [
+      "Washington Monument",
+      "Washington Monument Grounds"
+     ],
+     [
+      "Washington Monument",
+      "Washington Monument Grounds"
+     ],
+     [
+      "the Castle",
+      "National Mall"
+     ],
+     [
+      "the Castle",
+      "National Mall"
+     ]
+    ],
+    "real": [
+     [
+      "23rd Street Northwest",
+      "West Potomac Park",
+      540
+     ],
+     [
+      "23rd Street Northwest",
+      "West Potomac Park",
+      540
+     ],
+     [
+      "17th Street Northwest",
+      "The White House and President's Park",
+      260
+     ],
+     [
+      "16th Street Northwest",
+      "The White House and President's Park",
+      540
+     ],
+     [
+      "15th Street Northwest",
+      "Washington Monument Grounds",
+      2220
+     ],
+     [
+      "15th Street Northwest",
+      "Washington Monument Grounds",
+      300
+     ],
+     [
+      "15th Street Northwest",
+      "The White House and President's Park",
+      820
+     ],
+     [
+      "7th Street Northwest",
+      "National Mall",
+      820
+     ],
+     [
+      "4th Street Southwest",
+      "National Mall",
+      1100
+     ],
+     [
+      "H Street Northwest",
+      "Lafayette Square",
+      460
+     ],
+     [
+      "E Street Northwest",
+      "The White House and President's Park",
+      700
+     ],
+     [
+      "Independence Avenue Southwest",
+      "West Potomac Park",
+      2140
+     ],
+     [
+      "Independence Avenue Southwest",
+      "Washington Monument Grounds",
+      940
+     ],
+     [
+      "Southeast Freeway",
+      "Anacostia Park Section D",
+      30
+     ],
+     [
+      "New Hampshire Avenue Northwest",
+      "Dupont Circle",
+      80
+     ],
+     [
+      "Pennsylvania Avenue Southeast",
+      "Seward Square",
+      581
+     ],
+     [
+      "Pennsylvania Avenue Northwest",
+      "National Mall",
+      421
+     ],
+     [
+      "Carolina Avenue Southeast",
+      "Seward Square",
+      552
+     ]
+    ],
+    "through": []
+   },
+   "msg": "36 parks drawn; must-parks missing 0, named missing 4; 0 streets through a park (18 more the real street does too); 4 landmarks on a park",
+   "rule": "parks",
+   "status": "warn",
+   "w": 3
+  },
+  "G17": {
+   "data": {
+    "overlaps": []
+   },
+   "msg": "15 landmarks drawn (8-24); 0 card overlaps",
+   "rule": "landmarks",
+   "status": "ok",
+   "w": 4
+  },
+  "G18": {
+   "data": {
+    "landmark_pairs": [
+     [
+      "the Capitol",
+      "Supreme Court"
+     ],
+     [
+      "Washington Monument",
+      "the Castle"
+     ],
+     [
+      "National Archives",
+      "Prettyman Courthouse"
+     ],
+     [
+      "Natural History Museum",
+      "American History Museum"
+     ]
+    ],
+    "off": [],
+    "overlaps": [],
+    "under_landmark": []
+   },
+   "msg": "7 top names at the whole-city zoom (x0.056): 0 overlap each other, 0 under a landmark name, 0 off the glass (4 landmark-name pairs meet: the page shows one)",
+   "rule": "labels",
+   "status": "ok",
+   "w": 4
+  },
+  "G19": {
+   "data": {
+    "buildings": 100,
+    "stored": 537810
+   },
+   "msg": "stored page 525 KB with 100 buildings (fail > 976 KB, warn > 900 KB)",
+   "rule": "page bytes",
+   "status": "ok",
+   "w": 6
+  },
+  "G2": {
+   "data": {
+    "phantom": {
+     "lines": 231,
+     "low": 52,
+     "median": 0.567,
+     "share": 0.225,
+     "unnamed": 19,
+     "worst": [
+      [
+       0.0,
+       "(unnamed)",
+       1.1
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       1.2
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       1.2
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       2.6
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       3.0
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       26.0
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       26.0
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       27.3
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       35.5
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       41.0
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       41.0
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       42.3
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       42.3
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       45.1
+      ],
+      [
+       0.0,
+       "(unnamed)",
+       51.5
+      ]
+     ]
+    }
+   },
+   "msg": "phantom: 52 of 231 lattice lines (23%) are under 25% real (median coverage 0.57)",
+   "rule": "phantom lines",
+   "status": "ok",
+   "w": 6
+  },
+  "G20": {
+   "data": {
+    "base_gz": 124661,
+    "bytes": 74977,
+    "max": 6012,
+    "tiles": 56
+   },
+   "msg": "base 121 KB gz (max 350); 56 tiles, largest 5 KB gz (max 64); 73 KB gz in all",
+   "rule": "tiles",
+   "status": "ok",
+   "w": 3
+  },
+  "G21": {
+   "data": {
+    "overpass": {
+     "note": "every OpenStreetMap answer came from the local cache",
+     "requests": 0,
+     "served_by": {}
+    },
+    "set_up_s": 91.1,
+    "source": "cache"
+   },
+   "msg": "set_up 91.1 s from the cache (warn > 60 s); map from cache",
+   "rule": "build time",
+   "status": "warn",
+   "w": 2
+  },
+  "G22": {
+   "data": {
+    "same": true
+   },
+   "msg": "two builds give identical map data",
+   "rule": "determinism",
+   "status": "ok",
+   "w": 3
+  },
+  "G3": {
+   "data": {
+    "displacement": {
+     "n": 52,
+     "over": 0,
+     "rel_median": 0.81,
+     "unmatched": [],
+     "worst": [
+      [
+       1.3,
+       "Foggy Bottom\u2013GWU",
+       "stop"
+      ],
+      [
+       1.22,
+       "Potomac Avenue",
+       "stop"
+      ],
+      [
+       1.19,
+       "Potomac Avenue",
+       "stop"
+      ],
+      [
+       1.12,
+       "Smithsonian",
+       "stop"
+      ],
+      [
+       1.12,
+       "Navy Yard\u2013Ballpark",
+       "stop"
+      ],
+      [
+       1.09,
+       "Rhode Island Avenue\u2013Brentwood",
+       "stop"
+      ],
+      [
+       1.07,
+       "Waterfront",
+       "stop"
+      ],
+      [
+       1.05,
+       "Federal Triangle",
+       "stop"
+      ],
+      [
+       1.04,
+       "Union Station",
+       "stop"
+      ],
+      [
+       1.04,
+       "Shaw\u2013Howard University",
+       "stop"
+      ],
+      [
+       1.03,
+       "Mount Vernon Square",
+       "stop"
+      ],
+      [
+       1.03,
+       "Federal Triangle",
+       "stop"
+      ]
+     ]
+    }
+   },
+   "msg": "displacement: 52 points; 0 over 1.5 blocks, worst 1.30 (Foggy Bottom\u2013GWU)",
+   "rule": "landmark/stop displacement",
+   "status": "warn",
+   "w": 6
+  },
+  "G4": {
+   "data": {
+    "order": {
+     "avenues": [],
+     "stops": []
+    }
+   },
+   "msg": "order: 0 stop-order swaps; 0 of 18 avenues cross streets out of order",
+   "rule": "order",
+   "status": "ok",
+   "w": 6
+  },
+  "G5": {
+   "data": {
+    "side": {
+     "bad": [],
+     "n_bad": 0
+    }
+   },
+   "msg": "side: 0 of 10410 points on the wrong side (10364 lots checked)",
+   "rule": "side of river/seam",
+   "status": "ok",
+   "w": 8
+  },
+  "G6": {
+   "data": {
+    "cross_seam": {
+     "bad": []
+    },
+    "seam_fidelity": {
+     "seams": []
+    }
+   },
+   "msg": "seam_fidelity: no seams; tjoin: no lines end on a seam; cross_seam: 0 non-hinge lines cross a seam",
+   "rule": "seams",
+   "status": "ok",
+   "w": 6
+  },
+  "G7": {
+   "data": {
+    "ends": {
+     "examples": [],
+     "free_dead_ends": 77,
+     "n": 0,
+     "overhang": 7,
+     "overhang_examples": [
+      [
+       "16th Street Northwest",
+       6830,
+       7546
+      ],
+      [
+       "Rhode Island Avenue Northwest",
+       9539,
+       3497
+      ],
+      [
+       "Massachusetts Avenue Northwest",
+       11508,
+       6343
+      ],
+      [
+       "Vermont Avenue Northwest",
+       7498,
+       5158
+      ],
+      [
+       "Vermont Avenue Northwest",
+       8524,
+       3632
+      ],
+      [
+       "Maryland Avenue Northeast",
+       16964,
+       6572
+      ],
+      [
+       "New Jersey Avenue Northwest",
+       11692,
+       5168
+      ]
+     ]
+    }
+   },
+   "msg": "ends: 0 line ends land on nothing inside the grid; 7 run past its edge",
+   "rule": "dangling ends",
+   "status": "warn",
+   "w": 5
+  },
+  "G8": {
+   "data": {
+    "avenues": {
+     "avenues": {
+      "California Street Northwest": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 2952,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Carolina Avenue Southeast": {
+       "bends": [
+        1,
+        1,
+        1
+       ],
+       "dangling": 0,
+       "len": 7693,
+       "non_octi": 0,
+       "pieces": 3
+      },
+      "Columbia Road Northwest": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 2835,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Connecticut Avenue Northwest": {
+       "bends": [
+        1,
+        1,
+        0
+       ],
+       "dangling": 0,
+       "len": 4607,
+       "non_octi": 0,
+       "pieces": 3
+      },
+      "Florida Avenue Northeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 3384,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Florida Avenue Northwest": {
+       "bends": [
+        1
+       ],
+       "dangling": 0,
+       "len": 9000,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Kentucky Avenue Southeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 3937,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Maine Avenue Southwest": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 1388,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Maryland Avenue Northeast": {
+       "bends": [
+        0
+       ],
+       "dangling": 0,
+       "len": 643,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Massachusetts Avenue Northwest": {
+       "bends": [
+        2,
+        1,
+        1,
+        1
+       ],
+       "dangling": 0,
+       "len": 13251,
+       "non_octi": 0,
+       "pieces": 4
+      },
+      "New Hampshire Avenue Northwest": {
+       "bends": [
+        2,
+        1
+       ],
+       "dangling": 0,
+       "len": 6347,
+       "non_octi": 0,
+       "pieces": 2
+      },
+      "New Jersey Avenue Northwest": {
+       "bends": [
+        0,
+        2,
+        1
+       ],
+       "dangling": 0,
+       "len": 4689,
+       "non_octi": 0,
+       "pieces": 3
+      },
+      "New Jersey Avenue Southeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 4759,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "New York Avenue Northeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 2232,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "New York Avenue Northwest": {
+       "bends": [
+        1
+       ],
+       "dangling": 0,
+       "len": 1876,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Pennsylvania Avenue Northwest": {
+       "bends": [
+        2,
+        2
+       ],
+       "dangling": 0,
+       "len": 10524,
+       "non_octi": 0,
+       "pieces": 2
+      },
+      "Pennsylvania Avenue Southeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 5156,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "R Street Northwest": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 2752,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Rhode Island Avenue Northeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 2788,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Rhode Island Avenue Northwest": {
+       "bends": [
+        1,
+        2
+       ],
+       "dangling": 0,
+       "len": 7482,
+       "non_octi": 0,
+       "pieces": 2
+      },
+      "Rock Creek and Potomac Parkway Northwest": {
+       "bends": [
+        1
+       ],
+       "dangling": 0,
+       "len": 5138,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Vermont Avenue Northwest": {
+       "bends": [
+        0,
+        0,
+        1
+       ],
+       "dangling": 0,
+       "len": 2996,
+       "non_octi": 0,
+       "pieces": 3
+      },
+      "Virginia Avenue Northwest": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 4724,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Virginia Avenue Southeast": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 3308,
+       "non_octi": 0,
+       "pieces": 1
+      },
+      "Wisconsin Avenue Northwest": {
+       "bends": [
+        2
+       ],
+       "dangling": 0,
+       "len": 4876,
+       "non_octi": 0,
+       "pieces": 1
+      }
+     },
+     "bad": []
+    }
+   },
+   "msg": "avenues: 25 avenues; 0 break the rules",
+   "rule": "avenues",
+   "status": "ok",
+   "w": 3
+  },
+  "G9": {
+   "data": {
+    "transit": {
+     "lines": {
+      "blue": {
+       "blocks": 71.7,
+       "length": 18650,
+       "stops": [
+        10,
+        10
+       ],
+       "stray": 2.33,
+       "stray90": 1.16,
+       "turns": 18
+      },
+      "green": {
+       "blocks": 61.6,
+       "length": 16004,
+       "stops": [
+        8,
+        8
+       ],
+       "stray": 1.25,
+       "stray90": 1.03,
+       "turns": 10
+      },
+      "orange": {
+       "blocks": 78.4,
+       "length": 20396,
+       "stops": [
+        11,
+        11
+       ],
+       "stray": 1.53,
+       "stray90": 1.16,
+       "turns": 18
+      },
+      "red": {
+       "blocks": 77.5,
+       "length": 20153,
+       "stops": [
+        8,
+        8
+       ],
+       "stray": 1.85,
+       "stray90": 1.21,
+       "turns": 41
+      },
+      "silver": {
+       "blocks": 78.4,
+       "length": 20396,
+       "stops": [
+        11,
+        11
+       ],
+       "stray": 1.53,
+       "stray90": 1.13,
+       "turns": 18
+      },
+      "yellow": {
+       "blocks": 37.1,
+       "length": 9640,
+       "stops": [
+        6,
+        6
+       ],
+       "stray": 1.14,
+       "stray90": 0.47,
+       "turns": 3
+      }
+     },
+     "problems": []
+    }
+   },
+   "msg": "transit: 0 transit problems (red 41 turns stray 1.9, blue 18 turns stray 2.3, orange 18 turns stray 1.5, silver 18 turns stray 1.5, green 10 turns stray 1.2, yellow 3 turns stray 1.1)",
+   "rule": "transit",
+   "status": "ok",
+   "w": 6
+  }
+ },
+ "city": {
+  "bbox": [
+   38.865,
+   -77.072,
+   38.925,
+   -76.982
+  ],
+  "engine": {
+   "domains": 1,
+   "layout": "dc",
+   "path": "v2",
+   "seams": []
+  },
+  "place": "Washington, D.C.",
+  "preset": "dc"
+ },
+ "fail": [],
+ "pass": true,
+ "ran": [
+  "G1",
+  "G2",
+  "G3",
+  "G4",
+  "G5",
+  "G6",
+  "G7",
+  "G8",
+  "G9",
+  "G10",
+  "G11",
+  "G12",
+  "G13",
+  "G14",
+  "G15",
+  "G16",
+  "G17",
+  "G18",
+  "G19",
+  "G20",
+  "G21",
+  "G22"
+ ],
+ "score": 89.8,
+ "skipped": [],
+ "warn": [
+  "G3 landmark/stop displacement: displacement: 52 points; 0 over 1.5 blocks, worst 1.30 (Foggy Bottom\u2013GWU)",
+  "G7 dangling ends: ends: 0 line ends land on nothing inside the grid; 7 run past its edge",
+  "G10 highways: 10 highways, 0 problems, 2 warnings (12th Street Expressway 1 turns stray 1.1 x 2/2, 9th Street Expressway 0 turns stray 0.5 x 2/2, E Street Expressway 0 turns stray 0.3 x 2/2, I-66 1 turns stray 0.9 x 2/2, I-395 7 turns stray 0.8 x 5/5, I-695 4 turns stray 1.8 x 3/4, US-1 2 turns stray 0.5 x 1/1, US-29 1 turns stray 1.1 x 2/2, US-50 2 turns stray 0.6 x 2/2, DC-295 1 turns stray 0.2 x 2/2)",
+  "G16 parks: 36 parks drawn; must-parks missing 0, named missing 4; 0 streets through a park (18 more the real street does too); 4 landmarks on a park",
+  "G21 build time: set_up 91.1 s from the cache (warn > 60 s); map from cache"
+ ]
+}

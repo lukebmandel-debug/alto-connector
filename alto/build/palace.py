@@ -1194,12 +1194,15 @@ function streetLabels(svg, defs, g){
     kept.forEach(function(q, pi){
       var p=q.p.slice(), dx=p[p.length-2]-p[0], dy=p[p.length-1]-p[1];
       if((Math.abs(dx)>=Math.abs(dy) && dx<0) || (Math.abs(dx)<Math.abs(dy) && dy>0)){ var r=[]; for(var i=p.length-2;i>=0;i-=2) r.push(p[i],p[i+1]); p=r; }
-      var id='pls'+(svg._sid||'')+'-'+(uid++); el('path',{id:id, d:pts(p)},defs);
+      var id='pls'+(svg._sid||'')+'-'+(uid++); el('path',{id:id, d:pts(p)},defs); var rp=null, rid=id+'r';
       var every=1150, n0=Math.max(1,Math.floor(q.L/every));
-      for(var j=0;j<n0;j++){ var off=(q.L/n0)*(j+.5);
+      for(var j=0;j<n0;j++){ var off=(q.L/n0)*(j+.5), pid=id, pp=p, po=off;
+        /* a road that bends back on itself runs the other way at this label (the shore road at Chicago's top): it is set along the
+           reversed path there, so it never reads upside-down */
+        if(Math.cos(atLen(p, off)[2])<-.35){ if(!rp){ rp=[]; for(var i=p.length-2;i>=0;i-=2) rp.push(p[i],p[i+1]); el('path',{id:rid, d:pts(rp)},defs); } pid=rid; pp=rp; po=q.L-off; }
         var t=el('text',{'class':'pl-st'+(TOP[n]?' top':'')+(q.k>=2?' minor':'')+(pi===0 && j===(n0>>1)?' r0':''), dy:'.35em'},g);
-        t._g=atLen(p, off); t._pr=(TOP[n]?600:q.k>=2?150:300)+Math.min(90, q.L/400)+(pi===0 && j===(n0>>1)?5:0)-pi;   /* the label pass (lblFit) */
-        t.setAttribute('data-n', n); var tp=el('textPath',{href:'#'+id, startOffset:off, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=n; }
+        t._g=atLen(pp, po); t._pr=(TOP[n]?600:q.k>=2?150:300)+Math.min(90, q.L/400)+(pi===0 && j===(n0>>1)?5:0)-pi;   /* the label pass (lblFit) */
+        t.setAttribute('data-n', n); var tp=el('textPath',{href:'#'+pid, startOffset:po, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+pid); tp.textContent=n; }
     });
   });
 }
@@ -1302,7 +1305,10 @@ function riverLabels(svg, defs, parent, r, k){
   var lo=-1, hi=-1; for(i=0;i<n;i++){ var x=p[2*i], y=p[2*i+1], on=x>40 && x<M.W-40 && y>40 && y<M.H-40; if(on){ if(lo<0) lo=i; hi=i; } }
   if(lo<0 || hi-lo<4) return;
   var s0=cum[lo], s1=cum[hi], fs=Math.max(20, (r.w||100)*.21), tot=cum[n-1], L=s1-s0;
-  var fw=null, bw=null, cnt=Math.max(1,Math.round(L/(fs*r.n.length*1.5+1500)));
+  /* the name is as large as the whole-city view sets it (13px on the screen): two copies a nominal spacing apart then overprint,
+     and one set too near the course's end runs off it ("OCK CREEK"); so the copies stand that far apart and clear of both ends */
+  var tl=r.n.length*.68*Math.max(13/fitZ(), fs), mg=Math.min(L*.3, tl*.55); s0+=mg; L-=2*mg;
+  var fw=null, bw=null, cnt=Math.max(1,Math.round(L/Math.max(fs*r.n.length*1.5+1500, tl*1.4)));
   function tangent(s){ for(var q=1;q<n-1 && cum[q]<s;q++); var a=Math.max(0,q-3), b=Math.min(n-1,q+3); return [p[2*b]-p[2*a], p[2*b+1]-p[2*a+1]]; }
   for(var j=0;j<cnt;j++){ var s=s0+L*(j+.5)/cnt, tg=tangent(s), tl=Math.hypot(tg[0],tg[1])||1, rev=tg[0]<-.35*tl?true:tg[0]>.35*tl?false:tg[1]>0, id='plr'+(svg._sid||'')+k+(rev?'b':'f');
     if(rev? !bw : !fw){ var pp=p; if(rev){ pp=[]; for(i=n-1;i>=0;i--) pp.push(p[2*i],p[2*i+1]); } el('path',{id:id, d:smoothD(pp)},defs); if(rev) bw=1; else fw=1; }
@@ -1599,7 +1605,7 @@ function lblFit(svg, viewOnly){
         function free(b, relax){ it.why='';
           if(hitKept(b)){ it.why='name:'+(hitBy.it?hitBy.it.t.textContent:''); return false; }
           var ho=null; if(obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && ((o.own && !(relax && o.el.classList.contains('lm-card')) && o.own.getAttribute('data-name')!==t.parentNode.getAttribute('data-name')) || o.portal))) && obbHit(b, o) && (ho=o); })){ it.why='card:'+(ho.el.getAttribute('class')||'')+':'+(ho.own?ho.own.getAttribute('data-name'):''); return false; }   /* a landmark's name never under another's card (unless nothing else is free) */
-          var hn=null; if((it.k==='pl-area' || it.k==='lm-name') && nodes.some(function(o){ return obbHit(b, (it.k==='lm-name' && o.ext) || o) && (hn=o); })){ it.why='node:'+(hn.el?hn.el.getAttribute('data-id')||hn.el.id:''); return false; }
+          var hn=null; if((it.k==='pl-area' || it.k==='lm-name' || it.k==='pl-pkt') && nodes.some(function(o){ return obbHit(b, (it.k==='lm-name' && o.ext) || o) && (hn=o); })){ it.why='node:'+(hn.el?hn.el.getAttribute('data-id')||hn.el.id:''); return false; }
           return true; }
         var b=null;
         if(card){ spots=lmSpots(card, [g[0], g[1]], alt, fs, it.q*fs, z, it.spot); ok=false;
