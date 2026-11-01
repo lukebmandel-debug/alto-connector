@@ -72,6 +72,10 @@ def test_the_final_text_is_version_1_0_with_no_draft_marks():
         assert not re.search(r"\[(?![^\]]*\]\()", md)                                   # no bracketed placeholder: a [ only opens a link
     priv = (ROOT / "alto" / "legal" / "privacy-policy.md").read_text(encoding="utf-8")
     assert "Google records the name, email address and profile photo" in priv and "stored in our database under your account" in priv
+    assert "Help improve Bass (off unless you tick it)" in priv and "Bass conversations you share (optional)" in priv and "15 February 2027" in priv
+    assert "third-party analytics tools or trackers" in priv and "only if you opt in, to read Bass conversations" in priv
+    assert "Records of who opened saved Bass conversations are kept for 400 days." in priv and "AI tools**: If you opt in" in priv
+    assert "plus anything you choose to share under Help improve Bass" in (ROOT / "alto" / "legal" / "beta-terms.md").read_text(encoding="utf-8")
 
 
 def test_the_version_is_one_file_the_cloud_script_reads():
