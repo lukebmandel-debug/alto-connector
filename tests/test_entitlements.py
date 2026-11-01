@@ -247,6 +247,7 @@ def test_the_sheet_reads_in_ink_and_its_phone_rows_are_44px(homepage):
       return {cancel: c(document.querySelector('.share-menu .sm-quiet')) === c(t), plan: c(document.querySelector('.share-menu .sm-pick[data-format="world"] small')) === c(t),
               row: document.querySelector('.share-menu .sm-pick[data-format="outline"], .share-menu .sm-pick[data-format="system"]').getBoundingClientRect().height} }""")
     assert got["cancel"] and got["plan"] and got["row"] < 44                             # desktop rows are as they were
+    assert pg.evaluate("getComputedStyle(document.querySelector('.share-menu .sm-pick[data-format=\"world\"]')).opacity") == "1"     # not dimmed: the plan line keeps its ink
     pg.set_viewport_size({"width": 390, "height": 844})
     pg.wait_for_timeout(200)
     rows = pg.evaluate("[...document.querySelectorAll('.share-menu .sm-pick, .share-menu .sm-quiet')].map(b => b.getBoundingClientRect().height)")

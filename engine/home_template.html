@@ -828,7 +828,7 @@
   /* the convert sheet sits over the art: a firmer plate (94%), ink-dark Cancel and plan lines (4.5:1), phone rows 44px */
   .share-menu.sm-convert{ background:color-mix(in srgb, var(--surface) 94%, transparent); }
   .share-menu.sm-convert .sm-quiet, .share-menu.sm-convert .sm-pick small{ color:var(--text); }
-  .share-menu.sm-convert .sm-pick[disabled]{ cursor:default; border-style:dashed; }
+  .share-menu.sm-convert .sm-pick[disabled]{ opacity:1; color:var(--muted); cursor:default; border-style:dashed; }   /* (the sheet's generic disabled dimming would take the plan line below 4.5:1) */
   .share-menu.sm-convert .sm-pick[disabled] small{ font-weight:600; }
   .share-menu.sm-convert .sm-note.sm-ask{ font-size:14px; line-height:1.5; color:var(--text); }
   @media (max-width:640px){ .share-menu.sm-convert .sm-pick{ min-height:44px; } .share-menu.sm-convert .sm-quiet{ min-height:44px; } }
