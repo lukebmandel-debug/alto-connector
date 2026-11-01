@@ -58,7 +58,7 @@ SOLAR_CSS = r"""
      is hidden while the face shows): the Sun's own face comes back, its name on the disc; the one-line hint below the chart goes on the first touch */
   html.phone-whole.alto-solar #world .node[data-solar=sun] .sol-face{display:flex !important;}
   #sol-phone-hint{display:none;}
-  html.phone-whole.alto-solar #sol-phone-hint{display:block;position:fixed;z-index:60;left:50%;bottom:calc(98px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100vw - 32px);box-sizing:border-box;
+  html.phone-whole.alto-solar #sol-phone-hint{display:block;position:fixed;z-index:60;left:50%;bottom:calc(98px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;
     padding:8px 14px;border-radius:12px;font:500 13px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#14142b;background:rgba(255,255,255,.9);text-align:center;pointer-events:none;
     box-shadow:0 1px 8px rgba(0,0,0,.25);transition:opacity .35s;}
   html.phone-whole.alto-solar.sk-retro #sol-phone-hint{color:#efe6cf;background:rgba(0,0,0,.9);border:1px solid #d9ae55;border-radius:0;box-shadow:none;}
