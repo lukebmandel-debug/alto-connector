@@ -36,6 +36,11 @@ def test_it_offers_the_four_kinds_tailored_capped_and_only_where_the_notes_suppo
     assert "Do you have practice questions I should base it on?" in s
     assert "A no is final for that kind" in s
     assert "Do not announce a later offer in advance" in s
+    assert "ends in a question mark" in s and 'Never write "I\'ll write/add/make ..." about an extra before they say yes' in s
+    assert "ask the missing half first and do not offer yet" in s
+    assert "Never reclassify, regroup or relabel anything the student named" in s
+    assert "A direct invitation" in s and "Never answer it with a refusal" in s
+    assert "40 words or fewer" in s
 
 
 def test_everyday_words_and_the_closed_system_still_stand():
@@ -56,4 +61,4 @@ def test_the_flow_one_lines_the_student_reads_use_plain_words():
 
 
 def test_the_section_stays_compact():
-    assert len(_section()) < 4200
+    assert len(_section()) < 7500
