@@ -457,6 +457,8 @@ function fly(G, now){
    flown in (Luke, 2026-10-25: ships "end up going above"; 2026-10-28: "everything should be on the same plane, even in
    3D"). It never rises over a body to clear it: solar_craft.py's course keeps its way in that plane clear of every body */
 function lift(){ return K3.Y; }
+/* the nearest body's surface to the craft, its height counted (px; the bodies as this frame has them) */
+function nearest(G, p){ var m=1e9; Object.keys(G.bodies).forEach(function(i){ var g=G.bodies[i], h=Math.hypot(p[0]-g.x, p[1]-g.y, K3.Y)-g.d/2; if(h<m) m=h; }); return m; }
 /* the way and the orbits kept 3 px off every body: where one would cross a body, the nearest point of its edge */
 function keepOff(G, p){ var q=p, k, ch=false;
   for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], mg=g.d/2+3, dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
