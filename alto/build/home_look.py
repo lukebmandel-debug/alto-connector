@@ -43,15 +43,16 @@ _CLASSIC = """
 }
 /* A5b: a title whose longest word will not fit a card even at the smallest size takes the whole row (FIT_JS) */
 .course-tile.tt-wide{ grid-column:1 / -1; }
+.course-tile.tt-wide:has(.tile-share):has(.tile-reports):not(:has(.tile-download)) .tile-share{ left:calc(50% - 31px); }
+.course-tile.tt-wide:has(.tile-share):has(.tile-reports):not(:has(.tile-download)) .tile-reports{ left:calc(50% + 3px); }
 /* A6 (Art): on a phone the buttons row and the HOME bar are one glass band, so a card scrolling up never shows through them: the title
-   bar's own backing (pages.py, html.rw) runs down past the row (title bar 52 px, the row 63-97 px, both plus the safe area), ending in the
-   one bar hairline in place of the title bar's own */
+   bar's own backing (pages.py, html.rw) runs down past the row (title bar 52 px, the row 63-97 px, both plus the safe area), solid in the page surface (the pseudo's backdrop blur
+   does not draw in WebKit, so any see-through let a card title ghost), ending in the one bar hairline in place of the title bar's own */
 @media (max-width:640px){
   html.rw #title-bar:not(#_){ border-bottom-color:transparent !important; }
-  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:rgba(255,255,255,.99); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:var(--surface,#fff); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
     border-bottom:1px solid var(--header-hairline, rgba(120,124,150,.22)); }
-  html.dark.rw #title-bar:not(#_)::before{ background:rgba(14,15,22,.99); }
-  html.alto-retro.rw #title-bar:not(#_)::before{ background:rgba(0,0,0,.99); border-bottom-color:rgba(217,174,85,.32); }
+  html.alto-retro.rw #title-bar:not(#_)::before{ background:#000 !important; border-bottom-color:rgba(217,174,85,.32) !important; }   /* (Retro clears every bar's backing with !important: retro.py) */
 }
 html.dark .tile-emblem{ opacity:.22; }
 /* Q3B: the strip is the timeline's own colours; in the dark theme the same hues a tenth dimmer */

@@ -23,7 +23,7 @@ def _css():
 
 def test_system_faces_and_labels_never_hyphenate_and_a_label_wraps_on_a_plate():
     css = _css()
-    face = re.search(r"\.sol-face span\{[^}]*\}", css).group(0)
+    face = re.search(r"\n\.sol-face span\{[^}]*\}", css).group(0)
     assert "hyphens:manual" in face and "hyphens:auto" not in face and "overflow-wrap:normal" in face
     lbl = re.search(r"html\.alto-solar:not\(\.mobile\) #world \.node\[data-solar\]>\.sol-lbl\{[^}]*\}", css).group(0)
     assert "white-space:normal" in lbl and "text-overflow" not in lbl and "hyphens:manual" in lbl and "color-mix" in lbl

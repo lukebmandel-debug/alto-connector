@@ -57,6 +57,7 @@ SOLAR_CSS = r"""
   /* A7: phone.py copies the line above for html.phone-whole, which blanked the Sun on a phone (its name sat in .sol-face and its caption
      is hidden while the face shows): the Sun's own face comes back, its name on the disc; the one-line hint below the chart goes on the first touch */
   html.phone-whole.alto-solar #world .node[data-solar=sun] .sol-face{display:flex !important;}
+  html.phone-whole.alto-stars.sk-retro #world .node[data-solar=sun] .sol-face span{font-size:12px;line-height:15px;letter-spacing:.02em;-webkit-line-clamp:4;line-clamp:4;}   /* (Retro capitals are wide: 12 px, tracking cut, so the longest word stays whole on the disc) */
   #sol-phone-hint{display:none;}
   html.phone-whole.alto-solar #sol-phone-hint{display:block;position:fixed;z-index:60;left:50%;bottom:calc(98px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;
     padding:8px 14px;border-radius:12px;font:500 13px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#14142b;background:rgba(255,255,255,.9);text-align:center;pointer-events:none;

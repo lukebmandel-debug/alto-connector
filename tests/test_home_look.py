@@ -154,7 +154,7 @@ def test_a_phone_homepage_backs_the_buttons_row_and_the_title_bar_with_one_glass
             b.close()
     finally:
         srv.shutdown()
-    assert r[0] and r[1] == "-52px" and r[2] == "rgba(255, 255, 255, 0.99)" and r[3] == "1px" and r[4] == "rgba(0, 0, 0, 0)"
+    assert r[0] and r[1] == "-52px" and r[2] == "rgb(255, 255, 255)" and r[3] == "1px" and r[4] == "rgba(0, 0, 0, 0)"
     assert r[5] <= 52 + 52                                                         # the band reaches past the bottom of the buttons row
 
 
