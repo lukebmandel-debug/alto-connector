@@ -411,7 +411,7 @@ HOME_CSS = r"""
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   /* the top row: the Home pill a square chip in gold capitals */
   X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
-  X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;letter-spacing:.3em;}
+  X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;}   /* (500, not the engine title's 300 hairline: HOME reads as heavy as PRIVATE and SORT; computer and phone) */
   /* projects: no glass, a fine gold rim, the name in gold capitals */
   X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}

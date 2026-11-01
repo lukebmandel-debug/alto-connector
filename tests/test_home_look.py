@@ -313,3 +313,88 @@ def test_the_bin_sits_right_of_search_on_one_line_in_classic_and_retro(tmp_path,
             assert m["panel"]["right"] != ""                                      # its list opens above the bin, on the right
         ph = out[(style, 390)]                                                    # a phone keeps its top-row layout
         assert ph["bin-btn"]["right"] == "" and ph["bin-btn"]["t"] < 120 and ph["search-btn"]["l"] < ph["bin-btn"]["l"]
+
+
+# ── Retro homepage HOME label (Luke: "looks a little funny", then "Yes" to the phone too): the engine title's weight 300 left it a hairline ──
+_IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+_SNAP = """()=>{const r=document.documentElement,t=document.getElementById('title-text'),out={};
+    document.querySelectorAll('body *').forEach((e,i)=>{ if(t&&(e===t||t.contains(e)||e.contains(t))) return;
+        const b=e.getBoundingClientRect(),s=getComputedStyle(e);
+        out[i+':'+e.tagName+'#'+e.id+'.'+(e.className&&e.className.baseVal===undefined?e.className:'')]=[Math.round(b.x),Math.round(b.y),Math.round(b.width),Math.round(b.height),
+            s.fontWeight,s.letterSpacing,s.fontSize,s.color,s.backgroundColor,s.borderTopColor,s.opacity,s.visibility,s.display]; });
+    const s=getComputedStyle(t);
+    return {retro:r.classList.contains('alto-retro')&&r.classList.contains('alto-home'), fw:s.fontWeight, ls:s.letterSpacing, fs:s.fontSize,
+            color:s.color, others:out}}"""
+
+
+def _home_label(tmp_path, cases, shots=None, old_label=False):
+    """{case: HOME's computed style + a snapshot of everything else}; cases = (name, width, phone?, colour scheme).
+    old_label puts HOME's old weight and spacing back inline, to diff the rest of the page against."""
+    import functools, http.server, threading
+    (tmp_path / "h.html").write_text(pages.build_home([]), encoding="utf-8")
+    name, js = retro.retro_asset()
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.startswith("/retro/"):
+                b = js.encode()
+                self.send_response(200); self.send_header("Content-Type", "application/javascript")
+                self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+            else:
+                super().do_GET()
+        def log_message(self, *a): pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(H, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    out = {}
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = p.webkit.launch()
+            except Exception as e:
+                pytest.skip(str(e)[:80])
+            for case, width, phone, scheme in cases:
+                kw = dict(user_agent=_IPHONE, is_mobile=True, has_touch=True, viewport={"width": width, "height": 844}) if phone else dict(viewport={"width": width, "height": 900})
+                ctx = b.new_context(color_scheme=scheme, **kw)
+                pg = ctx.new_page()
+                url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
+                pg.goto(url)
+                pg.evaluate("localStorage.setItem('alto-bg-home-v1-style','retro')")
+                pg.goto(url)
+                pg.wait_for_timeout(1500)
+                if old_label:
+                    pg.evaluate("document.getElementById('title-text').style.cssText='font-weight:300 !important;letter-spacing:.3em !important'")
+                    pg.wait_for_timeout(200)
+                out[case] = pg.evaluate(_SNAP)
+                if shots:
+                    h = 130 if not phone else 150
+                    pg.screenshot(path=str(shots / f"{case}.png"), clip={"x": 0, "y": 0, "width": width, "height": h})
+                ctx.close()
+            b.close()
+    finally:
+        srv.shutdown()
+    return out
+
+
+_CASES = [("d1440", 1440, False, "dark"), ("d1024", 1024, False, "dark"),
+          ("p390-dark", 390, True, "dark"), ("p390-light", 390, True, "light")]
+
+
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+def test_the_retro_home_label_is_not_a_hairline_on_a_computer_or_a_phone(tmp_path):
+    out = _home_label(tmp_path, _CASES)
+    for case, r in out.items():
+        assert r["retro"], (case, r["fw"])
+        assert r["fw"] == "500" and r["ls"] == "2.6px" and r["fs"].startswith("13"), (case, r["fw"], r["ls"], r["fs"])   # heavier, .2em of 13px
+        assert r["color"] == "rgb(217, 174, 85)", case                                                                  # still the gold
+
+
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+def test_only_the_home_label_changed_on_the_retro_home(tmp_path):
+    # PRIVATE, SORT, the controls and the tiles: same boxes and same styles with HOME at its old weight as with the new one
+    new = _home_label(tmp_path, _CASES)
+    old = _home_label(tmp_path, _CASES, old_label=True)
+    for case in new:
+        assert new[case]["others"].keys() == old[case]["others"].keys(), case
+        moved = {k: (old[case]["others"][k], v) for k, v in new[case]["others"].items() if v != old[case]["others"][k]}
+        assert not moved, (case, list(moved.items())[:3])

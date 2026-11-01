@@ -42,6 +42,7 @@ def test_it_offers_the_four_kinds_tailored_capped_and_only_where_the_notes_suppo
     assert "A direct invitation" in s and "Never answer it with a refusal" in s
     assert "40 words or fewer" in s
     assert "A stated habit IS the study style" in s
+    assert "Offer ONE kind of help per message" in s and "real yes/no test" in s and "plain, simple discussion" in s
     assert "if you have none, I'll write them only from your notes" in s
     assert "ask ONE question per message, never two" in s
     assert "indentation or numbering" in s and "Where would you break this up, if anywhere?" in s
