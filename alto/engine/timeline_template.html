@@ -2859,6 +2859,8 @@ html.mobile .char-chip     { padding: 8px 16px; font-size: 14px; }
 
 html.mobile #summary-wrap  { top: 96px; backdrop-filter: none; }
 html.mobile #summary-wrap.open { max-height: calc(100vh - 96px); }
+/* a closed Overview keeps no rule on the page (it was 1px of border under the bar) */
+html.mobile #summary-wrap:not(.open){ border-bottom-color:transparent !important; }
 html.mobile #summary-inner { padding: 18px 16px 36px; max-width: 100%; }
 html.mobile #summary-inner p { font-size: 15px; line-height: 1.9; }
 

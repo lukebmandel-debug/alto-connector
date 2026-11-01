@@ -324,3 +324,9 @@ def test_a_detail_page_shows_map_and_menu_again_on_the_old_tabs(pg, site):
     assert pg.evaluate("document.documentElement.classList.contains('detail-open')")
     shown = pg.evaluate(_SHOWN)
     assert "minimap-toggle" in shown and "hamburger-tab" in shown and "pmin-find" not in shown, shown
+
+
+def test_a_closed_overview_leaves_no_line_on_the_page(pg, site):
+    for url in ("/outline.html", "/retro.html", "/system.html"):
+        _go(pg, site + url)
+        assert pg.evaluate("getComputedStyle(document.getElementById('summary-wrap')).borderBottomColor") == "rgba(0, 0, 0, 0)", url
