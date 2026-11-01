@@ -129,6 +129,35 @@ def test_a_phone_card_title_never_splits_a_word_and_a_word_too_long_takes_the_ro
     assert rows[2][3] is False                                              # "Property" fits: no wide card for it
 
 
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_a_phone_homepage_backs_the_buttons_row_and_the_title_bar_with_one_glass_band(tmp_path, engine):
+    page = pages.build_home([{"name": "Law", "pid": "p", "courses": [
+        {"title": "Torts", "href": "a.html", "sub": "3 units", "courseId": "a", "units": ["#4a9eff"]}]}])
+    (tmp_path / "h.html").write_text(page, encoding="utf-8")
+    import functools, http.server, threading
+    quiet = type("Q", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a, **k: None})
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(quiet, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception as e:
+                pytest.skip(str(e)[:80])
+            pg = b.new_context(viewport={"width": 390, "height": 800}, user_agent=ua, has_touch=True, is_mobile=True).new_page()
+            pg.goto(f"http://127.0.0.1:{srv.server_address[1]}/h.html")
+            pg.wait_for_timeout(700)
+            r = pg.evaluate("""(() => { const q = getComputedStyle(document.getElementById('title-bar'), '::before'), t = document.getElementById('title-bar'), row = document.getElementById('account-btn').getBoundingClientRect();
+              const bar = t.getBoundingClientRect(); return [document.documentElement.classList.contains('rw'), q.bottom, q.backgroundColor, q.borderBottomWidth, getComputedStyle(t).borderBottomColor, Math.round(row.bottom - bar.top)]; })()""")
+            b.close()
+    finally:
+        srv.shutdown()
+    assert r[0] and r[1] == "-52px" and r[2] == "rgba(255, 255, 255, 0.97)" and r[3] == "1px" and r[4] == "rgba(0, 0, 0, 0)"
+    assert r[5] <= 52 + 52                                                         # the band reaches past the bottom of the buttons row
+
+
 # ── regression: a saved background scene painted its top colour (a flat blue) over Retro's black on the homepage ──
 @pytest.mark.skipif(pw is None, reason="no Playwright")
 @pytest.mark.parametrize("engine", ["chromium", "webkit"])
