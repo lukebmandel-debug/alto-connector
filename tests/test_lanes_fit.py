@@ -131,7 +131,7 @@ DEVICES = {"desktop": dict(viewport={"width": 1440, "height": 900}),
 FITS = r"""() => {
   var c=document.getElementById('canvas'), r=c.getBoundingClientRect(), top=r.top, bot=r.bottom, q, out={bad:[], lines:[], cards:0};
   var vis=function(e){ if(!e) return null; var b=e.getBoundingClientRect(); return (b.width && b.height && getComputedStyle(e).display!=='none') ? b : null; };
-  if((q=vis(document.getElementById('key-toggle')))) top=Math.max(top, q.bottom);
+  if((q=vis(document.getElementById('key-toggle'))) && q.top<(r.top+r.bottom)/2) top=Math.max(top, q.bottom);   // (only a key up top: it sits in the bottom-right row now)
   ['lanes-nav','ph-bar'].forEach(function(id){ if((q=vis(document.getElementById(id))) && q.top>r.top+40) bot=Math.min(bot, q.top); });
   var boxes=[];
   document.querySelectorAll('#world .node[id^="node-"] .node-card').forEach(function(e){ var b=e.getBoundingClientRect(); if(!b.height) return;

@@ -274,18 +274,25 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     rail_specs, lm_specs = list(lines or ()), list(landmarks or ())
     # city engine v2: a city of several street grids (or a grid beside an irregular old town) is drawn per domain,
     # with angled seams (city_engine); a city of one grid takes the code below, unchanged (tests/test_grid_snapshot.py)
-    if m.get("layout") == "manhattan" and m.get("streets"):          # the NYC preset: Manhattan's own layout (city_manhattan.py)
-        from . import city_manhattan
+    # a layout spec (city_spec.LayoutSpec: a preset's or auto_params' `layout`): "axes" is a fixed root-axes layout (the
+    # NYC preset, "manhattan": city_manhattan.py); "engine" adds its must-parks to the engine's own lattices
+    from .city_spec import resolve
+    spec = resolve(m.get("layout"))
+    if spec is not None and spec.builder == "axes" and m.get("streets"):
+        from . import city_engine
         try:
-            return city_manhattan.build(m, majors, diagonals, rail_specs, lm_specs, parks)
+            return city_engine.build(m, None, majors, diagonals, rail_specs, lm_specs, parks, spec=spec)
         except Exception:                                   # noqa: BLE001 — a box it cannot read (no Houston St...) takes the engine
             m = {k: v for k, v in m.items() if k != "layout"}
+            spec = None
+    if spec is not None:
+        parks = tuple(parks or ()) + tuple(p for p in spec.must_parks if p not in (parks or ()))
     from .city_types import ENGINE_V2
     if ENGINE_V2 and m.get("streets"):
         from . import city_domains, city_engine
         det = city_domains.detect(m)
         if city_engine.multi(det):
-            return city_engine.build(m, det, majors, diagonals, rail_specs, lm_specs, parks)
+            return city_engine.build(m, det, majors, diagonals, rail_specs, lm_specs, parks, spec=spec)
     th = grid_angle(m)
     L, diag, turn = _lines(m, th, majors, diagonals)
     cols, rows = L["v"], L["h"]

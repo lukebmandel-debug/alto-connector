@@ -6092,8 +6092,13 @@ html:not(.mobile) #nav-next{ top: var(--nav-bottom, 127px) !important; }
 html:not(.mobile) #node-nav-bar{ top: var(--nav-bottom, 127px) !important; }
 html:not(.mobile) #node-nav-bar.visible{
   margin-top:0 !important;
-  box-shadow: 0 -2px 0 var(--border) !important;
+  box-shadow: 0 -1.25px 0 var(--nav-seam) !important;
 }
+/* the seam is a normal thin dividing line (Luke, 2026-10-30: "you can have a normal thin dividing line, but this is
+   not that"): one VISUAL px (1.25 CSS px under the .8 zoom) in a hairline of the theme, not 2px of --border, which
+   in the dark theme is darker than the glass on both sides of it and read as a black rule */
+html:not(.mobile){ --nav-seam:rgba(120,124,150,.22); }
+html.dark:not(.mobile){ --nav-seam:rgba(255,255,255,.12); }
 html:not(.mobile) #detail-page{ top:185px !important; }
 /* INFO button fallback — guarantees visibility at v9's native upper-right even if
    the JS horizontal-align fails. JS overrides left/right when it runs. */
@@ -6365,9 +6370,17 @@ html:not(.mobile) .note-dialog-btn {
     infoBtn.style.setProperty('top',  'auto', 'important');
     // Chain the SEARCH bubble directly LEFT of INFO (same 12px rhythm, same
     // vertical centring). Anchored by right so .expanded grows leftward.
+    // A horizontal timeline's or a Memory Palace's key (key_toggle.py) takes the slot between them, so the row
+    // reads edit, light/dark, INFO, key, search (Luke picked Art's option A, 2026-10-30) and search still grows leftward.
+    var kt = document.getElementById('key-toggle'), ktOn = !!(kt && getComputedStyle(kt).display !== 'none');
+    if(ktOn){
+      kt.style.setProperty('right',  (rightCSS + COLLAPSED_H + MARGIN) + 'px', 'important');
+      kt.style.setProperty('bottom', bottomCSS + 'px', 'important');
+      document.documentElement.style.setProperty('--kt-r', (rightCSS + COLLAPSED_H + MARGIN) + 'px');
+    }
     var sb = document.getElementById('search-btn');
     if(sb){
-      sb.style.setProperty('right',  (rightCSS + COLLAPSED_H + MARGIN) + 'px', 'important');
+      sb.style.setProperty('right',  (rightCSS + (COLLAPSED_H + MARGIN) * (ktOn ? 2 : 1)) + 'px', 'important');
       sb.style.setProperty('bottom', bottomCSS + 'px', 'important');
       sb.style.setProperty('left', 'auto', 'important');
     }
@@ -6435,6 +6448,7 @@ html:not(.mobile) .note-dialog-btn {
     if(!infoBtn) return;
     var current = null;   // running animation handle (INFO)
     var currentSb = null; // running animation handle (search bubble slide)
+    var currentKt = null; // and the key's toggle beside it
     function applyExpansion(){
       var expanded = infoBtn.classList.contains('expanded');
       var fromW = infoBtn.offsetWidth;
@@ -6472,6 +6486,15 @@ html:not(.mobile) .note-dialog-btn {
           ],
           { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }
         );
+      }
+      // the key's toggle sits between INFO and search: it steps aside with search, in the same frames
+      var kb = document.getElementById('key-toggle');
+      if(kb){
+        var kFrom = getComputedStyle(kb).transform;
+        if(!kFrom || kFrom === 'none') kFrom = 'translateX(0px)';
+        if(currentKt) try { currentKt.cancel(); } catch(e){}
+        currentKt = kb.animate([{ transform: kFrom }, { transform: expanded ? 'translateX(-324px)' : 'translateX(0px)' }],
+          { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
       }
     }
     new MutationObserver(applyExpansion).observe(infoBtn, {attributes:true, attributeFilter:['class']});
@@ -8999,7 +9022,7 @@ html.dark:not(.mobile) #summary-toggle{
    locked: ×1.29 on font + side padding; pill radius = half height). alignInfo()
    reads offsetWidth/Height live, so INFO re-centres itself automatically. ── */
 html:not(.mobile) #mode-toggle{
-  height:35px; width:105px; bottom:30px; right:30px;
+  height:35px; width:105px; bottom:var(--alto-row-b, 24px); right:30px;
   display:inline-flex; align-items:center; justify-content:center;
   white-space:nowrap; padding:0; font-size:15px; border-radius:17.5px;
   /* FIXED width so "☽ Dark" and "☀ Light" render the SAME size across modes.
@@ -10873,8 +10896,12 @@ window.AltoShare = { createLink: shareCreateLink, resolve: shareResolve, open: o
 <!-- ── ACCOUNT — person bubble in the bottom-LEFT slot the chat bubble used to hold;
      opens a Google sign-in modal (ported from index.html, Google-only). ── -->
 <style id="alto-account-style">
+/* ONE bottom line for every desktop control along the foot (Luke, 2026-10-30: "are the toggles on the bottom right higher
+   than the account toggle?"): the account toggle, the right-hand row, the edit toggle and the formats' own controls
+   all sit --alto-row-b off the foot, the homepage's line (its row mirrors the account toggle) */
+html:not(.mobile){ --alto-row-b:24px; }
 html:not(.mobile) #account-btn{
-  position:fixed; bottom:24px; left:24px; right:auto; z-index:200;
+  position:fixed; bottom:var(--alto-row-b, 24px); left:24px; right:auto; z-index:200;
   width:35px; height:35px; border-radius:50%;
   background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
   -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));

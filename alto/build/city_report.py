@@ -30,6 +30,7 @@ TH = {
     "overlap_blocks": .1,
     "spacing_ratio": 1.5, "spacing_excess": 1.5, "spacing_aniso": 1.25, "spacing_km": 2.5,
     "fronts_fail": 1.0, "fronts_reach_m": 80.0,
+    "order_tie_m": 50.0,
 }
 # Philadelphia 1.9.78 (measured by this report on the release data): packed kB of {"map", "blocks"} and its real bbox km²
 BASE_KB, BASE_KM2 = 162.0, 166.1
@@ -465,8 +466,11 @@ def c_order(g, m, M):
             checked += 1
             seq = [real_x[x] for x in common]
             sgn = 1 if _inversions(seq) <= _inversions(seq[::-1]) else -1
+            # two streets the avenue crosses at one real intersection (Milwaukee, Halsted and Grand: 2 m apart) have no
+            # order: a swap counts only when the real crossings are more than order_tie_m apart
+            tie = TH["order_tie_m"] * (m.get("scale") or 1.0)
             inv = sum(1 for i in range(len(common)) for j in range(i + 1, len(common))
-                      if (seq[j] - seq[i]) * sgn < 0 and at_p[common[j]] - at_p[common[i]] > BLOCK / 2)
+                      if (seq[j] - seq[i]) * sgn < -tie and at_p[common[j]] - at_p[common[i]] > BLOCK / 2)
             if inv:
                 av_sw.append((n, inv, len(common)))
     st = "fail" if swaps or av_sw else "ok"
@@ -481,9 +485,9 @@ def c_side(g, m, M, blocks):
     rr = {}
     for r in m.get("rivers", []):
         rr.setdefault(r.get("n"), []).append(_pairs(r["p"]))
-    from .palace_river import _main_piece
+    from .palace_river import river_line
     for rv in g.get("river", []):
-        R = _main_piece(m.get("rivers", []), rv.get("n"))      # the piece the page river is drawn from
+        R = river_line(m, rv.get("n"))                          # the line the page river is drawn from
         if not R:
             continue
         pairs.append((rv.get("n"), R, _pairs(rv["p"]), rv.get("w", 0)))

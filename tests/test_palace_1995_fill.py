@@ -102,7 +102,7 @@ def test_the_reach_grows_while_the_packed_fill_fits_the_budget(monkeypatch):
     seen = _sized_fill(monkeypatch, 1_000_000)
     r15 = (pf.reach(d, big, 1.5)[2] - pf.reach(d, big, 1.5)[0]) * (pf.reach(d, big, 1.5)[3] - pf.reach(d, big, 1.5)[1])
     r20 = (pf.reach(d, big, 2.0)[2] - pf.reach(d, big, 2.0)[0]) * (pf.reach(d, big, 2.0)[3] - pf.reach(d, big, 2.0)[1])
-    monkeypatch.setattr(pf, "BUDGET_CHARS", int((r15 + r20) / 2 * 1_000_000))         # 1.5 km fits, 2 km does not
+    monkeypatch.setattr(pf, "budget", lambda m_, blocks=None: int((r15 + r20) / 2 * 1_000_000))         # 1.5 km fits, 2 km does not (fill_for caps with the page-computed budget(), no longer the BUDGET_CHARS constant)
     z = pf.fill_for(m, [], d, big)
     assert seen[-1] == pf.reach(d, big, 2.0) and len(seen) == 3                     # 1, 1.5, 2: stops at the first that does not fit
     assert len(z) == int(r15 * 1_000_000)
@@ -126,7 +126,7 @@ def test_the_one_km_reach_is_kept_even_over_budget(monkeypatch):
     monkeypatch.setattr(pm, "fetch_buildings", lambda box, **kw: {"elements": [], "missing": []})
     d = [{"bounds": [39.945, -75.17, 39.955, -75.16]}]
     seen = _sized_fill(monkeypatch, 10 ** 9)
-    monkeypatch.setattr(pf, "BUDGET_CHARS", 10)
+    monkeypatch.setattr(pf, "budget", lambda m_, blocks=None: 10)
     z = pf.fill_for({"bbox": list(big), "scale": 1.0}, [], d, big)
     assert z and len(seen) == 2 and seen[0] == pf.reach(d, big)
 

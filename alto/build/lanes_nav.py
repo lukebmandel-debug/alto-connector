@@ -61,7 +61,7 @@ world px without WORLD_PAD_TOP), h[id], lines [{id, y, ev}], W, H, and at[id] =
 
 NAV_CSS = """
   /* the rail: where you are in the story, and the way to the whole timeline (lanes_nav.py) */
-  #lanes-nav{ position:fixed; z-index:305; left:50%; bottom:22px; transform:translateX(-50%); display:flex; align-items:center; gap:4px;
+  #lanes-nav{ position:fixed; z-index:305; left:50%; bottom:calc(var(--alto-row-b, 24px) - 2.5px);   /* (40px tall: centred on the 35px controls' line) */ transform:translateX(-50%); display:flex; align-items:center; gap:4px;
     height:40px; box-sizing:border-box; padding:0 6px; border-radius:20px; color:var(--muted); font-size:12px; user-select:none; -webkit-user-select:none;
     background:var(--card-glass-bg, var(--surface));
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright, 1)); backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright, 1));
@@ -183,7 +183,7 @@ function shown(el){ if(!el) return null; var r=el.getBoundingClientRect(); retur
 /* the part of the canvas no chrome sits over: under the key's toggle, above the rail */
 function band(c){
   var r=c.getBoundingClientRect(), k=zk(c), ch=c.clientHeight, t=16, b=ch-16, q;
-  if((q=shown(document.getElementById('key-toggle'))) && q.bottom>r.top) t=Math.max(t,(q.bottom-r.top)/k+12);
+  if((q=shown(document.getElementById('key-toggle'))) && q.bottom>r.top && q.top<r.top+ch/2) t=Math.max(t,(q.bottom-r.top)/k+12);
   if((q=shown(document.getElementById('lanes-nav'))) && q.top<r.bottom) b=Math.min(b,(q.top-r.top)/k-14);
   if(b-t<160){ t=16; b=ch-16; }
   return {t:t, b:b};

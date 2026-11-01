@@ -312,6 +312,8 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
         return None                                      # a diagonal avenue: a line keeps its centre
     out = _finish(tr, edges, tunnels, dropped, mp, keyf, lambda k: (0.0, 1.0) if k[0] == "h" else (1.0, 0.0))
     _real_on_page(tr, out, mp)
+    if tr.get("v", 1) >= 2 and len(xg) > 1 and len(yg) > 1:      # a generic reading (1.9.78 Philadelphia's stays as it was)
+        _trim_stubs(out, ((xg[1] - xg[0]) + (yg[1] - yg[0])) / 2)
     out["ge"] = sorted(ge)                               # ge: the grid edges the grade-separated lines run along (index pairs)
     return out
 
@@ -715,6 +717,51 @@ def _track_dir(real, x, y):
     return ((b[0] - a[0]) / L, (b[1] - a[1]) / L) if L > 1e-6 else None
 
 
+def _cut(f, a0, a1):
+    """The part of flat polyline f between arc lengths a0 and a1."""
+    out, run = [], 0.0
+    for k in range(0, len(f) - 3, 2):
+        x0, y0, x1, y1 = f[k], f[k + 1], f[k + 2], f[k + 3]
+        L = math.hypot(x1 - x0, y1 - y0)
+        if L > 0 and run + L >= a0 and run <= a1:
+            t0, t1 = max(0.0, (a0 - run) / L), min(1.0, (a1 - run) / L)
+            p0 = (round(x0 + (x1 - x0) * t0, 1), round(y0 + (y1 - y0) * t0, 1))
+            p1 = (round(x0 + (x1 - x0) * t1, 1), round(y0 + (y1 - y0) * t1, 1))
+            if not out:
+                out += list(p0)
+            out += list(p1)
+        run += L
+    return out
+
+
+def _trim_stubs(out, blk, keep=1.0):
+    """A track end that is joined to nothing and runs on more than palace_transit_audit.STUB_BLOCKS past its last drawn stop
+    (the stop beyond was not drawn: no street carried it) is cut `keep` blocks past that stop."""
+    from .palace_transit_audit import _near, STUB_BLOCKS, TOL
+    stops = out.get("stops") or []
+    for ln in out.get("lines") or []:
+        polys = ln.get("p") or []
+        idx = set(ln.get("s") or []) | {i for br in ln.get("b") or [] for i in br}
+        pts = [(stops[i]["x"], stops[i]["y"]) for i in idx if i < len(stops)]
+        for pi, f in enumerate(polys):
+            if len(f) < 4:
+                continue
+            arcs = [a for d, _p, a in (_near([f], x, y) for x, y in pts) if d <= TOL]
+            if not arcs:
+                continue
+            L = sum(math.hypot(f[k + 2] - f[k], f[k + 3] - f[k + 1]) for k in range(0, len(f) - 3, 2))
+
+            def free(x, y):
+                return not any(_near([g], x, y)[0] <= 1.5 for gi, g in enumerate(polys) if gi != pi)
+            a0, a1 = 0.0, L
+            if free(f[0], f[1]) and min(arcs) > STUB_BLOCKS * blk:
+                a0 = min(arcs) - keep * blk
+            if free(f[-2], f[-1]) and L - max(arcs) > STUB_BLOCKS * blk:
+                a1 = max(arcs) + keep * blk
+            if (a0, a1) != (0.0, L):
+                polys[pi] = _cut(f, a0, a1)
+
+
 def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
     """Several domains: trolleys on the drawn streets at any angle, grade-separated lines octilinear per domain."""
     from .palace_transit_route import CityMap, street_graph, drawn_segs, real_points, route, octi_route, _Track, _split_node, octi2_in
@@ -792,5 +839,6 @@ def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
     out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3,   # one dot per pair of next lanes
                   anchor=anchor, gap=V2["gap"] * blk, corner=CORNER)
     _real_on_page(tr, out, cm, blk)
+    _trim_stubs(out, blk)
     out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
     return out

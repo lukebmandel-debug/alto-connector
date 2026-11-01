@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.199"
+__version__ = "1.9.200"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1839,7 +1839,9 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     PATH, LIRR, Metro-North; MBTA; WMATA Metro, MARC, VRE) — pass only districts (and any field to change).
     Any other city is set up on demand by the same rules from OpenStreetMap alone: every field left out is
     worked out (main streets by class and length, landmarks and towers by their tags, parks by size,
-    neighbourhood names from the map, diagonals from the street grid). auto=False: no preset and no
+    neighbourhood names from the map, diagonals from the street grid). Such a city is then scored by Alto's city gate
+    (no failed check, 85 of 100): the reply's `gate` says whether it passed and, if not, what failed in plain words
+    (`gate.message`: tell the user exactly that); a city that does not pass is kept as a draft. auto=False: no preset and no
     worked-out fields (only what is passed). transit: the real networks to draw, [{id, name, colour, kind,
     network, operator, route, refs}] (omitted: the preset's, or the box's own route relations).
     subject: what the timeline studies; "law" (also read from the title, purpose and section names: law,
@@ -1914,7 +1916,11 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                      for i in range(n_acts)]
     cache = Path.home() / ".cache" / "alto" / "osm"
     cache.mkdir(parents=True, exist_ok=True)
-    auto_info = None
+    auto_info = gate_v = None
+    # the water and layout fields (city_setup.auto_params / the preset's): keep a far bank, name the water, the layout spec
+    far_bank = bool(pre and pre.get("far_bank"))
+    layout = pre.get("layout") if pre else None
+    river_names = pre.get("river_names") if pre else None
     osm_mark = palace_map.overpass_mark()             # the reply says which Overpass servers answered (map_source)
     try:
         if not pre and auto and any(v is None for v in (majors, landmarks, landmark_buildings, diagonals, parks,
@@ -1933,6 +1939,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             if areas is None and not default_areas(place, bbox):
                 areas = ap["areas"]
             transit = ap["transit"] if transit is None else transit
+            far_bank, layout, river_names = bool(ap.get("far_bank")), ap.get("layout"), ap.get("river_names")
             auto_info = {k: len(ap[k]) for k in ("majors", "landmarks", "landmark_buildings", "diagonals", "parks",
                                                  "areas", "transit")}
         court_info = _courthouses(doc, brief, place, pid if pre else None, bbox, cache, subject, landmark_buildings)
@@ -1948,12 +1955,21 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             except RuntimeError:                        # the box in one request went unanswered on every server: in tiles
                 raw = city_setup.fetch_city(tuple(bbox), cache_dir=str(cache), names=list(dict.fromkeys(names)) or None,
                                             whole=False)
-        pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
-                             landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache), raw=raw,
-                             diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
-                             parks=parks, areas=areas, portals=portals, transit=transit,
-                             tiled=tiled, preset=pid if (pre or auto_info) else None,
-                             far_bank=bool(pre and pre.get("far_bank")), fill=True)
+        from .build import city_byoc
+        import contextlib
+        with (city_byoc.capture() if auto_info else contextlib.nullcontext({})) as cap:   # (only a gated city keeps a copy)
+            pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
+                                 landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache), raw=raw,
+                                 diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
+                                 parks=parks, areas=areas, portals=portals, transit=transit,
+                                 tiled=tiled, preset=pid if (pre or auto_info) else None,
+                                 far_bank=far_bank, layout=layout, river_names=river_names,
+                                 channels=pre.get("channels") if pre else None, fill=True)
+        if auto_info:
+            # a place the user's own Claude set up (rules doc 13): the scored gate before it is offered; a city that
+            # does not pass is kept as a draft and the user is told in plain words what failed
+            gate_v = city_byoc.gate_built(cap, parks=parks, layout=layout)
+            pal["gate"] = {k: gate_v[k] for k in ("pass", "score", "draft", "failing")}
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass
@@ -1996,8 +2012,79 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             **({"towers": towers} if towers else {}),
             **({"preset": pid} if pre else {}), **({"worked_out": auto_info} if auto_info else {}),
             **({"courthouses": court_info} if court_info else {}),
+            **({"gate": gate_v} if gate_v else {}),
             "map_source": palace_map.overpass_report(osm_mark),
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
+
+
+@mcp.tool(title="Invent a Memory Map city", annotations=RW)
+@accounted
+def invent_city(timeline_id: str, spec: dict | None = None, template: str = "", name: str = "",
+                fix: str = "") -> dict:
+    """A city the user makes up, for a Memory Palace (mode 'palace'), instead of a real place: no map is fetched. Draft it
+    from what the user describes, or start from a template, then store it like set_up_palace does.
+
+    template: start from one of (in the picker's order) "grid" (the default), "grid_diagonals", "organic_grid", "river",
+    "radial", "blank"; omitted with no spec: "grid". name: the city's name (never a real place's). spec: the city as
+    data, every field optional (metres from the north-west corner, x east, y south):
+    {name, districts: [{name, kind: grid|organic|radial, center: [x, y], size_km: n | [w, h], angle, block: [w, h]}],
+     streets: [{name, class: main|minor, from, to: a district or landmark name or [x, y], diagonal?}],
+     water: [{name, kind: river|coast|lake, course: [[x, y]...] (river) | north|south|east|west (coast), width:
+     narrow|wide, at: [x, y] and size_km (lake)}],
+     landmarks: [{name, at: a district or street name or [x, y], kind: tower|civic|station|park, floors?}],
+     transit: [{name, colour, kind, stops: [station names in order]}]}.
+    A city needs at least one grid district (organic and radial ones sit beside it), 8 to 24 landmarks, and lines that
+    stop at stations. The city is checked by Alto's eight city checks and must score 85 of 100 with no failing check
+    before it is finished; the reply's `checks` say in plain words what fails, each with a one-tap `fix`. fix: the id of
+    a failing check (streets, blocks, avenues, water, parks, landmarks, transit, names) whose fix to apply before
+    building; the reply's `spec` is the city with the fix in. A city that does not pass is stored as a draft (the free
+    editor can tune it, no Claude needed)."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    brief = doc["brief"]
+    if brief.get("mode") != "palace":
+        return {"error": "not_a_palace", "message": "this timeline's mode is "
+                f"{brief.get('mode') or 'linear'!r}; a Memory Palace is created with mode 'palace'"}
+    from .build import city_invent
+    try:
+        sp = spec if spec is not None else city_invent.template(template or city_invent.DEFAULT_TEMPLATE, name)
+        if name:
+            sp = {**sp, "name": name}
+        if fix:
+            pre = city_invent.check(sp)
+            f = next((c["fix"] for c in pre["checks"] if c["id"] == fix and c.get("fix")), None)
+            if f is None:
+                return {"error": "no_fix", "message": f"the {fix!r} check has nothing to fix",
+                        "checks": pre["checks"], "problems": pre["problems"]}
+            sp = city_invent.apply_fix(sp, f)
+        n_acts = len(brief.get("acts") or [])
+        pal, rep = city_invent.set_up(sp, buildings=(brief.get("palace") or {}).get("buildings"))
+    except city_invent.InventError as e:
+        return {"error": "invalid_city", "message": "; ".join(e.problems), "problems": e.problems,
+                "templates": city_invent.picker()}
+    if n_acts and len(pal.get("districts") or []) != n_acts:
+        bb = pal["bbox"]                                    # one district per section, west to east (the user renames them)
+        w = (bb[3] - bb[1]) / n_acts
+        pal["districts"] = [{"unit": i, "name": "", "bounds": [bb[0], bb[1] + i * w, bb[2], bb[1] + (i + 1) * w]}
+                            for i in range(n_acts)]
+    pal["made"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    new = {**brief, "palace": pal}
+    try:
+        b, _, _ = load_brief({"brief": _checked(doc, new)})
+        from .build.brief import validate_brief
+        warnings = validate_brief(b)
+    except BriefError as e:
+        return {"error": "invalid_palace", "message": str(e)}
+    doc["brief"] = new
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"ok": True, "finished": rep["pass"], "score": rep["score"], "checks": rep["checks"], "spec": sp,
+            "notes": rep["notes"], "warnings": warnings,
+            "message": ("This city passed Alto's city checks (%.0f of 100)." % rep["score"]) if rep["pass"] else
+            ("This city is saved as a draft: it scores %.0f of 100 and needs 85 with no failing check. %s" % (
+                rep["score"], " ".join(c["why"] for c in rep["checks"] if c["status"] == "fail"))),
+            "next": "build_timeline, then publish_timeline(…, 'private-web')" if rep["pass"] else
+            "apply a failing check's fix (invent_city(…, spec, fix=<check id>)) or change the spec, then call again"}
 
 
 @mcp.tool(title="Set up a Memory Blueprint", annotations=RW)

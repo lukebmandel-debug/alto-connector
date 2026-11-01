@@ -35,6 +35,8 @@ LATTICE_FRAC = 0.70
 SEAM_FRAC = 0.60
 SEAM_PX = 90.0
 BEND_PX = 40.0           # cost of one bend, page px (design 3.2)
+ORDER_PX = 80.0           # cost of crossing two lattice lines in the other order than the avenue really does (city_report.c_order)
+ORDER_TIE = 0.25          # rows: two real crossings this close are one intersection (no order between them)
 PROBES = [(math.cos(k * math.pi / 4), math.sin(k * math.pi / 4)) for k in range(8)]
 
 
@@ -510,15 +512,45 @@ def _cost(path, S, back, bound=None):
     return (d1 + d2) / 2
 
 
-def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.0, cw=CW, ch=CH, avoid=()):
+def _crossings(path, xs, ys):
+    """{("v", x) | ("h", y): arc length along path where it first crosses that lattice column / row}."""
+    out, acc = {}, 0.0
+    for a, b in zip(path, path[1:]):
+        L = math.dist(a, b)
+        if L < 1e-9:
+            continue
+        for o, vals, k in (("v", xs, 0), ("h", ys, 1)):
+            lo, hi = sorted((a[k], b[k]))
+            if hi - lo < 1e-9:
+                continue
+            for v in vals:
+                if lo < v < hi and (o, v) not in out:
+                    out[(o, v)] = acc + (v - a[k]) / (b[k] - a[k]) * L
+        acc += L
+    return out
+
+
+def _order_inv(want, got, tie, gap):
+    """Pairs of lattice lines the path crosses in the other order than the avenue really does (a real near-tie, under
+    `tie` apart, has no order; a drawn near-tie, under `gap`, is not counted either: city_report.c_order's rule)."""
+    ks = [k for k in want if k in got]
+    return sum(1 for i in range(len(ks)) for j in range(i + 1, len(ks))
+               if (want[ks[j]] - want[ks[i]]) * (got[ks[j]] - got[ks[i]]) < 0
+               and abs(want[ks[j]] - want[ks[i]]) > tie and abs(got[ks[j]] - got[ks[i]]) > gap)
+
+
+def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.0, cw=CW, ch=CH, avoid=(), lines=None):
     """Best path of at most 3 runs from one of ends_a to one of ends_b, fitted to `chain` (page or local px).
-    -> {"p": [pts], "bends", "cost", "a", "b"} or None. ends_*: [(x, y)] candidate end nodes (nearest first)."""
+    -> {"p": [pts], "bends", "cost", "a", "b"} or None. ends_*: [(x, y)] candidate end nodes (nearest first).
+    lines: (xs, ys) the drawn lattice columns and rows: a path that crosses two of them in the other order than the
+    chain does costs ORDER_PX more per pair (Ogden Avenue crossed Loomis before Randolph)."""
     if len(chain) < 2:
         return None
     S = [(x, y) for x, y, _ in resample(chain, max(20.0, plen(chain) / 40))]
     back = _dp(chain, 6)
     U = dirs8(mode, cw, ch)
     best = None
+    want = _crossings(chain, *lines) if lines else None
     for ia, a in enumerate(ends_a):
         for ib, b in enumerate(ends_b):
             D = (b[0] - a[0], b[1] - a[1])
@@ -565,6 +597,8 @@ def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.
                     continue
                 if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
                     c += shared(path, avoid) / cw * 3 * bend_px
+                if want and (best is None or c < best["cost"]):
+                    c += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
                 if best is None or c < best["cost"]:
                     best = {"p": path, "bends": len(path) - 2, "cost": c, "a": ia, "b": ib}
     if best:
@@ -601,7 +635,9 @@ def draw_piece(pts_local, nodes, fixed=(None, None), mode="page45", bend_px=BEND
             ends.append(nn); joined.append(1)
         else:
             ends.append([q]); joined.append(0)      # past the drawn lattice: it ends on the domain's edge
-    best = octi_path(pts_local, ends[0], ends[1], bend_px=bend_px, mode=mode, avoid=avoid)
+    xs = sorted({round(q[0], 1) for q in nodes})
+    ys = sorted({round(q[1], 1) for q in nodes})
+    best = octi_path(pts_local, ends[0], ends[1], bend_px=bend_px, mode=mode, avoid=avoid, lines=(xs, ys) if nodes else None)
     if not best:
         return None
     P = list(best["p"])

@@ -27,8 +27,8 @@ UNIT_STRIP_NEW = """function unitStrip(units, fmt){
   // (the map lives inside the function: unitStrip runs before a top-level const further down the script would be set)
   const HOME_FMT_ACCENT = %s;
   const ok = (units || []).filter(c => c && /^#[0-9a-fA-F]{3,8}$/.test(c)).slice(0, 7);
-  const u = ok.length ? ok : [HOME_FMT_ACCENT[fmt] || HOME_FMT_ACCENT.timeline];
-  return u.map(c => '<span style="background:' + c + '"></span>').join('');
+  if(!ok.length) return '<span data-acc="1" style="background:' + (HOME_FMT_ACCENT[fmt] || HOME_FMT_ACCENT.timeline) + '"></span>';   // (not a unit: the Retro plate does not count it)
+  return ok.map(c => '<span style="background:' + c + '"></span>').join('');
 }""" % __import__("json").dumps(FMT_ACCENT)
 STATIC_STRIP_OLD = """    const strip = (c.units || [null,null,null,null,null,null,null])
       .map(u => '<span' + (u ? ' style="background:'+u+'"' : '') + '></span>').join('');"""
@@ -146,6 +146,15 @@ def swap_titles(template: str) -> str:
     return template
 
 
+def swap_fmt(template: str) -> str:
+    """Each live card carries its format as an invisible data-fmt (the Retro plate names it: retro.HOME_B_JS)."""
+    for who in ("it", "pg"):
+        old = "{ const em = tileEmblem(%s.fmt, %s.units);" % (who, who)
+        assert template.count(old) == 1, old
+        template = template.replace(old, "{ el.setAttribute('data-fmt', %s.fmt || ''); const em = tileEmblem(%s.fmt, %s.units);" % (who, who, who))
+    return template
+
+
 def swap_bin(template: str) -> str:
     """The template's drawBin (a folded 'Recently deleted' group under the projects) becomes the corner bin's."""
     a = template.index(BIN_START)
@@ -163,7 +172,10 @@ BIN_CSS = """
   box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim); }
 #bin-btn:hover, #bin-btn.open{ border-color:var(--muted); color:var(--text); }
 #bin-btn svg{ display:block; }
-@media (min-width:641px){ #bin-btn{ zoom:var(--alto-zoom, 0.8); } #bin-panel{ zoom:var(--alto-zoom, 0.8); } }
+@media (min-width:641px){ #bin-btn{ zoom:var(--alto-zoom, 0.8); } #bin-panel{ zoom:var(--alto-zoom, 0.8); }
+  /* flat beside the account photo, which has none (Luke: "trash icon is not in line with other toggles"; the drop shadow under it
+     read as the bin sitting lower; Art, 2026-10-30): the right-hand row keeps its shadows */
+  #bin-btn{ box-shadow:inset 0 0 0 0.5px var(--card-glass-rim); } }
 #bin-panel{ position:fixed; left:24px; bottom:calc(24px + 35px + 12px); z-index:320; width:360px; max-width:calc(100vw - 32px); max-height:min(520px, 62vh);
   overflow-y:auto; padding:14px 14px 10px; border-radius:12px; color:var(--text);
   background:rgba(252,252,255,.95); border:1px solid var(--glass-slab-border);

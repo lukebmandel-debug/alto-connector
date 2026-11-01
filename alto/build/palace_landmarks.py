@@ -155,6 +155,26 @@ MATCH = [["usch", r"byrne|601 market|united states court ?house.*philadelphia"],
          ["gct", r"grand central"], ["penn", r"pennsylvania station|^penn station$"], ["un", r"united nations"], ["nych", r"^new york city hall$"]] + _towers.MATCH
 
 
+# art that is one real city's own building and must not be drawn for a namesake elsewhere (Luke 2026-10-30, "yes only philly",
+# L-1030-111104@Board): an art key -> the place it belongs to, and the generic building a namesake gets instead
+CITY_ONLY = {"city": (r"philadelphia", "g-dome")}
+
+
+def scope_art(landmarks, place) -> int:
+    """Give every landmark whose NAME would pull another city's own building (a Lyon or an invented "City Hall" drawn as
+    Philadelphia's) a generic building of its own (l["art"]); its own art, when it names one, is kept. -> how many."""
+    import re
+    n = 0
+    for l in landmarks or []:
+        if l.get("art") in ART:
+            continue
+        k = art_key(l)
+        if k in CITY_ONLY and not re.search(CITY_ONLY[k][0], str(place or ""), re.I):
+            l["art"] = CITY_ONLY[k][1]
+            n += 1
+    return n
+
+
 COURT_RX = r"court ?house|courts? building|justice cent(er|re)|hall of justice|palace of justice|supreme court|court of appeals"
 
 

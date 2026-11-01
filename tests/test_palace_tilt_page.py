@@ -341,10 +341,10 @@ def test_a_rotated_lot_is_hit_where_it_stands_and_not_beside_it(pg):
     pg.wait_for_timeout(900)
     s = pg.evaluate("""()=>{ var P=window._ALTO_PALACE, id=Object.keys(P.num).filter(function(i){ return /^card-/.test(i); })[0]; if(!id) return null;
       var e=document.getElementById('node-'+id), svg=document.getElementById('palace-svg'), k=P.at[id].split('.'), L=P.b[+k[0]][+k[1]], q=svg.createSVGPoint();
-      q.x=L[0]; q.y=L[1]; q=q.matrixTransform(svg.getScreenCTM()); var b=(e.querySelector('.node-card')||e).getBoundingClientRect();
+      q.x=L[0]; q.y=L[1]; q=q.matrixTransform(svg.getScreenCTM()); var b=e.getBoundingClientRect();         /* the node itself stands on its lot; its chip (.node-card) rides the roof, about 32 px up */
       return {at:P.at[id], num:P.num[id], pr:e.style.getPropertyValue('--pr'), d:Math.hypot((b.left+b.right)/2-q.x,(b.top+b.bottom)/2-q.y)}; }""")
     assert s and s["at"] == r["key"] and s["num"] and s["pr"] == f"{L[4]:g}deg", s
-    assert s["d"] < 1.5, s                                   # the turned card stands centred on its lot
+    assert s["d"] < 1.5, s                                   # the turned card's node stands centred on its lot
     assert not pg.errs, pg.errs
 
 

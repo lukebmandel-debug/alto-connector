@@ -299,13 +299,13 @@ def test_hovering_an_element_chip_lights_what_it_tags_and_draws_one_route(page):
     page.wait_for_timeout(400)
     s = page.evaluate("""() => ({hot: [...document.querySelectorAll('#world .node.pal-chip-hot')].map(n => n.id),
         dim: document.querySelectorAll('#world .node.pal-dim:not(.pal-floor)').length,
-        routes: document.querySelectorAll('#palace-svg .pl-crt.base').length,
+        routes: document.querySelectorAll('#pal-fx .pl-crt.base').length,
         pill: document.getElementById('pal-chiprt').textContent})""")
     assert set(s["hot"]) >= {"node-alpha", "node-gamma", "node-delta"} and s["routes"] == 1 and s["dim"] >= 1
     assert "3 buildings" in s["pill"]
     page.mouse.move(700, 600)
     page.wait_for_timeout(300)
-    assert page.evaluate("() => document.querySelectorAll('#palace-svg .pl-crt.base').length") == 0
+    assert page.evaluate("() => document.querySelectorAll('#pal-fx .pl-crt.base').length") == 0
     assert page.evaluate("() => document.querySelectorAll('#world .node.pal-chip-hot').length") == 0
 
 
@@ -314,14 +314,14 @@ def test_a_filter_keeps_the_tour_up_and_beats_the_hover_routes(page):
     page.evaluate("""() => { window._altoChipOn = () => true; window._altoChipSel = () => ({entity: ['tagged']});
       window._altoChipKeep = id => ['alpha', 'gamma'].indexOf(id) >= 0; document.dispatchEvent(new CustomEvent('alto-filter-changed')); }""")
     page.wait_for_timeout(300)
-    assert page.evaluate("() => document.querySelectorAll('#palace-svg .pl-crt.base').length") == 1
+    assert page.evaluate("() => document.querySelectorAll('#pal-fx .pl-crt.base').length") == 1
     # a building-hover route is refused while the tour is up
     page.evaluate("() => { const s = document.getElementById('palace-svg'); s._r.innerHTML = ''; }")
     assert page.evaluate("() => window._palTr.holds()") is True
     page.evaluate("""() => { window._altoChipOn = () => false; window._altoChipSel = () => ({}); window._altoChipKeep = () => true;
       document.dispatchEvent(new CustomEvent('alto-filter-changed')); }""")
     page.wait_for_timeout(200)
-    assert page.evaluate("() => document.querySelectorAll('#palace-svg .pl-crt.base').length") == 0
+    assert page.evaluate("() => document.querySelectorAll('#pal-fx .pl-crt.base').length") == 0
     assert page.evaluate("() => window._palTr.holds()") is False
 
 

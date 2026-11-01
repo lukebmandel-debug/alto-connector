@@ -362,16 +362,17 @@ def channels(m, root, fp, rep, off, reach, hints=()):
 
 
 def hints_of(m):
-    """[{n, x, y}] the preset's river names as real map px (the preset's `river_names`: [name, lat, lon])."""
+    """[{n, x, y}] the river names as real map px: the map's own `river_names` (set_up's, from a preset or auto_params), else the
+    preset's (`river_names`: [name, lat, lon])."""
     try:
         from . import city_presets
         from .. import palace_map as pm
-        pre = city_presets.get(m.get("place") or "")
+        names = m.get("river_names") or (city_presets.get(m.get("place") or "") or {}).get("river_names")
         bb, sc = m.get("bbox"), m.get("scale") or 1.0
-        if not pre or not bb:
+        if not names or not bb:
             return []
         out = []
-        for n, la, lo in pre.get("river_names") or []:
+        for n, la, lo in names:
             x, y = pm.project(la, lo, bb, sc)
             out.append({"n": n, "x": x, "y": y})
         return out
