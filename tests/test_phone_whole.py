@@ -39,7 +39,7 @@ def pages():
     sys.path.insert(0, str(ROOT / "tests"))
     import test_palace_transit as tt
     city = build_timeline(*load_brief(copy.deepcopy(tt._bundle())))[0]
-    return {"outline": _build("outline"), "system": _build("outline", layout="solar"), "lanes": _build("lanes_v2"), "city": city}
+    return {"outline": _build("outline"), "timeline": _build("contracts"), "system": _build("outline", layout="solar"), "lanes": _build("lanes_v2"), "city": city}
 
 
 def _head(page):
@@ -287,3 +287,49 @@ def test_the_3d_star_chart_canvas_shows_on_a_phone(pg, site):
       const G = window._altoSolarGeo(), n = Object.keys(G.bodies).filter(id => { const q = window._altoSolar3D.project(id); return q && isFinite(q.x) && isFinite(q.y); }).length;
       return [s.display, s.position, Math.round(r.width), Math.round(r.height), innerWidth, innerHeight, n > 0]; })()""")
     assert box[:2] == ["block", "fixed"] and box[2:4] == box[4:6] and box[6]
+
+
+# ── a tap enlarges a card where it is (Luke, 2026-11-01: "you cannot enlarge a node without going into it") ──
+_CARDS = """() => [...document.querySelectorAll('#world .node')].map(n => { const r = n.querySelector('.node-card').getBoundingClientRect();
+  return [n.id, r.left + r.width/2, r.top + r.height/2]; }).filter(a => a[1] > 20 && a[1] < innerWidth - 20 && a[2] > 130 && a[2] < innerHeight - 130)"""
+_FOCUS = """() => { const f = document.querySelector('#world .node.focused'), c = f && f.querySelector('.node-card'), r = c && c.getBoundingClientRect();
+  return {foc: window._focusedNodeId || null, det: document.documentElement.classList.contains('detail-open'), s: window._altoPhone.ov.s, W: innerWidth,
+    box: r && [r.left, r.right, r.top, r.bottom],
+    num: [...document.querySelectorAll('#world .phase-numeral')].map(e => +getComputedStyle(e).opacity)}; }"""
+
+
+@pytest.mark.parametrize("name", ["outline", "timeline"])
+def test_a_tap_enlarges_a_whole_card_in_place_then_goes_in_and_a_tap_on_the_board_leaves(pg, site, name):
+    _go(pg, f"{site}/{name}.html?view=whole")
+    cards = pg.evaluate(_CARDS)
+    assert cards
+    nid, x, y = cards[0]
+    pg.touchscreen.tap(x, y)
+    pg.wait_for_timeout(1600)
+    f = pg.evaluate(_FOCUS)
+    assert f["foc"] == nid[5:] and not f["det"] and f["s"] == 1, f                  # enlarged, not opened; the board back at full size
+    left, right, top, bottom = f["box"]
+    assert left >= 15.5 and right <= f["W"] - 15.5 and abs((left + right) / 2 - f["W"] / 2) <= 2, f   # Art: centred, 16px clear each side
+    assert top > 0 and bottom < pg.evaluate("innerHeight") and all(o == 0 for o in f["num"]), f       # the unit numerals are out of its way
+    pg.touchscreen.tap(sum(f["box"][:2]) / 2, sum(f["box"][2:]) / 2)                 # a tap on the enlarged card goes in
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate("document.documentElement.classList.contains('detail-open')")
+    pg.tap("#detail-back-fixed")
+    pg.wait_for_timeout(1200)
+    cards = pg.evaluate(_CARDS)
+    pg.touchscreen.tap(cards[0][1], cards[0][2])
+    pg.wait_for_timeout(1600)
+    assert pg.evaluate("window._focusedNodeId")
+    empty = pg.evaluate("""() => { for (let y = 120; y < innerHeight - 100; y += 18) for (let x = 6; x < innerWidth - 6; x += 18) {
+      const e = document.elementFromPoint(x, y); if (e && e.closest('#canvas') && !e.closest('.node')) return [x, y]; } return null; }""")
+    assert empty
+    pg.touchscreen.tap(*empty)                                                         # a tap on the board leaves
+    pg.wait_for_timeout(900)
+    assert not pg.evaluate("window._focusedNodeId")
+
+
+def test_a_card_name_in_the_whole_view_wraps_at_spaces_only(pg, site):
+    _go(pg, site + "/outline.html?view=whole")
+    h = pg.evaluate("""() => [...document.querySelectorAll('#world .node:not(.focused) .node-title')].map(t => { const c = getComputedStyle(t);
+      return [c.webkitHyphens || c.hyphens, c.overflowWrap]; })""")
+    assert h and all(x[0] == "manual" and x[1] == "normal" for x in h), h[:3]

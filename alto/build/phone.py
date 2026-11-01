@@ -105,6 +105,8 @@ html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:normal;word-break:normal;hyphens:manual;-webkit-hyphens:manual;}
+/* an enlarged card is the desktop's 1.7x (the engine zooms it) unless that is wider than the phone: then a little less, as large as leaves 16px each side (--ph-fk, set by the script below) */
+html.phone-whole .node.focused .node-card:not(#_){transform:scale(var(--ph-fk,1)) !important;}
 /* an enlarged card has the screen: the unit numerals (they ride the right edge) and the Alto wordmark do not sit on it */
 html.phone-whole #canvas.focus-mode .phase-numeral:not(#_){opacity:0 !important;pointer-events:none !important;}
 /* what a hover showed, on a long press */
@@ -170,6 +172,8 @@ function ovAnim(s1, x, y, done){
     ovSet(Math.exp(Math.log(s0)+(Math.log(s1)-Math.log(s0))*e), x, y);
     if(k<1) ovA=requestAnimationFrame(fr); else if(done) done(); })(t0);
 }
+function fsSet(){ de.style.setProperty('--ph-fk', Math.min(1, (innerWidth-32)/(290*1.7)).toFixed(3)); }
+fsSet(); window.addEventListener('resize', fsSet); window.addEventListener('orientationchange', function(){ setTimeout(fsSet, 150); });
 /* a tap on a card enlarges it where it is (the desktop's focus mode: Luke, 2026-11-01, "you cannot enlarge a node without
    going into it"); a tap on the enlarged card goes in (its own click), a tap on the board leaves (the engine's own click
    rule). A board still small first returns to full size round the card. */
