@@ -260,7 +260,8 @@ def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
     assert s1 > s0 * 1.5
     pg.evaluate(_PINCH, [195, 400, 260, 60])
     pg.wait_for_timeout(500)
-    assert abs(pg.evaluate("window._altoPhone.ov.s") - s0) < 1e-6                 # never smaller than the phone's width
+    fit = pg.evaluate("(innerWidth - 8) / document.getElementById('world').offsetWidth")
+    assert abs(pg.evaluate("window._altoPhone.ov.s") - fit) < 1e-6                 # never smaller than the phone's width (it opens readable, above that)
 
 
 def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_clef(pg, site):
@@ -333,3 +334,21 @@ def test_a_card_name_in_the_whole_view_wraps_at_spaces_only(pg, site):
     h = pg.evaluate("""() => [...document.querySelectorAll('#world .node:not(.focused) .node-title')].map(t => { const c = getComputedStyle(t);
       return [c.webkitHyphens || c.hyphens, c.overflowWrap]; })""")
     assert h and all(x[0] == "manual" and x[1] == "normal" for x in h), h[:3]
+
+
+def test_the_whole_board_opens_readable_and_maps_list_lands_on_a_card_in_view(pg, site):
+    """A3 (Luke's 'text ~3 px, unreadable'): the board opens at ~0.6 (two columns across) with a card's name 12 px on the glass at least,
+    and MAP's list (a board still small) enlarges the card where it can be seen: the engine's scroll sums are for a board at full size."""
+    _go(pg, site + "/outline.html?view=whole")
+    s, px = pg.evaluate("""() => { const t = document.querySelector('#world .node:not(.focused) .node-title'), s = window._altoPhone.ov.s;
+      return [s, parseFloat(getComputedStyle(t).fontSize) * s]; }""")
+    assert 0.55 <= s <= 0.65 and px >= 11.9, (s, px)
+    pg.evaluate("""() => { const m = document.getElementById('minimap-toggle'), e = new Event('touchend', {bubbles: true, cancelable: true});
+      Object.defineProperty(e, 'changedTouches', {value: []}); Object.defineProperty(e, 'touches', {value: []}); m.dispatchEvent(e); }""")
+    pg.wait_for_timeout(700)
+    pg.tap("#minimap-nav-panel .mnp-node-btn >> nth=8")
+    pg.wait_for_timeout(2500)
+    f = pg.evaluate(_FOCUS)
+    assert f["foc"] and f["s"] == 1 and f["box"], f
+    left, right, top, bottom = f["box"]
+    assert left >= 15.5 and right <= f["W"] - 15.5 and top > 0 and bottom < pg.evaluate("innerHeight"), f

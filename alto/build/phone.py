@@ -105,6 +105,8 @@ html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:normal;word-break:normal;hyphens:manual;-webkit-hyphens:manual;}
+/* a card's name stays 12px on the glass at the readable scales (the board's own size shrinks with the zoom): bigger on the board, never past 22px, never under its own 16px */
+html.phone-whole.ph-ov:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){font-size:max(16.25px, min(22px, calc(12px / var(--ph-os,1))));}
 /* an enlarged card is the desktop's 1.7x (the engine zooms it) unless that is wider than the phone: then a little less, as large as leaves 16px each side (--ph-fk, set by the script below) */
 html.phone-whole .node.focused .node-card:not(#_){transform:scale(var(--ph-fk,1)) !important;}
 /* an enlarged card has the screen: the unit numerals (they ride the right edge) and the Alto wordmark do not sit on it */
@@ -153,7 +155,7 @@ function gev(type, scale, x, y){
 
 /* ── the vertical timeline / outline: the board fitted to the phone, scaled by two fingers ── */
 /* the board's own zoom (CSS zoom, not a transform: WebKit keeps a transformed board's full-size scroll extent) */
-var OV={s:1, w:0}, ovA=0;
+var OV={s:1, w:0}, ovA=0, START=.6;     /* (the board opens readable: a card's name 12px on the glass at least, two columns across; pinch out for all of it) */
 function world(){ return document.getElementById('world'); }
 function fitS(){ var c=cv(), w=world(); if(!c || !w) return 1; if(OV.s>=.999 || !OV.w) OV.w=w.offsetWidth||1; return Math.min(1, (c.clientWidth-8)/OV.w); }
 function ovSet(s, px, py){                       /* scale s, the board point under (px, py) on screen staying there */
@@ -164,6 +166,7 @@ function ovSet(s, px, py){                       /* scale s, the board point und
   OV.s=s;
   if(s>=.999){ OV.s=1; w.style.zoom=''; de.classList.remove('ph-ov'); }
   else { w.style.zoom=s.toFixed(4); de.classList.add('ph-ov'); }
+  de.style.setProperty('--ph-os', OV.s.toFixed(3));
   var b=w.getBoundingClientRect(); c.scrollLeft+=b.left+wx*OV.s-px; c.scrollTop+=b.top+wy*OV.s-py;
 }
 function ovAnim(s1, x, y, done){
@@ -182,9 +185,15 @@ document.addEventListener('click', function(e){
   var n=e.target.closest && e.target.closest('#world .node'); if(!n) return;
   var id=n.id.slice(5); if(window._focusedNodeId===id) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  var r=n.getBoundingClientRect(), go=function(){ enterFocus(id); };
-  if(OV.s<.999) ovAnim(1, r.left+r.width/2, r.top+r.height/2, go); else go();
+  enterFocus(id);
 }, true);
+/* enlarging a card (a tap, MAP's list, a search result) from a board still small: full size round the card first, then the engine's own enlarge
+   (its scroll sums are for a board at full size) */
+function wrapFocus(){ var o=window.enterFocus; if(typeof o!=='function' || o._ph) return;
+  var w=function(id){ var a=arguments, me=this, el=id && document.getElementById('node-'+id);
+    if(!(on() && fmt()==='tl' && OV.s<.999 && el)) return o.apply(me, a);
+    var r=el.getBoundingClientRect(); ovAnim(1, r.left+r.width/2, r.top+r.height/2, function(){ o.apply(me, a); }); };
+  w._ph=1; window.enterFocus=w; }
 
 /* ── touches on the board ── */
 var G=null, T=null, lastTap=null, LP=null, hov=[];
@@ -311,9 +320,9 @@ function drawer(){
 }
 function build(){
   if(!on() || !document.body) return;
-  remap(); unrail(); drawer(); cardsBtn(); de.classList.add('ph-ready');
+  remap(); unrail(); drawer(); cardsBtn(); wrapFocus(); de.classList.add('ph-ready');
 }
-function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(s<.999 && c){ var r=c.getBoundingClientRect(); ovSet(s, r.left, r.top); c.scrollLeft=0; c.scrollTop=0; } } }
+function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(s<.999 && c){ var r=c.getBoundingClientRect(); ovSet(Math.max(s, START), r.left, r.top); c.scrollLeft=0; c.scrollTop=0; } } }
 document.addEventListener('DOMContentLoaded', function(){ build(); });
 window.addEventListener('load', function(){ build(); fit(); setTimeout(build, 900); });
 window.addEventListener('resize', function(){ if(OV.s<1) ovSet(OV.s); });
