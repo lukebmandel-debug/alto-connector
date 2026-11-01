@@ -27,6 +27,14 @@ MSEARCH_PANEL_GLUE = """
     // What this detail page itself says: every paragraph or row that carries the
     // words, with the heading it sits under. Read from the page as it is, so it
     // covers authored sections and the generated ones alike.
+    // The shared snippet cuts at a character count: drop a word it cut in half at the end, so no result ends mid-word.
+    function wholeWords(snip, tx){
+      if(snip.slice(-1)!=='\u2026') return snip;
+      var body=snip.slice(0,-1), m=/([^\s>]*)$/.exec(body); if(!m || !m[1]) return snip;
+      var plain=body.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/^\u2026/,''), at=tx.indexOf(plain);
+      if(at<0 || !/[A-Za-z0-9\u00C0-\u024F]/.test(tx.charAt(at+plain.length)) || !/[A-Za-z0-9\u00C0-\u024F]$/.test(plain)) return snip;
+      return body.slice(0, body.length-m[1].length).replace(/[\s,;:]+$/,'')+'\u2026';
+    }
     function pageMatches(q){
       var dc=document.getElementById('detail-content'); if(!dc) return [];
       var ql=q.toLowerCase(), out=[], M=window._altoMatch, Q=M?M.query(q):null;
@@ -38,10 +46,12 @@ MSEARCH_PANEL_GLUE = """
         if(M){
           // every word of the query, matched the way the timeline search matches it
           if(!Q.toks.length || !M.score(Q,{fields:[{w:1,text:tx}]})) return;
-          snip=M.snippet(tx,Q);
+          snip=wholeWords(M.snippet(tx,Q), tx);
         } else {
           var i=tx.toLowerCase().indexOf(ql); if(i<0) return;
           var a=Math.max(0,i-50), b=Math.min(tx.length,i+ql.length+80);
+          if(a>0){ var sa=tx.indexOf(' ',a); if(sa>=0 && sa<i) a=sa+1; }                 // (an edge is a whole word: Luke, hyphenated and cut words look wrong)
+          if(b<tx.length){ var sb=tx.lastIndexOf(' ',b); if(sb>i+ql.length) b=sb; }
           snip=(a>0?'…':'')+esc(tx.slice(a,i))+'<mark>'+esc(tx.slice(i,i+ql.length))+'</mark>'+esc(tx.slice(i+ql.length,b))+(b<tx.length?'…':'');
         }
         out.push({el:el, where:h?h.textContent.trim():'This page', snip:snip});
