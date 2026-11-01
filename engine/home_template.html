@@ -822,6 +822,18 @@
     background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:12.5px; }
   .share-menu .sm-pick small{ display:block; margin-top:3px; font-size:11.5px; line-height:1.45; color:var(--muted); white-space:normal; }
   .share-menu .sm-warn b{ font-weight:600; }
+  /* Turn into another format: the prompt for Claude, shown so it can be copied by hand too */
+  .share-menu .sm-prompt{ width:100%; box-sizing:border-box; min-height:112px; margin:2px 0 8px; padding:8px 10px; border-radius:10px;
+    border:1px solid var(--btn-border); background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:12.5px; line-height:1.5; resize:vertical; }
+  /* the convert sheet sits over the art: a firmer plate (94%), ink-dark Cancel and plan lines (4.5:1), phone rows 44px */
+  .share-menu.sm-convert{ background:color-mix(in srgb, var(--surface) 94%, transparent); }
+  .share-menu.sm-convert .sm-quiet, .share-menu.sm-convert .sm-pick small{ color:var(--text); }
+  .share-menu.sm-convert .sm-pick[disabled]{ opacity:1; color:var(--muted); cursor:default; border-style:dashed; }   /* (the sheet's generic disabled dimming would take the plan line below 4.5:1) */
+  .share-menu.sm-convert .sm-pick[disabled] small{ font-weight:600; }
+  .share-menu.sm-convert .sm-note.sm-ask{ font-size:14px; line-height:1.5; color:var(--text); }
+  @media (max-width:640px){ .share-menu.sm-convert .sm-pick{ min-height:44px; } .share-menu.sm-convert .sm-quiet{ min-height:44px; } }
+  .share-menu .sm-place{ width:100%; box-sizing:border-box; height:34px; margin:2px 0 8px; padding:0 10px; border-radius:10px;
+    border:1px solid var(--btn-border); background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:14px; }
   /* Recently deleted: under your own projects, folded until opened */
   .bin-group .bin-toggle{ background:none; border:0; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; padding:0; letter-spacing:.04em; }
   .bin-group .bin-toggle:hover{ color:var(--text); }
@@ -1704,6 +1716,101 @@ function altoPrintMenu(pg){
   body.appendChild(cancel);
 }
 
+// ── Turn a file into another format (the ⋯ on its card). One sheet; it makes a NEW timeline from the file's own cards.
+// The format ids are the ones the file badges use (alto/entitlements.py holds the same list, a test keeps them equal).
+// Which formats this person may make is decided on the server (entitlements.allowed); the page only reads the answer, if the
+// account layer supplied one (window._altoFormatAccess = { id: { ok, plan } }): none given = all open (the beta).
+// A build with its own route (the model route) adds {id, label, formats?, when?(), run(pg, fmt, ui: {place, status(text), confirm(text, label) -> Promise<bool>, close})} to window._altoConvertRoutes (formats: the ones it can make); Claude's route,
+// a prompt to copy, is always there and needs no server.
+const CONVERT_FORMATS = [['timeline', 'Timeline (sketch)', ''], ['outline', 'Outline', ''], ['system', 'System', ''],
+  ['lanes', 'Horizontal timeline', ''], ['palace', 'Mind Palace (a city)', 'city'], ['world', 'World-map palace', 'set of countries'],
+  ['building', 'Memory palace (a building)', 'building']];
+function altoConvertPrompt(pg, fmt){
+  const f = CONVERT_FORMATS.filter(x => x[0] === fmt)[0] || [fmt, fmt, ''];
+  const name = pg.heading || pg.title || 'Untitled timeline';
+  return 'Turn my Alto timeline "' + name + '"' + (pg.project && pg.project !== name ? ' (in my project "' + pg.project + '")' : '') +
+    ' into a ' + f[1] + '. Make it as a new timeline in the same project and leave the original as it is. Use only the cards, ' +
+    'sections and links the original already has: do not add a card, fact, date or case that is not in it, and do not leave one out.' +
+    (f[2] ? ' Ask me which ' + f[2] + ' to use before you start.' : '');
+}
+function altoConvertMenu(pg){
+  const sc = document.createElement('div');
+  sc.className = 'share-scrim';
+  sc.innerHTML = '<div class="share-menu sm-convert" role="dialog" aria-modal="true"><div class="sm-title"></div>' +
+    '<p class="sm-note"></p><div class="sm-body"></div><p class="sm-status"></p></div>';
+  document.body.appendChild(sc);
+  const note = sc.querySelector('.sm-note'), body = sc.querySelector('.sm-body'), status = sc.querySelector('.sm-status');
+  sc.querySelector('.sm-title').textContent = pg.heading || pg.title || 'Untitled timeline';
+  const close = () => { sc.remove(); document.removeEventListener('keydown', onKey, true); };
+  function onKey(e){ if(e.key === 'Escape'){ e.preventDefault(); close(); } }
+  document.addEventListener('keydown', onKey, true);
+  sc.addEventListener('click', e => { if(e.target === sc) close(); });
+  function btn(label, cls, fn){
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    if(cls) b.className = cls;
+    b.addEventListener('click', e => { e.stopPropagation(); fn(b); });
+    return b;
+  }
+  const access = window._altoFormatAccess || {};
+  function pickView(){
+    body.innerHTML = ''; status.textContent = ''; note.classList.remove('sm-ask');
+    note.textContent = 'Which format? It makes a new timeline in this project from this one’s own cards. This one stays as it is.';
+    CONVERT_FORMATS.forEach(f => {
+      if(f[0] === (pg.fmt || 'timeline')) return;
+      const a = access[f[0]], locked = !!(a && a.ok === false);
+      const b = btn(f[1], 'sm-pick', () => { if(!locked) routeView(f); });
+      b.dataset.format = f[0];
+      if(locked){
+        b.disabled = true;
+        const sm = document.createElement('small'); sm.textContent = 'In the ' + String(a.plan || 'paid') + ' plan'; b.appendChild(sm);
+      }
+      body.appendChild(b);
+    });
+    body.appendChild(btn('Cancel', 'sm-quiet', close));
+  }
+  function routeView(f){
+    body.innerHTML = ''; status.textContent = '';
+    note.textContent = 'Into ' + f[1] + '. It uses only what this timeline already has: nothing is added.';
+    const routes = (window._altoConvertRoutes || []).filter(r => r && typeof r.run === 'function' && (!r.formats || r.formats.indexOf(f[0]) >= 0) && (!r.when || r.when()));
+    let place = null;
+    if(f[2] && routes.length){
+      place = document.createElement('input'); place.type = 'text'; place.className = 'sm-place';
+      place.placeholder = 'Which ' + f[2] + '? (map data comes from OpenStreetMap)';
+      place.addEventListener('click', e => e.stopPropagation());
+      body.appendChild(place);
+    }
+    routes.forEach(r => body.appendChild(btn(r.label || 'Make it', 'sm-pick', () => {
+      if(f[2] && !String(place.value || '').trim()){ status.textContent = 'Say which ' + f[2] + ' first.'; return; }
+      status.textContent = 'Working…';
+      Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = true; });
+      const ask = (text, label) => new Promise(res => {                  // a route asks before it spends: the question replaces the buttons
+        body.innerHTML = ''; status.textContent = ''; note.textContent = text; note.classList.add('sm-ask');          // the question reads at the top, in ink, where the sheet's own words are
+        body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; note.textContent = ''; note.classList.remove('sm-ask'); res(true); }));
+        body.appendChild(btn('Cancel', 'sm-quiet', () => { res(false); close(); }));
+      });
+      Promise.resolve().then(() => r.run(pg, f[0], { place: place ? place.value.trim() : '', status: t => { status.textContent = t; }, confirm: ask, close }))
+        .then(() => { if(!sc.isConnected) return; if(status.textContent){ note.textContent = status.textContent; note.classList.add('sm-ask'); status.textContent = ''; }   // the result reads in ink at the top
+                    if(!body.querySelector('.sm-quiet')) body.appendChild(btn('Close', 'sm-quiet', close)); },
+              e => { status.textContent = 'Did not work: ' + ((e && e.message) || e);
+                     Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = false; }); });
+    })));
+    const prompt = altoConvertPrompt(pg, f[0]);
+    const ta = document.createElement('textarea'); ta.className = 'sm-prompt'; ta.readOnly = true; ta.value = prompt;
+    ta.addEventListener('click', e => { e.stopPropagation(); ta.select(); });
+    ta.hidden = routes.length > 0;                      // with a route on offer the prompt is the second choice: shown only when it is picked
+    body.appendChild(ta);
+    body.appendChild(btn(routes.length ? 'Copy a prompt for Claude instead' : 'Copy the prompt for Claude', 'sm-pick', () => {
+      ta.hidden = false;
+      // copied straight from the tap (iOS only honours it there): the clipboard where there is one, else the field itself
+      let ok = false;
+      try{ ta.focus({ preventScroll: true }); ta.select(); ta.setSelectionRange(0, prompt.length); ok = document.execCommand('copy'); }catch(e){}
+      if(!ok && navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(prompt).then(() => { status.textContent = 'Copied. Paste it into Claude.'; }, () => {}); }
+      status.textContent = ok ? 'Copied. Paste it into Claude.' : 'Select the text above and copy it, then paste it into Claude.';
+    }));
+    body.appendChild(btn('Back', 'sm-quiet', pickView));
+  }
+  pickView();
+}
 // ── Renaming: a timeline from the ⋯ on its card, a project from the pencil by its name.
 // One small dialog for both. The name is cleaned the way a new timeline's is (typographic
 // quotes, no markup); the cloud writes it where the name lives (alto-cloud.js renameTimeline /
@@ -1813,6 +1920,7 @@ function altoTileMenu(pg){
     body.appendChild(btn('Rename timeline…', '', () => { close(); altoRenameTimeline(pg); }));
     body.appendChild(btn('Move to another project…', '', moveView));
     body.appendChild(btn('Print…', '', () => { close(); altoPrintMenu(pg); }));
+    body.appendChild(btn('Turn into another format…', '', () => { close(); altoConvertMenu(pg); }));
     body.appendChild(btn('Delete timeline…', 'sm-danger', deleteView));
     body.appendChild(btn('Cancel', 'sm-quiet', close));
   }
