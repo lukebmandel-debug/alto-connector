@@ -33,7 +33,7 @@ from .phone import FOLDER, _slim
 GUARD = "_altoPhoneMin"
 
 # ── in every page's <head> (a phone only) ──
-HEAD_JS = r"""(function(){var q=location.search;if(!(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||/[?&]mobile/.test(q))||/[?&]pm=0/.test(q))return;__LOAD__})();"""
+HEAD_JS = r"""(function(){var q=location.search;if(!(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||/[?&]mobile/.test(q))||/[?&]pm=0/.test(q))return;if(!(__DEFAULT__||/[?&]pm=1/.test(q)))return;__LOAD__})();"""
 
 X = ":not(#_):not(#__)"          # outranks the phone design's own rules (and phone.py's remap of them) whatever their order
 P = "html.pmin:is(.mobile,.phone-whole)"
@@ -179,7 +179,19 @@ def phone_min_asset() -> tuple[str, str]:
     return PATH.rsplit("/", 1)[1], ASSET
 
 
-def head_block() -> str:
-    """The <script> for <head> of every page (a phone fetches the layer, nothing else does)."""
+# Formats whose phone default is the corner tiles (Luke, 2026-11-01: "I want my old toggles back except for the formats we were
+# explicitly trying to make the toggles not overwhelm the page like star chart"): the layouts below. Every other page keeps the
+# v1.9.152 edge tabs. One entry here adds a format.
+TILE_LAYOUTS = ("solar",)
+
+
+def tiles_by_default(brief) -> bool:
+    return getattr(brief, "layout", None) in TILE_LAYOUTS
+
+
+def head_block(tiles: bool = False) -> str:
+    """The <script> for <head> of every page. A phone fetches the layer when the page's default is the tiles (`tiles`: the System,
+    every style) or when the address says ?pm=1; ?pm=0 turns it off on any page. A page that does not fetch it keeps the v1.9.152 tabs."""
     from .palace_assets import loader
-    return '<script id="alto-phone-min-head">' + HEAD_JS.replace("__LOAD__", loader(PATH, GUARD)) + "</script>"
+    js = HEAD_JS.replace("__DEFAULT__", "true" if tiles else "false").replace("__LOAD__", loader(PATH, GUARD))
+    return '<script id="alto-phone-min-head">' + js + "</script>"
