@@ -104,7 +104,7 @@ html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;
 /* a timeline or an outline seen whole: a card shows its name alone until it is enlarged (Luke, 2026-10-24: "just have node
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
-html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:break-word;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}
+html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:normal;word-break:normal;hyphens:manual;-webkit-hyphens:manual;}
 /* an enlarged card has the screen: the unit numerals (they ride the right edge) and the Alto wordmark do not sit on it */
 html.phone-whole #canvas.focus-mode .phase-numeral:not(#_){opacity:0 !important;pointer-events:none !important;}
 /* what a hover showed, on a long press */
