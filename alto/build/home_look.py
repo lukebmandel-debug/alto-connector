@@ -240,7 +240,8 @@ window._spCard = function(el, rec){
     txt = 'Study plan · ' + (today ? 'Today: ' + today : late ? late + ' late' : 'nothing today');
   }
   var line = document.createElement('div'); line.className = 'sp-card'; line.textContent = txt;
-  var host = el.querySelector('.tile-body') || el; host.appendChild(line);
+  var ti = el.querySelector('.tile-title'), host = el.querySelector('.tile-body') || el;   // (under the title, so a plate's undo that puts the lock glyph back last leaves the order as it was)
+  if(ti && ti.parentNode) ti.parentNode.insertBefore(line, ti.nextSibling); else host.appendChild(line);
 };
 """
 

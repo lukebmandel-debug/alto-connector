@@ -239,6 +239,8 @@ FORMAT_CSS = r"""
   /* focus on a branch (focus_branch.py): square, and the Exit pill's ink is dark on the accent fill (Classic's is set in JS from the accent's brightness, so this wins over it); the rules live here, not in the page */
   X :is(#af-btn,#af-exit){border-radius:0;}
   X #af-exit{color:#000 !important;}
+  /* the study plan's late and done rings (study_plan.py) wear the gold like everything else */
+  X{--sp-late:var(--accent);--sp-ok:var(--accent);}
   /* the horizontal timeline (lanes.py): the story's line a gold beam, each character's line its own hue, flat and fine */
   X #lanes-svg .ln-main-halo{stroke:#d9ae55 !important;stroke-opacity:.12 !important;stroke-width:14 !important;}
   X #lanes-svg .ln-main{stroke:#d9ae55 !important;stroke-width:4 !important;}

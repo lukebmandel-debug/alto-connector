@@ -60,7 +60,7 @@ def clean(plan, node_ids) -> dict:
 
 CSS = r"""<style id="alto-sp-css">
   /* a planned node: one class by the reader's date, drawn as Art's look page shows (study_plan.py). A computer's page only: a phone and its whole view draw nothing */
-  html{--sp-late:#b42318;--sp-ok:#1f6b3a;} html.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;} html.alto-retro{--sp-late:var(--accent);--sp-ok:var(--accent);}
+  html{--sp-late:#b42318;--sp-ok:#1f6b3a;} html.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;}
   html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{outline:2px solid var(--accent);outline-offset:4px;box-shadow:0 0 0 9px color-mix(in srgb,var(--accent) 20%,transparent);}
   html:not(.mobile):not(.phone-whole) .node.sp-soon > .node-card{outline:1.5px solid var(--accent);outline-offset:4px;outline-color:color-mix(in srgb,var(--accent) 50%,transparent);}
   html:not(.mobile):not(.phone-whole) .node.sp-late > .node-card{outline:3px solid var(--sp-late);outline-offset:4px;}
@@ -78,6 +78,7 @@ CSS = r"""<style id="alto-sp-css">
     background:var(--surface);border:1px solid var(--border);border-right:none;color:var(--accent);border-radius:6px 0 0 6px;cursor:pointer;font:inherit;font-size:11px;letter-spacing:.08em;white-space:nowrap;}
   html:not(.mobile):not(.phone-whole) #sp-chip:hover,html:not(.mobile):not(.phone-whole) #sp-chip.open{color:var(--text);border-color:var(--accent);}
   #sp-chip.late{color:var(--sp-late);}
+  html:not(.mobile):not(.phone-whole) #tab-rail > #sp-chip{position:static !important;top:auto !important;right:auto !important;}
   #sp-row{display:none;}
   html:not(.mobile):not(.phone-whole) #sp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 12px 0;padding:8px 12px;border:1px solid var(--border);border-radius:9px;
     background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;cursor:pointer;text-align:left;}
@@ -145,7 +146,13 @@ JS = r"""<script id="alto-sp">
   function word(x){
     return x.st === 'done' ? '✓ Done' : x.st === 'today' ? 'Today' : x.st === 'late' ? (-x.dd) + (x.dd === -1 ? ' day late' : ' days late') : x.dd === 1 ? 'Tomorrow' : wk(x.it.day);
   }
+  /* the tab belongs in the right rail with Overview, Notes, Filter and Scene (before Scene, which keeps itself last); until the rail exists it stands alone on the edge */
+  function place(){
+    var rail = document.getElementById('tab-rail'); if(!chip || !rail || chip.parentNode === rail) return;
+    var bg = document.getElementById('bg-toggle'); if(bg && bg.parentNode === rail) rail.insertBefore(chip, bg); else rail.appendChild(chip);
+  }
   function paint(){
+    place();
     var S = states(), by = {};
     S.forEach(function(x){ (by[x.it.node] || (by[x.it.node] = [])).push(x); });
     Array.prototype.forEach.call(document.querySelectorAll('.node[class*="sp-"]'), function(n){ n.classList.remove('sp-today', 'sp-soon', 'sp-late', 'sp-done'); var t = n.querySelector('.sp-tag'); if(t) t.remove(); });

@@ -148,8 +148,6 @@ def test_lanes_draw_the_same_classes(browser, site):
 
 def test_the_date_moving_on_changes_the_rings_and_a_tick_is_the_readers_own(browser, site):
     ctx, pg, errs = _open(browser, site + "/o.html")
-    pg.evaluate("toggleNotes()")                                          # (the row sits in the notes panel)
-    pg.wait_for_timeout(500)
     pg.click("#sp-chip")                                                  # (the tab on the right rail: no need to open the notes panel)
     pg.wait_for_timeout(200)
     assert pg.evaluate("document.getElementById('sp-sheet').classList.contains('open')")
@@ -174,9 +172,7 @@ def test_the_date_moving_on_changes_the_rings_and_a_tick_is_the_readers_own(brow
 
 def test_go_to_node_and_make_my_plan(browser, site):
     ctx, pg, errs = _open(browser, site + "/o.html")
-    pg.evaluate("toggleNotes()")
-    pg.wait_for_timeout(500)
-    pg.click("#sp-row")
+    pg.click("#sp-chip")
     pg.click("#sp-sheet .sp-go >> nth=0")
     assert pg.evaluate("document.querySelector('.node.sp-go') !== null")
     pg.click("#sp-sheet .sp-mk")
@@ -205,6 +201,7 @@ def test_a_phone_draws_nothing_and_print_removes_the_rings(browser, site):
 
 def test_the_tab_on_the_rail_invites_without_a_plan_and_counts_with_one(browser, site):
     ctx, pg, errs = _open(browser, site + "/n.html")
+    assert pg.evaluate("document.querySelector('#notes-panel ~ #sp-row, #sp-row') !== null && document.getElementById('sp-row').parentNode.id === 'notes-panel'")   # (and a row in the notes panel too)
     assert pg.evaluate("document.getElementById('sp-chip').textContent") == "Make a study plan"
     assert pg.evaluate("getComputedStyle(document.getElementById('sp-chip')).display") == "block"
     assert pg.evaluate("document.querySelectorAll('.sp-tag').length") == 0
