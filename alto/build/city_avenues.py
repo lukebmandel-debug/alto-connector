@@ -112,7 +112,19 @@ def poly_d(p, pts):
         return pts.dist(p)
     if len(pts) == 1:
         return math.dist(p, pts[0])
-    return min(segd(p, a, b) for a, b in zip(pts, pts[1:]))
+    px, py = p[0], p[1]
+    best = None
+    ax, ay = pts[0][0], pts[0][1]
+    for q in pts[1:]:       # segd, inlined: this is the hot loop of the avenue fit
+        bx, by = q[0], q[1]
+        dx, dy = bx - ax, by - ay
+        t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy or 1e-12)
+        t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+        d = math.hypot(ax + t * dx - px, ay + t * dy - py)
+        if best is None or d < best:
+            best = d
+        ax, ay = bx, by
+    return best
 
 
 def ring_d(p, ring):
@@ -594,25 +606,13 @@ def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.
                 pen = bend_px * (len(path) - 2) + 0.15 * (ia + ib) * bend_px
                 if best is not None and pen >= best["cost"]:
                     continue
-                # the two penalties below only add: the fit cost may stop at what is left of the best cost after them
-                # (the same paths win; the fit cost is the slow part and a loose bound let most of it run on)
-                extra = 0.0
-                if best is not None:
-                    if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
-                        extra += shared(path, avoid) / cw * 3 * bend_px
-                    if want:
-                        extra += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
-                    if pen + extra >= best["cost"]:
-                        continue
-                c = _cost(path, S, back, None if best is None else best["cost"] - pen - extra) + pen
-                if best is not None and c + extra >= best["cost"]:
+                c = _cost(path, S, back, None if best is None else best["cost"] - pen) + pen
+                if best is not None and c >= best["cost"]:
                     continue
-                if best is None:
-                    if avoid:
-                        extra += shared(path, avoid) / cw * 3 * bend_px
-                    if want:
-                        extra += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
-                c += extra
+                if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
+                    c += shared(path, avoid) / cw * 3 * bend_px
+                if want and (best is None or c < best["cost"]):
+                    c += ORDER_PX * _order_inv(want, _crossings(path, *lines), ORDER_TIE * ch, (cw + ch) / 4)
                 if best is None or c < best["cost"]:
                     best = {"p": path, "bends": len(path) - 2, "cost": c, "a": ia, "b": ib}
     if best:
