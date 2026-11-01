@@ -222,7 +222,8 @@ def test_a_route_can_ask_before_it_spends_and_can_hide_itself(homepage):
     assert "About 200 credits" in pg.locator(".share-menu .sm-note").inner_text()
     pg.locator(".share-menu .sm-pick", has_text="Make it").click()
     pg.wait_for_function("window.__asked === true")
-    assert "3 cards in, 3 out" in pg.locator(".share-menu .sm-status").inner_text()
+    assert "3 cards in, 3 out" in pg.locator(".share-menu .sm-note").inner_text()          # the result reads in ink at the top, the old question gone
+    assert "Go on?" not in pg.locator(".share-menu .sm-note").inner_text()
     assert pg.locator(".share-menu .sm-quiet", has_text="Close").count() == 1
     assert errors == []
 

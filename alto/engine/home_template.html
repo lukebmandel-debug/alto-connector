@@ -1785,11 +1785,12 @@ function altoConvertMenu(pg){
       Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = true; });
       const ask = (text, label) => new Promise(res => {                  // a route asks before it spends: the question replaces the buttons
         body.innerHTML = ''; status.textContent = ''; note.textContent = text; note.classList.add('sm-ask');          // the question reads at the top, in ink, where the sheet's own words are
-        body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; note.classList.remove('sm-ask'); res(true); }));
+        body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; note.textContent = ''; note.classList.remove('sm-ask'); res(true); }));
         body.appendChild(btn('Cancel', 'sm-quiet', () => { res(false); close(); }));
       });
       Promise.resolve().then(() => r.run(pg, f[0], { place: place ? place.value.trim() : '', status: t => { status.textContent = t; }, confirm: ask, close }))
-        .then(() => { if(sc.isConnected && !body.querySelector('.sm-quiet')) body.appendChild(btn('Close', 'sm-quiet', close)); },
+        .then(() => { if(!sc.isConnected) return; if(status.textContent){ note.textContent = status.textContent; note.classList.add('sm-ask'); status.textContent = ''; }   // the result reads in ink at the top
+                    if(!body.querySelector('.sm-quiet')) body.appendChild(btn('Close', 'sm-quiet', close)); },
               e => { status.textContent = 'Did not work: ' + ((e && e.message) || e);
                      Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = false; }); });
     })));
