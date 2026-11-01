@@ -18,9 +18,8 @@ UNITS = [[[2, 1, 0], [1, 0], [0], [3, 1]], [[1, 1], [0, 2], [2]], [[], [0]]]
 LINKS = [("u1-p1", "u2-p2"), ("u1-p1-m1", "u1-p3")]
 
 # every frame of a flight: the ship's height, and its centre's distance in the plane to each body's surface
-REC = r"""(X) => { window.__R=[]; window.__stop=false; (function g(){ if(window.__stop) return; var P=window._altoSolar3D, G=window._altoSolarGeo(), s=P.ship(), m=1e9, id=null;
-  if(s && s.on && s.vis>.99 && !(s.warp>.02)){ Object.keys(G.bodies).forEach(function(i){ if(X.indexOf(i)>=0) return; var o=G.bodies[i], h=Math.hypot(s.x-o.x, s.y-o.y)-o.d/2; if(h<m){ m=h; id=i; } });
-    window.__R.push([m, id, s.lift, s.x, s.y]); }
+REC = r"""(X) => { window.__R=[]; window.__stop=false; (function g(){ if(window.__stop) return; var P=window._altoSolar3D, G=window._altoSolarGeo(), s=P.ship();
+  if(s && s.on && s.cl!=null && s.vis>.99 && !(s.warp>.02)) window.__R.push([s.cl, '', s.lift, s.x, s.y]);       /* (cl: the craft's clearance of every body but the two it goes between, from the frame's own bodies) */
   requestAnimationFrame(g); })(); }"""
 
 
@@ -72,8 +71,6 @@ def test_every_flight_stays_in_the_plane_and_clear_of_every_body(browser, page, 
         flat = flat and len(ys) == 1                                 # one plane, however it flew
     print("PLANE", craft, rows)
     assert flat, ("the ship's height changed", rows)
-    # (the bodies' positions are read a frame later than the ship's, and the moons move several px a frame in WebKit's slower
-    # frames: there any overlap is what is caught, in Chromium a 2.7 px clearance)
-    assert worst > (0 if browser.browser_type.name == "webkit" else 2.7), ("the ship's path went over a body", worst, rows)
+    assert worst > 2.7, ("the ship's path went over a body", worst, rows)
     pg.context.close()
     assert not errs, errs
