@@ -650,6 +650,7 @@ STARS_CSS += REAL_CSS
 
 RETRO_CSS = (r"""
   html.alto-clear-top.alto-stars:not(.mobile) #title-text{color:#eef2ff !important;}   /* (the bars are clear, clear_top.py: the sky is under the name) */
+  html.phone-whole.alto-clear-top.alto-stars #title-text{color:#eef2ff !important;}   /* (a phone: phone.py stands the rule above down in the whole view, so the name stayed navy on the dark sky in light mode) */
   #solar-svg .sol-bun,#solar-svg .sol-sig,#sk-mark,#sk-frame{display:none;}
   /* Foundation's Empire (Luke): black and gold, the imperial sun's sigil, a monumental frame, thin wide letters */
   X #solar-svg .sol-sig{display:inline;fill:none;stroke:#d9ae55;stroke-width:1.1;stroke-opacity:.85;}
