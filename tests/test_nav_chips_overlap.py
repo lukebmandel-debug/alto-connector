@@ -92,9 +92,8 @@ def html():
     return _chip_page()
 
 
-@pytest.fixture(scope="module")
-def origin(html):
-    """The page and the Blueprint's script and plan, served from 127.0.0.1 (WebKit does not route a made-up host's scripts)."""
+def serve(html):
+    """The page and the Blueprint's script and plan, served from 127.0.0.1 (WebKit does not route a made-up host's scripts): (server, origin)."""
     pname, ptext = bs.hosted_json(bs.fixture())
 
     class H(BaseHTTPRequestHandler):
@@ -109,7 +108,7 @@ def origin(html):
                 code, ctype, body = 200, hit[0], hit[1]
             else:
                 code, ctype, body = 404, "text/plain", "no"
-            data = body.encode("utf-8")
+            data = body.encode("utf-8") if isinstance(body, str) else body
             self.send_response(code)
             self.send_header("Content-Type", ctype + "; charset=utf-8")
             self.send_header("Content-Length", str(len(data)))
@@ -121,7 +120,13 @@ def origin(html):
 
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield "http://127.0.0.1:%d" % srv.server_address[1]
+    return srv, "http://127.0.0.1:%d" % srv.server_address[1]
+
+
+@pytest.fixture(scope="module")
+def origin(html):
+    srv, url = serve(html)
+    yield url
     srv.shutdown()
 
 

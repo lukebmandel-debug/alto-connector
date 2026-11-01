@@ -727,7 +727,8 @@ function setTop(){ // under the page's title bar and nav, which settle (slide in
   S.root.style.setProperty('--bl-top',top+'px');
   // a computer: the bottom of the lowest chip or group label on the page's bar (it wraps to a second row, or a third, in a narrow window), so the name chip and the plan stand below it, never over a chip
   var nb=46, nv=desk&&document.getElementById('nav'); if(nv) [].forEach.call(nv.querySelectorAll('button,.nav-group-label'),function(e){ var r=e.getBoundingClientRect(); if(r.width>0&&r.height>0&&r.top<300&&r.bottom>nb) nb=r.bottom; });
-  S.root.style.setProperty('--bl-nav',Math.round(nb)+'px'); dockH(); if(S.vb) applyVB();
+  var zr=S.root.getBoundingClientRect(), zz=(S.root.clientWidth&&zr.width/S.root.clientWidth)||1;   // (the page's own zoom, .8 on a computer: screen px -> css px)
+  S.root.style.setProperty('--bl-nav',Math.round(nb/zz)+'px'); dockH(); if(S.vb) applyVB();
 }
 function isDesk(){ var c=document.documentElement.classList; return !c.contains('mobile')&&!c.contains('pmin'); }
 // the dock is drawn (a computer, or a phone trying it with html.bl-dock-phone): then the plan is fitted and kept above it, whatever turned it on
