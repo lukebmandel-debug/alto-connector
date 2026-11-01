@@ -160,7 +160,7 @@ html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go{background:var(--bl-acce
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go.bl-alt{background:transparent;color:var(--bl-accent);}
 #bldg-root .bl-dock svg{display:block;flex:none;}
 #bldg-root :is(.bl-dock,.bl-cards,.bl-credits,.bl-info,.bl-head) :focus-visible{outline:2px solid var(--bl-accent);outline-offset:2px;}
-html:not(.mobile):not(.pmin) #bldg-root .bl-head{left:14px;top:54px;max-width:min(380px,calc(100% - 28px));padding:7px 14px 8px;border-radius:16px;}
+html:not(.mobile):not(.pmin) #bldg-root .bl-head{left:14px;top:calc(var(--bl-nav,46px) + 8px);max-width:min(380px,calc(100% - 28px));padding:7px 14px 8px;border-radius:16px;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-head :is(p,.bl-walk){display:none !important;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-head h2{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-kind{font-size:10px;margin-bottom:1px;}
@@ -724,7 +724,11 @@ function setTop(){ // under the page's title bar and nav, which settle (slide in
   if(!S.root) return;
   var top=0, de=document.documentElement, desk=!de.classList.contains('mobile')&&!de.classList.contains('pmin');
   if(!desk) ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
-  S.root.style.setProperty('--bl-top',top+'px'); dockH(); if(S.vb) applyVB();
+  S.root.style.setProperty('--bl-top',top+'px');
+  // a computer: the bottom of the lowest chip or group label on the page's bar (it wraps to a second row, or a third, in a narrow window), so the name chip and the plan stand below it, never over a chip
+  var nb=46, nv=desk&&document.getElementById('nav'); if(nv) [].forEach.call(nv.querySelectorAll('button,.nav-group-label'),function(e){ var r=e.getBoundingClientRect(); if(r.width>0&&r.height>0&&r.top<300&&r.bottom>nb) nb=r.bottom; });
+  var zr=S.root.getBoundingClientRect(), zz=(S.root.clientWidth&&zr.width/S.root.clientWidth)||1;   // (the page's own zoom, .8 on a computer: screen px -> css px)
+  S.root.style.setProperty('--bl-nav',Math.round(nb/zz)+'px'); dockH(); if(S.vb) applyVB();
 }
 function isDesk(){ var c=document.documentElement.classList; return !c.contains('mobile')&&!c.contains('pmin'); }
 // the dock is drawn (a computer, or a phone trying it with html.bl-dock-phone): then the plan is fitted and kept above it, whatever turned it on
@@ -746,7 +750,7 @@ function freeBox(){
   var r=S.root.getBoundingClientRect(), top=0, bot=r.height; if(!docked()) return {top:top,bot:bot,left:0,right:r.width};
   var d=S.dock&&S.dock.getBoundingClientRect(); if(d&&d.height) bot=Math.min(bot,d.top-r.top-14);
   [S.info,S.cards,S.credits].forEach(function(e){ if(e&&!e.hidden){ var b=e.getBoundingClientRect(); if(b.height) bot=Math.min(bot,b.top-r.top-10); } });
-  var hb=S.head&&S.head.getBoundingClientRect(); top=(r.width<900&&hb&&hb.height)?hb.bottom-r.top+8:52;
+  var hb=S.head&&S.head.getBoundingClientRect(); top=(r.width<900&&hb&&hb.height)?hb.bottom-r.top+8:Math.max(52,(parseFloat(S.root.style.getPropertyValue('--bl-nav'))||0)+8);
   if(bot-top<r.height*.3){ bot=r.height-(d&&d.height?d.height+30:0); top=0; }
   return {top:top,bot:bot,left:0,right:r.width};
 }
@@ -904,6 +908,7 @@ A.mount=function(data){
   setTop(); wire(); watchDetail(); keys();
   A.show();
   [150,500,1200,2500].forEach(function(t){ setTimeout(setTop,t); });
+  var navEl=document.getElementById('nav'); if(navEl&&window.ResizeObserver) new ResizeObserver(function(){ if(S.root&&!S.root.hidden) setTop(); }).observe(navEl);   // the bar's rows wrap or settle: the name chip follows
   if(A.data.none){ nomsg('No building plan yet. Ask Claude to run set_up_building for this timeline.'); A.ready=Promise.reject(new Error('no plan')); A.ready.catch(function(){}); return; }
   index();
   nomsg('Loading the plan…');
