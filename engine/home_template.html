@@ -1778,7 +1778,7 @@ function altoConvertMenu(pg){
       status.textContent = 'Working…';
       Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = true; });
       const ask = (text, label) => new Promise(res => {                  // a route asks before it spends: the question replaces the buttons
-        body.innerHTML = ''; status.textContent = text;
+        body.innerHTML = ''; status.textContent = ''; note.textContent = text;          // the question reads at the top, where the sheet's own words are
         body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; res(true); }));
         body.appendChild(btn('Cancel', 'sm-quiet', () => { res(false); close(); }));
       });

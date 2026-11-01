@@ -219,7 +219,7 @@ def test_a_route_can_ask_before_it_spends_and_can_hide_itself(homepage):
     labels = [b.inner_text() for b in pg.locator(".share-menu .sm-pick").all()]
     assert labels == ["Ask first", "Copy a prompt for Claude instead"]                  # the hidden route is not offered
     pg.locator(".share-menu .sm-pick", has_text="Ask first").click()
-    assert "About 200 credits" in pg.locator(".share-menu .sm-status").inner_text()
+    assert "About 200 credits" in pg.locator(".share-menu .sm-note").inner_text()
     pg.locator(".share-menu .sm-pick", has_text="Make it").click()
     pg.wait_for_function("window.__asked === true")
     assert "3 cards in, 3 out" in pg.locator(".share-menu .sm-status").inner_text()
