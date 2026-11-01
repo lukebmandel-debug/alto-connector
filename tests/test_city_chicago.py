@@ -4,6 +4,7 @@ preset's parks): one grid split by the river and joined across it, the river a Y
 point, the lake one sea body at the east edge, the parks lattice holes, the avenues crossing their streets in order."""
 import copy
 import gzip
+import itertools
 import json
 import math
 import sys
@@ -51,9 +52,9 @@ def test_the_river_is_a_y_of_three_channels_meeting_at_one_point(chi):
     bands = {b["n"]: b for b in g["river"]}
     assert set(bands) == set(cp.CHICAGO["channels"])
     assert all(b["w"] >= city_gate.CHANNEL_PX for b in bands.values())
-    ends = [(b["p"][0], b["p"][1]) for b in bands.values()] + [(b["p"][-2], b["p"][-1]) for b in bands.values()]
-    meet = [e for e in ends if 0 < e[0] < g["W"] and 0 < e[1] < g["H"]]
-    assert len(meet) >= 3 and max(math.dist(meet[0], e) for e in meet[:3]) < 1.0     # Wolf Point: one point, no cross
+    ends = [((b["p"][0], b["p"][1]), (b["p"][-2], b["p"][-1])) for b in bands.values()]
+    # Wolf Point: one end of each channel at one point, no cross (the Chicago River's mouth is on the glass too, since it reaches the shore)
+    assert min(max(math.dist(a, b), math.dist(a, c), math.dist(b, c)) for a, b, c in itertools.product(*ends)) < 1.0
 
 
 def test_lake_michigan_is_one_sea_body_east_of_the_city(chi):
