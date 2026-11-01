@@ -456,10 +456,10 @@ function fly(G, now){
    flown in (Luke, 2026-10-25: ships "end up going above"; 2026-10-28: "everything should be on the same plane, even in
    3D"). It never rises over a body to clear it: solar_craft.py's course keeps its way in that plane clear of every body */
 function lift(){ return K3.Y; }
-/* the way kept 5 px off every body's surface (3 off the one it goes to, whose orbit is that close) but the one it leaves
+/* the way kept 8 px off every body's surface (4 off the one it goes to, whose orbit is that close; the margin covers the frame the moons move between the ship's step and a reader's) but the one it leaves
    (it sets off from an orbit round that): where it would cross a body, the nearest point of the edge */
 function keepOff(G, p, skip, to){ var q=p, k, ch=false;
-  for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ if(id===skip) return; var g=G.bodies[id], mg=g.d/2+(id===to ? 3 : 5), dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
+  for(k=0;k<2;k++) Object.keys(G.bodies).forEach(function(id){ if(id===skip) return; var g=G.bodies[id], mg=g.d/2+(id===to ? 4 : 8), dx=q[0]-g.x, dy=q[1]-g.y, d=Math.hypot(dx, dy);
     if(d<mg){ if(d<1e-6){ dx=1; dy=0; d=1; } q=[g.x+dx/d*mg, g.y+dy/d*mg]; ch=true; } });
   return ch ? q : p; }
 /* the model's scale: small and clear on the way (Luke, 2026-10-22: "we don't need the ship to be massive, just clear"),

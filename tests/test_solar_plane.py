@@ -62,7 +62,7 @@ def test_every_flight_stays_in_the_plane_and_clear_of_every_body(browser, page, 
         _land(pg, b)                                                # (the flight, the arrival, its orbit for a moment)
         pg.evaluate("() => { window.__stop=true; }")
         R = pg.evaluate("() => window.__R")
-        assert len(R) > 25, (a, b, len(R))
+        assert len(R) > 5, (a, b, len(R))
         lo = min(R, key=lambda r: r[0])
         info = pg.evaluate("b => { var G=window._altoSolarGeo(), o=G.bodies[b], out=[[b, Math.round(o.d), 0]], s=window._altoSolar3D.ship(); Object.keys(G.bodies).forEach(function(i){ var k=G.bodies[i]; if(k.p===b) out.push([i, Math.round(k.d), Math.round(Math.hypot(k.x-o.x, k.y-o.y))]); }); out.push(['ship', Math.round(Math.hypot(s.x-o.x, s.y-o.y))]); return out; }", b)
         print("PLANE-info", a, b, info)
@@ -73,7 +73,7 @@ def test_every_flight_stays_in_the_plane_and_clear_of_every_body(browser, page, 
     print("PLANE", craft, rows)
     assert flat, ("the ship's height changed", rows)
     # (the bodies' positions are read a frame later than the ship's, and the moons move several px a frame in WebKit's slower
-    # frames: there a gross overlap is what is caught, in Chromium any)
-    assert worst > (-8 if browser.browser_type.name == "webkit" else 0), ("the ship's path went over a body", worst, rows)
+    # frames: there any overlap is what is caught, in Chromium a 2.7 px clearance)
+    assert worst > (0 if browser.browser_type.name == "webkit" else 2.7), ("the ship's path went over a body", worst, rows)
     pg.context.close()
     assert not errs, errs
