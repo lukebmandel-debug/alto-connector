@@ -136,7 +136,9 @@ def pg(phone_ctx):
     assert not page._errors, page._errors
 
 
-def _go(pg, url):
+def _go(pg, url, raw=False):
+    if not raw and "pm=" not in url and "/system.html" not in url:          # the tiles are the default of the System only; every other page opts in with ?pm=1
+        url += ("&" if "?" in url else "?") + "pm=1"
     pg.goto(url, wait_until="load")
     pg.wait_for_timeout(1500)
     pg.evaluate("window._altoPhoneMinApi && window._altoPhoneMinApi.wake()")
@@ -177,7 +179,7 @@ def test_they_fade_without_a_touch_and_a_touch_brings_them_back(pg, site):
     pg.wait_for_timeout(4200)
     assert pg.evaluate(_IDLE)
     pg.wait_for_timeout(800)
-    assert pg.evaluate("+getComputedStyle(document.getElementById('hamburger-tab')).opacity") < .05
+    assert abs(pg.evaluate("+getComputedStyle(document.getElementById('hamburger-tab')).opacity") - .7) < .03    # at rest 70%, not gone (A11)
     pg.evaluate(_TOUCH, "touchstart")                                               # a finger down: back, and kept while it stays
     assert not pg.evaluate(_IDLE)
     pg.wait_for_timeout(4200)
@@ -257,7 +259,7 @@ def test_an_enlarged_card_brings_mark_and_notes(pg, site):
 
 
 def test_without_the_layer_the_page_keeps_its_tiles(pg, site):
-    for url in ("/old.html", "/outline.html?pm=0"):                                 # the file missing, or switched off for QA
+    for url in ("/old.html?pm=1", "/outline.html?pm=0", "/system.html?pm=0"):                                 # the file missing, or switched off for QA
         _go(pg, site + url)
         assert not pg.evaluate("document.documentElement.classList.contains('pmin')")
         assert "minimap-toggle" in pg.evaluate(_SHOWN) and "pmin-find" not in pg.evaluate(_SHOWN)
@@ -268,3 +270,72 @@ def test_the_memory_map_keeps_its_page_without_the_zoom_pill(pg, site):
     assert pg.evaluate("document.documentElement.classList.contains('pm-open') && document.getElementById('pal-mmap').classList.contains('on')")
     assert pg.evaluate("[...document.querySelectorAll('#pal-mmap .pm-zoom')].every(e => getComputedStyle(e).display === 'none')")
     assert pg.evaluate("getComputedStyle(document.querySelector('#pal-mmap .pm-sheet')).display") != "none"
+
+
+# ── the default: the v1.9.152 tabs everywhere but the System (Luke, 2026-11-01: "I want my old toggles back except for the formats
+#    we were explicitly trying to make the toggles not overwhelm the page like star chart") ──
+
+def test_the_tiles_are_the_default_of_the_system_alone(pages):
+    for k, page in pages.items():
+        head = re.search(r'<script id="alto-phone-min-head">(.*?)</script>', page, re.S).group(1)
+        assert ("if(!(true||" in head) == (k == "system"), (k, head[:160])
+    assert pm.TILE_LAYOUTS == ("solar",)
+
+
+@pytest.mark.parametrize("fmt", ["outline", "timeline", "lanes"])
+def test_other_formats_keep_the_old_tabs_and_pm1_opts_in(pg, site, fmt):
+    _go(pg, f"{site}/{fmt}.html", raw=True)                  # (no pm=1: the page's own default)
+    shown = pg.evaluate(_SHOWN)
+    assert not pg.evaluate("document.documentElement.classList.contains('pmin')") and "pmin-find" not in shown, (fmt, shown)
+    assert "hamburger-tab" in shown and "minimap-toggle" in shown, (fmt, shown)       # MAP and MENU edge tabs, never faded
+    pg.wait_for_timeout(4500)
+    assert not pg.evaluate(_IDLE) and "hamburger-tab" in pg.evaluate(_SHOWN)
+    _go(pg, f"{site}/{fmt}.html?pm=1")
+    assert pg.evaluate("document.documentElement.classList.contains('pmin')") and "pmin-find" in pg.evaluate(_SHOWN)
+
+
+def test_the_system_keeps_the_tiles_and_pm0_turns_them_off(pg, site):
+    _go(pg, site + "/system.html", raw=True)
+    assert pg.evaluate("document.documentElement.classList.contains('pmin')") and "pmin-find" in pg.evaluate(_SHOWN)
+    _go(pg, site + "/system.html?pm=0")
+    assert not pg.evaluate("document.documentElement.classList.contains('pmin')")
+
+
+# ── what the old tabs bring back, and what never reaches a phone (bench-mobile-2's render proof, 2026-11-01) ──
+
+_RENDERED = "(id => { const e = document.querySelector(id); if (!e) return false; const r = e.getBoundingClientRect(), c = getComputedStyle(e); return c.display !== 'none' && c.visibility !== 'hidden' && r.width > 0 && r.height > 0; })"
+
+
+@pytest.mark.parametrize("url", ["/timeline.html?view=whole", "/lanes.html", "/retro.html?view=whole"])
+def test_desktop_only_chrome_stays_off_a_whole_view_phone(pg, site, url):
+    _go(pg, site + url, raw=True)
+    assert pg.evaluate("document.documentElement.classList.contains('phone-whole')")
+    for sel in ("#key-toggle", ".key-pop", "#sk-frame", "#sk-mark"):                 # the key, the Retro frame and crown
+        assert not pg.evaluate(_RENDERED, sel), (url, sel)
+    pg.evaluate("document.querySelector('#world .node .node-card') && document.querySelector('#world .node .node-card').click()")
+    pg.wait_for_timeout(1000)
+    assert "1.25px" not in pg.evaluate("(() => { const e = document.getElementById('node-nav-bar'); return e ? getComputedStyle(e).boxShadow : ''; })()")   # the desktop's hairline
+
+
+def test_a_detail_page_shows_map_and_menu_again_on_the_old_tabs(pg, site):
+    _go(pg, site + "/timeline.html", raw=True)
+    pg.evaluate("document.querySelector('#world .node .node-card').click()")
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate("document.documentElement.classList.contains('detail-open')")
+    shown = pg.evaluate(_SHOWN)
+    assert "minimap-toggle" in shown and "hamburger-tab" in shown and "pmin-find" not in shown, shown
+
+
+def test_a_closed_overview_leaves_no_line_on_the_page(pg, site):
+    for url in ("/outline.html", "/retro.html", "/system.html"):
+        _go(pg, site + url)
+        assert pg.evaluate("getComputedStyle(document.getElementById('summary-wrap')).borderBottomColor") == "rgba(0, 0, 0, 0)", url
+
+
+def test_the_detail_text_keeps_clear_of_the_edge_tabs(pg, site):
+    for url, left in (("/timeline.html", 44), ("/timeline.html?pm=1", 18)):  # the tabs on both edges; the tiles low on the right only
+        _go(pg, site + url, raw=True)
+        pg.evaluate("document.querySelector('#world .node .node-card').click()")
+        pg.wait_for_timeout(1200)
+        pad = pg.evaluate("(() => { const c = getComputedStyle(document.getElementById('detail-page')); return [parseInt(c.paddingLeft), parseInt(c.paddingRight)]; })()")
+        assert pad == [left, 60], (url, pad)

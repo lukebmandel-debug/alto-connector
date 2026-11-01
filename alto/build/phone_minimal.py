@@ -10,7 +10,7 @@ an outline one card at a time or whole, the System, the horizontal timeline, the
   * MAP, INFO ("How to use"), FILTER, NOTES, MARK and each format's own controls (the System's looks and toggles, the
     Atlas's Tour / World) are square buttons in the MENU grid; MARK and NOTES come back on an enlarged card, where
     there is text to mark (the detail page's own BACK and FIND are its own).
-  * the controls fade after a few seconds without a touch; any touch brings them back, and a control still answers its
+  * the controls rest at 70% after a few seconds without a touch (Art: .7 is the lowest that keeps the glyph at 3:1); any touch brings them back, and a control still answers its
     first tap. Nothing fades while a finger is down, a field has the keyboard or a panel / drawer / sheet is open.
     With reduced motion they stay put (no fade at all).
   * search is a sheet, never a bar on the page (Luke: "I don't want search up at the top ... But I also don't want search
@@ -33,7 +33,7 @@ from .phone import FOLDER, _slim
 GUARD = "_altoPhoneMin"
 
 # ── in every page's <head> (a phone only) ──
-HEAD_JS = r"""(function(){var q=location.search;if(!(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||/[?&]mobile/.test(q))||/[?&]pm=0/.test(q))return;__LOAD__})();"""
+HEAD_JS = r"""(function(){var q=location.search;if(!(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||/[?&]mobile/.test(q))||/[?&]pm=0/.test(q))return;if(!(__DEFAULT__||/[?&]pm=1/.test(q)))return;__LOAD__})();"""
 
 X = ":not(#_):not(#__)"          # outranks the phone design's own rules (and phone.py's remap of them) whatever their order
 P = "html.pmin:is(.mobile,.phone-whole)"
@@ -71,7 +71,7 @@ WH #bldg-root :is(.bl-head,.bl-tabs){top:62px !important;}
 WH #bldg-root .bl-head{font-size:12px !important;padding:8px 12px !important;max-width:calc(100% - 96px) !important;}
 /* the fade */
 html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{transition:opacity .6s ease !important;}
-html.pmin.pmin-idle :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{opacity:0 !important;}
+html.pmin.pmin-idle :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{opacity:.7 !important;}
 @media (prefers-reduced-motion:reduce){html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{transition:none !important;}}
 /* the search sheet: full screen, its field pinned at the top */
 P.msearch-open #m-search X{position:fixed !important;top:0 !important;bottom:auto !important;left:0 !important;right:0 !important;transform:none !important;width:auto !important;max-width:none !important;
@@ -179,7 +179,19 @@ def phone_min_asset() -> tuple[str, str]:
     return PATH.rsplit("/", 1)[1], ASSET
 
 
-def head_block() -> str:
-    """The <script> for <head> of every page (a phone fetches the layer, nothing else does)."""
+# Formats whose phone default is the corner tiles (Luke, 2026-11-01: "I want my old toggles back except for the formats we were
+# explicitly trying to make the toggles not overwhelm the page like star chart"): the layouts below. Every other page keeps the
+# v1.9.152 edge tabs. One entry here adds a format.
+TILE_LAYOUTS = ("solar",)
+
+
+def tiles_by_default(brief) -> bool:
+    return getattr(brief, "layout", None) in TILE_LAYOUTS
+
+
+def head_block(tiles: bool = False) -> str:
+    """The <script> for <head> of every page. A phone fetches the layer when the page's default is the tiles (`tiles`: the System,
+    every style) or when the address says ?pm=1; ?pm=0 turns it off on any page. A page that does not fetch it keeps the v1.9.152 tabs."""
     from .palace_assets import loader
-    return '<script id="alto-phone-min-head">' + HEAD_JS.replace("__LOAD__", loader(PATH, GUARD)) + "</script>"
+    js = HEAD_JS.replace("__DEFAULT__", "true" if tiles else "false").replace("__LOAD__", loader(PATH, GUARD))
+    return '<script id="alto-phone-min-head">' + js + "</script>"

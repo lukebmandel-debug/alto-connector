@@ -576,7 +576,7 @@ window._altoRetroHome={on:function(){ if(!document.documentElement.classList.con
 JS = r"""(function(){
 if(window._altoRetro) return;
 var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null;
-function desk(){ return !r.classList.contains('mobile'); }
+function desk(){ return !r.classList.contains('mobile') && !r.classList.contains('phone-whole'); }   /* (a real desktop only: a Whole-view phone is not .mobile but draws no frame) */
 function plain(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
 // the frame and the wordmark are the Star chart's (#sk-frame, #sk-mark): drawn on a desktop page
 function art(){

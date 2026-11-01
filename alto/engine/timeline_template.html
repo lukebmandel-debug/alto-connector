@@ -2848,6 +2848,10 @@ html.mobile #notes-list { -webkit-overflow-scrolling: touch; }
 html.mobile #mode-toggle { display: none; }
 
 html.mobile #detail-page   { padding: 20px 18px 100px; top: 96px; touch-action: manipulation; overflow-x: hidden; }
+/* A12: the edge tabs (MAP, INFO / SEARCH on the left; MARK, NOTES on the right) stood on the first and last letters of the reading text:
+   44px gutter on the left, 60px on the right (they are about 36 and 56px wide); the tiles (html.pmin) sit low on the right only */
+html.mobile #detail-page   { padding-left: 44px; padding-right: 60px; }
+html.mobile.pmin #detail-page { padding-left: 18px; }
 html.mobile #detail-content { -webkit-user-select: text; user-select: text; }
 html.mobile #summary-inner  { -webkit-user-select: text; user-select: text; }
 html.mobile .detail-header  { padding-bottom: 48px; }
@@ -2859,6 +2863,8 @@ html.mobile .char-chip     { padding: 8px 16px; font-size: 14px; }
 
 html.mobile #summary-wrap  { top: 96px; backdrop-filter: none; }
 html.mobile #summary-wrap.open { max-height: calc(100vh - 96px); }
+/* a closed Overview keeps no rule on the page (it was 1px of border under the bar) */
+html.mobile #summary-wrap:not(.open){ border-bottom-color:transparent !important; }
 html.mobile #summary-inner { padding: 18px 16px 36px; max-width: 100%; }
 html.mobile #summary-inner p { font-size: 15px; line-height: 1.9; }
 

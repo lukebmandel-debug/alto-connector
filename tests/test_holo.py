@@ -66,9 +66,9 @@ def test_the_sheet_is_retro_re_inked_with_no_gold_and_no_frame():
     for gone in ("#d9ae55", "#efe6cf", "#b9b2a0", "217,174,85", "#sk-frame", "#sk-mark", "font-family", "X ", "FONT"):
         assert gone not in c, gone
     for anchor in ("#world .node-card", "#river-svg path", "#detail-page", "#lanes-svg .ln-main", ".pal-svg .pl-tube", "#bldg-root", "#wpal-root", ".lu-chip",
-                   "#title-bar", "#nav .nav-btn", "#pmin-find"):
+                   "#title-bar", "#nav .nav-btn"):
         assert anchor in c, anchor
-    assert not re.search(r"#[0-9a-fA-F]{3,6}\b", holo.ink(retro.HOME_CSS))   # the homepage's Retro plates are all re-inked
+    assert not re.search(r"#(?!090c11\b)[0-9a-fA-F]{3,6}\b", holo.ink(retro.HOME_CSS))   # the homepage's Retro plates are re-inked (home B's #090c11 plate: Luke's revert of 649466d, 2026-11-01)
     assert "#mode-toggle" in c and "#mode-toggle{display:none" not in c     # unlike Retro, the light/dark toggle stays: a square chip (Art, fix 1)
     assert re.search(r"#mode-toggle[^{]*\{[^}]*border-radius:0", c)
 
