@@ -1143,6 +1143,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
         warnings = validate_brief(b)
     except (BriefError, TypeError) as e:
         return {"error": "invalid_brief", "message": str(e)}
+    from .entitlements import format_of_brief
+    err = _format_gate(format_of_brief(brief))
+    if err:
+        return err
     st.put_timeline(uid(), tid, {
         "timeline_id": tid, "project_id": project_id, "brief": brief,
         "consent": {"granted": False}, "status": "draft",
@@ -1855,6 +1859,9 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     or instead of its `lot`: run again, the city keeps it (the footprint moves
     with the real place under it, like a saved lot).
     The map data is © OpenStreetMap contributors; the page credits it."""
+    err = _format_gate("palace")
+    if err:
+        return err
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2142,6 +2149,9 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
     yourself from public plans and photographs and pass it as `plan`; where the
     building is private, thin or gappy, the user supplies material, says where
     to look, or describes it (they do nothing else)."""
+    err = _format_gate("building")
+    if err:
+        return err
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2237,6 +2247,9 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     'deep' is the default's old name. ('' keeps the stored one.)
     clear: node ids whose place should go back to the route.
     The reply lists every unit's region and every stop's place."""
+    err = _format_gate("world")
+    if err:
+        return err
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2463,6 +2476,15 @@ def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "", palace
     if palace_view:
         brief["palace_view"] = palace_view
     return {**doc, "brief": brief}
+
+
+def _format_gate(fmt: str):
+    """An error dict when this account may not make `fmt` (alto/entitlements.py; always open in the beta), else None."""
+    from . import entitlements
+    a = entitlements.allowed(uid(), fmt)
+    if a["ok"]:
+        return None
+    return {"error": "needs_plan", "format": fmt, "plan": a["needs_plan"], "message": a["message"]}
 
 
 def _tree_boxes(b, nodes, conns, ids=None) -> dict:
@@ -2704,7 +2726,13 @@ def build_timeline(timeline_id: str, layout: str = "",
     err = _layout_error(doc, layout, hub_look, palace_view)
     if err:
         return err
+    from .entitlements import format_of_brief
+    before = format_of_brief(doc["brief"])
     doc = _layout_choice(doc, layout, tree_lines, hub_look, palace_view)
+    if format_of_brief(doc["brief"]) != before:             # turning it into another format is making that format
+        err = _format_gate(format_of_brief(doc["brief"]))
+        if err:
+            return err
     try:
         doc = _refresh_portal_destinations(doc, timeline_id)        # a palace made since the airport's board was
     except Exception:                                   # noqa: BLE001 — a board that cannot be refreshed is built as stored
