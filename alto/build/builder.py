@@ -308,6 +308,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .search import search_config
     from .subtree import tree_block
     from .study import study_block_for
+    from .study_plan import study_plan_block
     from .manual_edit import manual_edit
     from .print_views import print_views
     from .history_nav import history_nav
@@ -323,6 +324,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + "\n" + dx.BACK_PREV + "\n" + dx.FOCUS_SETTLE + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {})
+            + study_plan_block(brief, nodes)
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
             + (focus_branch.block() if brief.mode != "palace" and not solar_style(brief) else "")   # focus on a branch: timelines, outlines, the horizontal timeline
