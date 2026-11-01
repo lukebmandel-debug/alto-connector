@@ -222,3 +222,34 @@ html.dark #bin-panel{ background:rgba(18,20,30,.95); }
 """
 
 CSS = '<style id="alto-home-look">' + _CLASSIC + BIN_CSS + "</style>"
+
+
+# ── the homepage file card's study-plan line (Luke 2026-11-01: "make it easy for a user to realize this is a feature"): a small line under the title,
+# "Make a study plan" when the file has none, "Study plan · Today: 3" when it has one. A computer's page only (hidden at 640 and under). The state
+# comes from the card's own record (pg.plan = {days: [YYYY-MM-DD, ...], exam}, written when the page is published); with none it is the invitation. ──
+SP_CARD_JS = r"""
+window._spCard = function(el, rec){
+  if(!el || el.querySelector('.sp-card')) return;
+  if(!document.getElementById('sp-card-css')){ var st = document.createElement('style'); st.id = 'sp-card-css';
+    st.textContent = '.sp-card{display:none;margin-top:6px;font-size:11.5px;letter-spacing:.02em;color:var(--accent,#5b3fc4);}@media (min-width:641px){.sp-card{display:block;}}@media print{.sp-card{display:none !important;}}';
+    document.head.appendChild(st); }
+  var days = rec && rec.plan && rec.plan.days, txt = 'Make a study plan';
+  if(days && days.length){
+    var d = new Date(), z = function(n){ return n < 10 ? '0' + n : '' + n; }, t = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+    var today = days.filter(function(x){ return x === t; }).length, late = days.filter(function(x){ return x < t; }).length;
+    txt = 'Study plan · ' + (today ? 'Today: ' + today : late ? late + ' late' : 'nothing today');
+  }
+  var line = document.createElement('div'); line.className = 'sp-card'; line.textContent = txt;
+  var host = el.querySelector('.tile-body') || el; host.appendChild(line);
+};
+"""
+
+
+def swap_plan(template: str) -> str:
+    """Own cards (pg) get the study-plan line; shared-with-me cards (it) do not. Run after swap_fmt."""
+    old = "function fmtBadge(k){"
+    assert template.count(old) == 1, old
+    template = template.replace(old, SP_CARD_JS + old)
+    old = "el.setAttribute('data-fmt', pg.fmt || ''); const em = tileEmblem(pg.fmt, pg.units);"
+    assert template.count(old) == 1, old
+    return template.replace(old, "el.setAttribute('data-fmt', pg.fmt || ''); queueMicrotask(() => window._spCard(el, pg)); const em = tileEmblem(pg.fmt, pg.units);")

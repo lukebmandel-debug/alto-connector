@@ -42,17 +42,18 @@ PLAN = _items(("2026-11-05", "you marked 4 cards Still learning"), ("2026-11-07"
 
 # ── the flag ───────────────────────────────────────────────────────────
 
-def test_a_page_without_a_plan_is_byte_identical():
+def test_a_page_without_a_plan_carries_only_the_invitation():
     base = _build("outline")
     assert _build("outline", plan={}) == base
     assert _build("outline", plan={"v": 1, "items": []}) == base
     assert _build("outline", plan={"v": 1, "items": [dict(node="not-a-node", day="2026-11-05", why="x", signal="marks")]}) == base
-    assert "alto-sp" not in base and "_ALTO_SP" not in base
+    assert "_ALTO_SP" not in base and 'id="alto-sp"' in base               # (no data: the script draws only the tab "Make a study plan")
 
 
 def test_a_plan_adds_only_its_own_block():
     page = _build("outline", plan=PLAN)
     assert page.count('id="alto-sp-data"') == 1 and page.count('id="alto-sp"') == 1 and page.count('id="alto-sp-css"') == 1
+    assert len(page) - len(_build("outline")) < 1500                         # (only the data: the script is the one the invitation already carries)
     assert "alto-hl-" in re.search(r"var KEY = '([^']*)-st'", page).group(0)
     assert "onload" not in sp.JS and "filter:" not in sp.CSS
 
@@ -78,6 +79,7 @@ def site(tmp_path_factory):
         pytest.skip("Playwright is not installed")
     d = tmp_path_factory.mktemp("splan")
     (d / "o.html").write_text(_build("outline", plan=PLAN), encoding="utf-8")
+    (d / "n.html").write_text(_build("outline"), encoding="utf-8")
     (d / "s.html").write_text(_build("outline", plan=PLAN, layout="solar"), encoding="utf-8")
     lanes = _items(("2026-11-05", "told"), ("2026-11-07", "quiz"), ids=("storm-1810", "arrive"))
     (d / "l.html").write_text(_build("lanes", plan=lanes), encoding="utf-8")
@@ -124,8 +126,8 @@ def test_a_planned_node_wears_one_class_by_the_readers_date(browser, site, page)
     ctx, pg, errs = _open(browser, site + "/" + page)
     got = pg.evaluate(CLASSES)
     assert got["formation"][0] == "sp-today" and got["formation"][1] == "Today"
-    assert got["offer"][0] == "sp-soon" and got["offer"][1].startswith("Sat Nov 7") or got["offer"][1] == "Sat Nov 7"
-    assert got["acceptance"][0] == "sp-late" and got["acceptance"][1].startswith("Late")
+    assert got["offer"][0] == "sp-soon" and got["offer"][1] == "Sat"
+    assert got["acceptance"][0] == "sp-late" and got["acceptance"][1] == "3 days late"
     assert "revocation" not in got                                        # a week and more away: no ring yet
     assert got["definiteness"][0] == "sp-today"
     ring = pg.evaluate("getComputedStyle(document.querySelector('#node-formation > .node-card')).outlineStyle")
@@ -148,13 +150,13 @@ def test_the_date_moving_on_changes_the_rings_and_a_tick_is_the_readers_own(brow
     ctx, pg, errs = _open(browser, site + "/o.html")
     pg.evaluate("toggleNotes()")                                          # (the row sits in the notes panel)
     pg.wait_for_timeout(500)
-    pg.click("#sp-row")
+    pg.click("#sp-chip")                                                  # (the tab on the right rail: no need to open the notes panel)
     pg.wait_for_timeout(200)
     assert pg.evaluate("document.getElementById('sp-sheet').classList.contains('open')")
     text = pg.evaluate("document.getElementById('sp-sheet').innerText")
     text = text.lower()                                                    # (the group names are set in capitals)
-    assert "late" in text and "today" in text and "this week" in text and "you marked 4 cards still learning" in text and "exam" in text
-    pg.evaluate("document.querySelector('#sp-sheet .sp-it input').click()")          # tick the first (the late one)
+    assert "3 days late" in text and "today" in text and "this week" in text and "you marked 4 cards still learning" in text and "exam" in text
+    pg.evaluate("document.querySelector('#sp-sheet .sp-li input').click()")          # tick the first (the late one)
     pg.wait_for_timeout(200)
     st = pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/-st$/.test(k))))")
     assert list(st["s"]["__plan__"]["k"].values())[0][0] == 1 and st["v"] == 1
@@ -191,6 +193,7 @@ def test_a_phone_draws_nothing_and_print_removes_the_rings(browser, site):
     assert pg.evaluate(CLASSES) == {}
     assert pg.evaluate("document.querySelector('.sp-tag')") is None
     assert pg.evaluate("getComputedStyle(document.getElementById('sp-row')).display") == "none"
+    assert pg.evaluate("getComputedStyle(document.getElementById('sp-chip')).display") == "none"
     assert not errs, errs
     ctx.close()
     ctx, pg, errs = _open(browser, site + "/o.html")
@@ -198,3 +201,53 @@ def test_a_phone_draws_nothing_and_print_removes_the_rings(browser, site):
     assert pg.evaluate("getComputedStyle(document.querySelector('#node-formation > .node-card')).outlineStyle") == "none"
     assert pg.evaluate("getComputedStyle(document.querySelector('.sp-tag')).display") == "none"
     ctx.close()
+
+
+def test_the_tab_on_the_rail_invites_without_a_plan_and_counts_with_one(browser, site):
+    ctx, pg, errs = _open(browser, site + "/n.html")
+    assert pg.evaluate("document.getElementById('sp-chip').textContent") == "Make a study plan"
+    assert pg.evaluate("getComputedStyle(document.getElementById('sp-chip')).display") == "block"
+    assert pg.evaluate("document.querySelectorAll('.sp-tag').length") == 0
+    pg.click("#sp-chip")
+    assert "No plan yet" in pg.evaluate("document.getElementById('sp-sheet').innerText") and pg.evaluate("document.querySelector('#sp-sheet .sp-tabs')") is None
+    ctx.close()
+    ctx, pg, errs = _open(browser, site + "/o.html")
+    assert pg.evaluate("document.getElementById('sp-chip').textContent") == "1 late \u00b7 Today: 2"
+    pg.click("#sp-chip")
+    pg.click("#sp-sheet .sp-tabs button[data-t=week]")
+    text = pg.evaluate("document.getElementById('sp-sheet').innerText").lower()
+    assert "offer" in text and "formation" not in text and "minutes a day" not in text      # (the plan names no minutes)
+    assert not errs, errs
+    ctx.close()
+
+
+def _home(pageset):
+    from alto.build import pages
+    stub = ("<script>window.AltoCloud={enabled:true,known:true,user:{uid:'u1',email:'a@b.c',displayName:'A'},listPages:()=>Promise.resolve(%s),"
+            "listShared:()=>Promise.resolve([]),signOut:()=>Promise.resolve(),createTimeline:()=>Promise.resolve({}),signIn:()=>Promise.resolve(),"
+            "getPage:()=>Promise.resolve(''),forgetShare:()=>Promise.resolve()};</script>" % json.dumps(pageset))
+    return pages.build_home([]).replace("<head>", "<head>" + stub, 1)
+
+
+@pytest.mark.parametrize("style", ["classic", "retro"])
+def test_the_homepage_card_shows_the_plan_state_on_a_computer_only(browser, tmp_path, style):
+    from alto.build import retro
+    ps = [dict(key="k1", title="A", heading="Contracts", project="Law", fmt="outline", tid="t1", units=["#4a9eff"], plan={"days": ["2026-11-05", "2026-11-05", "2026-11-02"], "exam": ""}),
+          dict(key="k2", title="B", heading="Torts", project="Law", fmt="timeline", tid="t2", units=["#4a9eff"])]
+    (tmp_path / "h.html").write_text(_home(ps), encoding="utf-8")
+    (tmp_path / "retro").mkdir()
+    name, js = retro.retro_asset()
+    (tmp_path / "retro" / name).write_text(js, encoding="utf-8")
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(type("H", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a: None}), directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
+    init = NOW + "try{localStorage.setItem('alto-bg-home-v1-style','%s')}catch(e){}" % style
+    ctx, pg, errs = _open(browser, url, init=init)
+    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].map(e=>e.textContent)") == ["Study plan · Today: 2", "Make a study plan"]
+    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].every(e=>getComputedStyle(e).display==='block')")
+    assert not errs, errs
+    ctx.close()
+    ctx, pg, errs = _open(browser, url, w=390, h=844, mobile=True, init=init)
+    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].every(e=>getComputedStyle(e).display==='none')")
+    ctx.close()
+    srv.shutdown()
