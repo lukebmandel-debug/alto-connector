@@ -1714,7 +1714,7 @@ function altoPrintMenu(pg){
 // The format ids are the ones the file badges use (alto/entitlements.py holds the same list, a test keeps them equal).
 // Which formats this person may make is decided on the server (entitlements.allowed); the page only reads the answer, if the
 // account layer supplied one (window._altoFormatAccess = { id: { ok, plan } }): none given = all open (the beta).
-// A build with its own route (the Bass one) adds {id, label, run(pg, fmt, ui)} to window._altoConvertRoutes; Claude's route,
+// A build with its own route (the Bass one) adds {id, label, formats?, when?(), run(pg, fmt, ui: {place, status(text), confirm(text, label) -> Promise<bool>, close})} to window._altoConvertRoutes (formats: the ones it can make); Claude's route,
 // a prompt to copy, is always there and needs no server.
 const CONVERT_FORMATS = [['timeline', 'Timeline (sketch)', ''], ['outline', 'Outline', ''], ['system', 'System', ''],
   ['lanes', 'Horizontal timeline', ''], ['palace', 'Mind Palace (a city)', 'city'], ['world', 'World-map palace', 'set of countries'],
@@ -1765,7 +1765,7 @@ function altoConvertMenu(pg){
   function routeView(f){
     body.innerHTML = ''; status.textContent = '';
     note.textContent = 'Into ' + f[1] + '. It uses only what this timeline already has: nothing is added.';
-    const routes = (window._altoConvertRoutes || []).filter(r => r && typeof r.run === 'function');
+    const routes = (window._altoConvertRoutes || []).filter(r => r && typeof r.run === 'function' && (!r.formats || r.formats.indexOf(f[0]) >= 0) && (!r.when || r.when()));
     let place = null;
     if(f[2] && routes.length){
       place = document.createElement('input'); place.type = 'text'; place.className = 'sm-place';
@@ -1777,9 +1777,15 @@ function altoConvertMenu(pg){
       if(f[2] && !String(place.value || '').trim()){ status.textContent = 'Say which ' + f[2] + ' first.'; return; }
       status.textContent = 'Working…';
       Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = true; });
-      Promise.resolve().then(() => r.run(pg, f[0], { place: place ? place.value.trim() : '', status: t => { status.textContent = t; }, close }))
-        .catch(e => { status.textContent = 'Did not work: ' + ((e && e.message) || e);
-                      Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = false; }); });
+      const ask = (text, label) => new Promise(res => {                  // a route asks before it spends: the question replaces the buttons
+        body.innerHTML = ''; status.textContent = text;
+        body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; res(true); }));
+        body.appendChild(btn('Cancel', 'sm-quiet', () => { res(false); close(); }));
+      });
+      Promise.resolve().then(() => r.run(pg, f[0], { place: place ? place.value.trim() : '', status: t => { status.textContent = t; }, confirm: ask, close }))
+        .then(() => { if(sc.isConnected && !body.querySelector('.sm-quiet')) body.appendChild(btn('Close', 'sm-quiet', close)); },
+              e => { status.textContent = 'Did not work: ' + ((e && e.message) || e);
+                     Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = false; }); });
     })));
     const prompt = altoConvertPrompt(pg, f[0]);
     const ta = document.createElement('textarea'); ta.className = 'sm-prompt'; ta.readOnly = true; ta.value = prompt;
