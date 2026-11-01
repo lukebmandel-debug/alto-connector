@@ -115,6 +115,45 @@ HOLO_CSS = r"""
   @media print{ X :is(#title-bar,#nav,#node-nav-bar){box-shadow:none !important;} }
 """
 
+# ── the homepage's Projector (Art, SPEC-holo-home-A, Luke 2026-11-01 "I like A"): the medallion's flat symbol becomes three layers turning on Y over a
+# pulsing base ring, a light cone and one scan line per tile. transform and opacity only; desktop only (the script adds it on a computer's page) ──
+PROJ_CSS = r"""
+  X{--hp-mg:#ff5fd2;--hp-cone:.28;}
+  X:not(.dark){--hp-mg:#b3249a;--hp-cone:.14;}
+  X.alto-home .course-tile .tile-emblem.hp-on{pointer-events:auto !important;cursor:default;}
+  X.alto-home .course-tile .tile-emblem.hp-on > svg{display:none !important;}
+  X.alto-home .course-tile .tile-emblem.hp-on:focus-visible{outline:2px solid var(--ho-ac2);outline-offset:-3px;}
+  X.alto-home .course-tile.hp:hover,X.alto-home .course-tile.hp:focus-within{z-index:4;}
+  X .hp-stage{position:relative;width:84px;height:104px;perspective:420px;}
+  X .hp-spin{position:absolute;inset:12px 14px 34px;transform-style:preserve-3d;animation:ho-spin 10s linear infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
+  X.alto-home .course-tile .hp-stage .hp-l{position:absolute;inset:0;display:block;width:100%;height:100%;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;overflow:visible;}
+  X .hp-stage .hp-l1{stroke:var(--hp-mg);color:var(--hp-mg);opacity:.55;transform:translateZ(-5px);}
+  X .hp-stage .hp-l2{stroke:var(--ho-ac);color:var(--ho-ac);transform:translateZ(0);}
+  X .hp-stage .hp-l3{stroke:var(--ho-ac);color:var(--ho-ac);opacity:.45;transform:translateZ(5px);}
+  X .hp-beam{position:absolute;left:50%;bottom:22px;width:62px;height:58px;transform:translateX(-50%);background:linear-gradient(to top,rgba(var(--ho-rgb),var(--hp-cone)),transparent);clip-path:polygon(24% 0,76% 0,100% 100%,0 100%);}
+  X .hp-base{position:absolute;left:50%;bottom:12px;width:64px;height:14px;transform:translateX(-50%);}
+  X .hp-base i{position:absolute;inset:0;border:1px solid var(--ho-ac);border-radius:50%;}
+  X .hp-base i + i{border-color:var(--hp-mg);animation:ho-pulse 3.2s ease-out infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
+  X .hp-scan{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;}
+  X .hp-scan i{position:absolute;left:0;right:0;top:0;height:100%;background:linear-gradient(var(--ho-ac),var(--ho-ac)) top/100% 1px no-repeat;opacity:.16;animation:ho-scan 7s linear infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
+  X .hp-tip{position:absolute;left:50%;top:-6px;transform:translate(-50%,-100%);z-index:9;padding:5px 8px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;
+    background:var(--ho-bg);color:var(--ho-tx);border:1px solid var(--ho-ac);font:12px/1 "SF Mono",ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;}
+  X .hp-on:hover .hp-tip,X .hp-on:focus-visible .hp-tip{opacity:1;}
+  X .course-tile.hp-still .hp-spin{animation:none;transform:rotateY(28deg);}
+  X .course-tile.hp-still :is(.hp-base i + i,.hp-scan){display:none;}
+  X .course-tile.hp-off :is(.hp-spin,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
+  X.hp-hid .course-tile :is(.hp-spin,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
+  @keyframes ho-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+  @keyframes ho-pulse{from{transform:scale(.55);opacity:.9}to{transform:scale(1.25);opacity:0}}
+  @keyframes ho-scan{from{transform:translateY(0)}to{transform:translateY(100%)}}
+  @media (prefers-reduced-motion:reduce){
+   X .hp-spin{animation:none !important;transform:rotateY(28deg);}
+   X .hp-base i + i,X .hp-scan{display:none !important;}
+   X .hp-base i:first-child{opacity:.6;}
+   X .hp-tip{transition:none;}
+  }
+"""
+
 # ── each format's own refinement lives here: its department adds rules (Retro's FORMAT_CSS, re-inked, is the base) ──
 FORMAT_CSS = r"""
 """
@@ -158,7 +197,7 @@ def ink(css: str) -> str:
 def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
     base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)   # (HOME_CSS: the homepage, home_look.py)
-    body = base + "\n" + HOLO_CSS + FORMAT_CSS + _UNIT_CSS
+    body = base + "\n" + HOLO_CSS + PROJ_CSS + FORMAT_CSS + _UNIT_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
             f"  {sel}.dark:not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")
@@ -168,6 +207,62 @@ def css() -> str:
 JS = r"""(function(){
 if(window._altoHolo) return;
 var r=document.documentElement, CSS=__CSS__, BGS=__BGS__, st=null;
+HOMEB
+// the homepage's Projector (PROJ_CSS): each plate's flat symbol is kept (hidden) and three clones turn in its place. A computer's page only: a phone's tiles stay as they are.
+var PN={timeline:'Timeline',lanes:'Timeline · Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Memory Blueprint',world:'Memory Atlas'}, MAXT=40, pmo=null, praf=0, pio=null, rz=0;
+function pel(c,t){ var e=document.createElement(t||'div'); if(c) e.className=c; return e; }
+function desk(){ return !r.classList.contains('mobile') && window.innerWidth>640; }   // (the home page's phone layout is the media query's, 640 and under)
+function plive(){ return r.classList.contains('alto-holo') && r.classList.contains('alto-home') && desk(); }
+function pun(t){
+  var em=t.querySelector('.tile-emblem');
+  [].slice.call(t.querySelectorAll('.hp-scan')).forEach(function(n){ n.remove(); });
+  if(em){ [].slice.call(em.querySelectorAll('.hp-stage,.hp-tip')).forEach(function(n){ n.remove(); });
+    if(em.classList.contains('hp-on')){ em.classList.remove('hp-on'); ['role','aria-label','tabindex'].forEach(function(a){ em.removeAttribute(a); }); em.setAttribute('aria-hidden','true'); if(!em.getAttribute('class')) em.removeAttribute('class'); } }
+  t.classList.remove('hp','hp-still','hp-off'); t.style.removeProperty('--hp-i'); if(!t.getAttribute('style')) t.removeAttribute('style'); if(!t.getAttribute('class')) t.removeAttribute('class');
+}
+function proj(){
+  if(!plive()) return;
+  [].forEach.call(document.querySelectorAll('.course-tile:not(.new-tile)'), function(t,i){
+    var em=t.querySelector('.tile-emblem'), name=PN[t.getAttribute('data-fmt')];
+    if(!em||!name||!t.querySelector('.t-main')) return;
+    var still=i>=MAXT;
+    if(em.classList.contains('hp-on')){ t.classList.toggle('hp-still',still); return; }
+    var svg=null; for(var c=em.firstChild;c;c=c.nextSibling){ if(c.nodeName.toLowerCase()==='svg'){ svg=c; break; } }
+    if(!svg) return;
+    var stage=pel('hp-stage'), spin=pel('hp-spin'), base=pel('hp-base'), scan=pel('hp-scan'), tip=pel('hp-tip'); stage.setAttribute('aria-hidden','true'); scan.setAttribute('aria-hidden','true');
+    ['hp-l1','hp-l2','hp-l3'].forEach(function(k){ var s=svg.cloneNode(true); s.setAttribute('class','hp-l '+k); s.setAttribute('aria-hidden','true'); spin.appendChild(s); });
+    base.appendChild(pel('','i')); base.appendChild(pel('','i')); scan.appendChild(pel('','i'));
+    stage.appendChild(pel('hp-beam')); stage.appendChild(spin); stage.appendChild(base);
+    tip.textContent=name; tip.setAttribute('aria-hidden','true');
+    em.insertBefore(stage, em.firstChild); em.appendChild(tip);
+    em.classList.add('hp-on'); em.setAttribute('role','img'); em.setAttribute('aria-label',name); em.setAttribute('tabindex','0'); em.setAttribute('aria-hidden','false');
+    t.appendChild(scan); t.classList.add('hp'); t.classList.toggle('hp-still',still); t.style.setProperty('--hp-i', i);
+    if(pio) pio.observe(t);
+  });
+}
+function pwatch(){
+  if(!pio && typeof IntersectionObserver==='function'){
+    pio=new IntersectionObserver(function(es){ es.forEach(function(e){ e.target.classList.toggle('hp-off', !e.isIntersecting); }); }, {rootMargin:'80px'});
+    [].forEach.call(document.querySelectorAll('.course-tile.hp'), function(t){ pio.observe(t); });
+  }
+  if(!pmo && typeof MutationObserver==='function'){
+    pmo=new MutationObserver(function(){ if(praf) return; praf=requestAnimationFrame(function(){ praf=0; proj(); }); });
+    pmo.observe(r,{childList:true,subtree:true});
+  }
+}
+function punwatch(){ if(pmo){ pmo.disconnect(); pmo=null; } if(pio){ pio.disconnect(); pio=null; } }
+function hsync(){
+  if(!r.classList.contains('alto-holo')) return;
+  var H=window._altoRetroHome;
+  if(plive()){ if(H) H.on(); pwatch(); proj(); }
+  else { punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); if(H && !r.classList.contains('alto-retro')) H.off(); }
+}
+function hoff(){
+  punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); r.classList.remove('hp-hid');
+  if(window._altoRetroHome && !r.classList.contains('alto-retro')) window._altoRetroHome.off();
+}
+document.addEventListener('visibilitychange', function(){ if(r.classList.contains('alto-holo')) r.classList.toggle('hp-hid', document.hidden); });
+window.addEventListener('resize', function(){ if(rz) return; rz=setTimeout(function(){ rz=0; hsync(); }, 150); });
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
 // the style's own backgrounds (holo_backgrounds.py): in the picker's catalog only while Holographic is on; a page set to one of them
 // paints it when the style comes on and goes back to no background when it goes off (the choice itself is kept)
@@ -187,13 +282,13 @@ function bgs(on){
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-holo-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);
-  r.classList.add('alto-holo'); bgs(true); redraw();
+  r.classList.add('alto-holo'); bgs(true); redraw(); hsync();
 }
-function off(){ if(!r.classList.contains('alto-holo')) return; r.classList.remove('alto-holo'); bgs(false); redraw(); }
+function off(){ if(!r.classList.contains('alto-holo')) return; r.classList.remove('alto-holo'); hoff(); bgs(false); redraw(); }
 window._altoHolo={on:on, off:off};
 })();"""
 
-ASSET = _rt._slim(JS.replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
+ASSET = _rt._slim(JS.replace("HOMEB", _rt.HOME_B_JS).replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-holo-{V}.js"
 GUARD = "_altoHolo"

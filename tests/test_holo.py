@@ -334,3 +334,151 @@ def test_back_sits_on_the_clef_line_and_clear_of_the_header_line(browser, site, 
     assert abs(r["bc"] - r["mc"]) < 0.6 and abs(r["bc"] - r["wc"]) < 0.6, r
     assert r["bb"] <= r["barb"] - 4, r
     ctx.close()
+
+
+# ── the homepage's Projector (PROJ_CSS, Art's SPEC-holo-home-A) ──────────────────────────────────────────────────
+
+FMTS = ["timeline", "lanes", "outline", "system", "palace", "building", "world"]
+
+
+def _live_home(n):
+    """The homepage with n live cards (the cloud stub), one format each in turn."""
+    pageset = [dict(key=f"k{i}", title=f"T{i}", heading=f"Course {i}", project="Law", fmt=FMTS[i % 7], tid=f"t{i}", units=["#4a9eff", "#e8a87c"][: i % 2 + 1]) for i in range(n)]
+    stub = ("<script>window.AltoCloud={enabled:true,known:true,user:{uid:'u1',email:'a@b.c',displayName:'A'},listPages:()=>Promise.resolve(%s),"
+            "listShared:()=>Promise.resolve([]),signOut:()=>Promise.resolve(),createTimeline:()=>Promise.resolve({}),signIn:()=>Promise.resolve(),"
+            "getPage:()=>Promise.resolve(''),forgetShare:()=>Promise.resolve()};</script>" % json.dumps(pageset))
+    return pages.build_home([]).replace("<head>", "<head>" + stub, 1)
+
+
+@pytest.fixture(scope="module")
+def psite(tmp_path_factory):
+    if pw is None:
+        pytest.skip("Playwright is not installed")
+    d = tmp_path_factory.mktemp("holoproj")
+    (d / "h7.html").write_text(_live_home(7), encoding="utf-8")
+    (d / "h45.html").write_text(_live_home(45), encoding="utf-8")
+    (d / "holo").mkdir()
+    (d / "retro").mkdir()
+    name, text = holo.holo_asset()
+    (d / "holo" / name).write_text(text, encoding="utf-8")
+    name, text = retro.retro_asset()
+    (d / "retro" / name).write_text(text, encoding="utf-8")
+    lib, js = bi.site_file()
+    (d / lib).write_text(js, encoding="utf-8")
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **k):
+            super().__init__(*a, directory=str(d), **k)
+
+        def log_message(self, *a):
+            pass
+    srv = socketserver.ThreadingTCPServer(("127.0.0.1", 0), H)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+    srv.server_close()
+
+
+def test_the_projector_css_is_compositor_only_and_has_a_reduced_motion_still():
+    css = holo.css()
+    kf = re.findall(r"@keyframes (ho-\w+)\{(.*?)\}\}?(?=@keyframes|\s*@media|\s*html|\s*$|\})", css)
+    assert {k for k, _ in kf} == {"ho-spin", "ho-pulse", "ho-scan"}
+    body = "".join(re.findall(r"@keyframes ho-\w+\{.*?\}\}", css))
+    assert body and not re.search(r"filter|box-shadow|background-position|width|height|top|left|margin", body), body
+    rm = css[css.index("@media (prefers-reduced-motion:reduce)"):]
+    assert "animation:none" in rm and "rotateY(28deg)" in rm
+    assert holo.JS.count("HOMEB") == 1 and "_altoRetroHome" in holo.ASSET and "hp-stage" in holo.ASSET
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_the_homepage_projector_draws_three_layers_and_off_restores_the_plate(browser, psite, dark):
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(800)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false"))
+    grab = "()=>document.getElementById('projects-wrap').innerHTML"
+    classic = pg.evaluate(grab)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(1200)
+    got = pg.evaluate("""()=>[...document.querySelectorAll('.course-tile:not(.new-tile)')].map(t=>{const e=t.querySelector('.tile-emblem'), cs=getComputedStyle(e.querySelector('.hp-spin'));
+        return {layers:e.querySelectorAll('svg.hp-l').length, role:e.getAttribute('role'), label:e.getAttribute('aria-label'), tab:e.getAttribute('tabindex'), tip:e.querySelector('.hp-tip').textContent,
+                anim:cs.animationName, dur:cs.animationDuration, scan:getComputedStyle(t.querySelector('.hp-scan i')).animationName, fmt:t.getAttribute('data-fmt'), noFlat:getComputedStyle(e.querySelector(':scope > svg')).display}})""")
+    names = ["Timeline", "Timeline · Horizontal", "Outline", "System", "Memory Map", "Memory Blueprint", "Memory Atlas"]
+    assert [g["label"] for g in got] == names and [g["tip"] for g in got] == names
+    assert all(g["layers"] == 3 and g["role"] == "img" and g["tab"] == "0" and g["anim"] == "ho-spin" and g["dur"] == "10s" and g["scan"] == "ho-scan" and g["noFlat"] == "none" for g in got), got[:2]
+    # light AND dark: every word on the new plates meets AA
+    res = pg.evaluate(AUDIT_JS)
+    assert res["seen"] > 10 and not res["bad"], res["bad"][:10]
+    # the tooltip shows on hover and on focus
+    pg.hover(".course-tile .tile-emblem")
+    pg.wait_for_timeout(350)
+    assert pg.evaluate("+getComputedStyle(document.querySelector('.hp-tip')).opacity") == 1
+    pg.mouse.move(5, 5)
+    pg.focus(".course-tile .tile-emblem")
+    pg.keyboard.press("Shift+Tab")
+    pg.keyboard.press("Tab")
+    pg.wait_for_timeout(350)
+    assert pg.evaluate("document.activeElement.classList.contains('tile-emblem')") and pg.evaluate("+getComputedStyle(document.querySelector('.hp-tip')).opacity") == 1
+    # Holographic -> Retro keeps Retro's plate and drops the projector; -> Classic restores the cards exactly
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.querySelectorAll('.hp-stage').length") == 0 and pg.evaluate("document.querySelectorAll('.t-main').length") == 7
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.querySelectorAll('.hp-stage').length") == 7
+    pg.evaluate("window._altoStyle.set('classic')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate(grab) == classic
+    assert not errors, errors
+    pg.close()
+
+
+def test_the_homepage_projector_reduced_motion_and_phone(browser, psite):
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(1200)
+    r = pg.evaluate("""()=>{const cs=getComputedStyle(document.querySelector('.hp-spin'));
+        return [cs.animationName, cs.transform, getComputedStyle(document.querySelector('.hp-scan')).display, getComputedStyle(document.querySelector('.hp-base i + i')).display]}""")
+    assert r[0] == "none" and r[2] == "none" and r[3] == "none"
+    m = re.search(r"matrix3d\(([^,]+),\s*[^,]+,\s*([^,]+),", r[1])
+    assert abs(float(m.group(1)) - 0.8829) < .001 and abs(float(m.group(2)) + 0.4695) < .001      # rotateY(28deg): still, but solid
+    ctx.close()
+    ph = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    pg = ph.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-holo')")
+    assert pg.evaluate("document.querySelectorAll('.hp-stage,.hp-tip,.hp-scan,.t-main').length") == 0       # a phone's page: nothing added
+    ph.close()
+
+
+def test_a_big_homepage_turns_the_first_forty_and_pauses_what_is_off_screen(browser, psite):
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h45.html")
+    pg.wait_for_timeout(1500)
+    n = pg.evaluate("[document.querySelectorAll('.course-tile.hp').length, document.querySelectorAll('.course-tile.hp-still').length, document.querySelectorAll('.course-tile.hp-off').length]")
+    assert n[0] == 45 and n[1] == 5 and n[2] > 20, n                       # (the 5 after the 40th are a still frame; the tiles below the fold are paused)
+    assert pg.evaluate("getComputedStyle(document.querySelector('.course-tile.hp-off .hp-spin')).animationPlayState") == "paused"
+    assert pg.evaluate("getComputedStyle(document.querySelector('.course-tile.hp-still .hp-spin')).animationName") == "none"
+    pg.close()
+
+
+@pytest.mark.parametrize("style", ["retro", "holo"])
+def test_the_home_plate_leaves_the_page_alone_once_drawn(browser, psite, style):
+    """(Retro home B rewrote its own numbers every frame, waking its observer about 1,700 times a second at rest.)"""
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','%s')}catch(e){}" % style)
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("window.__m=0; new MutationObserver(r=>{window.__m+=r.length}).observe(document.documentElement,{childList:true,subtree:true,characterData:true})")
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("window.__m") == 0
+    pg.close()
