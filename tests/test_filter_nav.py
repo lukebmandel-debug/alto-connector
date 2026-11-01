@@ -297,6 +297,7 @@ def test_the_world_palace_tour_stops_only_where_the_filter_shows(browser):
         site.close()
 
 
+@__import__("pytest").mark.skipif(not __import__("alto.build.palace_building_asset", fromlist=["x"]).BLUEPRINT_FPV, reason="Blueprint FPV is off (palace_building_asset.BLUEPRINT_FPV)")
 def test_the_museum_n_and_p_walk_only_to_the_cards_the_filter_shows(browser):
     import test_building_palace_tools as tbp
     from alto.build import building_schema as bs

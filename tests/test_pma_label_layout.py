@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tests.building_fpv_support import open_view  # noqa: E402
+from tests.building_fpv_support import needs_fpv, open_view  # noqa: E402
 from tests.test_building_fpv_render import engine  # noqa: E402,F401  (the Chromium + WebKit fixture)
 
 
@@ -15,6 +15,7 @@ JS = """(W) => { const S = AltoBuildingFPV._debug(), g = document.createElement(
   return out; }"""
 
 
+@needs_fpv
 def test_every_framed_label_fits_its_plate(engine):
     from alto.buildings import pma
     from tests.test_building_pma_render import _html
