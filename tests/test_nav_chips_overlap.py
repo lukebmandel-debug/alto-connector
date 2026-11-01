@@ -5,6 +5,8 @@ spread that pads it), the page's chips-collapse x, and the Blueprint's name chip
 uses Safari) and in Chromium where each is installed. Skipped without Playwright (the repo venv has none; see the 1.9.62 notes)."""
 import json
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -21,7 +23,6 @@ try:
 except ImportError:
     pw = None
 
-ORIGIN = "http://alto.test"
 WIDTHS = (700, 820, 1024, 1280, 1440, 1920)
 STYLES = ("classic", "dark", "retro", "holo")
 TYPES = ["Personal Jurisdiction", "Subject Matter", "Venue", "Pleading", "Joinder", "Discovery", "Summary Judgment", "Preclusion"]
@@ -91,23 +92,42 @@ def html():
     return _chip_page()
 
 
-def _open(browser, html, width, style):
+@pytest.fixture(scope="module")
+def origin(html):
+    """The page and the Blueprint's script and plan, served from 127.0.0.1 (WebKit does not route a made-up host's scripts)."""
     pname, ptext = bs.hosted_json(bs.fixture())
 
-    def route(r):
-        path = r.request.url[len(ORIGIN):].split("?")[0]
-        if path in ("/", "/index.html"):
-            return r.fulfill(status=200, content_type="text/html", body=html)
-        if path == "/alto-cloud.js":
-            return r.fulfill(status=200, content_type="text/javascript", body="")
-        hit = palace_assets.find(path, building_plans={pname: ptext}) if path.startswith("/bldg/") else None
-        if hit:
-            return r.fulfill(status=200, content_type=hit[0], body=hit[1])
-        return r.fulfill(status=404, body="no")
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            hit = palace_assets.find(path, building_plans={pname: ptext}) if path.startswith("/bldg/") else None
+            if path in ("/", "/index.html"):
+                code, ctype, body = 200, "text/html", html
+            elif path == "/alto-cloud.js":
+                code, ctype, body = 200, "text/javascript", ""
+            elif hit:
+                code, ctype, body = 200, hit[0], hit[1]
+            else:
+                code, ctype, body = 404, "text/plain", "no"
+            data = body.encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", ctype + "; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
 
+        def log_message(self, *a):
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield "http://127.0.0.1:%d" % srv.server_address[1]
+    srv.shutdown()
+
+
+def _open(browser, origin, width, style):
     page = browser.new_page(viewport={"width": width, "height": 800})
-    page.route(ORIGIN + "/**", route)
-    page.goto(ORIGIN + "/index.html")
+    page.goto(origin + "/index.html")
     try:
         page.wait_for_selector("#bldg-root .bl-head", state="attached", timeout=8000)
     except Exception:
@@ -125,10 +145,10 @@ def _open(browser, html, width, style):
 
 
 @pytest.mark.parametrize("style", STYLES)
-def test_no_chip_label_or_panel_covers_another_chip_at_any_width(browser, html, style):
+def test_no_chip_label_or_panel_covers_another_chip_at_any_width(browser, origin, style):
     seen = {}
     for w in WIDTHS:
-        page = _open(browser, html, w, style)
+        page = _open(browser, origin, w, style)
         try:
             m = page.evaluate(MEASURE)
         finally:
@@ -140,9 +160,9 @@ def test_no_chip_label_or_panel_covers_another_chip_at_any_width(browser, html, 
     assert not seen, f"{style}: chips covered by a label plate, the x or the name chip, by width: {seen}"
 
 
-def test_the_blueprint_name_chip_stands_below_the_chip_rows(browser, html):
+def test_the_blueprint_name_chip_stands_below_the_chip_rows(browser, origin):
     for w in (820, 1280, 1920):
-        page = _open(browser, html, w, "classic")
+        page = _open(browser, origin, w, "classic")
         try:
             m = page.evaluate(MEASURE)
         finally:
