@@ -175,7 +175,7 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .node[data-solar].focused:not(.sol-clip) .sol-face{display:none;}
   .sol-face b{font-weight:600;font-variant-numeric:tabular-nums;opacity:.72;font-size:10px;line-height:12.5px;letter-spacing:.02em;}
   .sol-face span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;
-    overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;font-size:12.5px;line-height:15px;max-width:100%;}
+    overflow-wrap:normal;hyphens:manual;-webkit-hyphens:manual;font-size:12.5px;line-height:15px;max-width:100%;}
   .node[data-solar=sun] .sol-face b{font-size:12.5px;line-height:15px;}
   .node[data-solar=sun] .sol-face span{font-size:16.25px;line-height:20px;-webkit-line-clamp:4;line-clamp:4;}
   /* moons and satellites are small (real-ratio sizes, round 7): a moon shows its own number only, a
@@ -223,12 +223,13 @@ SOLAR_CSS = r"""
      disc then shows its number only. Hidden where it would cover a bigger body or a label of one (.sol-lx),
      shown on hover. .sol-dot: a body never smaller than a few px on screen (zoomed out). */
   .sol-lbl,.sol-dot{display:none;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl{display:block;position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;white-space:nowrap;
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl{display:block;position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;white-space:normal;width:max-content;text-align:center;hyphens:manual;-webkit-hyphens:manual;overflow-wrap:normal;
     --lr:calc(max(var(--dn,20) * var(--ovs,1) / 2, 2.5) * 1px);transform-origin:0 0;transform:scale(var(--ils,1)) translate(-50%,calc(var(--lr) + 3px));
-    max-width:170px;overflow:hidden;text-overflow:ellipsis;font-style:normal;font-size:12px;line-height:15px;font-weight:600;letter-spacing:.01em;color:var(--text);
+    max-width:170px;font-style:normal;font-size:12px;line-height:15px;font-weight:600;letter-spacing:.01em;color:var(--text);
+    padding:1px 6px;border-radius:7px;background:color-mix(in srgb,var(--bg,#fff) 88%,transparent);   /* (a name wraps at its spaces to a second line, never an ellipsis or a split word; the plate keeps it readable over a ring or a neighbour) */
     text-shadow:0 0 3px var(--bg,#fff),0 0 2px var(--bg,#fff);transition:opacity .2s;}
   html.alto-solar.dark:not(.mobile) #world .node[data-solar]>.sol-lbl{text-shadow:0 0 3px #000,0 0 2px #000;}
-  html.alto-stars:not(.mobile) #world .node[data-solar]>.sol-lbl{color:#eef2ff;text-shadow:0 0 3px #000,0 0 2px #000;}
+  html.alto-stars:not(.mobile) #world .node[data-solar]>.sol-lbl{color:#eef2ff;background:rgba(6,8,22,.85);text-shadow:0 0 3px #000,0 0 2px #000;}
   .sol-lbl::after{content:attr(data-l);}
   html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l1{transform:scale(var(--ils,1)) translate(-50%,calc(-100% - var(--lr) - 3px));}
   html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l2{transform:scale(var(--ils,1)) translate(calc(var(--lr) + 4px),-50%);}
