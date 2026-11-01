@@ -54,6 +54,16 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .phase-band,html.alto-solar:not(.mobile) #world .phase-label-float,html.alto-solar:not(.mobile) #world .unit-bar{display:none !important;}
   #solar-svg{position:absolute;left:0;top:0;z-index:5;pointer-events:none;overflow:visible;}
   html.mobile #solar-svg,html.mobile .sol-unit,html.mobile .sol-face{display:none !important;}
+  /* A7: phone.py copies the line above for html.phone-whole, which blanked the Sun on a phone (its name sat in .sol-face and its caption
+     is hidden while the face shows): the Sun's own face comes back, its name on the disc; the one-line hint below the chart goes on the first touch */
+  html.phone-whole.alto-solar #world .node[data-solar=sun] .sol-face{display:flex !important;}
+  #sol-phone-hint{display:none;}
+  html.phone-whole.alto-solar #sol-phone-hint{display:block;position:fixed;z-index:60;left:50%;bottom:calc(98px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100vw - 32px);box-sizing:border-box;
+    padding:8px 14px;border-radius:12px;font:500 13px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#14142b;background:rgba(255,255,255,.9);text-align:center;pointer-events:none;
+    box-shadow:0 1px 8px rgba(0,0,0,.25);transition:opacity .35s;}
+  html.phone-whole.alto-solar.sk-retro #sol-phone-hint{color:#efe6cf;background:rgba(0,0,0,.9);border:1px solid #d9ae55;border-radius:0;box-shadow:none;}
+  #sol-phone-hint.off{opacity:0;}
+  body:has(#detail-page.visible) #sol-phone-hint{display:none;}
   #solar-svg .sol-hit{fill:none;stroke:transparent;stroke-width:13px;pointer-events:stroke;cursor:pointer;}
   #solar-svg .sol-hit.sol-oband{display:none;}
   #solar-svg .sol-rider{opacity:0;transition:opacity .35s cubic-bezier(.25,.2,.4,1);pointer-events:none;}
@@ -331,6 +341,16 @@ if(!S || !S.nodes) return false; window._altoSolarMounted=true;
 window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
 var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:96, moon:50, sat:20}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
+/* the phone's one-line hint (A7, Art): on the plate above the bottom row until the first touch, once a tab */
+function phoneHint(){
+  if(!de.classList.contains('phone-whole') || document.getElementById('sol-phone-hint')) return;
+  try{ if(sessionStorage.getItem('alto-sol-hint')) return; }catch(e){}
+  var h=document.createElement('div'), ev=['touchstart', 'pointerdown', 'wheel', 'keydown'];
+  h.id='sol-phone-hint'; h.setAttribute('role', 'status'); h.textContent='Pinch to zoom \u00b7 tap a planet \u00b7 MENU for styles'; document.body.appendChild(h);
+  function gone(){ ev.forEach(function(t){ document.removeEventListener(t, gone, true); }); h.classList.add('off'); setTimeout(function(){ h.remove(); }, 400);
+    try{ sessionStorage.setItem('alto-sol-hint', '1'); }catch(e){} }
+  ev.forEach(function(t){ document.addEventListener(t, gone, {capture:true, passive:true}); });
+}
 if(desk()) de.classList.add('alto-solar');
 
 /* the bodies, each after what it orbits */
@@ -538,6 +558,7 @@ window._altoSolarLayout=function(pos){
   ctl();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
+  phoneHint();
   if(!opened) setTimeout(openView, 0);
 };
 /* ── where the page opens (once, on the first layout) ──────────────────────

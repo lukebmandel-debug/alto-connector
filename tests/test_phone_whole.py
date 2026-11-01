@@ -275,3 +275,17 @@ def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_c
     pg.tap("#detail-back-fixed")
     pg.wait_for_timeout(1000)
     assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")
+
+
+def test_the_system_sun_shows_its_name_and_a_hint_that_goes_on_the_first_touch(pg, site):
+    """A7: phone.py copies solar_draw's `html.mobile .sol-face{display:none !important}` for the whole view, which blanked the Sun
+    (its caption is hidden while its face shows). The Sun's face is back, and one hint sits above the bottom row until a touch."""
+    _go(pg, site + "/system.html?view=card")
+    pg.wait_for_timeout(800)
+    r = pg.evaluate("""(() => { const G = window._altoSolarGeo(), id = Object.keys(G.bodies).find(i => G.bodies[i].role === 'sun'),
+      f = document.querySelector('#node-' + id + ' .sol-face'), h = document.getElementById('sol-phone-hint');
+      return [getComputedStyle(f).display, f.querySelector('span').textContent.trim().length > 0, !!h && getComputedStyle(h).display, !!h && h.textContent.includes('MENU for styles')]; })()""")
+    assert r == ["flex", True, "block", True]
+    pg.touchscreen.tap(20, 400)
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("!document.getElementById('sol-phone-hint')")
