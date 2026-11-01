@@ -52,7 +52,7 @@ FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the 
      inside the line, the left row rides the right row's baseline; all in whole real px, so the zoom doesn't blur them) */
   X:not(.mobile):not(.detail-open) #tab-rail:not(#_){right:calc(6px / var(--alto-zoom,.8)) !important;}
   X:not(.mobile):not(.detail-open) #ct-chips:not(#_){margin-left:calc(4px / var(--alto-zoom,.8));}
-  X:not(.mobile) :is(#account-btn,#pal-ctl):not(#_){bottom:var(--alto-row-b,24px) !important;}
+  X:not(.mobile):not(.alto-home) :is(#account-btn,#pal-ctl):not(#_){bottom:var(--alto-row-b,24px) !important;}   /* (not the homepage: its account toggle shares the 24px baseline of the other home toggles) */
   X #sk-frame b{position:absolute;left:50%;top:31px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
     background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
   X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}

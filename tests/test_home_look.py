@@ -239,3 +239,77 @@ def test_retro_plates_keep_every_button_and_off_restores_the_original(tmp_path, 
     assert set(info["radius"]) <= {"0px"} and set(info["shadow"]) <= {"none"}
     assert info["counts"] == ["3 timelines"] and shared
     assert after_off == classic                                       # off puts every node back, in the original order
+
+
+# ── Luke 2026-10-31: on a computer the bin sits just right of the search toggle, search one place further left; same centre
+#    line as the other home toggles in Classic AND Retro; a phone is unchanged ──
+def test_the_bin_joins_the_bottom_right_cluster_only_on_a_computer():
+    p = _page()
+    a = p.index("function alignSearch(){")
+    body = p[a:p.index("\n}\n", a)]
+    assert "['info-btn', 'bin-btn', 'search-btn']" in body                 # right to left: info, bin, search
+    assert body.index("innerWidth <= 640") < body.index("['info-btn', 'bin-btn', 'search-btn']")       # the phone returns before the computer placement
+    assert "bn.style.right = ''" in body                                    # and gets the bin's computer-only placement cleared
+    assert "alignSearch();\n}\nif(!window._altoBinClose)" in p              # drawBin re-aligns after it adds the bin
+
+
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_the_bin_sits_right_of_search_on_one_line_in_classic_and_retro(tmp_path, engine):
+    import functools, http.server, threading
+    from alto.build import retro
+    (tmp_path / "h.html").write_text(pages.build_home([]), encoding="utf-8")
+    name, js = retro.retro_asset()
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.startswith("/retro/"):
+                b = js.encode()
+                self.send_response(200); self.send_header("Content-Type", "application/javascript")
+                self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+            else:
+                super().do_GET()
+        def log_message(self, *a): pass
+
+    stub = ("window.AltoCloud={enabled:true,known:true,user:{uid:'u1',email:'a@b.c',displayName:'A'},"
+            "listPages:()=>Promise.resolve([{key:'k7',title:'Old',heading:'Old notes',project:'Solo',fmt:'timeline',tid:'t7',units:[],binned:1793400000}]),"
+            "listShared:()=>Promise.resolve([]),signOut:()=>Promise.resolve(),createTimeline:()=>Promise.resolve({}),"
+            "signIn:()=>Promise.resolve(),getPage:()=>Promise.resolve(''),forgetShare:()=>Promise.resolve()};")
+    measure = """()=>{const o={};for(const id of ['account-btn','search-btn','bin-btn','info-btn','mode-toggle']){
+        const e=document.getElementById(id); if(!e) continue; const r=e.getBoundingClientRect();
+        if(r.width) o[id]={l:r.left,t:r.top,cy:r.top+r.height/2,w:r.width,right:e.style.right};}
+        const bp=document.getElementById('bin-panel'); if(bp) o.panel={hidden:bp.hidden,right:bp.style.right};return o}"""
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(H, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    out = {}
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception as e:
+                pytest.skip(str(e)[:80])
+            for style in ("classic", "retro"):
+                for width in (1440, 1024, 390):
+                    pg = b.new_page(viewport={"width": width, "height": 900})
+                    pg.add_init_script(stub)
+                    url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
+                    pg.goto(url)
+                    pg.evaluate("s=>localStorage.setItem('alto-bg-home-v1-style',s)", style)
+                    pg.goto(url)
+                    pg.wait_for_timeout(1500)
+                    out[(style, width)] = pg.evaluate(measure)
+                    pg.close()
+            b.close()
+    finally:
+        srv.shutdown()
+    for style in ("classic", "retro"):
+        for width in (1440, 1024):
+            m = out[(style, width)]
+            assert m["search-btn"]["l"] < m["bin-btn"]["l"] < m["info-btn"]["l"]
+            gap = m["bin-btn"]["l"] - m["search-btn"]["l"]
+            assert abs((m["info-btn"]["l"] - m["bin-btn"]["l"]) - gap) < 1.0   # even rhythm: search, bin, info
+            ys = [m[k]["cy"] for k in m if k in ("account-btn", "search-btn", "bin-btn", "info-btn")]
+            assert max(ys) - min(ys) < 0.6, (style, width, ys)                   # one centre line across every home toggle
+            assert m["panel"]["right"] != ""                                      # its list opens above the bin, on the right
+        ph = out[(style, 390)]                                                    # a phone keeps its top-row layout
+        assert ph["bin-btn"]["right"] == "" and ph["bin-btn"]["t"] < 120 and ph["search-btn"]["l"] < ph["bin-btn"]["l"]
