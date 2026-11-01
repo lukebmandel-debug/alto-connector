@@ -182,7 +182,8 @@ BOARD_CSS = r"""
   X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
   X.alto-lanes #sk-mark{display:none !important;}
   @media (max-width:900px){ X #sk-mark{display:none !important;} }   /* (a narrow window: no cartouche) */
-  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */
+  X.bldg-open #sk-mark{display:none !important;}   /* (the Blueprint's dock has the bottom middle: the cartouche drew "WALK" over its zoom buttons) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
   X #page-bg:not(#_),X.alto-bg #page-bg:not(#_),X.alto-bg.mobile.rw #page-bg:not(#_){background:#000 !important;filter:none !important;}   /* (a saved background's own `html.alto-bg #page-bg` rule has the same weight: with .alto-bg here Retro wins whatever loads last) */
@@ -337,11 +338,16 @@ FORMAT_CSS = r"""
   X #bldg-root .bl-lab{font-family:var(--rt-f);letter-spacing:.12em;text-transform:uppercase;font-weight:500;}
   X #bldg-root .bl-pill rect{fill:#000 !important;stroke:var(--bl-tint,#d9ae55) !important;stroke-width:1.4px;rx:0;}
   X #bldg-root .bl-pill text{fill:#efe6cf !important;font-family:var(--rt-f);letter-spacing:.08em;font-weight:500;}
-  X #bldg-root :is(.bl-tab,.bl-btn,.bl-head,.bl-info,.bl-credits,.bl-go):not(#_){background:#000 !important;color:#efe6cf !important;border-color:rgba(217,174,85,.55) !important;border-radius:0 !important;
+  X #bldg-root :is(.bl-tab,.bl-btn,.bl-head,.bl-info,.bl-credits,.bl-cards,.bl-dock,.bl-go,.bl-x):not(#_){background:#000 !important;color:#efe6cf !important;border-color:rgba(217,174,85,.55) !important;border-radius:0 !important;
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;}
-  X #bldg-root :is(.bl-tab.on,.bl-go):not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X #bldg-root :is(.bl-tab.on,.bl-btn.on,.bl-go):not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X #bldg-root .bl-dock :is(.bl-tab,.bl-btn,.bl-go):not(#_){border-color:transparent !important;}
+  X #bldg-root .bl-dock :is(.bl-tab,.bl-btn,.bl-go):hover:not(#_){border-color:rgba(217,174,85,.55) !important;}
+  X #bldg-root .bl-dock :is(.bl-tab.on,.bl-btn.on,.bl-go):not(#_){border-color:#d9ae55 !important;}
+  X #bldg-root .bl-cards button b{border-radius:0 !important;color:#000 !important;}
   X #bldg-root .bl-kind{color:#d9ae55 !important;letter-spacing:.28em !important;font-weight:400 !important;}
   X #bldg-root .bl-head h2{text-transform:uppercase;letter-spacing:.14em;font-weight:300 !important;}
+  X #bldg-root .bl-head h2:not(#_){white-space:normal;text-overflow:clip;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.35;}   /* (Art 2026-10-30: the spaced capitals cut the name short on one line: it wraps, two lines at most) */
 
   /* the Memory Atlas's map (palace_world.py): a navigator's chart, gold on night blue, the units in the poster's inks */
   X #wpal-root:not(#_){--w-sea1:#0a1b34;--w-sea2:#05070b;--w-land:#0b0d12;--w-edge:rgba(217,174,85,.32);--w-grat:rgba(217,174,85,.07);--w-text:#efe6cf;--w-sub:#b9b2a0;

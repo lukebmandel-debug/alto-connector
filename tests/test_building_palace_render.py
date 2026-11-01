@@ -196,7 +196,7 @@ def test_the_blueprint_fits_a_phone(browser, html):
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         r = page.evaluate("""(() => { const b = e => e.getBoundingClientRect(), root = b(document.getElementById('bldg-root'));
           return {docW: document.documentElement.scrollWidth, tabs: [...document.querySelectorAll('#bldg-root .bl-tab')].every(e => b(e).right <= innerWidth && b(e).left >= 0),
-                  head: b(document.querySelector('#bldg-root .bl-head')).right <= b(document.querySelector('#bldg-root .bl-tabs')).left, rootW: root.width}; })()""")
+                  head: b(document.querySelector('#bldg-root .bl-head')).bottom <= b(document.querySelector('#bldg-root .bl-dock')).top, rootW: root.width}; })()""")   # (the one dock, bottom centre, below the name chip: the 2026-10-29 Blueprint B)
         assert r["docW"] <= 390 and r["tabs"] and r["head"] and r["rootW"] == 390
         assert errors == []
     finally:
