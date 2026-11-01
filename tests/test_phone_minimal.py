@@ -330,3 +330,12 @@ def test_a_closed_overview_leaves_no_line_on_the_page(pg, site):
     for url in ("/outline.html", "/retro.html", "/system.html"):
         _go(pg, site + url)
         assert pg.evaluate("getComputedStyle(document.getElementById('summary-wrap')).borderBottomColor") == "rgba(0, 0, 0, 0)", url
+
+
+def test_the_detail_text_keeps_clear_of_the_edge_tabs(pg, site):
+    for url, left in (("/timeline.html", 44), ("/system.html", 18)):              # the tabs on both edges; the tiles low on the right only
+        _go(pg, site + url)
+        pg.evaluate("document.querySelector('#world .node .node-card').click()")
+        pg.wait_for_timeout(1200)
+        pad = pg.evaluate("(() => { const c = getComputedStyle(document.getElementById('detail-page')); return [parseInt(c.paddingLeft), parseInt(c.paddingRight)]; })()")
+        assert pad == [left, 60], (url, pad)

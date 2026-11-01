@@ -2848,6 +2848,10 @@ html.mobile #notes-list { -webkit-overflow-scrolling: touch; }
 html.mobile #mode-toggle { display: none; }
 
 html.mobile #detail-page   { padding: 20px 18px 100px; top: 96px; touch-action: manipulation; overflow-x: hidden; }
+/* A12: the edge tabs (MAP, INFO / SEARCH on the left; MARK, NOTES on the right) stood on the first and last letters of the reading text:
+   44px gutter on the left, 60px on the right (they are about 36 and 56px wide); the tiles (html.pmin) sit low on the right only */
+html.mobile #detail-page   { padding-left: 44px; padding-right: 60px; }
+html.mobile.pmin #detail-page { padding-left: 18px; }
 html.mobile #detail-content { -webkit-user-select: text; user-select: text; }
 html.mobile #summary-inner  { -webkit-user-select: text; user-select: text; }
 html.mobile .detail-header  { padding-bottom: 48px; }
