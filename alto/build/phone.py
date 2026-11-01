@@ -107,6 +107,8 @@ html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .n
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:normal;word-break:normal;hyphens:manual;-webkit-hyphens:manual;}
 /* a card's name stays 12px on the glass at the readable scales (the board's own size shrinks with the zoom): bigger on the board, never past 22px, never under its own 16px */
 html.phone-whole.ph-ov:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){font-size:max(16.25px, min(22px, calc(12px / var(--ph-os,1))));}
+/* the glass has no edge at the sides of the screen (Art A4: no seam) */
+html.phone-whole:not(.alto-lanes):not(.alto-solar) #glass-slab:not(#_){box-shadow:none !important;border-left-color:transparent !important;border-right-color:transparent !important;}
 /* an enlarged card is the desktop's 1.7x (the engine zooms it) unless that is wider than the phone: then a little less, as large as leaves 16px each side (--ph-fk, set by the script below) */
 html.phone-whole .node.focused .node-card:not(#_){transform:scale(var(--ph-fk,1)) !important;}
 /* an enlarged card has the screen: the unit numerals (they ride the right edge) and the Alto wordmark do not sit on it */
@@ -167,8 +169,17 @@ function ovSet(s, px, py){                       /* scale s, the board point und
   if(s>=.999){ OV.s=1; w.style.zoom=''; de.classList.remove('ph-ov'); }
   else { w.style.zoom=s.toFixed(4); de.classList.add('ph-ov'); }
   de.style.setProperty('--ph-os', OV.s.toFixed(3));
+  slabFit();
   var b=w.getBoundingClientRect(); c.scrollLeft+=b.left+wx*OV.s-px; c.scrollTop+=b.top+wy*OV.s-py;
 }
+/* the timeline's glass slab ends where its last unit does: seen small, a short board left the page's plain gradient under it (a hard edge mid-screen).
+   Its height grows to the window's foot (the last unit's tint carrying on), so the glass runs the full height at any scale. */
+function slabFit(){ var sl=document.getElementById('glass-slab'), c=cv(); if(!sl || !c) return;
+  if(sl._h0==null){ sl._h0=parseFloat(sl.style.height)||sl.offsetHeight; var m=/(#[0-9a-fA-F]{6,8}|rgba?\([^)]*\))\s+100%\)\s*$/.exec(sl.style.backgroundImage||''); sl._last=m ? m[1] : ''; }
+  var top=parseFloat(sl.style.top)||0, h=Math.max(sl._h0, c.clientHeight/OV.s-top);
+  sl.style.height=h+'px';
+  if(h>sl._h0+1 && sl._last){ sl.style.backgroundSize='100% '+sl._h0+'px'; sl.style.backgroundRepeat='no-repeat'; sl.style.backgroundColor=sl._last; }
+  else { sl.style.backgroundSize=''; sl.style.backgroundRepeat=''; sl.style.backgroundColor=''; } }
 function ovAnim(s1, x, y, done){
   cancelAnimationFrame(ovA); var s0=OV.s, t0=now(), ms=reduced() ? 1 : 320;
   (function fr(t){ var k=Math.min(1, (t-t0)/ms), e=1-Math.pow(1-k, 3);

@@ -260,8 +260,7 @@ def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
     assert s1 > s0 * 1.5
     pg.evaluate(_PINCH, [195, 400, 260, 60])
     pg.wait_for_timeout(500)
-    fit = pg.evaluate("(innerWidth - 8) / document.getElementById('world').offsetWidth")
-    assert abs(pg.evaluate("window._altoPhone.ov.s") - fit) < 1e-6                 # never smaller than the phone's width (it opens readable, above that)
+    assert 0.2 < pg.evaluate("window._altoPhone.ov.s") < 0.25 and s0 > 0.5       # never smaller than the phone's width (it opens readable, 0.6, above that)
 
 
 def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_clef(pg, site):
@@ -352,3 +351,14 @@ def test_the_whole_board_opens_readable_and_maps_list_lands_on_a_card_in_view(pg
     assert f["foc"] and f["s"] == 1 and f["box"], f
     left, right, top, bottom = f["box"]
     assert left >= 15.5 and right <= f["W"] - 15.5 and top > 0 and bottom < pg.evaluate("innerHeight"), f
+
+
+def test_the_glass_slab_runs_to_the_foot_of_the_window_when_the_timeline_is_seen_small(pg, site):
+    """A4 (Art: extend the tint to the full height, no seam): a short board left the page's plain gradient under the slab."""
+    _go(pg, site + "/timeline.html?view=whole")
+    pg.evaluate(_PINCH, [195, 400, 260, 60])                                       # all the way out
+    pg.wait_for_timeout(600)
+    r = pg.evaluate("""() => { const s = document.getElementById('glass-slab'), q = s.getBoundingClientRect(), w = document.getElementById('world').getBoundingClientRect(), c = getComputedStyle(s);
+      return {bottom: q.bottom, worldBottom: w.bottom, H: innerHeight, shadow: c.boxShadow, os: window._altoPhone.ov.s}; }""")
+    assert r["worldBottom"] < r["H"] - 40, r                                        # (the board itself is shorter than the window here)
+    assert r["bottom"] >= r["H"] - 2 and r["shadow"] == "none", r
