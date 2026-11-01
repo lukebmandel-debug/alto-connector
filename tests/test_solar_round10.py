@@ -146,7 +146,7 @@ def test_the_star_chart_has_a_retro_style_kept_per_timeline(browser, page):
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate("() => window._altoSolarLook.set('hub')")
     assert pg.eval_on_selector_all("#sol-sty [data-style]", "b => b.map(x => x.textContent)") == \
-        ["System", "Star chart", "Retro", "3D Star chart"]                              # one switch of four styles (2026-10-22)
+        ["System", "Star chart", "Retro", "3D Star chart", "Holographic"]               # one switch of four styles (2026-10-22), Holographic the fifth (holo.py)
     assert not pg.evaluate("() => document.documentElement.classList.contains('sk-retro')")
     pg.click("#sol-sty [data-style=retro]")
     pg.wait_for_timeout(300)
