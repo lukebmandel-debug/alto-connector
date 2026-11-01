@@ -146,6 +146,11 @@ def test_the_package_carries_the_rules():
     assert '"firestore.rules"' in py
     mcpb = (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
     assert '"firestore.rules"' in mcpb and '"storage.rules"' in mcpb
+    legal = ROOT / "alto" / "legal"                       # the beta text a person agrees to travels with the package
+    assert (legal / "VERSION").read_text(encoding="utf-8").strip() == "1.0"
+    for name in ("privacy-policy.md", "beta-terms.md"):
+        t = (legal / name).read_text(encoding="utf-8")
+        assert "DRAFT" not in t and "Research" not in t
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the fake CLI is a /bin/sh script")
