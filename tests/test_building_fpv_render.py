@@ -243,3 +243,8 @@ def test_the_east_entrance_has_a_pediment(engine):
         assert errors == []
     finally:
         page.close()
+
+
+from tests.building_fpv_support import needs_fpv  # noqa: E402
+
+pytestmark = needs_fpv      # the Blueprint first-person walk is off for users (palace_building_asset.BLUEPRINT_FPV)

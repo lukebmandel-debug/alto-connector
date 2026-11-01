@@ -584,8 +584,8 @@ one of its own, puts it back.
 ### §D-Building. Memory Blueprint (`mode: 'palace'`, `palace_view: 'building'`)
 The method of loci inside ONE real building — a museum, a courthouse, a
 school: a **blueprint** (floor tabs, walls, rooms, the cards standing in them)
-and a **first-person view** inside it (a BETA: say so; the blueprint's "Walk
-in" buttons are its doors). Where the city palace trades detail for scale, this
+(the first-person walk inside it is switched off for now: do not offer or
+promise it; it comes back later). Where the city palace trades detail for scale, this
 trades scale for fidelity.
 - **The rule for any building (Luke's):** a public building gets a baseline
   Alto draws itself from public plans and photographs; where it is private or
