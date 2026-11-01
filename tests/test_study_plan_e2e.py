@@ -14,6 +14,7 @@ import functools
 import http.server
 import importlib.util
 import json
+import re
 import socketserver
 import sys
 import threading
@@ -117,7 +118,7 @@ CLASSES = """(id) => { var e = document.querySelector('#node-' + CSS.escape(id))
   return e ? Array.prototype.filter.call(e.classList, function(c){ return /^sp-/.test(c); }).sort() : null; }"""
 RING = """(id) => { var e = document.querySelector('#node-' + CSS.escape(id)) || document.querySelector('[data-id="' + id + '"]');
   if(!e) return null; var out = [], els = [e].concat([].slice.call(e.querySelectorAll('*')).slice(0, 8));
-  els.forEach(function(x){ var s = getComputedStyle(x); out.push([s.outlineStyle, s.outlineWidth, s.boxShadow, s.filter, s.strokeWidth, s.stroke].join('|')); });
+  els.forEach(function(x){ var s = getComputedStyle(x); out.push([s.outlineStyle === 'none' ? 'none' : s.outlineStyle + s.outlineWidth, s.boxShadow, s.filter, s.strokeWidth, s.stroke].join('|')); });
   return out.join('~'); }"""
 
 
@@ -189,15 +190,15 @@ def test_a_node_done_by_the_reader_shows_the_tick_not_the_late_ring(fmt, browser
     doc = FORMATS[fmt]()
     ids = _ids(doc)
     doc["brief"]["study_plan"] = _plan(ids)
-    pg = _open(browser, tmp_path, _page(doc))
+    html = _page(doc)
+    pg = _open(browser, tmp_path, html)
     try:
         d = ids[3]
         assert pg.evaluate(CLASSES, d) == ["sp-late"]                              # past due and not done
-        key = pg.evaluate("Object.keys(localStorage).filter(function(k){ return /-st$/.test(k); })[0] || null")
-        assert key, "no study state key found (the '-st' key next to the card marks)"
-        state = json.loads(pg.evaluate("k => localStorage.getItem(k)", key) or "{}")
-        state.setdefault("plan_done", {})[f"{d}|2026-11-08"] = True
-        pg.evaluate("([k, v]) => localStorage.setItem(k, v)", [key, json.dumps(state)])
+        m = re.search(r"var KEY = '([^']+-st)'", html)
+        assert m, "the plan's study-state key ('<hl key>-st') is not in the page"
+        state = {"v": 1, "s": {"__plan__": {"m": 1, "k": {f"{d}|2026-11-08": [1, 1]}}}}      # the study state's own shape: [1 done | 0 cleared, t]
+        pg.evaluate("([k, v]) => localStorage.setItem(k, v)", [m.group(1), json.dumps(state)])
         pg.reload()
         pg.wait_for_timeout(2500)
         assert pg.evaluate(CLASSES, d) == ["sp-done"]
@@ -288,7 +289,6 @@ def _bad_cases(ids):
         "duplicate": [good[0], dict(good[0])],
         "201-character why": [{**good[0], "why": "x" * 201}],
         "empty why": [{**good[0], "why": ""}],
-        "markup in why": [{**good[0], "why": "<script>alert(1)</script>"}],
         "unknown signal": [{**good[0], "signal": "vibes"}],
     }
 
@@ -302,6 +302,18 @@ def test_a_bad_plan_is_refused_and_nothing_is_saved(fresh_store, case):
     r = srv.set_study_plan(tid, _bad_cases(ids)[case], exam_date="2026-11-20")
     assert r.get("error"), f"{case}: the tool accepted it: {r}"
     assert _stored(tid) == before, f"{case}: something was saved although it was refused"
+
+
+@needs_tool
+def test_markup_in_a_why_is_refused_or_stored_as_plain_text(fresh_store):
+    tid = _built_draft()
+    r = srv.set_study_plan(tid, [{**_items(_node_ids())[0], "why": "Weak on <script>alert(1)</script> remedies"}], exam_date="2026-11-20")
+    if r.get("error"):
+        return                                                    # refused: fine
+    assert srv.build_timeline(tid).get("verify") == "passed"
+    html = srv.get_store().get_artifact(srv.uid(), tid, "timeline.html")
+    html = html.decode("utf-8") if isinstance(html, bytes) else html
+    assert "<script>alert(1)" not in html and "alert(1)</script>" not in html
 
 
 @needs_tool
@@ -333,7 +345,8 @@ def test_a_closed_entitlement_refuses_the_same_way_with_zero_change(fresh_store,
     tid = _built_draft()
     before = _stored(tid)
     real = ent.allowed
-    monkeypatch.setattr(ent, "allowed", lambda account, feature, *a, **k: False if feature == "study_plan" else real(account, feature, *a, **k))
+    closed = {"ok": False, "needs_plan": "pro", "message": "Study plan is in the Pro plan."}
+    monkeypatch.setattr(ent, "allowed", lambda account, feature, *a, **k: closed if feature == "study_plan" else real(account, feature, *a, **k))
     r = srv.set_study_plan(tid, _items(_node_ids()), exam_date="2026-11-20")
     assert r.get("error"), r
     assert _stored(tid) == before
