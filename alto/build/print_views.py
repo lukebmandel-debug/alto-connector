@@ -86,6 +86,8 @@ PRINT_CSS = r"""<style id="alto-print-views">
     padding:0 4px !important;font-size:10px !important;line-height:1.35 !important;font-family:inherit !important;border:1px dashed #777 !important;
     border-radius:3px !important;white-space:normal !important;text-align:left !important;transform:none !important;opacity:1 !important;
     box-shadow:none !important;max-width:100% !important;overflow:visible !important;background:none !important;}
+  html :is(#alto-ink-host,#alto-ink-measure) .ink-card .node-footer > button{position:static !important;left:auto !important;top:auto !important;
+    min-width:0 !important;max-width:100% !important;}                                    /* a System disc's chips are placed on its rim: here they sit in the bar */
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card .ink-ent{border-style:solid !important;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card .footer-sep,html :is(#alto-ink-host,#alto-ink-measure) .ink-card svg{display:none !important;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-see{margin:3px 0 0 !important;font-size:9.5px !important;line-height:1.25 !important;font-style:italic !important;}
@@ -359,6 +361,13 @@ PRINT_JS = r"""<script id="alto-print-views-js">
         var sp = document.createElement('span'); sp.className = 'ink-ent'; sp.textContent = t; b.parentNode.replaceChild(sp, b);
       });
       cl.querySelectorAll('button').forEach(function(b){ b.removeAttribute('title'); b.removeAttribute('onclick'); });
+      // A System (hub-and-spoke) page keeps the number, tag, title and description inside a .sol-body that only shows when the
+      // disc is enlarged, and draws the resting disc with a .sol-face, skin canvases and a scrim. A sheet shows the card, so the
+      // text comes back out to the card (in its own order), the disc's dressing goes, and the chips lose the places pool() gave them.
+      var sb = cl.querySelector(':scope > .sol-body');
+      if(sb) sb.replaceWith.apply(sb, [].slice.call(sb.childNodes));
+      cl.querySelectorAll('.sol-scrim, .sol-face, .sol-more, .sol-lbl, .sol-dot, canvas').forEach(function(e){ e.remove(); });
+      cl.querySelectorAll('.node-footer, .node-footer *').forEach(function(e){ e.removeAttribute('style'); });
       var te = cl.querySelector('.node-title');
       items[i].title = te ? te.textContent.replace(/\s+/g, ' ').trim() : '';
       var refs = Object.keys(see[items[i].id] || {}).sort(function(a, b){ return idx[a] - idx[b]; })

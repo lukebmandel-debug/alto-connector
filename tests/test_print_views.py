@@ -654,3 +654,77 @@ def test_a_print_that_fails_says_so_on_screen(browser, built):
     assert pg.evaluate("getComputedStyle(document.querySelector('#alto-print-msg .apm-bar')).display") == "none"
     pg.evaluate("window._altoPrep.show(0.5, 'next'); 0")
     assert "err" not in pg.evaluate("document.getElementById('alto-print-msg').className")
+
+
+# ── a System (hub-and-spoke) page ──────────────────────────────────────────
+# Its cards are discs: the text sits in a .sol-body that only shows when a disc is enlarged. The compact sheets must bring the
+# number, title and description back out to the card, and keep the case chips inside the bar.
+
+SOLAR_STYLES = {
+    "classic": "(()=>{var K=window._altoSolarLook,T=window._altoSolarStyle,L=window._altoHoloLayer;if(L)L.set(false);K.set('hub');T.set('classic');})()",
+    "retro": "(()=>{var K=window._altoSolarLook,T=window._altoSolarStyle,L=window._altoHoloLayer;if(L)L.set(false);K.set('stars');T.set('retro');})()",
+}
+
+
+@pytest.fixture(scope="module")
+def built_solar(tmp_path_factory):
+    d = json.loads(OUTLINE.read_text(encoding="utf-8"))
+    d["brief"]["layout"] = "solar"
+    html, _ = build_timeline(*load_brief(d))
+    f = tmp_path_factory.mktemp("print-solar") / "page.html"
+    f.write_text(html, encoding="utf-8")
+    return html, f
+
+
+@pytest.mark.parametrize("style", sorted(SOLAR_STYLES))
+def test_a_system_page_prints_each_card_with_its_number_title_and_text_and_its_chips_inside(browser, built_solar, style):
+    _, f = built_solar
+    pg = _open(browser, f)
+    pg.evaluate(SOLAR_STYLES[style])
+    pg.wait_for_timeout(600)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-solar')")
+    _stage(pg, 0)
+    got = pg.evaluate("""() => {
+      const shown = e => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+      const rect = e => e.getBoundingClientRect();
+      const cards = [...document.querySelectorAll('#alto-ink-host .ink-card')];
+      const chips = [];
+      const rows = cards.map((c, i) => {
+        const r = rect(c), t = c.querySelector('.node-title'), o = c.querySelector('.node-order'), d = c.querySelector('.node-desc');
+        c.querySelectorAll('.node-footer > *').forEach(e => { if (shown(e)) { const q = rect(e); chips.push({i, l: q.left, t: q.top, r: q.right, b: q.bottom, cl: r.left, ct: r.top, cr: r.right, cb: r.bottom, pos: getComputedStyle(e).position}); } });
+        return {title: t && shown(t) ? t.textContent.trim() : '', num: o && shown(o) ? o.textContent.trim() : '',
+                desc: d ? (shown(d) ? d.textContent.trim() : null) : '', l: r.left, t: r.top, r: r.right, b: r.bottom};
+      });
+      return {rows, chips, n: NODES.length, leftovers: document.querySelectorAll('#alto-ink-host .sol-body, #alto-ink-host .sol-face, #alto-ink-host .sol-scrim, #alto-ink-host .sol-more, #alto-ink-host canvas').length};
+    }""")
+    rows, chips = got["rows"], got["chips"]
+    assert len(rows) == got["n"]
+    assert got["leftovers"] == 0                                              # none of the disc's dressing is on the sheet
+    for r in rows:
+        assert r["title"], r                                                  # the case or concept name is on every bar
+        assert r["num"], r                                                    # and its path number
+        assert r["desc"] is not None, r                                       # a description is shown, not hidden
+    for i, a in enumerate(rows):                                              # no two bars overlap
+        for b in rows[i + 1:]:
+            assert a["r"] <= b["l"] + 0.5 or b["r"] <= a["l"] + 0.5 or a["b"] <= b["t"] + 0.5 or b["b"] <= a["t"] + 0.5, (a["title"], b["title"])
+    assert chips                                                              # the sample's cases are chips
+    for c in chips:                                                           # every chip sits inside its own bar, in the flow
+        assert c["pos"] == "static", c
+        assert c["l"] >= c["cl"] - 0.5 and c["r"] <= c["cr"] + 0.5 and c["t"] >= c["ct"] - 0.5 and c["b"] <= c["cb"] + 0.5, c
+    for i, a in enumerate(chips):                                             # and no two chips overlap
+        for b in chips[i + 1:]:
+            assert a["r"] <= b["l"] + 0.5 or b["r"] <= a["l"] + 0.5 or a["b"] <= b["t"] + 0.5 or b["b"] <= a["t"] + 0.5, (a, b)
+
+
+def test_an_outline_page_stages_the_same_cards_as_before_the_system_fix(browser, built):
+    """The System clean-up is inert on any other page: no disc parts, no inline chip places, a visible text and chips in flow."""
+    _, f = built
+    pg = _open(browser, f)
+    _stage(pg, 0)
+    got = pg.evaluate("""() => ({
+      parts: document.querySelectorAll('#alto-ink-host [class*="sol-"]').length,
+      cards: document.querySelectorAll('#alto-ink-host .ink-card').length,
+      kids: [...document.querySelectorAll('#alto-ink-host .ink-card')].map(c => [...c.children].map(k => k.className).join('|'))
+    })""")
+    assert got["parts"] == 0 and got["cards"] == pg.evaluate("NODES.length")
+    assert all(k.split("|")[0] in ("node-order", "node-tag", "node-title") for k in got["kids"])      # as the outline always was
