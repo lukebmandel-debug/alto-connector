@@ -292,7 +292,7 @@ window.addEventListener('keydown', function(e){
 var WQ=0, WA=0, WT=0;
 window.addEventListener('wheel', function(e){
   if(!live() || e.ctrlKey || !enl()) return; var c=document.getElementById('canvas'); if(!c || !c.contains(e.target)) return;
-  if(e.target.closest && e.target.closest('#notes-panel,#summary-wrap,#info-btn,#note-dialog,input,textarea')) return;
+  if(window._altoWheelOwn && window._altoWheelOwn(e)) return;
   e.preventDefault(); e.stopImmediatePropagation(); clearTimeout(WT); WT=setTimeout(function(){ WQ=0; WA=0; }, 260);
   if(WQ) return; WA+=(Math.abs(e.deltaY)>=Math.abs(e.deltaX) ? e.deltaY : e.deltaX)*(e.deltaMode ? 40 : 1);
   if(Math.abs(WA)>=24){ WQ=1; step(WA>0 ? 1 : -1); setTimeout(function(){ tick(true); }, 30); }

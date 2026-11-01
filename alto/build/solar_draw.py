@@ -1915,7 +1915,7 @@ if(holoOn() && LOOK!=='hub') setLook('hub');   /* (a page kept in Holographic op
 window.addEventListener('wheel', function(e){
   if(!tourOK() || e.ctrlKey || !window._focusedNodeId || RD || de.classList.contains('navx')) return;   /* (the nav's own scroll: round what is beside the enlarged body, solar_navopt.py) */
   var c=cvs(); if(!c || !c.contains(e.target) || document.querySelector('#detail-page.visible')) return;
-  if(e.target.closest && e.target.closest('#notes-panel,#summary-wrap,#info-btn,#note-dialog,input,textarea')) return;
+  if(window._altoWheelOwn && window._altoWheelOwn(e)) return;
   if(Math.abs(e.deltaX)+Math.abs(e.deltaY)<2) return;
   if(window.exitFocus) window.exitFocus();   /* (then the board's own wheel pans it: pan2d.py; the engine's focus-mode step finds no focus) */
 }, {capture:true, passive:true});

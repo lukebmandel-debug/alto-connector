@@ -423,7 +423,7 @@ html.mobile #bg-panel .bg-head{ position:sticky; top:0; z-index:1; margin:0 0 12
 #bg-close{ display:none; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:14px; align-items:center;
   justify-content:center; color:var(--text); letter-spacing:0; background:var(--card-glass-bg); border:1px solid var(--card-glass-border); }
 html.mobile #bg-close{ display:flex; }
-#bg-panel .bg-body{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+#bg-panel .bg-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 #bg-panel .bg-head, #bg-panel .bg-foot{ flex:none; }
 #bg-panel .bg-sec{ margin:0 0 12px; }
 html.mobile #bg-panel .bg-sec{ padding:0 16px; margin-bottom:18px; }
