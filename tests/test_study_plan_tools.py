@@ -121,6 +121,7 @@ def test_the_plan_survives_a_build_and_a_deleted_nodes_item_drops():
     from alto.build.builder import load_brief
     from alto.build.sanitize import sanitize_brief
     doc = srv.get_store().get_timeline(srv.uid(), tid)
-    b, nodes, _ = load_brief({"brief": doc["brief"], "nodes": srv.get_store().list_nodes(srv.uid(), tid)})
+    stored = [{k: v for k, v in n.items() if not k.startswith("_")} for n in srv.get_store().list_nodes(srv.uid(), tid)]     # (the store adds _seq)
+    b, nodes, _ = load_brief({"brief": doc["brief"], "nodes": stored})
     sanitize_brief(b, nodes)
     assert [i["node"] for i in b.study_plan["items"]] == [ids[0]]
