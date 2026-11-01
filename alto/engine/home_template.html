@@ -825,7 +825,13 @@
   /* Turn into another format: the prompt for Claude, shown so it can be copied by hand too */
   .share-menu .sm-prompt{ width:100%; box-sizing:border-box; min-height:112px; margin:2px 0 8px; padding:8px 10px; border-radius:10px;
     border:1px solid var(--btn-border); background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:12.5px; line-height:1.5; resize:vertical; }
-  .share-menu .sm-pick[disabled]{ opacity:.55; cursor:default; }
+  /* the convert sheet sits over the art: a firmer plate (94%), ink-dark Cancel and plan lines (4.5:1), phone rows 44px */
+  .share-menu.sm-convert{ background:color-mix(in srgb, var(--surface) 94%, transparent); }
+  .share-menu.sm-convert .sm-quiet, .share-menu.sm-convert .sm-pick small{ color:var(--text); }
+  .share-menu.sm-convert .sm-pick[disabled]{ cursor:default; border-style:dashed; }
+  .share-menu.sm-convert .sm-pick[disabled] small{ font-weight:600; }
+  .share-menu.sm-convert .sm-note.sm-ask{ font-size:14px; line-height:1.5; color:var(--text); }
+  @media (max-width:640px){ .share-menu.sm-convert .sm-pick{ min-height:44px; } .share-menu.sm-convert .sm-quiet{ min-height:44px; } }
   .share-menu .sm-place{ width:100%; box-sizing:border-box; height:34px; margin:2px 0 8px; padding:0 10px; border-radius:10px;
     border:1px solid var(--btn-border); background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:14px; }
   /* Recently deleted: under your own projects, folded until opened */
@@ -1730,7 +1736,7 @@ function altoConvertPrompt(pg, fmt){
 function altoConvertMenu(pg){
   const sc = document.createElement('div');
   sc.className = 'share-scrim';
-  sc.innerHTML = '<div class="share-menu" role="dialog" aria-modal="true"><div class="sm-title"></div>' +
+  sc.innerHTML = '<div class="share-menu sm-convert" role="dialog" aria-modal="true"><div class="sm-title"></div>' +
     '<p class="sm-note"></p><div class="sm-body"></div><p class="sm-status"></p></div>';
   document.body.appendChild(sc);
   const note = sc.querySelector('.sm-note'), body = sc.querySelector('.sm-body'), status = sc.querySelector('.sm-status');
@@ -1747,7 +1753,7 @@ function altoConvertMenu(pg){
   }
   const access = window._altoFormatAccess || {};
   function pickView(){
-    body.innerHTML = ''; status.textContent = '';
+    body.innerHTML = ''; status.textContent = ''; note.classList.remove('sm-ask');
     note.textContent = 'Which format? It makes a new timeline in this project from this one’s own cards. This one stays as it is.';
     CONVERT_FORMATS.forEach(f => {
       if(f[0] === (pg.fmt || 'timeline')) return;
@@ -1778,8 +1784,8 @@ function altoConvertMenu(pg){
       status.textContent = 'Working…';
       Array.prototype.forEach.call(body.querySelectorAll('button,input'), x => { x.disabled = true; });
       const ask = (text, label) => new Promise(res => {                  // a route asks before it spends: the question replaces the buttons
-        body.innerHTML = ''; status.textContent = ''; note.textContent = text;          // the question reads at the top, where the sheet's own words are
-        body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; res(true); }));
+        body.innerHTML = ''; status.textContent = ''; note.textContent = text; note.classList.add('sm-ask');          // the question reads at the top, in ink, where the sheet's own words are
+        body.appendChild(btn(label || 'Go on', 'sm-pick', () => { body.innerHTML = ''; note.classList.remove('sm-ask'); res(true); }));
         body.appendChild(btn('Cancel', 'sm-quiet', () => { res(false); close(); }));
       });
       Promise.resolve().then(() => r.run(pg, f[0], { place: place ? place.value.trim() : '', status: t => { status.textContent = t; }, confirm: ask, close }))
@@ -1790,8 +1796,10 @@ function altoConvertMenu(pg){
     const prompt = altoConvertPrompt(pg, f[0]);
     const ta = document.createElement('textarea'); ta.className = 'sm-prompt'; ta.readOnly = true; ta.value = prompt;
     ta.addEventListener('click', e => { e.stopPropagation(); ta.select(); });
+    ta.hidden = routes.length > 0;                      // with a route on offer the prompt is the second choice: shown only when it is picked
     body.appendChild(ta);
     body.appendChild(btn(routes.length ? 'Copy a prompt for Claude instead' : 'Copy the prompt for Claude', 'sm-pick', () => {
+      ta.hidden = false;
       // copied straight from the tap (iOS only honours it there): the clipboard where there is one, else the field itself
       let ok = false;
       try{ ta.focus({ preventScroll: true }); ta.select(); ta.setSelectionRange(0, prompt.length); ok = document.execCommand('copy'); }catch(e){}

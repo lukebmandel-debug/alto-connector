@@ -226,3 +226,29 @@ def test_a_route_can_ask_before_it_spends_and_can_hide_itself(homepage):
     assert pg.locator(".share-menu .sm-quiet", has_text="Close").count() == 1
     assert errors == []
 
+
+def test_with_a_route_on_offer_the_prompt_is_shown_only_after_the_second_choice(homepage):
+    ctx, pg, errors = homepage
+    pg.evaluate("window._altoConvertRoutes = [{label:'Make it with Test', run:() => {}}]")
+    _open_sheet(pg)
+    pg.locator('.share-menu .sm-pick[data-format="outline"], .share-menu .sm-pick[data-format="system"]').first.click()
+    assert not pg.locator(".share-menu textarea.sm-prompt").is_visible()                 # the primary choice is not outweighed
+    pg.locator(".share-menu .sm-pick", has_text="Copy a prompt for Claude instead").click()
+    assert pg.locator(".share-menu textarea.sm-prompt").is_visible()
+    assert errors == []
+
+
+def test_the_sheet_reads_in_ink_and_its_phone_rows_are_44px(homepage):
+    ctx, pg, errors = homepage
+    pg.evaluate("window._altoFormatAccess = { world: { ok: false, plan: 'plus' } }")
+    _open_sheet(pg)
+    got = pg.evaluate("""() => { const c = e => getComputedStyle(e).color, t = document.querySelector('.share-menu .sm-title');
+      return {cancel: c(document.querySelector('.share-menu .sm-quiet')) === c(t), plan: c(document.querySelector('.share-menu .sm-pick[data-format="world"] small')) === c(t),
+              row: document.querySelector('.share-menu .sm-pick[data-format="outline"], .share-menu .sm-pick[data-format="system"]').getBoundingClientRect().height} }""")
+    assert got["cancel"] and got["plan"] and got["row"] < 44                             # desktop rows are as they were
+    pg.set_viewport_size({"width": 390, "height": 844})
+    pg.wait_for_timeout(200)
+    rows = pg.evaluate("[...document.querySelectorAll('.share-menu .sm-pick, .share-menu .sm-quiet')].map(b => b.getBoundingClientRect().height)")
+    assert rows and min(rows) >= 44, rows
+    assert errors == []
+
