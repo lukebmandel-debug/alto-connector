@@ -41,6 +41,19 @@ _CLASSIC = """
   .course-tile:not(.new-tile) .tile-title{ margin-right:115px; overflow-wrap:break-word; -webkit-hyphens:manual; hyphens:manual; }
   .course-tile.has-more .tile-title{ padding-right:0; }
 }
+/* A5b: a title whose longest word will not fit a card even at the smallest size takes the whole row (FIT_JS) */
+.course-tile.tt-wide{ grid-column:1 / -1; }
+.course-tile.tt-wide:has(.tile-share):has(.tile-reports):not(:has(.tile-download)) .tile-share{ left:calc(50% - 31px); }
+.course-tile.tt-wide:has(.tile-share):has(.tile-reports):not(:has(.tile-download)) .tile-reports{ left:calc(50% + 3px); }
+/* A6 (Art): on a phone the buttons row and the HOME bar are one glass band, so a card scrolling up never shows through them: the title
+   bar's own backing (pages.py, html.rw) runs down past the row (title bar 52 px, the row 63-97 px, both plus the safe area), solid in the page surface (the pseudo's backdrop blur
+   does not draw in WebKit, so any see-through let a card title ghost), ending in the one bar hairline in place of the title bar's own */
+@media (max-width:640px){
+  html.rw #title-bar:not(#_){ border-bottom-color:transparent !important; }
+  html.rw #title-bar:not(#_)::before{ bottom:-52px; box-sizing:border-box; background:var(--surface,#fff); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--header-hairline, rgba(120,124,150,.22)); }
+  html.alto-retro.rw #title-bar:not(#_)::before{ background:#000 !important; border-bottom-color:rgba(217,174,85,.32) !important; }   /* (Retro clears every bar's backing with !important: retro.py) */
+}
 html.dark .tile-emblem{ opacity:.22; }
 /* Q3B: the strip is the timeline's own colours; in the dark theme the same hues a tenth dimmer */
 html.dark .course-tile .unit-strip{ filter:brightness(.9); }
@@ -129,8 +142,9 @@ if(!window._altoBinClose){
 
 
 _DASH = r".replace(/ ([\u2014\u2013-]) /g, '\u00a0$1 ')"
-# soft hyphens only inside words of 11+ letters (Constitutional, Philadelphia): a word that fits its line never splits
-_SHY = (r".replace(/[A-Za-z\u00c0-\u024f]{11,}/g, w => w.slice(0,3) + w.slice(3,-3).replace(/([aeiouy])(?=[^aeiouy][aeiouy])/gi, '$1\u00ad') + w.slice(-3))")
+# soft hyphens only on a computer (wider than 900 px, where the title column is a narrow strip beside the symbol), only inside words of
+# 11+ letters: a phone never splits a word (A5b: FIT_JS steps the title down instead)
+_SHY = (r".replace(/[A-Za-z\u00c0-\u024f]{11,}/g, w => window.innerWidth <= 900 ? w : w.slice(0,3) + w.slice(3,-3).replace(/([aeiouy])(?=[^aeiouy][aeiouy])/gi, '$1\u00ad') + w.slice(-3))")
 TITLE_OLD = (
     ".tile-title').textContent = c.title;",
     ".tile-title').textContent = it.heading || it.title || 'Shared timeline';",
@@ -139,7 +153,8 @@ TITLE_OLD = (
 
 
 def swap_titles(template: str) -> str:
-    """Bind a dash to the word before it so a title never wraps onto a lone dash; soft hyphens only in very long words."""
+    """Bind a dash to the word before it so a title never wraps onto a lone dash. On a phone a word is never split with a
+    hyphen (Luke: hyphenated text on a phone looks wrong): no soft hyphens at 900 px or less, FIT_JS steps a title down instead."""
     for old in TITLE_OLD:
         assert template.count(old) == 1, old
         body = old.split("textContent = ")[1].rstrip(";")
@@ -221,4 +236,46 @@ html.dark #bin-panel{ background:rgba(18,20,30,.95); }
 @media print{ #bin-corner{ display:none !important; } }
 """
 
-CSS = '<style id="alto-home-look">' + _CLASSIC + BIN_CSS + "</style>"
+
+# A5b (Art A5): a card title is never split inside a word. When its longest word does not fit the card, the title steps down
+# (Classic floor 14 px; Retro capitals first lose .04em of tracking, floor 12 px) and, if it still will not fit, the card takes the row.
+FIT_JS = r"""<script id="alto-home-fit">(function(){
+  var SEL='.course-tile .tile-title', mo, raf=0;
+  function fits(el){
+    var cs=getComputedStyle(el), w=el.clientWidth-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0);
+    if(!(w>0)) return true;
+    var words=(el.textContent||'').split(/\s+/).filter(Boolean), m=document.createElement('span'), ok=true;
+    m.style.cssText='position:absolute;visibility:hidden;white-space:nowrap;left:0;top:0;';
+    el.appendChild(m);
+    for(var i=0;i<words.length && ok;i++){ m.textContent=words[i]; if(m.getBoundingClientRect().width>w+.5) ok=false; }
+    el.removeChild(m); return ok;
+  }
+  function size(el, base, caps, ls){
+    if(caps && ls>0) el.style.setProperty('letter-spacing', Math.max(0, ls-.04*base)+'px', 'important');
+    if(fits(el)) return true;
+    var floor=caps ? 12 : 14;
+    for(var f=base-.5; f>=floor; f-=.5){ el.style.setProperty('font-size', f+'px', 'important'); if(fits(el)) return true; }
+    return false;
+  }
+  function run(){
+    var phone=window.innerWidth<=900;
+    [].forEach.call(document.querySelectorAll(SEL), function(el){
+      var tile=el.closest('.course-tile'); el.style.removeProperty('font-size'); el.style.removeProperty('letter-spacing'); if(tile) tile.classList.remove('tt-wide');
+      if(!phone || fits(el)) return;
+      var cs=getComputedStyle(el), base=parseFloat(cs.fontSize)||16, caps=cs.textTransform==='uppercase', ls=parseFloat(cs.letterSpacing)||0;
+      if(size(el, base, caps, ls)) return;
+      el.style.removeProperty('font-size'); el.style.removeProperty('letter-spacing');
+      if(tile) tile.classList.add('tt-wide');
+      cs=getComputedStyle(el); base=parseFloat(cs.fontSize)||16; ls=parseFloat(cs.letterSpacing)||0;
+      if(!fits(el)) size(el, base, caps, ls);
+    });
+  }
+  function go(){ raf=0; if(mo) mo.disconnect(); try{ run(); }catch(e){} if(mo){ mo.takeRecords(); mo.observe(document.body,{childList:true,subtree:true}); } }
+  function soon(){ if(!raf) raf=requestAnimationFrame(go); }
+  if(window.MutationObserver){ mo=new MutationObserver(soon); mo.observe(document.body,{childList:true,subtree:true}); }
+  window.addEventListener('resize', soon); window.addEventListener('load', soon);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(soon);
+  soon();
+})();</script>"""
+
+CSS = '<style id="alto-home-look">' + _CLASSIC + BIN_CSS + "</style>" + FIT_JS   # (the page carries the fit script beside the rules)

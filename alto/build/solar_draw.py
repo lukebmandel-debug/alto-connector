@@ -54,6 +54,17 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .phase-band,html.alto-solar:not(.mobile) #world .phase-label-float,html.alto-solar:not(.mobile) #world .unit-bar{display:none !important;}
   #solar-svg{position:absolute;left:0;top:0;z-index:5;pointer-events:none;overflow:visible;}
   html.mobile #solar-svg,html.mobile .sol-unit,html.mobile .sol-face{display:none !important;}
+  /* A7: phone.py copies the line above for html.phone-whole, which blanked the Sun on a phone (its name sat in .sol-face and its caption
+     is hidden while the face shows): the Sun's own face comes back, its name on the disc; the one-line hint below the chart goes on the first touch */
+  html.phone-whole.alto-solar #world .node[data-solar=sun] .sol-face{display:flex !important;}
+  html.phone-whole.alto-stars.sk-retro #world .node[data-solar=sun] .sol-face span{font-size:12px;line-height:15px;letter-spacing:.02em;-webkit-line-clamp:4;line-clamp:4;}   /* (Retro capitals are wide: 12 px, tracking cut, so the longest word stays whole on the disc) */
+  #sol-phone-hint{display:none;}
+  html.phone-whole.alto-solar #sol-phone-hint{display:block;position:fixed;z-index:60;left:50%;bottom:calc(98px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;
+    padding:8px 14px;border-radius:12px;font:500 13px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#14142b;background:rgba(255,255,255,.9);text-align:center;pointer-events:none;
+    box-shadow:0 1px 8px rgba(0,0,0,.25);transition:opacity .35s;}
+  html.phone-whole.alto-solar.sk-retro #sol-phone-hint{color:#efe6cf;background:rgba(0,0,0,.9);border:1px solid #d9ae55;border-radius:0;box-shadow:none;}
+  #sol-phone-hint.off{opacity:0;}
+  body:has(#detail-page.visible) #sol-phone-hint{display:none;}
   #solar-svg .sol-hit{fill:none;stroke:transparent;stroke-width:13px;pointer-events:stroke;cursor:pointer;}
   #solar-svg .sol-hit.sol-oband{display:none;}
   #solar-svg .sol-rider{opacity:0;transition:opacity .35s cubic-bezier(.25,.2,.4,1);pointer-events:none;}
@@ -175,7 +186,7 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .node[data-solar].focused:not(.sol-clip) .sol-face{display:none;}
   .sol-face b{font-weight:600;font-variant-numeric:tabular-nums;opacity:.72;font-size:10px;line-height:12.5px;letter-spacing:.02em;}
   .sol-face span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;
-    overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;font-size:12.5px;line-height:15px;max-width:100%;}
+    overflow-wrap:normal;hyphens:manual;-webkit-hyphens:manual;font-size:12.5px;line-height:15px;max-width:100%;}
   .node[data-solar=sun] .sol-face b{font-size:12.5px;line-height:15px;}
   .node[data-solar=sun] .sol-face span{font-size:16.25px;line-height:20px;-webkit-line-clamp:4;line-clamp:4;}
   /* moons and satellites are small (real-ratio sizes, round 7): a moon shows its own number only, a
@@ -223,12 +234,13 @@ SOLAR_CSS = r"""
      disc then shows its number only. Hidden where it would cover a bigger body or a label of one (.sol-lx),
      shown on hover. .sol-dot: a body never smaller than a few px on screen (zoomed out). */
   .sol-lbl,.sol-dot{display:none;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl{display:block;position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;white-space:nowrap;
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl{display:block;position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;white-space:normal;width:max-content;text-align:center;hyphens:manual;-webkit-hyphens:manual;overflow-wrap:normal;
     --lr:calc(max(var(--dn,20) * var(--ovs,1) / 2, 2.5) * 1px);transform-origin:0 0;transform:scale(var(--ils,1)) translate(-50%,calc(var(--lr) + 3px));
-    max-width:170px;overflow:hidden;text-overflow:ellipsis;font-style:normal;font-size:12px;line-height:15px;font-weight:600;letter-spacing:.01em;color:var(--text);
+    max-width:170px;font-style:normal;font-size:12px;line-height:15px;font-weight:600;letter-spacing:.01em;color:var(--text);
+    padding:1px 6px;border-radius:7px;background:color-mix(in srgb,var(--bg,#fff) 88%,transparent);   /* (a name wraps at its spaces to a second line, never an ellipsis or a split word; the plate keeps it readable over a ring or a neighbour) */
     text-shadow:0 0 3px var(--bg,#fff),0 0 2px var(--bg,#fff);transition:opacity .2s;}
   html.alto-solar.dark:not(.mobile) #world .node[data-solar]>.sol-lbl{text-shadow:0 0 3px #000,0 0 2px #000;}
-  html.alto-stars:not(.mobile) #world .node[data-solar]>.sol-lbl{color:#eef2ff;text-shadow:0 0 3px #000,0 0 2px #000;}
+  html.alto-stars:not(.mobile) #world .node[data-solar]>.sol-lbl{color:#eef2ff;background:rgba(6,8,22,.85);text-shadow:0 0 3px #000,0 0 2px #000;}
   .sol-lbl::after{content:attr(data-l);}
   html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l1{transform:scale(var(--ils,1)) translate(-50%,calc(-100% - var(--lr) - 3px));}
   html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l2{transform:scale(var(--ils,1)) translate(calc(var(--lr) + 4px),-50%);}
@@ -330,6 +342,16 @@ if(!S || !S.nodes) return false; window._altoSolarMounted=true;
 window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
 var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:96, moon:50, sat:20}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
+/* the phone's one-line hint (A7, Art): on the plate above the bottom row until the first touch, once a tab */
+function phoneHint(){
+  if(!de.classList.contains('phone-whole') || document.getElementById('sol-phone-hint')) return;
+  try{ if(sessionStorage.getItem('alto-sol-hint')) return; }catch(e){}
+  var h=document.createElement('div'), ev=['touchstart', 'pointerdown', 'wheel', 'keydown'];
+  h.id='sol-phone-hint'; h.setAttribute('role', 'status'); h.textContent='Pinch to zoom \u00b7 tap a planet \u00b7 MENU for styles'; document.body.appendChild(h);
+  function gone(){ ev.forEach(function(t){ document.removeEventListener(t, gone, true); }); h.classList.add('off'); setTimeout(function(){ h.remove(); }, 400);
+    try{ sessionStorage.setItem('alto-sol-hint', '1'); }catch(e){} }
+  ev.forEach(function(t){ document.addEventListener(t, gone, {capture:true, passive:true}); });
+}
 if(desk()) de.classList.add('alto-solar');
 
 /* the bodies, each after what it orbits */
@@ -537,6 +559,7 @@ window._altoSolarLayout=function(pos){
   ctl();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
+  phoneHint();
   if(!opened) setTimeout(openView, 0);
 };
 /* ── where the page opens (once, on the first layout) ──────────────────────

@@ -34,10 +34,10 @@ def test_titles_bind_the_dash_to_the_word_before_it():
     assert "u00a0$1" in pages.build_home([])
 
 
-def test_only_very_long_title_words_get_soft_hyphens():
+def test_soft_hyphens_are_for_a_computer_only_and_a_phone_fits_its_titles():
     html = pages.build_home([])
-    assert "{11,}" in html and "u00ad" in html
-    assert "hyphens:auto" not in html and "hyphens:manual" in html
+    assert "{11,}" in html and "window.innerWidth <= 900 ? w" in html and "hyphens:auto" not in html and "hyphens:manual" in html
+    assert 'id="alto-home-fit"' in html and "tt-wide" in html
 
 
 # ── regression (6cbb529): unitStrip read a top-level const that was not set yet when the first card was drawn,
@@ -88,6 +88,74 @@ def test_a_timeline_with_no_unit_colours_does_not_crash_the_homepage(tmp_path, e
         srv.shutdown()
     assert errs == []
     assert tiles >= 4 and opened                     # the empty ones got their one accent segment, and search is wired
+
+
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+@pytest.mark.parametrize("retro", [False, True])
+def test_a_phone_card_title_never_splits_a_word_and_a_word_too_long_takes_the_row(tmp_path, engine, retro):
+    names = ["Extraterritoriality of Statutes", "Unconscionability and Adhesion", "Property", "Constitutional Law", "Misrepresentation"]
+    page = pages.build_home([{"name": "Law", "pid": "p", "courses": [
+        {"title": n, "href": f"{i}.html", "sub": "3 units", "courseId": f"c{i}", "units": ["#4a9eff", "#f43f5e"]} for i, n in enumerate(names)]}])
+    (tmp_path / "h.html").write_text(page, encoding="utf-8")
+    import functools, http.server, threading
+    quiet = type("Q", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a, **k: None})
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(quiet, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    errs = []
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception as e:
+                pytest.skip(str(e)[:80])
+            pg = b.new_page(viewport={"width": 375, "height": 800})
+            pg.on("pageerror", lambda e: errs.append(str(e)))
+            pg.goto(f"http://127.0.0.1:{srv.server_address[1]}/h.html")
+            if retro:
+                pg.evaluate("document.documentElement.classList.add('alto-retro')")
+            pg.wait_for_timeout(900)
+            rows = pg.evaluate("""[...document.querySelectorAll('.course-tile:not(.new-tile) .tile-title')].map(el => {
+              const cs = getComputedStyle(el), w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), m = document.createElement('span');
+              m.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'; el.appendChild(m);
+              const worst = Math.max(...el.textContent.split(/\\s+/).map(x => { m.textContent = x; return m.getBoundingClientRect().width; })); el.removeChild(m);
+              return [el.textContent, worst <= w + 1, parseFloat(cs.fontSize), el.closest('.course-tile').classList.contains('tt-wide'), el.textContent.includes('\\u00ad')]; })""")
+            b.close()
+    finally:
+        srv.shutdown()
+    assert errs == [] and len(rows) == len(names)
+    assert all(r[1] and not r[4] for r in rows), rows                       # every word whole on its line, no soft hyphen
+    assert all(r[2] >= (12 if retro else 14) for r in rows), rows           # never below Art's floor
+    assert rows[2][3] is False                                              # "Property" fits: no wide card for it
+
+
+@pytest.mark.skipif(pw is None, reason="no Playwright")
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_a_phone_homepage_backs_the_buttons_row_and_the_title_bar_with_one_glass_band(tmp_path, engine):
+    page = pages.build_home([{"name": "Law", "pid": "p", "courses": [
+        {"title": "Torts", "href": "a.html", "sub": "3 units", "courseId": "a", "units": ["#4a9eff"]}]}])
+    (tmp_path / "h.html").write_text(page, encoding="utf-8")
+    import functools, http.server, threading
+    quiet = type("Q", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a, **k: None})
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(quiet, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception as e:
+                pytest.skip(str(e)[:80])
+            pg = b.new_context(viewport={"width": 390, "height": 800}, user_agent=ua, has_touch=True, is_mobile=True).new_page()
+            pg.goto(f"http://127.0.0.1:{srv.server_address[1]}/h.html")
+            pg.wait_for_timeout(700)
+            r = pg.evaluate("""(() => { const q = getComputedStyle(document.getElementById('title-bar'), '::before'), t = document.getElementById('title-bar'), row = document.getElementById('account-btn').getBoundingClientRect();
+              const bar = t.getBoundingClientRect(); return [document.documentElement.classList.contains('rw'), q.bottom, q.backgroundColor, q.borderBottomWidth, getComputedStyle(t).borderBottomColor, Math.round(row.bottom - bar.top)]; })()""")
+            b.close()
+    finally:
+        srv.shutdown()
+    assert r[0] and r[1] == "-52px" and r[2] == "rgb(255, 255, 255)" and r[3] == "1px" and r[4] == "rgba(0, 0, 0, 0)"
+    assert r[5] <= 52 + 52                                                         # the band reaches past the bottom of the buttons row
 
 
 # ── regression: a saved background scene painted its top colour (a flat blue) over Retro's black on the homepage ──
