@@ -124,6 +124,20 @@ HOLO_CSS = r"""
   X.hp-hid #title-bar svg.brand-mark{animation-play-state:paused;}
   @keyframes ho-logo{from{transform:perspective(260px) rotateY(0)}to{transform:perspective(260px) rotateY(360deg)}}
   @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;} }
+  /* the toggles (Luke, 2026-11-01: "toggles feel a little bit heavy and not holographic enough"; Art's sheet, accepted): one 1px soft-cyan edge, square, the
+     same on every one of them (the bottom-left and bottom-right controls, the edit pair, the right-edge tabs); at rest the plate is the page's own colour (so
+     nothing under it shows through a glyph), no glow; hover and focus brighten the edge, the chosen one takes a faint tint. A computer only: a phone keeps its own */
+  @media (min-width:641px){
+   X:not(.mobile):not(.pmin){--ho-edge:#2fa79d;}
+   X:not(.mobile):not(.pmin) :is(#tab-rail>button,#search-btn,#info-btn,#account-btn,#key-toggle,.alto-edit-pill,#timeline-return-pill,#sx-toggle):not(#_):not(#__){
+     box-shadow:0 0 0 1px var(--ho-edge) !important;border:0 !important;background:var(--ho-bg) !important;color:var(--ho-ac2) !important;filter:none !important;}
+   X:not(.mobile):not(.pmin) :is(#tab-rail>button,#search-btn,#info-btn,#account-btn,#key-toggle,.alto-edit-pill,#timeline-return-pill,#sx-toggle):is(:hover,:focus-visible,:focus-within):not(#_):not(#__){
+     box-shadow:0 0 0 1px var(--ho-ac) !important;}
+   X:not(.mobile):not(.pmin) :is(#tab-rail>button,#search-btn,#info-btn,#account-btn,#key-toggle,#sx-toggle):is(.on,.active,.open,[aria-pressed="true"],[aria-expanded="true"]):not(#_):not(#__){
+     background:rgba(var(--ho-rgb),.16) !important;box-shadow:0 0 0 1px var(--ho-ac) !important;}
+   X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half:not(#_):not(#__){box-shadow:none !important;}
+   X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half + .aep-half:not(#_):not(#__){box-shadow:inset 1px 0 0 rgba(47,167,157,.45) !important;}
+  }
   /* the palace has no nav items: its empty band is not painted, so the Tour / World / zoom row clears it (Art fix 2) */
   X.wpal-open #nav:not(#_):not(#__){background:transparent !important;border:0 !important;box-shadow:none !important;}
   @media print{ X :is(#title-bar,#nav,#node-nav-bar){box-shadow:none !important;} }

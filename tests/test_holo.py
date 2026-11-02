@@ -559,3 +559,38 @@ def test_holographic_on_a_phone_keeps_its_light_dark_button_and_its_theme(browse
     assert not pg.evaluate("document.documentElement.classList.contains('dark')")
     assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") != "none"
     ctx.close()
+
+
+# ── the toggles' one edge (Luke, 2026-11-01, Art's sheet) ──
+
+TOGGLES = "#search-btn,#info-btn,#account-btn,.alto-edit-pill,#tab-rail>button"
+
+
+def test_the_toggle_edge_rule_is_for_a_computer_only_and_has_no_glow():
+    css = holo.css()
+    i = css.index("--ho-edge:#2fa79d")
+    block = css[css.rindex("@media (min-width:641px)", 0, i):i + 1400]
+    assert "box-shadow:0 0 0 1px var(--ho-edge)" in block and "glow" not in block
+    assert ":not(.mobile):not(.pmin)" in block
+
+
+def test_every_toggle_wears_the_same_one_pixel_edge_on_a_computer_and_a_phone_keeps_its_own(browser, site):
+    js = """(sel)=>[...document.querySelectorAll(sel)].filter(e=>e.getBoundingClientRect().width).map(e=>getComputedStyle(e).boxShadow)"""
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(700)
+    got = pg.evaluate(js, TOGGLES)
+    assert len(got) >= 4 and set(got) == {"rgb(47, 167, 157) 0px 0px 0px 1px"}, got       # one edge, no glow, every one
+    assert pg.evaluate("getComputedStyle(document.querySelector('.alto-edit-pill .aep-half')).boxShadow") == "none"
+    ctx.close()
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html?mobile")
+    pg.wait_for_timeout(400)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(700)
+    assert "rgb(47, 167, 157) 0px 0px 0px 1px" not in pg.evaluate(js, "button,#search-btn,#info-btn")   # a phone's controls are as they were
+    ctx.close()
