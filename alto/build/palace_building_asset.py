@@ -40,6 +40,11 @@ from .markers import MARKERS_CSS, MARKERS_JS
 from .palace_assets import loader as _loader
 from .palace_building_fpv import FPV_PATH as _FPV_PATH
 
+# The Memory Blueprint's first-person walk ("Walk in", "Start outside", the W key) is OFF for users (Luke, 2026-11-01: "remove all FPV from memory blueprint,
+# but save your work on it for the future"). Nothing is deleted: palace_building_fpv.py, its hosted /bldg/ script and its tests stay in the tree.
+# To bring it back set BLUEPRINT_FPV = True and rebuild/republish the /bldg/ assets (ORG/handbooks/blueprint-fpv.md). The city and Atlas first-person views are separate code.
+BLUEPRINT_FPV = False
+
 BUILDING_CSS = r"""
 #bldg-root{--bl-ink:rgb(60,64,84);--bl-sheen:rgba(255,255,255,.72);--bl-glass:rgba(255,255,255,.46);--bl-glass-edge:rgba(60,64,84,.22);--bl-paper:var(--bg,#f0efea);
   --bl-muted:var(--text-dim,#6b6f85);--bl-text:var(--text,#1c1e2b);--bl-accent:var(--accent,#7c5cff);--bl-panel:var(--surface,#fff);--bl-line:var(--border,#c8c8d8);
@@ -160,7 +165,7 @@ html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go{background:var(--bl-acce
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go.bl-alt{background:transparent;color:var(--bl-accent);}
 #bldg-root .bl-dock svg{display:block;flex:none;}
 #bldg-root :is(.bl-dock,.bl-cards,.bl-credits,.bl-info,.bl-head) :focus-visible{outline:2px solid var(--bl-accent);outline-offset:2px;}
-html:not(.mobile):not(.pmin) #bldg-root .bl-head{left:14px;top:54px;max-width:min(380px,calc(100% - 28px));padding:7px 14px 8px;border-radius:16px;}
+html:not(.mobile):not(.pmin) #bldg-root .bl-head{left:14px;top:calc(var(--bl-nav,46px) + 8px);max-width:min(380px,calc(100% - 28px));padding:7px 14px 8px;border-radius:16px;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-head :is(p,.bl-walk){display:none !important;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-head h2{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-kind{font-size:10px;margin-bottom:1px;}
@@ -645,8 +650,8 @@ function info(r){
     var ul=h('ul',null,box);
     list.forEach(function(n){ var li=h('li',null,ul), a=h('a',null,li,n.n+'  '+dec(n.t)); a.addEventListener('click',function(){ openNode(n.id); }); });
   } else h('div',{'class':'bl-note'},box,'No card stands here yet.');
-  var go=h('button',{'class':'bl-go',type:'button'},box,'Walk in'); go.addEventListener('click',function(){ A.enterFPV(r.id,{from:'plan'}); });
-  S.fpvNote=h('div',{'class':'bl-note'},box,'');
+  if(FPV_ON){ var go=h('button',{'class':'bl-go',type:'button'},box,'Walk in'); go.addEventListener('click',function(){ A.enterFPV(r.id,{from:'plan'}); });
+  S.fpvNote=h('div',{'class':'bl-note'},box,''); }
 }
 
 // ── public ──
@@ -672,6 +677,7 @@ function clearOf(r,closeUp){
 }
 A.focusRoom=function(id){ var r=roomById(id); if(!r) return; A.selectRoom(id); clearOf(r,true); };
 A.enterFPV=function(roomId,opts){
+  if(!FPV_ON) return 'off';
   opts=opts||{};
   var ctx={plan:A.plan,data:A.data,room:roomId,slot:opts.slot||null,node:opts.node||null,from:opts.from||'link'};
   emit('fpv',ctx);
@@ -724,7 +730,11 @@ function setTop(){ // under the page's title bar and nav, which settle (slide in
   if(!S.root) return;
   var top=0, de=document.documentElement, desk=!de.classList.contains('mobile')&&!de.classList.contains('pmin');
   if(!desk) ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
-  S.root.style.setProperty('--bl-top',top+'px'); dockH(); if(S.vb) applyVB();
+  S.root.style.setProperty('--bl-top',top+'px');
+  // a computer: the bottom of the lowest chip or group label on the page's bar (it wraps to a second row, or a third, in a narrow window), so the name chip and the plan stand below it, never over a chip
+  var nb=46, nv=desk&&document.getElementById('nav'); if(nv) [].forEach.call(nv.querySelectorAll('button,.nav-group-label'),function(e){ var r=e.getBoundingClientRect(); if(r.width>0&&r.height>0&&r.top<300&&r.bottom>nb) nb=r.bottom; });
+  var zr=S.root.getBoundingClientRect(), zz=(S.root.clientWidth&&zr.width/S.root.clientWidth)||1;   // (the page's own zoom, .8 on a computer: screen px -> css px)
+  S.root.style.setProperty('--bl-nav',Math.round(nb/zz)+'px'); dockH(); if(S.vb) applyVB();
 }
 function isDesk(){ var c=document.documentElement.classList; return !c.contains('mobile')&&!c.contains('pmin'); }
 // the dock is drawn (a computer, or a phone trying it with html.bl-dock-phone): then the plan is fitted and kept above it, whatever turned it on
@@ -746,7 +756,7 @@ function freeBox(){
   var r=S.root.getBoundingClientRect(), top=0, bot=r.height; if(!docked()) return {top:top,bot:bot,left:0,right:r.width};
   var d=S.dock&&S.dock.getBoundingClientRect(); if(d&&d.height) bot=Math.min(bot,d.top-r.top-14);
   [S.info,S.cards,S.credits].forEach(function(e){ if(e&&!e.hidden){ var b=e.getBoundingClientRect(); if(b.height) bot=Math.min(bot,b.top-r.top-10); } });
-  var hb=S.head&&S.head.getBoundingClientRect(); top=(r.width<900&&hb&&hb.height)?hb.bottom-r.top+8:52;
+  var hb=S.head&&S.head.getBoundingClientRect(); top=(r.width<900&&hb&&hb.height)?hb.bottom-r.top+8:Math.max(52,(parseFloat(S.root.style.getPropertyValue('--bl-nav'))||0)+8);
   if(bot-top<r.height*.3){ bot=r.height-(d&&d.height?d.height+30:0); top=0; }
   return {top:top,bot:bot,left:0,right:r.width};
 }
@@ -768,9 +778,9 @@ function build(){
   h('h2',null,S.head,dec(plan.name||A.data.name||'Building'));
   var n=0; for(var k in (A.data.nodes||{})) n++;
   h('p',null,S.head,n+(n===1?' card':' cards')+' placed in '+Object.keys(S.nodesByRoom).length+' rooms. Dashed outlines are approximate, blurred rooms estimated.');
-  var wb=h('button',{'class':'bl-go bl-walk',type:'button'},S.head,'Walk in'); wb.addEventListener('click',function(){ A.enterFPV(null,{from:'plan'}); }); if(plan.ex&&(plan.ex.sh||[]).length&&plan.sp){ var wo=h('button',{'class':'bl-go bl-walk bl-alt',type:'button'},S.head,'Start outside'); wo.addEventListener('click',function(){ A.enterFPV(null,{from:'plan',outside:true}); }); }
+  if(FPV_ON){ var wb=h('button',{'class':'bl-go bl-walk',type:'button'},S.head,'Walk in'); wb.addEventListener('click',function(){ A.enterFPV(null,{from:'plan'}); }); } if(FPV_ON&&plan.ex&&(plan.ex.sh||[]).length&&plan.sp){ var wo=h('button',{'class':'bl-go bl-walk bl-alt',type:'button'},S.head,'Start outside'); wo.addEventListener('click',function(){ A.enterFPV(null,{from:'plan',outside:true}); }); }
   if(S.walkAlt){ S.walkAlt.remove(); S.walkAlt=null; }
-  if(plan.ex&&(plan.ex.sh||[]).length&&plan.sp){ var wa=S.walkAlt=h('button',{'class':'bl-go bl-alt bl-dk',type:'button','aria-label':'Start outside the building',title:'Start outside the building'}); wa.innerHTML=IC.out; S.dock.insertBefore(wa,S.walkBtn); wa.addEventListener('click',function(){ A.enterFPV(null,{from:'plan',outside:true}); }); }
+  if(FPV_ON&&plan.ex&&(plan.ex.sh||[]).length&&plan.sp){ var wa=S.walkAlt=h('button',{'class':'bl-go bl-alt bl-dk',type:'button','aria-label':'Start outside the building',title:'Start outside the building'}); wa.innerHTML=IC.out; S.dock.insertBefore(wa,S.walkBtn); wa.addEventListener('click',function(){ A.enterFPV(null,{from:'plan',outside:true}); }); }
   closeSheets(); S.home=null; S.vb=null; render(); footer(); brand(); setTimeout(brand,600); setTimeout(brand,2500); dockH();
 }
 function footer(){
@@ -830,7 +840,7 @@ function keys(){ // +/- zoom, 0 fit, 1-9 floors, O outside, C cards, K key, W wa
     else if(/^[1-9]$/.test(k)){ lvb=S.tabs.querySelectorAll('.bl-tab:not([data-level="outside"])')[+k-1]; if(lvb) lvb.click(); else ok=false; }
     else if(k==='o'||k==='O'){ lvb=S.tabs.querySelector('[data-level="outside"]'); if(lvb) lvb.click(); else ok=false; }
     else if(k==='c'||k==='C') sheet('cards'); else if(k==='k'||k==='K') sheet('key');
-    else if(k==='w'||k==='W') A.enterFPV(S.sel||null,{from:'plan'});
+    else if(FPV_ON&&(k==='w'||k==='W')) A.enterFPV(S.sel||null,{from:'plan'});
     else if(k==='Escape'){ var open=(S.cards&&!S.cards.hidden)||(S.credits&&!S.credits.hidden)||S.sel; if(open){ closeSheets(); A.deselect(); } else ok=false; }
     else ok=false;
     if(ok) e.preventDefault();
@@ -898,12 +908,13 @@ A.mount=function(data){
   h('i',{'class':'bl-sep'},dock);
   var cb=S.cardsBtn=h('button',{'class':'bl-btn bl-dk',type:'button','aria-label':'Cards, in order (C)',title:'Cards, in order (C)','aria-haspopup':'dialog'},dock); cb.innerHTML=IC.list; cb.addEventListener('click',function(e){ e.stopPropagation(); sheet('cards'); });
   var kb=S.keyBtn=h('button',{'class':'bl-btn bl-dk',type:'button','aria-label':'Key and credits (K)',title:'Key and credits (K)','aria-haspopup':'dialog'},dock); kb.innerHTML=IC.key; kb.addEventListener('click',function(e){ e.stopPropagation(); sheet('key'); });
-  var gb=S.walkBtn=h('button',{'class':'bl-go bl-dk',type:'button','aria-label':'Walk in (W)',title:'Walk in (W)'},dock); gb.innerHTML=IC.walk+'<span>Walk in</span>'; gb.addEventListener('click',function(){ A.enterFPV(S.sel||null,{from:'plan'}); });
+  if(FPV_ON){ var gb=S.walkBtn=h('button',{'class':'bl-go bl-dk',type:'button','aria-label':'Walk in (W)',title:'Walk in (W)'},dock); gb.innerHTML=IC.walk+'<span>Walk in</span>'; gb.addEventListener('click',function(){ A.enterFPV(S.sel||null,{from:'plan'}); }); }
   S.info=h('div',{'class':'bl-ui bl-info',hidden:''},root);
   S.cards=h('div',{'class':'bl-ui bl-cards',hidden:'',role:'dialog','aria-label':'Cards, in order'},root);
   setTop(); wire(); watchDetail(); keys();
   A.show();
   [150,500,1200,2500].forEach(function(t){ setTimeout(setTop,t); });
+  var navEl=document.getElementById('nav'); if(navEl&&window.ResizeObserver) new ResizeObserver(function(){ if(S.root&&!S.root.hidden) setTop(); }).observe(navEl);   // the bar's rows wrap or settle: the name chip follows
   if(A.data.none){ nomsg('No building plan yet. Ask Claude to run set_up_building for this timeline.'); A.ready=Promise.reject(new Error('no plan')); A.ready.catch(function(){}); return; }
   index();
   nomsg('Loading the plan…');
@@ -920,7 +931,7 @@ window.AltoBuilding=A;
 """
 
 # the script text: the stylesheet is spliced in as a JS string, the whole wrapped so BLDG_CSS is not a global
-BUILDING_ASSET = (MARKERS_JS + "(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS + MARKERS_CSS) + ";\nvar FPV_URL=" + _json.dumps(_FPV_PATH) + ";\n" + BUILDING_JS + "\n})();\n")
+BUILDING_ASSET = (MARKERS_JS + "(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS + MARKERS_CSS) + ";\nvar FPV_URL=" + _json.dumps(_FPV_PATH if BLUEPRINT_FPV else "") + ", FPV_ON=" + ("true" if BLUEPRINT_FPV else "false") + ";\n" + BUILDING_JS + "\n})();\n")
 BUILDING_V = _hashlib.sha256(BUILDING_ASSET.encode("utf-8")).hexdigest()[:10]
 BUILDING_PATH = f"/bldg/palace-building-{BUILDING_V}.js"
 # The newest renderer under a fixed name, written by every publish beside the hashed one (no-cache). A page names the renderer of the

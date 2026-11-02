@@ -10,8 +10,10 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from alto.build import building_schema as bs  # noqa: E402
-from tests.building_fpv_support import Server, launch, open_view  # noqa: E402
+from tests.building_fpv_support import Server, launch, needs_fpv, open_view  # noqa: E402
 from tests.test_building_palace_tools import built  # noqa: E402
+
+pytestmark = needs_fpv      # the Blueprint first-person walk is off for users (palace_building_asset.BLUEPRINT_FPV)
 
 try:
     import playwright.sync_api as pw

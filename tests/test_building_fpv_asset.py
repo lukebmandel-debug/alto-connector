@@ -26,7 +26,7 @@ def test_the_renderer_stays_under_120_kb_gzipped():
 
 
 def test_the_blueprint_knows_where_to_fetch_it_and_the_page_carries_none_of_it():
-    assert ("var FPV_URL=\"" + fpv.FPV_PATH + "\"") in pba.BUILDING_ASSET
+    assert ("var FPV_URL=\"" + (fpv.FPV_PATH if pba.BLUEPRINT_FPV else "") + "\"") in pba.BUILDING_ASSET   # off: no URL, so nothing is ever fetched
     html = built()[0]
     assert "AltoBuildingFPV" not in html and "palace-building-fpv" not in html          # only the blueprint's own ~350 byte loader is inline
     assert "registerFPV" in fpv.FPV_ASSET and "window.AltoBuildingFPV" in fpv.FPV_ASSET

@@ -53,6 +53,8 @@ html.ct-on.ct-chips-off #nav>*{visibility:hidden !important;}
 #ct-chips{position:fixed;z-index:120;left:-100px;width:22px;height:22px;margin-top:-11px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--muted);border:1px solid var(--card-glass-border,var(--border));background:color-mix(in srgb,var(--surface,#fff) 55%,transparent);
   -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);transition:color .12s;}
+/* the row starts clear of the x: a full row ran to the window's edge and the x (kept 6px in from it) stood on its first label, TYPE or ELEMENT (the bar's test, tests/test_nav_chips_overlap.py) */
+html.ct-on:not(.mobile) #nav:not(#_){padding-left:42px !important;}
 #ct-chips:hover{color:var(--text);}
 #ct-chips .rl{transform-origin:12px 12px;transform-box:view-box;}
 html.ct-chips-off #ct-chips .rl{transform:rotate(45deg);}

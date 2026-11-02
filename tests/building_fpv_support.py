@@ -10,6 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from alto.build import building_schema as bs, palace_assets  # noqa: E402
+from alto.build.palace_building_asset import BLUEPRINT_FPV  # noqa: E402
+
+import pytest  # noqa: E402
+
+# The Memory Blueprint's first-person walk is OFF for users (palace_building_asset.BLUEPRINT_FPV; ORG/handbooks/blueprint-fpv.md): its tests wait for the flag, none is deleted.
+needs_fpv = pytest.mark.skipif(not BLUEPRINT_FPV, reason="Blueprint FPV is off (palace_building_asset.BLUEPRINT_FPV = False)")
 
 SHOTS = Path("/private/tmp/claude-501/bldg/shots")
 
