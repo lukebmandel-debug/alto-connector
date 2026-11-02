@@ -113,3 +113,30 @@ def test_a_wheel_or_home_returns_the_travel_to_the_main_line(browser, v2_file):
     pg.wait_for_timeout(1400)
     assert "ben-leaves" not in pg.evaluate("window._altoLanesTravel().ids")
     assert not errs
+
+
+def test_letting_go_is_one_ease_out_to_the_event_never_a_stop_and_a_restart(browser, v2_file):
+    """Art (1101-4401-a): after key-up the camera must not nearly stop and then set off again for the event."""
+    pg, errs = _desk(browser, v2_file)
+    _home(pg)
+    pg.evaluate(REC, "#canvas")
+    pg.keyboard.down("ArrowRight")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("window._rel = performance.now()")
+    pg.keyboard.up("ArrowRight")
+    pg.wait_for_timeout(1600)
+    rec = pg.evaluate(RECSTOP)
+    rel = pg.evaluate("window._rel")
+    sp = [(b[0], (b[1] - a[1]) / (b[0] - a[0])) for a, b in zip(rec, rec[1:]) if b[0] > a[0]]
+    cruise = sorted(v for t, v in sp if t < rel - 150)[-20:]
+    v0 = sum(cruise) / len(cruise)
+    after = [v for t, v in sp if t >= rel]
+    end = max(i for i, v in enumerate(after) if v > 0.02 * v0)                       # the last frame still moving
+    body = after[:max(1, end - 4)]                                                    # all but the final few frames of the arrival
+    assert v0 > 0.8, v0                                                               # it was travelling (px/ms)
+    assert min(body) > 0.12 * v0, (v0, [round(x, 2) for x in after])                  # never near a stop on the way
+    dur = (rec[-1][0] and next(t for t, v in reversed(sp) if v > 0.02 * v0)) - rel
+    assert 380 <= dur <= 900, dur                                                     # about half a second, as Art asked
+    jitter = max(abs(v - v0) for t, v in sp if rel - 900 < t < rel - 250)
+    assert jitter < 0.45 * v0, (v0, jitter)                                           # the cruise is level (Art: +-200 px/s of 1500)
+    assert not errs
