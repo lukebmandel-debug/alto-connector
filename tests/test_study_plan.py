@@ -122,6 +122,19 @@ def _open(browser, url, w=1440, h=900, mobile=False, init=NOW):
     return ctx, pg, errs
 
 
+def test_holographic_late_is_red_on_both_grounds_and_today_follows_the_theme_accent(browser, site):
+    """Art alto-art-1101-4800-a: late = #b42318 on the pale ground, #ff8a7a on the dark one; today stays the theme's own colour."""
+    ctx, pg, errs = _open(browser, site + "/o.html")
+    col = "getComputedStyle(document.querySelector('#node-acceptance > .node-card')).outlineColor"
+    today = "getComputedStyle(document.querySelector('#node-formation > .node-card')).outlineColor"
+    pg.evaluate("document.documentElement.classList.add('alto-holo'); document.documentElement.style.setProperty('--accent', '#0a6f8c')")
+    assert pg.evaluate(col) == "rgb(180, 35, 24)" and pg.evaluate(today) == "rgb(10, 111, 140)"
+    pg.evaluate("document.documentElement.classList.add('dark'); document.documentElement.style.setProperty('--accent', '#4ff0e0')")
+    assert pg.evaluate(col) == "rgb(255, 138, 122)" and pg.evaluate(today) == "rgb(79, 240, 224)"
+    assert not errs, errs
+    ctx.close()
+
+
 @pytest.mark.parametrize("page", ["o.html", "s.html"])
 def test_the_day_tags_show_and_the_rings_and_fills_are_readable(browser, site, page):
     """Art's e5aef87 note: tags were display:none; a78bfa fills were ~2.5:1; today solid 3px, soon dashed in full colour, late red."""

@@ -63,6 +63,8 @@ CSS = r"""<style id="alto-sp-css">
   html{--sp-late:#b42318;--sp-ok:#1f6b3a;--sp-acc:#5b3fc4;} html.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;--sp-acc:#b7a6ff;}
   /* Retro and Holographic dress the page in their own accent (gold, the theme's glow): the plan follows it there, as Art's frames show */
   html.alto-holo,html.alto-retro{--sp-acc:var(--accent);}
+  /* Holographic keeps late RED on both its grounds (Art alto-art-1101-4800-a); today stays the theme's own light (--accent), the words stay on the tag */
+  html.alto-holo{--sp-late:#b42318;--sp-ok:#1f6b3a;} html.alto-holo.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;}
   html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{outline:3px solid var(--sp-acc);outline-offset:4px;box-shadow:0 0 0 9px color-mix(in srgb,var(--sp-acc) 20%,transparent);}
   html:not(.mobile):not(.phone-whole) .node.sp-soon > .node-card{outline:2px dashed var(--sp-acc);outline-offset:4px;}
   html:not(.mobile):not(.phone-whole) .node.sp-late > .node-card{outline:3px solid var(--sp-late);outline-offset:4px;}
