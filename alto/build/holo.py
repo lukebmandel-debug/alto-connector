@@ -263,7 +263,7 @@ function hoff(){
 }
 document.addEventListener('visibilitychange', function(){ if(r.classList.contains('alto-holo')) r.classList.toggle('hp-hid', document.hidden); });
 window.addEventListener('resize', function(){ if(rz) return; rz=setTimeout(function(){ rz=0; hsync(); }, 150); });
-function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
+function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); if(typeof window.redrawConnections==='function') window.redrawConnections(); window.dispatchEvent(new Event('resize')); }catch(e){} }   // (the lines break at a divider by the style: vSegWithGaps)
 // the style's own backgrounds (holo_backgrounds.py): in the picker's catalog only while Holographic is on; a page set to one of them
 // paints it when the style comes on and goes back to no background when it goes off (the choice itself is kept)
 function sec(){ var U=(window._altoBg||{}).ui; if(!U||!U.body) return null; return [].filter.call(U.body.querySelectorAll('.bg-sec'), function(s){ var h=s.querySelector('.bg-h'); return h && h.textContent==='Holographic'; })[0]||null; }

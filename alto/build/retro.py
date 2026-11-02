@@ -591,7 +591,7 @@ function art(){
 }
 HOMEB
 __DARK__
-function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
+function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); if(typeof window.redrawConnections==='function') window.redrawConnections(); window.dispatchEvent(new Event('resize')); }catch(e){} }   // (the lines break at a divider by the style: vSegWithGaps)
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-retro-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);

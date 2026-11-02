@@ -1371,8 +1371,28 @@ function verticalWithDetours(x, y1, y2){
 // then an `M` jump past it, so the line vanishes inside the tube and re-emerges.
 // Pure geometry — replaces the old river-svg mask/clip-path (Safari compositing
 // killer) with plain subpath breaks. Works in either direction.
+// Retro and Holographic (Luke, 2026-11-01: "the break need only be as large as the dividing line/box its traversing"; Art's spec): the divider
+// is a 1px line there, so the break is its thickness + 6px (3.5px a side of its centre), and the line runs BEHIND the name chip and the
+// numeral (they are above the lines) with no break at all. Classic keeps its tube-sized break exactly; a phone has no river.
+function _thinBreak(){
+  const c = document.documentElement.classList;
+  return (c.contains('alto-retro') || c.contains('alto-holo')) && !c.contains('mobile');
+}
+function _behindABox(x){
+  const w = document.getElementById('world'); if(!w) return false;
+  const els = w.querySelectorAll('.phase-label-float, .phase-numeral');
+  for(let i = 0; i < els.length; i++){
+    let e = els[i], l = 0;
+    while(e && e !== w){ l += e.offsetLeft; e = e.offsetParent; }
+    if(x >= l && x <= l + els[i].offsetWidth) return true;
+  }
+  return false;
+}
 function vSegWithGaps(x, y1, y2){
-  const ranges = window._unitBarYRanges || [];
+  let ranges = window._unitBarYRanges || [];
+  if(ranges.length && _thinBreak()){
+    ranges = _behindABox(x) ? [] : ranges.map(r => r.cy == null ? r : {top: r.cy - 3.5, bottom: r.cy + 3.5});
+  }
   const down = y2 >= y1;
   const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
   const hits = ranges
@@ -1958,7 +1978,7 @@ function initLayout(){
     bar.style.left='0px'; bar.style.right='0px';
     bar.style.top=(bandTop+TUBE_TOP)+'px';
     bar.style.height=TUBE_H+'px';
-    window._unitBarYRanges.push({top:bandTop+TUBE_TOP-4, bottom:bandTop+TUBE_TOP+TUBE_H+4});
+    window._unitBarYRanges.push({top:bandTop+TUBE_TOP-4, bottom:bandTop+TUBE_TOP+TUBE_H+4, cy:bandTop+TUBE_TOP+TUBE_H/2});
     bar.style.setProperty('--unit-color',pm.colorRaw);
     bar.innerHTML='<svg class="unit-dots" viewBox="0 0 96 18" width="96" height="18" aria-hidden="true">'+_dots+'<g class="ud-sheen">'+_dots.replace(/class="ud-base"/,'')+'</g></svg>';
     world.appendChild(bar);
