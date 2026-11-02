@@ -52,14 +52,19 @@ pw = pytest.importorskip("playwright.sync_api")
 
 
 @pytest.fixture(scope="module")
-def browser():
+def playwright_():
     with pw.sync_playwright() as p:
-        try:
-            b = p.chromium.launch()
-        except Exception as e:                      # no browser downloaded
-            pytest.skip(f"no chromium: {e}")
-        yield b
-        b.close()
+        yield p
+
+
+@pytest.fixture(scope="module")
+def browser(playwright_):
+    try:
+        b = playwright_.chromium.launch()
+    except Exception as e:                      # no browser downloaded
+        pytest.skip(f"no chromium: {e}")
+    yield b
+    b.close()
 
 
 @pytest.fixture(scope="module")
@@ -224,9 +229,21 @@ def test_arrow_keys_ride_the_elevator_when_the_page_cannot_scroll_further(browse
     assert not pg.errs
 
 
-def test_a_floor_key_pressed_as_the_car_lands_is_not_lost_down_or_up(browser, page_file):
+@pytest.fixture(scope="module", params=("chromium", "webkit"))
+def both_browsers(request, playwright_):
+    """Luke uses Safari: the elevator key test runs in WebKit as well as Chromium (the rest of this file stays Chromium-only)."""
+    try:
+        b = getattr(playwright_, request.param).launch()
+    except Exception as e:
+        pytest.skip(f"no {request.param}: {e}")
+    yield b
+    b.close()
+
+
+def test_a_floor_key_pressed_as_the_car_lands_is_not_lost_down_or_up(both_browsers, page_file):
     """Luke, 2026-11-01: "sometimes the down key doesn't take you down the elevator". A key pressed while the doors were still
     opening after a ride was thrown away; it now waits for the doors and goes."""
+    browser = both_browsers
     pg = _open(browser, page_file)
     _detail(pg, "alpha-2")
     pg.keyboard.press("ArrowDown")
