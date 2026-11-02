@@ -2391,7 +2391,7 @@ function ride(to){
   var s=stack(cur), a=s.indexOf(cur), b=s.indexOf(to); if(b<0) return;
   var calm=window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(calm){ window.showDetail('node', to); return; }
-  riding=true; place();
+  riding=true; qKey=null; place();
   var ind=doors.querySelector('.pd-ind'), up=b>a; ind.textContent=(up?'▲ ':'▼ ')+(a===0?'G':a);
   doors.classList.add('on'); doors.offsetTop; doors.classList.add('shut');
   setTimeout(function(){
@@ -2403,7 +2403,7 @@ function ride(to){
       window.showDetail('node', to); var dp=document.getElementById('detail-page'); if(dp) dp.scrollTop=0;
       ind.textContent=(b===0?'G':b)+(b===s.length-1?' · top':'');
       setTimeout(function(){ doors.classList.remove('shut');
-        setTimeout(function(){ doors.classList.remove('on'); if(car) car.style.transitionDuration=''; riding=false; cur=to; sync(); }, 340); }, 260);
+        setTimeout(function(){ doors.classList.remove('on'); if(car) car.style.transitionDuration=''; riding=false; cur=to; sync(); var q=qKey; qKey=null; if(q && (q.alt || edgeAt(q.dir))) stepFloor(q.dir<0?1:-1); }, 340); }, 260);
     }, per*floors+120);
   }, 340);
 }
@@ -2453,11 +2453,15 @@ window.addEventListener('wheel', function(e){
   clearTimeout(pDecay); pDecay=setTimeout(function(){ pAcc=0; pullShow(dir,0); }, 650);
   if(pAcc>=PULL){ pAcc=0; pullShow(dir,0); pLock=now+900; pStart=false; stepFloor(dir<0?1:-1); }
 }, {passive:true});
+var qKey=null;        /* a floor key pressed while the car is still riding (doors closing / opening): it goes once the doors open */
 window.addEventListener('keydown', function(e){
-  if(mob() || !elevOn() || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  var rd=riding && de.classList.contains('pal-elev-on') && !!cur;
+  if(mob() || !(elevOn() || rd) || e.ctrlKey || e.metaKey || e.shiftKey) return;
   var k=e.key, up=(k==='ArrowUp'||k==='PageUp'), dn=(k==='ArrowDown'||k==='PageDown'); if(!up && !dn) return;
   var a=document.activeElement, tg=a&&a.tagName; if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT'||(a&&a.isContentEditable)) return;
-  var dir=up?-1:1; if(!e.altKey && !edgeAt(dir)) return;           /* the page still has room: let it scroll */
+  var dir=up?-1:1;
+  if(rd){ if(!e.repeat) qKey={dir:dir, alt:e.altKey}; e.preventDefault(); return; }
+  if(!e.altKey && !edgeAt(dir)) return;           /* the page still has room: let it scroll */
   if(e.repeat){ e.preventDefault(); return; }
   if(stepFloor(dir<0?1:-1)){ e.preventDefault(); e.stopPropagation(); }
 }, true);
