@@ -130,8 +130,9 @@ def test_the_day_tags_show_and_the_rings_and_fills_are_readable(browser, site, p
         soon:[q('#node-offer > .node-card').outlineStyle,q('#node-offer > .node-card').outlineWidth,q('#node-offer > .node-card').outlineColor,q('#node-formation > .node-card').outlineColor],
         late:[q('#node-acceptance > .node-card').outlineStyle,q('#node-acceptance > .node-card').outlineWidth], fill:q('#node-formation .sp-tag').backgroundColor}}""")
     assert st["tag"] != "none"
-    assert st["today"] == ["solid", "3px"] and st["late"] == ["solid", "3px"]
-    assert st["soon"][0] == "dashed" and st["soon"][1] == "2px" and st["soon"][2] == st["soon"][3]       # full colour, same as today's
+    w = lambda v: float(v[:-2])                                       # the page scales its cards, so widths are compared to each other, not to 3px
+    assert st["today"][0] == "solid" and st["late"][0] == "solid" and st["today"][1] == st["late"][1]
+    assert st["soon"][0] == "dashed" and 0.5 < w(st["soon"][1]) / w(st["today"][1]) < 0.8 and st["soon"][2] == st["soon"][3]     # 2px vs 3px, full colour like today's
     assert st["fill"] == "rgb(91, 63, 196)"                                                               # #5b3fc4
     pg.evaluate("document.documentElement.classList.add('dark')")
     assert pg.evaluate("getComputedStyle(document.querySelector('#node-formation .sp-tag')).backgroundColor") == "rgb(183, 166, 255)"
