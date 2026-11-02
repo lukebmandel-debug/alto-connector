@@ -256,8 +256,8 @@ def test_the_homepage_card_shows_the_plan_state_on_a_computer_only(browser, tmp_
     url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
     init = NOW + "try{localStorage.setItem('alto-bg-home-v1-style','%s')}catch(e){}" % style
     ctx, pg, errs = _open(browser, url, init=init)
-    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].map(e=>e.textContent)") == ["Study plan · Today: 2", "Make a study plan"]
-    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].every(e=>getComputedStyle(e).display==='block')")
+    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].map(e=>e.textContent)") == ["Study plan Today 2 1 late ", "+ Make a study plan"]
+    assert pg.evaluate("[...document.querySelectorAll('.sp-card')].every(e=>getComputedStyle(e).display==='flex')")
     assert not errs, errs
     ctx.close()
     ctx, pg, errs = _open(browser, url, w=390, h=844, mobile=True, init=init)
