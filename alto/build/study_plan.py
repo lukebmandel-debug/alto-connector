@@ -59,7 +59,7 @@ def clean(plan, node_ids) -> dict:
 
 
 CSS = r"""<style id="alto-sp-css">
-  /* a planned node: one class by the reader's date, drawn as Art's look page shows (study_plan.py). A computer's page only: a phone and its whole view draw nothing */
+  /* a planned node: one class by the reader's date, drawn as Art's look page shows (study_plan.py). A computer's page gets the rings and tags; a phone's card gets the day tag only (no ring, no outline: Luke L-1101-222655); a phone's whole view draws nothing */
   html{--sp-late:#b42318;--sp-ok:#1f6b3a;--sp-acc:#5b3fc4;} html.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;--sp-acc:#b7a6ff;}
   /* Retro and Holographic dress the page in their own accent (gold, the theme's glow): the plan follows it there, as Art's frames show */
   html.alto-holo,html.alto-retro{--sp-acc:var(--accent);}
@@ -76,6 +76,12 @@ CSS = r"""<style id="alto-sp-css">
   html:not(.mobile):not(.phone-whole) .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
   html:not(.mobile):not(.phone-whole) .node.sp-go > .node-card{outline:3px solid var(--sp-acc);outline-offset:8px;}
   .sp-tag{display:none;}
+  html.mobile .node .sp-tag{display:block;position:absolute;top:-11px;right:10px;z-index:3;padding:4px 7px;font:700 10px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
+    border-radius:6px;background:var(--sp-acc);color:var(--bg);pointer-events:none;}
+  html.mobile .node.sp-soon .sp-tag{background:transparent;color:var(--text);border:1px solid var(--sp-acc);}
+  html.mobile .node.sp-late .sp-tag{background:var(--sp-late);color:var(--bg);}
+  html.mobile .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
+  html.mobile .compass-mini-node .sp-tag{display:none;}
   /* the entry: a tab on the right rail under Overview, seen without opening the notes panel; its words say what a click does */
   #sp-chip{display:none;}
   html:not(.mobile):not(.phone-whole) #sp-chip{display:block;position:fixed;right:0;top:calc(50% + 84px);z-index:395;width:34px;box-sizing:border-box;padding:12px 0;writing-mode:vertical-rl;
@@ -115,7 +121,7 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-btn.o{background:transparent;color:var(--text);border:1.5px solid var(--border);}
   #sp-sheet .sp-pr{margin-top:10px;font-size:12px;color:var(--muted);} #sp-sheet .sp-pr textarea{width:100%;box-sizing:border-box;height:90px;margin-top:6px;font:inherit;font-size:12px;
     background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;resize:none;}
-  @media (max-width:640px){ #sp-chip,#sp-row,#sp-sheet,.sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} }
+  @media (max-width:640px){ #sp-chip,#sp-row,#sp-sheet,html:not(.mobile) .sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} }
   @media print{ .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} .sp-tag,#sp-chip,#sp-row,#sp-sheet{display:none !important;} }
 </style>"""
 
@@ -125,6 +131,7 @@ JS = r"""<script id="alto-sp">
   var KEY = '__ALTO_HL_KEY__-st', SEC = '__plan__', DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var r = document.documentElement, sheet = null, row = null, chip = null, timer = 0, tab = 'today';
   function desk(){ return !r.classList.contains('mobile') && !r.classList.contains('phone-whole') && window.innerWidth > 640; }
+  function mob(){ return r.classList.contains('mobile'); }
   function el(tag, cls, txt){ var e = document.createElement(tag); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
   function now(){ return window._altoSpNow ? new Date(window._altoSpNow) : new Date(); }
   function key(d){ function z(n){ return n < 10 ? '0' + n : '' + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
@@ -160,7 +167,7 @@ JS = r"""<script id="alto-sp">
     var S = states(), by = {};
     S.forEach(function(x){ (by[x.it.node] || (by[x.it.node] = [])).push(x); });
     Array.prototype.forEach.call(document.querySelectorAll('.node[class*="sp-"]'), function(n){ n.classList.remove('sp-today', 'sp-soon', 'sp-late', 'sp-done'); var t = n.querySelector('.sp-tag'); if(t) t.remove(); });
-    if(desk()) Object.keys(by).forEach(function(id){
+    if(desk() || mob()) Object.keys(by).forEach(function(id){
       var n = document.getElementById('node-' + id); if(!n) return;
       var L = by[id], c = ['late', 'today', 'soon'].filter(function(k){ return L.some(function(x){ return x.st === k; }); })[0] || (L.every(function(x){ return x.st === 'done'; }) ? 'done' : '');
       if(!c) return;

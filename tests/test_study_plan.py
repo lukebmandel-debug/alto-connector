@@ -217,12 +217,18 @@ def test_go_to_node_and_make_my_plan(browser, site):
     ctx.close()
 
 
-def test_a_phone_draws_nothing_and_print_removes_the_rings(browser, site):
+def test_a_phone_card_carries_the_day_tag_and_no_ring_and_the_whole_view_draws_nothing(browser, site):
+    """Luke L-1101-222655: a planned phone card shows its day tag (the desktop words), with no ring, outline or chip; the phone's Whole view draws nothing."""
     ctx, pg, errs = _open(browser, site + "/o.html", w=390, h=844, mobile=True)
-    assert pg.evaluate(CLASSES) == {}
-    assert pg.evaluate("document.querySelector('.sp-tag')") is None
+    assert pg.evaluate("document.documentElement.classList.contains('mobile')")
+    got = pg.evaluate(CLASSES)
+    assert {k: v for k, v in got.items()} == {"formation": ["sp-today", "Today"], "offer": ["sp-soon", "Sat"], "acceptance": ["sp-late", "3 days late"], "definiteness": ["sp-today", "Today"]}, got
+    assert pg.evaluate("[...document.querySelectorAll('.node[class*=\"sp-\"] > .node-card')].every(c => getComputedStyle(c).outlineStyle === 'none' && getComputedStyle(c).boxShadow.indexOf('rgba(91') < 0)")
+    assert pg.evaluate("[...document.querySelectorAll('.sp-tag')].every(t => getComputedStyle(t).display === 'block' && getComputedStyle(t).position === 'absolute')")
     assert pg.evaluate("getComputedStyle(document.getElementById('sp-row')).display") == "none"
     assert pg.evaluate("getComputedStyle(document.getElementById('sp-chip')).display") == "none"
+    pg.evaluate("document.documentElement.classList.remove('mobile'); document.documentElement.classList.add('phone-whole'); window._altoStudyPlan.paint()")
+    assert pg.evaluate(CLASSES) == {} and pg.evaluate("document.querySelector('.sp-tag')") is None            # the Whole view: nothing new
     assert not errs, errs
     ctx.close()
     ctx, pg, errs = _open(browser, site + "/o.html")
