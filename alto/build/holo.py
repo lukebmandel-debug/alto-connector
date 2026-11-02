@@ -2,8 +2,9 @@
 "On holographic style, i like B, but make sure that text is not blending into the background too much.").
 
 The look is the sheet's "Projector": one cyan light, square wireframe cards, a faint grid and scan lines, as if projected into the air.
-It is square like Retro (the square-vs-round rule) and, unlike Retro, it wears BOTH themes: html.dark picks the dark tokens and the
-reader's light theme the light ones, so the light/dark toggle stays.
+It is square like Retro (the square-vs-round rule). On a computer it is dark only, like Retro (Luke, 2026-11-01: "Eliminate light mode on
+holographic, just like retro"): the light/dark button is hidden and html.dark held on while the style is, and the reader's own theme comes back
+with the style off. On a phone nothing changes (the button stays, html.dark picks the dark tokens and the light theme the light ones).
 
 THE CONTRAST FLOOR. Every colour a rule uses for text or for the plate under it is one of the tokens below (TOKENS), and every pair
 that can meet (PAIRS) is held to WCAG AA by tests/test_holo.py (4.5:1 for text, 3:1 for a line or an outline), light and dark. The
@@ -110,6 +111,19 @@ HOLO_CSS = r"""
   /* light/dark: a square chip with the same rim as its neighbours, not the engine's glowing circle (Art, alto-art-1029-0033, fix 1) */
   X #mode-toggle:not(#_):not(#__){background:var(--ho-bg) !important;color:var(--ho-ac) !important;border:0 !important;border-radius:0 !important;
     box-shadow:0 0 0 1px var(--ho-ac),var(--ho-glow) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  /* dark only on a computer (Luke, 2026-11-01): no light/dark button; a phone keeps its own (JS: hdark) */
+  @media (min-width:641px){ X:not(.mobile) #mode-toggle:not(#_):not(#__){display:none !important;} }
+  /* the Alto marks (Luke, 2026-11-01: "the alto logo and glyph in holographic style ... the glyph should rotate like the glyphs for file type"):
+     the clef and the wordmark in the light, on every page that has them, a phone's too; the clef turns on Y on the homepage's motion budget
+     (transform only, 10 s, still under reduced motion and while the tab is hidden) */
+  X svg:is(.brand-mark,.brand-word) [fill^="url"],X svg:is(.brand-mark,.brand-word) .alto-word{fill:var(--ho-ac2) !important;}
+  X svg:is(.brand-mark,.brand-word) [stroke^="url"],X svg.brand-mark .alto-head{stroke:var(--ho-ac2) !important;}
+  X #title-bar svg.brand-word:not(#_):not(#__){filter:drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;}
+  X #title-bar svg.brand-mark:not(#_):not(#__){filter:drop-shadow(-1.5px 0 0 rgba(255,95,210,.5)) drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;
+    animation:ho-logo 10s linear infinite;will-change:transform;}
+  X.hp-hid #title-bar svg.brand-mark{animation-play-state:paused;}
+  @keyframes ho-logo{from{transform:perspective(260px) rotateY(0)}to{transform:perspective(260px) rotateY(360deg)}}
+  @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;} }
   /* the palace has no nav items: its empty band is not painted, so the Tour / World / zoom row clears it (Art fix 2) */
   X.wpal-open #nav:not(#_):not(#__){background:transparent !important;border:0 !important;box-shadow:none !important;}
   @media print{ X :is(#title-bar,#nav,#node-nav-bar){box-shadow:none !important;} }
@@ -251,14 +265,23 @@ function pwatch(){
   }
 }
 function punwatch(){ if(pmo){ pmo.disconnect(); pmo=null; } if(pio){ pio.disconnect(); pio=null; } }
+// dark only on a computer (a phone keeps its light/dark button): html.dark is held on while the style is, the reader's own theme comes back with it off
+var hd={was:null,mo:null};
+function hdark(on){
+  if(on){ if(hd.was==null) hd.was=r.classList.contains('dark'); r.classList.add('dark');
+    if(!hd.mo && typeof MutationObserver==='function'){ hd.mo=new MutationObserver(function(){ if(hd.was!=null && !r.classList.contains('dark')) r.classList.add('dark'); }); hd.mo.observe(r,{attributes:true,attributeFilter:['class']}); } }
+  else if(hd.was!=null){ var w=hd.was; hd.was=null; if(!w && !r.classList.contains('alto-retro')) r.classList.remove('dark'); }
+  if(window._altoAlignInfo) setTimeout(window._altoAlignInfo, 0);
+}
 function hsync(){
   if(!r.classList.contains('alto-holo')) return;
+  hdark(desk());
   var H=window._altoRetroHome;
   if(plive()){ if(H) H.on(); pwatch(); proj(); }
   else { punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); if(H && !r.classList.contains('alto-retro')) H.off(); }
 }
 function hoff(){
-  punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); r.classList.remove('hp-hid');
+  hdark(0); punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); r.classList.remove('hp-hid');
   if(window._altoRetroHome && !r.classList.contains('alto-retro')) window._altoRetroHome.off();
 }
 document.addEventListener('visibilitychange', function(){ if(r.classList.contains('alto-holo')) r.classList.toggle('hp-hid', document.hidden); });
