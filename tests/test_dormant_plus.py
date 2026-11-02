@@ -66,9 +66,12 @@ def test_the_dormant_plus_shows_only_near_the_pointer_or_on_focus(browser, origi
         page.close()
 
 
-@pytest.mark.parametrize("style,color,square", [("classic", "rgb(91, 63, 196)", False), ("retro", "rgb(217, 174, 85)", True), ("holo", "rgb(77, 232, 216)", False)])
+@pytest.mark.parametrize("style,color,square", [("classic", "rgb(91, 63, 196)", False), ("dark", "rgb(183, 166, 255)", False), ("retro", "rgb(217, 174, 85)", True),
+                                           ("holo", "rgb(10, 111, 140)", False), ("holodark", "rgb(77, 232, 216)", False)])
 def test_the_plus_focus_ring_is_art_s_two_pixel_outline_in_the_styles_colour(browser, origin, style, color, square):
-    page = _open(browser, origin, 1280, style, dpr=2)                           # (a Retina screen: WebKit snaps an outline to whole device pixels, so at 1x the page's zoom .8 would cost it half a pixel)
+    page = _open(browser, origin, 1280, "holo" if style == "holodark" else style, dpr=2)
+    if style == "holodark":
+        page.evaluate("document.documentElement.classList.add('dark')")                           # (a Retina screen: WebKit snaps an outline to whole device pixels, so at 1x the page's zoom .8 would cost it half a pixel)
     try:
         _wind_in(page)
         page.mouse.move(700, 600)
