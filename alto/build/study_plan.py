@@ -119,9 +119,18 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;}
   #sp-sheet .sp-btn{min-height:40px;padding:0 16px;border-radius:10px;background:var(--sp-acc);color:var(--bg);font:inherit;font-size:13px;font-weight:700;border:0;cursor:pointer;}
   #sp-sheet .sp-btn.o{background:transparent;color:var(--text);border:1.5px solid var(--border);}
+  /* a phone: the list is a full-screen sheet opened by the "Today's plan" row at the top of the MENU drawer (Luke L-1101-231956); 16 px gutters, 44 px touch targets */
+  html.mobile #sp-sheet.open{display:flex;flex-direction:column;position:fixed;inset:0;z-index:700;box-sizing:border-box;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));
+    background:var(--surface);color:var(--text);overflow:hidden;}
+  html.mobile #sp-sheet .sp-tabs button{min-height:44px;}
+  html.mobile #sp-sheet .sp-li{grid-template-columns:44px minmax(0,1fr) auto;align-items:center;padding:4px 0;gap:6px;}
+  html.mobile #sp-sheet .sp-li input{width:26px;height:26px;margin:9px;}
+  html.mobile #sp-sheet .sp-go{min-height:44px;display:flex;align-items:center;font-size:16px;}
+  html.mobile #sp-sheet .sp-btn{min-height:44px;} html.mobile #sp-sheet .sp-btn:not(.o){display:none;}
+  html.mobile #sp-sheet .sp-btns{margin-top:8px;}
   #sp-sheet .sp-pr{margin-top:10px;font-size:12px;color:var(--muted);} #sp-sheet .sp-pr textarea{width:100%;box-sizing:border-box;height:90px;margin-top:6px;font:inherit;font-size:12px;
     background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;resize:none;}
-  @media (max-width:640px){ #sp-chip,#sp-row,#sp-sheet,html:not(.mobile) .sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} }
+  @media (max-width:640px){ #sp-chip,#sp-row,html:not(.mobile) #sp-sheet,html:not(.mobile) .sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} }
   @media print{ .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} .sp-tag,#sp-chip,#sp-row,#sp-sheet{display:none !important;} }
 </style>"""
 
@@ -180,6 +189,7 @@ JS = r"""<script id="alto-sp">
   function title(id){ var n = document.querySelector('#node-' + id), t = n && n.querySelector('.node-title'), o = n && n.querySelector('.node-order'); return (o && o.textContent.trim() ? o.textContent.trim() + ' ' : '') + (t ? t.textContent.trim() : id); }
   function fly(id){
     var n = document.getElementById('node-' + id); if(!n) return;
+    if(mob() && typeof window.featureNode === 'function'){ try{ window.featureNode(id, true); return; }catch(e){} }
     try{ n.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'}); }catch(e){ n.scrollIntoView(); }
     n.classList.add('sp-go'); setTimeout(function(){ n.classList.remove('sp-go'); }, 1600);
   }
@@ -187,12 +197,25 @@ JS = r"""<script id="alto-sp">
   function summary(S){
     var c = counts(S), txt = !HAS ? 'Make a study plan' : c.late ? c.late + ' late · Today: ' + c.today : c.today ? 'Today: ' + c.today : 'Study plan';
     if(row) row.querySelector('span').textContent = !HAS ? 'make one' : c.late ? c.late + ' late · ' + c.today + ' today' : c.today ? c.today + ' today' : 'nothing due today';
+    todayRow(c);
     if(chip){ chip.textContent = txt; chip.classList.toggle('late', !!c.late); chip.setAttribute('aria-label', 'Study plan: ' + txt); }
+  }
+  /* a phone: the first row of the MENU drawer, only on a page with a plan; it opens the same list (the engine builds the drawer, so each paint tries again) */
+  function todayRow(c){
+    var body = mob() && HAS && document.getElementById('nav-drawer-body'); if(!body) return;
+    var b = document.getElementById('sp-today-row'), n = c.today + c.late;
+    if(!b){
+      b = el('button', 'drawer-btn pmin-word'); b.id = 'sp-today-row'; b.type = 'button'; b.style.gridColumn = '1 / -1';
+      var ic = el('span', 'drawer-icon', '\u2713'), lb = el('span', 'drawer-label'); b.appendChild(ic); b.appendChild(lb);
+      b.onclick = function(e){ e.stopPropagation(); if(window.closeNavDrawer) closeNavDrawer(); setTimeout(function(){ toggle(true); }, 0); };
+      body.insertBefore(b, body.firstChild);
+    }
+    b.querySelector('.drawer-label').textContent = 'Today\u2019s plan \u00b7 ' + n;
   }
   function item(x){
     var d = el('div', 'sp-li' + (x.st === 'done' ? ' done' : '')), cb = el('input'); cb.type = 'checkbox'; cb.checked = x.st === 'done'; cb.setAttribute('aria-label', 'Done: ' + title(x.it.node));
     cb.onchange = function(){ tick(x.it.node, x.it.day, cb.checked); paint(); };
-    var t = el('div'), g = el('button', 'sp-go', title(x.it.node)); g.type = 'button'; g.onclick = function(){ fly(x.it.node); };
+    var t = el('div'), g = el('button', 'sp-go', title(x.it.node)); g.type = 'button'; g.onclick = function(){ if(mob()) toggle(false); fly(x.it.node); };
     t.appendChild(g); t.appendChild(el('i', 'sp-w', x.it.why));
     var pl = el('span', 'sp-pill ' + x.st, word(x)); d.appendChild(cb); d.appendChild(t); d.appendChild(pl); return d;
   }

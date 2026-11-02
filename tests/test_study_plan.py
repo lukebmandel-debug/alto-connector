@@ -238,6 +238,50 @@ def test_a_phone_card_carries_the_day_tag_and_no_ring_and_the_whole_view_draws_n
     ctx.close()
 
 
+@pytest.mark.parametrize("w, h", [(390, 844), (320, 568), (844, 390)])
+def test_the_phone_menu_has_a_todays_plan_row_that_opens_the_list(browser, site, w, h):
+    """Luke L-1101-231956: the first row of the phone MENU drawer, only with a plan; it opens the list (checkbox, node, tag), a tap on a line goes to that card."""
+    ctx, pg, errs = _open(browser, site + "/o.html", w=w, h=h, mobile=True)
+    pg.evaluate("window.openNavDrawer()")
+    pg.wait_for_timeout(400)
+    row = pg.evaluate("(() => { const r = document.getElementById('sp-today-row'); if(!r) return null; const b = r.getBoundingClientRect();"
+                      " return [r.textContent.trim(), r === document.getElementById('nav-drawer-body').firstElementChild, Math.round(b.height), b.left >= 0 && b.right <= innerWidth]; })()")
+    assert row and row[0].endswith("Today\u2019s plan \u00b7 3") and row[1] and row[2] >= 44 and row[3], row                # 2 today + 1 late
+    pg.click("#sp-today-row")
+    pg.wait_for_timeout(500)
+    sh = pg.evaluate("(() => { const s = document.getElementById('sp-sheet'), c = getComputedStyle(s), b = s.getBoundingClientRect(); return [s.classList.contains('open'), c.position, Math.round(b.width), Math.round(b.height),"
+                     " [...s.querySelectorAll('.sp-li')].map(l => [l.querySelector('.sp-go').textContent.replace(/^[0-9.]+ /, ''), l.querySelector('.sp-pill').textContent]), document.documentElement.scrollWidth <= innerWidth,"
+                     " Math.round(s.querySelector('.sp-btn.o').getBoundingClientRect().height), getComputedStyle(s.querySelector('.sp-btn:not(.o)')).display]; })()")
+    assert sh[0] and sh[1] == "fixed" and sh[2] == w and sh[3] == h and sh[5] and sh[6] >= 44 and sh[7] == "none", sh
+    assert sorted(x[1] for x in sh[4]) == ["3 days late", "Today", "Today"], sh
+    pg.click("#sp-sheet .sp-li input >> nth=0")                                                                      # a tick writes the reader's own plan state and the row's count follows
+    assert "__plan__" in pg.evaluate("localStorage.getItem(Object.keys(localStorage).filter(k => /-st$/.test(k))[0]) || ''")
+    pg.click("#sp-sheet .sp-btn.o")
+    assert not pg.evaluate("document.getElementById('sp-sheet').classList.contains('open')")
+    pg.evaluate("window.openNavDrawer()")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.getElementById('sp-today-row').textContent.trim()").endswith("Today\u2019s plan \u00b7 2")
+    pg.click("#sp-today-row")
+    pg.wait_for_timeout(400)
+    pg.click("#sp-sheet .sp-go >> nth=0")                                                                             # a tap on a line: that node's own card, the sheet gone
+    pg.wait_for_timeout(700)
+    assert not pg.evaluate("document.getElementById('sp-sheet').classList.contains('open')")
+    assert pg.evaluate("(document.querySelector('.node.mobile-featured') || {}).id") in ("node-acceptance", "node-formation", "node-definiteness")
+    assert not errs, errs
+    ctx.close()
+
+
+def test_the_phone_menu_has_no_todays_plan_row_without_a_plan_or_on_a_computer(browser, site):
+    ctx, pg, errs = _open(browser, site + "/n.html", w=390, h=844, mobile=True)
+    pg.evaluate("window.openNavDrawer()")
+    assert pg.evaluate("document.getElementById('sp-today-row') === null && document.getElementById('sp-sheet') === null")
+    ctx.close()
+    ctx, pg, errs = _open(browser, site + "/o.html")
+    assert pg.evaluate("document.getElementById('sp-today-row') === null")
+    assert not errs, errs
+    ctx.close()
+
+
 def test_the_tab_on_the_rail_counts_with_a_plan_and_a_page_without_one_has_none(browser, site):
     ctx, pg, errs = _open(browser, site + "/n.html")
     assert pg.evaluate("document.getElementById('sp-chip') === null && document.getElementById('sp-row') === null && document.getElementById('sp-sheet') === null")
