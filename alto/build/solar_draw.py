@@ -1569,7 +1569,7 @@ function camGet(){
 function camTell(){ if(!camFns.length || camRaf) return;
   camRaf=requestAnimationFrame(function(){ camRaf=0; var g=camGet(); camFns.slice().forEach(function(f){ try{ f(g); }catch(e){} }); }); }
 window._altoSolarCam={
-  get:camGet,
+  get:camGet, whole:omin,       /* (whole(): the scale the whole system fits at, with a margin) */
   set:function(cx, cy, scale){
     var c=cvs(); if(!c || !ready || !desk()) return null;
     scale=Math.min(1, Math.max(OVMIN, scale==null ? 1 : +scale));
@@ -1871,7 +1871,7 @@ window.addEventListener('keydown', function(e){
 window._altoSolarLock={get:function(){ return false; }, set:function(){ return false; }, ways:function(id){ return tWays(id || home()); }, spokes:function(id){ return joined(id || home()); }, step:tStep, order:tOrder, route:tRoute,
   riding:function(){ return RD ? {from:RD.path[0], to:RD.dest, path:RD.path.slice(), ms:RD.ms} : null; }};
 /* the nav options' handles (solar_navopt.py): where you are, its neighbours, a ride, the whole system, a route drawn */
-window._altoSolarNavApi={ok:tourOK, home:home, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
+window._altoSolarNavApi={ok:tourOK, home:home, num:function(id){ var b=B[id], f=b && b.c && b.c.querySelector('.sol-face>b'); return f ? f.textContent.trim() : ''; }, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
   ov:function(){ return !!(OV && TOV); }, show:function(id){ tShow(id || null); }, geo:function(){ var g=window._altoSolarGeo(); return g.bodies || g; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
@@ -1915,7 +1915,7 @@ if(holoOn() && LOOK!=='hub') setLook('hub');   /* (a page kept in Holographic op
 window.addEventListener('wheel', function(e){
   if(!tourOK() || e.ctrlKey || !window._focusedNodeId || RD || de.classList.contains('navx')) return;   /* (the nav's own scroll: round what is beside the enlarged body, solar_navopt.py) */
   var c=cvs(); if(!c || !c.contains(e.target) || document.querySelector('#detail-page.visible')) return;
-  if(e.target.closest && e.target.closest('#notes-panel,#summary-wrap,#info-btn,#note-dialog,input,textarea')) return;
+  if(window._altoWheelOwn && window._altoWheelOwn(e)) return;
   if(Math.abs(e.deltaX)+Math.abs(e.deltaY)<2) return;
   if(window.exitFocus) window.exitFocus();   /* (then the board's own wheel pans it: pan2d.py; the engine's focus-mode step finds no focus) */
 }, {capture:true, passive:true});

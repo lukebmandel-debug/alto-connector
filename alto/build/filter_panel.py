@@ -406,7 +406,7 @@ def filter_panel_css() -> str:
         "\n  html.mobile.detail-open #filter-toggle, html.mobile.summary-open #filter-toggle,"
         "\n  html.mobile.detail-open #ef-panel, html.mobile.summary-open #ef-panel{display:none !important;}"
         # ── the panel ──
-        "\n  #ef-panel{position:fixed;z-index:396;overflow:auto;padding:12px 12px 6px;"
+        "\n  #ef-panel{position:fixed;z-index:396;overflow:auto;overscroll-behavior:contain;padding:12px 12px 6px;"
         "border-radius:14px;opacity:0;pointer-events:none;"
         "transition:opacity .15s, transform .15s;"
         "background:var(--panel-glass-bg, var(--surface));"

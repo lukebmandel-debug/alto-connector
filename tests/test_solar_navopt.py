@@ -21,7 +21,7 @@ from test_solar_draw import SMALL, SMALL_LINKS, _open, browser, solar_doc  # noq
 
 
 def test_the_control_stays_small_and_the_card_is_gone():
-    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 9600   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26)
+    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 10100   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26; + its drag-to-resize handle, 2026-11-01: 9600 -> 10100)
     for gone in (r"nvo-[bcd](?![\w-])", "nvo-pick", "data-nav", "Same level:", "Inside:", r"\.nv-r", r"\.nv-hd"):
         assert not re.search(gone, NAVOPT_JS + NAVOPT_CSS), gone
 
@@ -247,7 +247,7 @@ def test_the_minimap_shows_only_with_a_body_enlarged_big_and_clear(browser, page
 def test_the_minimap_moves_anywhere_and_keeps_its_place(browser, page):
     pg, errs = _map(browser, page)
     m = pg.evaluate(RECT, "#nvo-map")
-    x, y = m["l"] + 6, m["t"] + 4                                                   # its frame (not the box, not a body)
+    x, y = m["l"] + 60, m["t"] + 4                                                  # its frame (not the box, a body or the corner handle)
     pg.mouse.move(x, y)
     pg.mouse.down()
     tx, ty = 30 - m["l"], 860 - m["b"]                                             # to the bottom-left, over the bar: free room
@@ -267,7 +267,7 @@ def test_the_minimap_moves_anywhere_and_keeps_its_place(browser, page):
     pg.wait_for_timeout(300)
     r = pg.evaluate(RECT, "#nvo-map")
     assert abs(r["l"] - n["l"]) < 3 and abs(r["t"] - n["t"]) < 3, (n, r)            # kept on this device
-    pg.mouse.move(r["l"] + 6, r["t"] + 4)
+    pg.mouse.move(r["l"] + 60, r["t"] + 4)
     pg.mouse.down()
     pg.mouse.move(r["l"] + 3000, r["t"] + 3000, steps=6)                           # flung off the edge: it stays on screen
     pg.mouse.up()

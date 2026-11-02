@@ -575,7 +575,7 @@ function ctDrawAll(svg){ if(!CT) return; var sid=svg._sid||''; Object.keys(CTC).
 /* the tile's buildings join the fill-in while the tile is shown, and leave it with the tile: the fill holds the page's own buildings and
    those of the tiles on the board, never every tile ever visited. Each keeps its own thinning rank (rk), so the set changing never
    reshuffles which buildings a slider share shows. */
-var CTfs0=null;
+var CTfs0=null, CTfsig='';
 function ctFillAdd(part, c){
   if(typeof fillShapes!=='function' || !FILL) return; var S0=fillShapes(); if(!S0) return;
   if(!CTfs0) CTfs0=S0.map(function(a){ return a?a.slice():a; });
@@ -584,9 +584,11 @@ function ctFillAdd(part, c){
   var seed=0; for(var i=0;i<c.e.k.length;i++) seed=(Math.imul(seed,31)+c.e.k.charCodeAt(i))|0;
   for(var lv=1;lv<=4;lv++) (Sp&&Sp[lv]||[]).forEach(function(sh,i){ sh.rk=((Math.imul(i+1+seed,2654435761)^Math.imul(lv,40503))>>>0)%1000/1000; });
   c.fs=Sp; ctFillSoon(); }
-function ctFillSoon(){ clearTimeout(CTfill); CTfill=setTimeout(ctFillSet, 150); }
+function ctFillSoon(){ clearTimeout(CTfill); CTfill=setTimeout(ctFillSet, 500); }   /* tiles land one by one: one rebuild once they have stopped arriving, not one per tile (13 whole-fill rebuilds in one NYC pan, 40-1000 ms each) */
 function ctFillSet(){ if(!CTfs0 || typeof fillShapes!=='function') return; if(ctMoving()){ ctFillSoon(); return; }
   var on=Object.keys(CTC).sort().map(function(k){ return CTC[k]; }).filter(function(c){ return c.fs && ['d','m'].some(function(k){ var g=c.on[k] && c.g[k] && c.g[k][0]; return g && c.lv[k]===2 && !g.classList.contains('ct-off') && !g._fo; }); });
+  var sig=on.map(function(c){ return c.e.k; }).join(','); if(sig===CTfsig) return;          /* the same parts as the fill was last built from: nothing to rebuild */
+  CTfsig=sig;
   for(var lv=1;lv<=4;lv++){ var a=(CTfs0[lv]||[]).slice(); on.forEach(function(c){ if(c.fs[lv]) Array.prototype.push.apply(a, c.fs[lv]); }); FS[lv]=a; }
   FG=null; if(FC) FC.cache={}; if(svgD){ fillDraw(svgD); fillLOD(svgD); fillSoon(); } if(MM.svg){ fillDraw(MM.svg); fillLOD(MM.svg); } }
 if(CT){ setInterval(function(){ if(!document.hidden) ctTick(); }, 250);

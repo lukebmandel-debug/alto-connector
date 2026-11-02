@@ -9855,6 +9855,17 @@ html.mobile #m-search-results .sr-snip{ font-size:12px; display:block; white-spa
   }
   var _swipeNav=createSwipeNav(function(dir){ focusNeighbor(dir); });
   window._altoSwipeNav=_swipeNav;   // exposed for testing
+  // One answer for every chart wheel listener: is this wheel over a panel that scrolls (the Scene chooser, the filter, notes...)?
+  // Then the panel owns it and the chart stays still, whether or not the list can go further.
+  window._altoWheelOwn=function(e){
+    var t=e && e.target; if(!t || !t.closest) return false;
+    if(t.closest('#notes-panel,#summary-wrap,#info-btn,#note-dialog,#bg-panel,#ef-panel,#search-results,input,textarea,select')) return true;
+    for(var n=t; n && n.nodeType===1 && n!==document.body && n!==document.documentElement; n=n.parentElement){
+      if(n.id==='canvas') return false;
+      if(n.scrollHeight>n.clientHeight+1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) return true;
+    }
+    return false;
+  };
 
   // ── Notes dismiss-swipe ──────────────────────────────────────────────────────
   // A decisive two-finger HORIZONTAL swipe closes the open Notes panel. Scope:
@@ -9885,6 +9896,7 @@ html.mobile #m-search-results .sr-snip{ font-size:12px; display:block; white-spa
   // Chrome/Edge: trackpad pinch = ctrl+wheel. Block native zoom; act over the canvas.
   window.addEventListener('wheel', function(e){
     if(!e.ctrlKey){
+      if(window._altoWheelOwn(e)) return;      // a panel's own scroll (the Scene chooser): not a swipe through the chart
       if(typeof notesOpen!=='undefined' && notesOpen){
         if(_notesDismiss(e)){ e.preventDefault(); return; }              // swipe closed notes
         if(window._focusedNodeId && _ndZone){ e.preventDefault(); return; } // prezi dismiss-zone: don't node-nav
