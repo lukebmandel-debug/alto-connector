@@ -76,12 +76,13 @@ CSS = r"""<style id="alto-sp-css">
   html:not(.mobile):not(.phone-whole) .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
   html:not(.mobile):not(.phone-whole) .node.sp-go > .node-card{outline:3px solid var(--sp-acc);outline-offset:8px;}
   .sp-tag{display:none;}
-  html.mobile .node .sp-tag{display:block;position:absolute;top:-11px;right:10px;z-index:3;padding:4px 7px;font:700 10px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
+  html.mobile .node .sp-tag{display:block;position:absolute;bottom:10px;right:12px;z-index:3;padding:4px 7px;font:700 10px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
     border-radius:6px;background:var(--sp-acc);color:var(--bg);pointer-events:none;}
   html.mobile .node.sp-soon .sp-tag{background:transparent;color:var(--text);border:1px solid var(--sp-acc);}
   html.mobile .node.sp-late .sp-tag{background:var(--sp-late);color:var(--bg);}
   html.mobile .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
   html.mobile .compass-mini-node .sp-tag{display:none;}
+  html.mobile.sp-open #scroll-hint{display:none !important;}   /* the "Swipe to navigate" hint must not float over the sheet */
   /* the entry: a tab on the right rail under Overview, seen without opening the notes panel; its words say what a click does */
   #sp-chip{display:none;}
   html:not(.mobile):not(.phone-whole) #sp-chip{display:block;position:fixed;right:0;top:calc(50% + 84px);z-index:395;width:34px;box-sizing:border-box;padding:12px 0;writing-mode:vertical-rl;
@@ -243,7 +244,7 @@ JS = r"""<script id="alto-sp">
     p.appendChild(ta); box.appendChild(p);
   }
   function toggle(on){
-    var open = on == null ? !sheet.classList.contains('open') : on; sheet.classList.toggle('open', open); if(chip) chip.classList.toggle('open', open); if(open) fill(states());
+    var open = on == null ? !sheet.classList.contains('open') : on; sheet.classList.toggle('open', open); r.classList.toggle('sp-open', open); if(chip) chip.classList.toggle('open', open); if(open) fill(states());
   }
   function build(){
     sheet = el('div'); sheet.id = 'sp-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Study plan');
