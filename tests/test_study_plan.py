@@ -271,6 +271,9 @@ def test_the_homepage_card_shows_the_plan_state_on_a_computer_only(browser, tmp_
     ctx, pg, errs = _open(browser, url, init=init)
     assert pg.evaluate("[...document.querySelectorAll('.sp-card')].map(e=>e.textContent)") == ["Study plan Today 2 1 late ", "+ Make a study plan"]
     assert pg.evaluate("[...document.querySelectorAll('.sp-card')].every(e=>getComputedStyle(e).display==='flex')")
+    if style == "retro":                                               # Art alto-art-1101-4900-a: square tags, late is #ff8a7a with black text (not the gold of Today)
+        tg = pg.evaluate("(()=>{const b=document.querySelectorAll('.sp-card b');const g=e=>getComputedStyle(e);return [...b].map(e=>[e.textContent,g(e).borderRadius,g(e).backgroundColor,g(e).color])})()")
+        assert tg[0][1] == "0px" and tg[1][1] == "0px" and tg[1][2] == "rgb(255, 138, 122)" and tg[1][3] == "rgb(0, 0, 0)" and tg[0][2] != tg[1][2], tg
     assert not errs, errs
     ctx.close()
     ctx, pg, errs = _open(browser, url, w=390, h=844, mobile=True, init=init)
