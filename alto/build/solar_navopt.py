@@ -89,7 +89,7 @@ NAVOPT_JS = r"""
 (function(){
 if(!window._altoSolarNavApi) return;
 var A=window._altoSolarNavApi, de=document.documentElement;
-var KEYS=[['Back', 'up to the one it belongs to'], ['Next', 'the next one at the same level'], ['Left / Right arrows, or scroll', 'round the ones beside the enlarged one'], ['1 – 9', 'fly to the one beside it with that number'], ['Esc or Backspace', 'a moon to its planet, else back out, then the whole system'], ['O', 'see the whole system']];
+var KEYS=[['Back', 'up to the one it belongs to'], ['Next', 'the next one at the same level'], ['Up / Down arrows, or scroll out / in', 'to its parent / into its children'], ['Left / Right arrows', 'the others under the same parent'], ['1 – 9', 'fly to the one beside it with that number'], ['Esc or Backspace', 'a moon to its planet, else back out, then the whole system'], ['O', 'see the whole system']];
 function mk(t, id, cls, h){ var e=document.createElement(t); if(id) e.id=id; if(cls) e.className=cls; if(h!=null) e.innerHTML=h; return e; }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]; }); }
 function nm(id){ return esc(A.name(id)); }
@@ -105,7 +105,8 @@ var MAP=lsGet('alto-solar-map')!=='0';
 function up(h){ return A.up(h) || ''; }                                   /* ('' the whole system) */
 function next(h){ var L=window._altoSolarLevelNav, s=A.sibs(h), i=s.indexOf(h), to=s[i+1] || (L ? L(h, 'e') : null); return to && to!==h ? to : null; }
 function scope(h){ var k=A.kids(h); return k.length ? k : A.sibs(h); }  /* what is beside it, else what is beside its parent */
-function round(h, d){ var s=scope(h), i=s.indexOf(h); if(!s.length || (s.length===1 && i===0)) return null; return i<0 ? s[d>0 ? 0 : s.length-1] : s[(i+d+s.length)%s.length]; }
+function kin(h){ var u=A.up(h); return u ? A.kids(u) : A.sibs(h); }    /* (the same parent's children; a sun: the other suns) */
+function round(h, d){ var s=kin(h), i=s.indexOf(h); if(!s.length || (s.length===1 && i===0)) return null; return i<0 ? s[d>0 ? 0 : s.length-1] : s[(i+d+s.length)%s.length]; }
 var W=null, K='';
 function draw(h){
   if(!W){ W=mk('div', 'nvo-a', 'sol-seg', '<button type="button" data-n="up">'+sv('<path d="M8 4.5 4 8.5l4 4"/><path d="M4 8.5h7a5 5 0 0 1 5 5v2"/>')+'</button>'+
@@ -292,7 +293,10 @@ function later(){ if(!PD || busy() || !enl()) return; var k=PD; PD=0; press(k); 
 function digit(h, k){ var s=scope(h), m=s.filter(function(i){ return i!==h && A.num(i)===String(k); }), to=m.length===1 ? m[0] : s[k-1]; if(to && to!==h) go(to); }
 /* one level up: a moon to its planet; a planet or sun goes home; the whole system after that */
 function climb(){ var h=A.home(), f=window._focusedNodeId; if(f && !A.ov()){ var u=up(h); if(u && A.up(u)) go(u); else A.step('let'); } else A.step('ov'); }   /* (a moon or satellite climbs to the one it belongs to; a planet, whose parent is a sun, or a sun lets go as Esc always did) */
-function press(k){ if(/^Arrow/.test(k)) step(k==='ArrowRight' || k==='ArrowDown' ? 1 : -1); else digit(A.home(), +k); }
+var FROM={};            /* (the child you climbed from: Down goes back to it) */
+function rise(h){ var u=A.up(h); if(u){ FROM[u]=h; go(u); } else A.step('let'); }
+function dive(h){ var k=A.kids(h); if(k.length) go(k.indexOf(FROM[h])<0 ? k[0] : FROM[h]); }
+function press(k){ var h=A.home(); if(k==='ArrowUp') rise(h); else if(k==='ArrowDown') dive(h); else if(/^Arrow/.test(k)) step(k==='ArrowRight' ? 1 : -1); else digit(h, +k); }
 function step(d){ var h=enl(); if(!h) return false; var to=round(h, d); if(to) go(to); return true; }
 window.addEventListener('keydown', function(e){
   if(!live() || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -311,13 +315,13 @@ window.addEventListener('keydown', function(e){
   e.preventDefault(); e.stopImmediatePropagation(); setTimeout(function(){ tick(true); }, 30);
 }, true);
 /* a scroll with a body enlarged: one step round what is beside it per flick (it waits for the wheel to rest) */
-var WQ=0, WA=0, WT=0;
+var WQ=0, WA=0, WT=0, WV=0;
 window.addEventListener('wheel', function(e){
   if(!live() || e.ctrlKey || !enl()) return; var c=document.getElementById('canvas'); if(!c || !c.contains(e.target)) return;
   if(window._altoWheelOwn && window._altoWheelOwn(e)) return;
   e.preventDefault(); e.stopImmediatePropagation(); clearTimeout(WT); WT=setTimeout(function(){ WQ=0; WA=0; }, 260);
-  if(WQ) return; WA+=(Math.abs(e.deltaY)>=Math.abs(e.deltaX) ? e.deltaY : e.deltaX)*(e.deltaMode ? 40 : 1);
-  if(Math.abs(WA)>=24){ WQ=1; step(WA>0 ? 1 : -1); setTimeout(function(){ tick(true); }, 30); }
+  if(WQ) return; WV=Math.abs(e.deltaY)>=Math.abs(e.deltaX); WA+=(WV ? e.deltaY : e.deltaX)*(e.deltaMode ? 40 : 1);
+  if(Math.abs(WA)>=24){ WQ=1; press(WV ? (WA>0 ? 'ArrowUp' : 'ArrowDown') : (WA>0 ? 'ArrowRight' : 'ArrowLeft')); setTimeout(function(){ tick(true); }, 30); }
 }, {capture:true, passive:false});
 window._altoNavOpt={get:function(){ return 'final'; }, sheet:sheet, scope:function(h){ return scope(h || A.home()); }, next:function(h){ return next(h || A.home()); }, up:function(h){ return up(h || A.home()); }};
 })();

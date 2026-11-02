@@ -280,3 +280,46 @@ def test_the_minimap_stays_put_across_bodies_and_style_switches(browser, page, s
     pg.context.close()
     assert not errs, errs
     assert all(s[1:] == spots[0][1:] for s in spots), spots
+
+
+# ── Luke, 2026-11-01: "key navigation will not get me out of orbit between satellites/asteroids back up to the moon/planet.
+#    As in outline mode, side to side are other children, down is further down children, up is parent", and the same for
+#    two-finger scrolling: one outline model at every level, in every System style ──
+DEEP = "u2-p2-m2-s1"                      # a satellite: its moon u2-p2-m2 (two satellites), its planet u2-p2, its sun u2
+
+
+def _go(pg, how, up=False, down=False, side=0):
+    """One move by keys, or by a trackpad-style wheel (out = up, in = down, sideways = side to side)."""
+    if how == "keys":
+        pg.keyboard.press("ArrowUp" if up else "ArrowDown" if down else "ArrowRight" if side > 0 else "ArrowLeft")
+    else:
+        pg.mouse.move(300, 300)
+        pg.mouse.wheel(*((0, 120) if up else (0, -120) if down else (120 * side, 0)))
+
+
+@pytest.mark.parametrize("how", ["keys", "wheel"])
+@pytest.mark.parametrize("style", STYLES)
+def test_the_outline_is_walked_from_the_deepest_level_to_the_top_and_back_down(browser, page, style, how):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    _at(pg, at=DEEP, style=style)
+    h = _hood(pg, DEEP)
+    assert h["up"] == "u2-p2-m2" and h["sibs"] == [DEEP, "u2-p2-m2-s2"] and not h["kids"], h
+    _go(pg, how, side=1)
+    _arrive(pg, "u2-p2-m2-s2")                              # side to side: the same moon's other satellite
+    _go(pg, how, side=1)
+    _arrive(pg, DEEP)                                       # (round, never stuck at the end of the row)
+    for want in ("u2-p2-m2", "u2-p2", "u2"):                # up: the parent, at every level, to the sun
+        _go(pg, how, up=True)
+        _arrive(pg, want)
+        pg.wait_for_timeout(300)
+    _go(pg, how, up=True)                                   # the sun has no parent: out of orbit, not stuck
+    pg.wait_for_function("() => !window._focusedNodeId && !window._altoSolarLock.riding() && !window._altoSolarFlight()", timeout=9000)
+    _at(pg, at="u2-p2-m2", style=style)
+    for want in (DEEP,):                                    # down: the child it was left from
+        _go(pg, how, down=True)
+        _arrive(pg, want)
+    _go(pg, how, down=True)                                 # a satellite holds nothing: it stays
+    pg.wait_for_timeout(600)
+    assert pg.evaluate("() => window._focusedNodeId") == DEEP
+    pg.context.close()
+    assert not errs, errs

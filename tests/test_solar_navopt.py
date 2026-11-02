@@ -21,7 +21,7 @@ from test_solar_draw import SMALL, SMALL_LINKS, _open, browser, solar_doc  # noq
 
 
 def test_the_control_stays_small_and_the_card_is_gone():
-    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 10100   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26; + its drag-to-resize handle, 2026-11-01: 9600 -> 10100)
+    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 10300   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26; + its drag-to-resize handle, 2026-11-01: 9600 -> 10100)
     for gone in (r"nvo-[bcd](?![\w-])", "nvo-pick", "data-nav", "Same level:", "Inside:", r"\.nv-r", r"\.nv-hd"):
         assert not re.search(gone, NAVOPT_JS + NAVOPT_CSS), gone
 
@@ -90,25 +90,28 @@ def test_back_is_the_parent_and_next_the_next_at_this_level(browser, page):
     assert not errs, errs
 
 
-def test_arrows_and_scroll_only_go_round_what_is_beside_it(browser, page):
+def test_arrows_and_scroll_follow_the_outline(browser, page):
+    """Luke, 2026-11-01: "side to side are other children, down is further down children, up is parent"."""
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     _at(pg)
     k = _hood(pg)["kids"]
     assert len(k) == 2
+    pg.keyboard.press("ArrowDown")
+    _arrive(pg, k[0])                                                              # down: into its children
     pg.keyboard.press("ArrowRight")
-    _arrive(pg, k[0])                                                              # the planet: round its moons
+    _arrive(pg, k[1])                                                              # side to side: the same parent's other children
     pg.keyboard.press("ArrowRight")
-    _arrive(pg, k[1])                                                              # a moon: still round those moons
-    pg.keyboard.press("ArrowRight")
-    _arrive(pg, k[0])                                                              # round, never out to another planet
+    _arrive(pg, k[0])                                                              # (round, never out to another planet's)
     pg.keyboard.press("ArrowUp")
-    _arrive(pg, k[1])                                                              # (no arrow goes up a level)
+    _arrive(pg, AT)                                                                # up: the parent
+    pg.keyboard.press("ArrowRight")
+    _arrive(pg, "u1-p2")                                                           # a planet: the sun's other planets
     pg.mouse.move(300, 300)
     pg.mouse.wheel(0, 120)
-    _arrive(pg, k[0])                                                              # a scroll: the same round
+    _arrive(pg, "u1")                                                              # a scroll out: up to the parent
     pg.wait_for_timeout(400)
     pg.mouse.wheel(0, -120)
-    _arrive(pg, k[1])
+    _arrive(pg, "u1-p2")                                                           # a scroll in: back down to the one it came from
     pg.context.close()
     assert not errs, errs
 
