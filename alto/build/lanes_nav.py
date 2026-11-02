@@ -160,6 +160,7 @@ function ofChar(id, c){
 var _S=null;       // cached per call chain: {ids, at}
 function stops(){
   var o=pageOrder(), c=picks(), lg=legacy();
+  if(!c.length && _ln && lineDef(_ln)) c=[_ln];       // a line reached with a held or pressed ↑ / ↓: the steps and the travel go along it
   var ids=o.filter(function(id){ if(!live(id)) return false; if(c.length) return c.some(function(k){ return ofChar(id,k); }); return lg || (L.ev[id].l||'main')==='main'; });
   if(!ids.length) ids=o.filter(live);
   var at={}; o.forEach(function(id,i){ at[id]=i; });
@@ -489,17 +490,50 @@ document.addEventListener('keydown', function(e){
   if(d==null) return;
   if(_ov){ e.preventDefault(); return; }
   e.preventDefault();
-  if(d==='first'){ step(stops().ids[0],'key'); return; }
-  if(d==='last'){ var S=stops().ids; step(S[S.length-1],'key'); return; }
-  if(d==='n'||d==='s'){
-    /* up and down: the nearest event on the next line over (lanes.py) */
-    if(_busy){ return; }
-    var from=current(), nx=from && _navPrev ? _navPrev(from, d) : null;
-    if(nx) step(nx,'key');
-    return;
+  var kk=(!sh && e.isTrusted) ? KEYS[k] : null;
+  if(kk){                                       // a real arrow key: a quick press steps, a held one travels (below)
+    if(e.repeat) return;
+    var other=K.l||K.r||K.u||K.d; K[kk]=performance.now(); holdStart();
+    if(other && !KT) return;                     // the second key of a combo (↑ → …): the first one's step stands
   }
+  if(d==='first'){ lnReset(); step(stops().ids[0],'key'); return; }
+  if(d==='last'){ lnReset(); var S=stops().ids; step(S[S.length-1],'key'); return; }
+  if(d==='n'||d==='s'){ hop(d); return; }
   step(d,'key',e.repeat);
 }, true);
+/* held arrows (Luke, 2026-11-01: "a quick press of one of the arrow keys should navigate you to the next node in the direction you
+   pressed, but a long press should smoothly navigate you along the timeline in that direction … if you long press up, down, or up and
+   right … it can jump you to other lines … and smoothly navigate you that way"). A press is a step (above). Held HOLD ms, ← / →
+   become travel along the line the camera is on (the wheel's own travel, ramped up to VMAX px/s, so the magnetic settle lands it on an
+   event when the key goes up); ↑ / ↓ alone go on to the next line over each time the last one lands; ↑ / ↓ with ← / → hop one line
+   and travel along it. Only real key events (isTrusted): a script's bare keydowns stay presses. */
+var HOLD=260, VMAX=1500, RAMP=450, HOPGAP=120, KEYS={ArrowRight:'r', ArrowLeft:'l', ArrowUp:'u', ArrowDown:'d'};
+var K={l:0, r:0, u:0, d:0}, KT=0, _kraf=0, _kl=0, _khop=0, _ln=null;
+function lnReset(){ if(_ln){ _ln=null; _S=null; stopLoop(); M.pth=null; } }
+/* the nearest event on the next line over, and that line becomes the one the travel follows */
+function hop(d){
+  if(_busy) return false;
+  var from=current(), nx=from && _navPrev ? _navPrev(from, d) : null; if(!nx) return false;
+  var lid=(L.ev[nx] && L.ev[nx].l) || 'main', nl=(lid==='main' || !lineDef(lid)) ? null : lid;
+  if(nl!==_ln){ _ln=nl; _S=null; stopLoop(); M.pth=null; }
+  step(nx,'key'); return true;
+}
+function holdStart(){ if(!_kraf){ _kl=0; _kraf=requestAnimationFrame(holdTick); } }
+function holdClear(){ K.l=K.r=K.u=K.d=0; KT=0; if(_kraf){ cancelAnimationFrame(_kraf); _kraf=0; } }
+function holdTick(now){
+  _kraf=0;
+  if(!K.l && !K.r && !K.u && !K.d){ KT=0; return; }
+  if(!on() || _ov || window._focusedNodeId || busyElsewhere()){ holdClear(); return; }
+  var h=(K.r?1:0)-(K.l?1:0), v=(K.d?1:0)-(K.u?1:0), ht=h>0 ? K.r : K.l, vt=v>0 ? K.d : K.u;
+  if(v && !h && now-vt>=HOLD && !_busy && now-_khop>=HOPGAP){ if(hop(v>0?'s':'n')) _khop=now; }
+  if(h && now-ht>=HOLD){
+    if(!KT) KT=now;
+    if(!_busy){ var dt=_kl ? Math.min(50, now-_kl) : 16; addTravel(h*VMAX*Math.min(1,(now-KT)/RAMP)*dt/1000); }
+  } else if(!h) KT=0;
+  _kl=now; _kraf=requestAnimationFrame(holdTick);
+}
+document.addEventListener('keyup', function(e){ var kk=KEYS[e.key]; if(!kk) return; K[kk]=0; if(!K.l && !K.r) KT=0; }, true);
+window.addEventListener('blur', holdClear);
 /* Tab onto a card: the camera goes to it the same way (not the browser's jump) */
 var _tabAt=null;
 document.addEventListener('keydown', function(e){ if(e.key==='Tab'){ var c=cv(); _tabAt=c?[c.scrollLeft,c.scrollTop,performance.now()]:null; } }, true);
@@ -534,6 +568,7 @@ function onWheel(e){
   if(window._focusedNodeId) return;                         // an enlarged card: the engine's swipe hops (along the stops)
   if(_ov){ ovWheel(e); return; }
   if(busyElsewhere()) return;
+  lnReset();
   e.preventDefault();                                       // the camera stays on the path: no free scroll
   if(M.drag) return;
   var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, now=performance.now();
@@ -583,7 +618,7 @@ document.addEventListener('pointerdown', function(e){
   /* the background (a finger or a pen may set off from a card too: a tap is still a tap) */
   var bg=!(e.target.closest && e.target.closest((e.pointerType==='mouse' ? '.node-card,' : '')+'.lanes-tag,button,a,input,textarea,select,[contenteditable="true"]'));
   if(!bg){ if(M.raf){ prepare(true); M.input=performance.now(); } return; }   // a card: held still; its click enlarges it, or the settle goes on
-  prepare(true);
+  lnReset(); prepare(true);
   DR=M.drag={id:e.pointerId, x:e.clientX, y:e.clientY, lx:e.clientX, ly:e.clientY, moved:false, ax:null, smp:[]};
   M.input=performance.now(); wake();
 }, true);
