@@ -234,18 +234,20 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-card.wp-hint,#wpal-root .wp-enl.wp-hint{outline:0;}
 #wpal-root .wp-mm{position:absolute;right:16px;bottom:66px;padding:5px;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;cursor:pointer;touch-action:none;}
 #wpal-root .wp-mm.on{opacity:1;visibility:visible;transition:opacity .28s ease;}
-#wpal-root .wp-mm svg{display:block;width:176px;height:86px;}
+#wpal-root .wp-mm svg{display:block;width:calc(var(--mh,86px)*2.05);height:var(--mh,86px);}
+#wpal-root .wp-mm .rz{position:absolute;left:0;top:0;width:24px;height:24px;cursor:nwse-resize;touch-action:none;z-index:2;}
+#wpal-root .wp-mm .rz::before{content:"";position:absolute;left:5px;top:5px;width:14px;height:14px;border:solid var(--w-text);border-width:2px 0 0 2px;border-radius:7px 0 0 0;}
 #wpal-root .wp-mm .c{fill:color-mix(in srgb,var(--w-text) 16%,transparent);stroke:none;}
 #wpal-root .wp-mm .c.u{fill:color-mix(in srgb,var(--u) 55%,transparent);}
 #wpal-root .wp-mm circle{fill:var(--u);stroke:none;}
 #wpal-root .wp-mm circle.h{fill:none;stroke:var(--w-text);stroke-width:1.6px;vector-effect:non-scaling-stroke;}
 #wpal-root .wp-mm rect{fill:var(--accent,#5b6cff);fill-opacity:.1;stroke:var(--accent,#5b6cff);stroke-width:1.4px;vector-effect:non-scaling-stroke;cursor:move;}
-#wpal-root .wp-mmtip{position:absolute;right:16px;bottom:168px;padding:3px 9px;font-size:11.5px;border-radius:8px;pointer-events:none;}
+#wpal-root .wp-mmtip{position:absolute;right:16px;bottom:calc(var(--mh,86px) + 82px);padding:3px 9px;font-size:11.5px;border-radius:8px;pointer-events:none;}
 #wpal-root .wp-help{right:16px;top:64px;width:min(330px,calc(100% - 32px));display:block;white-space:normal;line-height:1.5;font-size:12.5px;padding:12px 14px;}
 #wpal-root .wp-help kbd{font:inherit;font-weight:700;border:1px solid var(--w-edge);border-radius:5px;padding:0 5px;}
-#wpal-root.wp-mmon .wp-list{bottom:178px;}
+#wpal-root.wp-mmon .wp-list{bottom:calc(var(--mh,86px) + 92px);}
 /* the key opens above its toggle in the bottom-right row (key_toggle.py, Luke's pick A): while it is open the minimap beside it steps aside */
-html:has(.key-pop.wk.open) #wpal-root .wp-mm{opacity:0;visibility:hidden;pointer-events:none;}
+html:has(.key-pop.wk.open,#summary-wrap.open) #wpal-root .wp-mm{opacity:0;visibility:hidden;pointer-events:none;}
 html:is(.mobile,.alto-editing) #wpal-root :is(.wp-nav,.wp-mm,.wp-mmtip,.wp-help){display:none !important;}
 html.alto-retro #wpal-root :is(.wp-hk,.wp-help kbd,.wp-mm):not(#_){border-radius:0;}
 html.alto-retro #wpal-root .wp-nav .wp-btn.r:not(#_){border:0;}html.alto-retro #wpal-root .wp-nav .wp-btn.r.on:not(#_){background:#d9ae55;color:#000;}
@@ -912,7 +914,15 @@ function navChrome(){
   S.mmSvg=el('svg',{viewBox:'-1010 -497 2020 994'},mm); S.mmLand=el('g',null,S.mmSvg); S.mmPins=el('g',null,S.mmSvg);
   S.mmHere=el('circle',{'class':'h',r:26},S.mmSvg); S.mmBox=el('rect',null,S.mmSvg);
   S.mmTip=h('div',{'class':'wp-bar wp-mmtip',hidden:''},S.root);
-  mmInput(); }
+  mmInput(); mmSize(mm); }
+// the minimap's size is the user's to set: drag its corner (kept per viewer; a double-click is the usual size)
+function mmSize(mm){ var rz=h('i',{'class':'rz',title:'Drag to resize'},mm), HK='alto-world-map-h', d=null, v=0;
+  function set(n){ S.root.style.setProperty('--mh',n+'px'); mmBox(); }
+  try{ var k=+localStorage.getItem(HK); if(k>=60) set(k); }catch(x){}
+  rz.addEventListener('pointerdown',function(e){ if(e.button>0) return; e.stopPropagation(); e.preventDefault(); d=[e.clientX,e.clientY,S.mmSvg.getBoundingClientRect().height]; v=0; try{ rz.setPointerCapture(e.pointerId); }catch(x){} });
+  rz.addEventListener('pointermove',function(e){ if(!d) return; v=Math.round(Math.max(60,Math.min(300,(S.root.clientWidth-80)/2.05,d[2]-((e.clientY-d[1])+(e.clientX-d[0])/2.05)/2))); set(v); });
+  rz.addEventListener('pointerup',function(){ if(d&&v){ try{ localStorage.setItem(HK,v); }catch(x){} } d=null; });
+  rz.addEventListener('dblclick',function(){ S.root.style.removeProperty('--mh'); try{ localStorage.removeItem(HK); }catch(x){} mmBox(); }); }
 function mmDraw(){ var L=S.mmLand, used=D().used||{}; while(L.firstChild) L.removeChild(L.firstChild);
   var oc=one(); if(oc){ var bb=S.bb[oc], w=bb[2]-bb[0], hh=bb[3]-bb[1], m=Math.max(w,hh*2.05)*.08, W=Math.max(w,hh*2.05)+2*m, H=W/2.05;
     S.mmSvg.setAttribute('viewBox',[(bb[0]+bb[2])/2-W/2,(bb[1]+bb[3])/2-H/2,W,H].map(function(v){ return v.toFixed(1); }).join(' ')); S.mmHere.setAttribute('r',(W/80).toFixed(1)); }

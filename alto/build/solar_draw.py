@@ -1569,7 +1569,7 @@ function camGet(){
 function camTell(){ if(!camFns.length || camRaf) return;
   camRaf=requestAnimationFrame(function(){ camRaf=0; var g=camGet(); camFns.slice().forEach(function(f){ try{ f(g); }catch(e){} }); }); }
 window._altoSolarCam={
-  get:camGet,
+  get:camGet, whole:omin,       /* (whole(): the scale the whole system fits at, with a margin) */
   set:function(cx, cy, scale){
     var c=cvs(); if(!c || !ready || !desk()) return null;
     scale=Math.min(1, Math.max(OVMIN, scale==null ? 1 : +scale));
@@ -1871,7 +1871,7 @@ window.addEventListener('keydown', function(e){
 window._altoSolarLock={get:function(){ return false; }, set:function(){ return false; }, ways:function(id){ return tWays(id || home()); }, spokes:function(id){ return joined(id || home()); }, step:tStep, order:tOrder, route:tRoute,
   riding:function(){ return RD ? {from:RD.path[0], to:RD.dest, path:RD.path.slice(), ms:RD.ms} : null; }};
 /* the nav options' handles (solar_navopt.py): where you are, its neighbours, a ride, the whole system, a route drawn */
-window._altoSolarNavApi={ok:tourOK, home:home, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
+window._altoSolarNavApi={ok:tourOK, home:home, num:function(id){ var b=B[id], f=b && b.c && b.c.querySelector('.sol-face>b'); return f ? f.textContent.trim() : ''; }, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
   ov:function(){ return !!(OV && TOV); }, show:function(id){ tShow(id || null); }, geo:function(){ var g=window._altoSolarGeo(); return g.bodies || g; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
