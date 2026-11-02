@@ -224,6 +224,28 @@ def test_arrow_keys_ride_the_elevator_when_the_page_cannot_scroll_further(browse
     assert not pg.errs
 
 
+def test_a_floor_key_pressed_as_the_car_lands_is_not_lost_down_or_up(browser, page_file):
+    """Luke, 2026-11-01: "sometimes the down key doesn't take you down the elevator". A key pressed while the doors were still
+    opening after a ride was thrown away; it now waits for the doors and goes."""
+    pg = _open(browser, page_file)
+    _detail(pg, "alpha-2")
+    pg.keyboard.press("ArrowDown")
+    pg.wait_for_function("id => window._currentDetailId === id", arg="alpha-1", timeout=6000)
+    pg.wait_for_timeout(100)                         # the new floor is showing, the doors are still opening
+    pg.keyboard.press("ArrowDown")
+    _wait_at(pg, "alpha")
+    pg.keyboard.press("ArrowUp")
+    pg.wait_for_function("id => window._currentDetailId === id", arg="alpha-1", timeout=6000)
+    pg.wait_for_timeout(100)
+    pg.keyboard.press("ArrowUp")
+    _wait_at(pg, "alpha-2")
+    pg.keyboard.press("ArrowDown")                   # two quick presses mid-ride are one step, not a runaway
+    pg.keyboard.press("ArrowDown")
+    pg.wait_for_timeout(4000)
+    assert _at(pg) in ("alpha-1", "alpha")
+    assert not pg.errs
+
+
 def test_the_page_scrolls_first_and_a_key_goes_through_a_floor_only_at_the_edge(browser, page_file):
     pg = _open(browser, page_file)
     _detail(pg, "alpha-1")
