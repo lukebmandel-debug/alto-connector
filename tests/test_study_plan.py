@@ -42,18 +42,19 @@ PLAN = _items(("2026-11-05", "you marked 4 cards Still learning"), ("2026-11-07"
 
 # ── the flag ───────────────────────────────────────────────────────────
 
-def test_a_page_without_a_plan_carries_only_the_invitation():
+def test_a_page_without_a_plan_carries_nothing_of_the_feature():
     base = _build("outline")
     assert _build("outline", plan={}) == base
     assert _build("outline", plan={"v": 1, "items": []}) == base
     assert _build("outline", plan={"v": 1, "items": [dict(node="not-a-node", day="2026-11-05", why="x", signal="marks")]}) == base
-    assert 'id="alto-sp-data"' not in base and 'id="alto-sp"' in base               # (no data: the script draws only the tab "Make a study plan")
+    assert 'id="alto-sp-data"' not in base and 'id="alto-sp"' not in base and "alto-sp-css" not in base and "sp-chip" not in base
+    # (Luke L-1101-222655: the study plan is offered on the homepage card and in the interview only; a plan-less page is byte-identical to before)
 
 
 def test_a_plan_adds_only_its_own_block():
     page = _build("outline", plan=PLAN)
     assert page.count('id="alto-sp-data"') == 1 and page.count('id="alto-sp"') == 1 and page.count('id="alto-sp-css"') == 1
-    assert len(page) - len(_build("outline")) < 1500                         # (only the data: the script is the one the invitation already carries)
+    assert len(page) - len(_build("outline")) < 40000                        # (data + the plan's style and script)
     assert "alto-hl-" in re.search(r"var KEY = '([^']*)-st'", page).group(0)
     assert "onload" not in sp.JS and "filter:" not in sp.CSS
 
@@ -178,7 +179,7 @@ def test_the_date_moving_on_changes_the_rings_and_a_tick_is_the_readers_own(brow
     st = pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/-st$/.test(k))))")
     assert list(st["s"]["__plan__"]["k"].values())[0][0] == 1 and st["v"] == 1
     got = pg.evaluate(CLASSES)
-    assert got["acceptance"][0] == "sp-done" and got["acceptance"][1] == "✓"
+    assert got["acceptance"][0] == "sp-done" and got["acceptance"][1] == "✓ Done"
     pg.reload()
     pg.wait_for_timeout(800)
     assert pg.evaluate(CLASSES)["acceptance"][0] == "sp-done"                          # kept
@@ -194,10 +195,10 @@ def test_go_to_node_and_make_my_plan(browser, site):
     pg.click("#sp-chip")
     pg.click("#sp-sheet .sp-go >> nth=0")
     assert pg.evaluate("document.querySelector('.node.sp-go') !== null")
-    pg.click("#sp-sheet .sp-mk")
+    pg.click("#sp-sheet .sp-btn:not(.o)")
     assert "set_study_plan" in pg.evaluate("document.querySelector('#sp-sheet textarea').value")
     pg.evaluate("window._altoStudyPlanRoutes={open:function(){window.__routed=1}}")
-    pg.click("#sp-sheet .sp-mk")
+    pg.click("#sp-sheet .sp-btn:not(.o)")
     assert pg.evaluate("window.__routed") == 1
     assert not errs, errs
     ctx.close()
@@ -218,14 +219,10 @@ def test_a_phone_draws_nothing_and_print_removes_the_rings(browser, site):
     ctx.close()
 
 
-def test_the_tab_on_the_rail_invites_without_a_plan_and_counts_with_one(browser, site):
+def test_the_tab_on_the_rail_counts_with_a_plan_and_a_page_without_one_has_none(browser, site):
     ctx, pg, errs = _open(browser, site + "/n.html")
-    assert pg.evaluate("document.querySelector('#notes-panel ~ #sp-row, #sp-row') !== null && document.getElementById('sp-row').parentNode.id === 'notes-panel'")   # (and a row in the notes panel too)
-    assert pg.evaluate("document.getElementById('sp-chip').textContent") == "Make a study plan"
-    assert pg.evaluate("getComputedStyle(document.getElementById('sp-chip')).display") == "block"
-    assert pg.evaluate("document.querySelectorAll('.sp-tag').length") == 0
-    pg.click("#sp-chip")
-    assert "No plan yet" in pg.evaluate("document.getElementById('sp-sheet').innerText") and pg.evaluate("document.querySelector('#sp-sheet .sp-tabs')") is None
+    assert pg.evaluate("document.getElementById('sp-chip') === null && document.getElementById('sp-row') === null && document.getElementById('sp-sheet') === null")
+    assert pg.evaluate("document.querySelectorAll('.sp-tag').length") == 0 and pg.evaluate("window._altoStudyPlan") is None
     ctx.close()
     ctx, pg, errs = _open(browser, site + "/o.html")
     assert pg.evaluate("document.getElementById('sp-chip').textContent") == "1 late \u00b7 Today: 2"

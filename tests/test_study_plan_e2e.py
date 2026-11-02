@@ -117,7 +117,7 @@ NODE = "(id) => document.querySelector('#node-' + CSS.escape(id) + ', [data-id=\
 CLASSES = """(id) => { var e = document.querySelector('#node-' + CSS.escape(id)) || document.querySelector('[data-id="' + id + '"]');
   return e ? Array.prototype.filter.call(e.classList, function(c){ return /^sp-/.test(c); }).sort() : null; }"""
 RING = """(id) => { var e = document.querySelector('#node-' + CSS.escape(id)) || document.querySelector('[data-id="' + id + '"]');
-  if(!e) return null; var out = [], els = [e].concat([].slice.call(e.querySelectorAll('*')).slice(0, 8));
+  if(!e) return null; var out = [], els = [e].concat([].slice.call(e.querySelectorAll('*')).filter(function(x){ return !x.classList.contains('sp-tag'); }).slice(0, 8));
   els.forEach(function(x){ var s = getComputedStyle(x); out.push([s.outlineStyle === 'none' ? 'none' : s.outlineStyle + s.outlineWidth, s.boxShadow, s.filter, s.strokeWidth, s.stroke].join('|')); });
   return out.join('~'); }"""
 

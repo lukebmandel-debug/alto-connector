@@ -246,9 +246,12 @@ JS = r"""<script id="alto-sp">
 
 
 def study_plan_block(brief, nodes) -> str:
-    """The plan's data, style and script. With a plan that can be drawn: the rings, the tab and the sheet. Without one: the same script and style with no
-    data, which draws only the tab ("Make a study plan", Luke 2026-11-01: "make it easy for a user to realize this is a feature") and its sheet."""
+    """The plan's data, style and script, ONLY for a page that has a plan that can be drawn: the rings, the day tags, the tab and the sheet.
+    A page without one gets nothing (byte-identical to a build before the feature; Luke 2026-11-01 L-1101-222655: the study plan is offered on the
+    homepage card and in the interview only)."""
     plan = clean(getattr(brief, "study_plan", None), [n.id for n in nodes])
+    if not plan:
+        return ""
     hl = ID_PATTERNS["hl_key"].format(tid=brief.timeline_id)
-    data = ("\n<script id=\"alto-sp-data\">window._ALTO_SP=" + js_json(plan, separators=(",", ":")) + ";</script>") if plan else ""
+    data = "\n<script id=\"alto-sp-data\">window._ALTO_SP=" + js_json(plan, separators=(",", ":")) + ";</script>"
     return data + "\n" + CSS + "\n" + JS.replace("__ALTO_HL_KEY__", hl) + "\n"
