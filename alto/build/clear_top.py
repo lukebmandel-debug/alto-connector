@@ -67,6 +67,10 @@ html.ct-on.ct-chips-off #ct-chips:not(#_){opacity:0;transition:opacity .12s,colo
 html.ct-on.ct-chips-off.ct-near #ct-chips:not(#_),html.ct-on.ct-chips-off #ct-chips:focus-visible:not(#_){opacity:1;}
 }
 @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:reduce){ html.ct-on.ct-chips-off #ct-chips:not(#_){transition:none;} }
+/* its focus ring (Art, 1101-3903-a): 2 px outline, 2 px out (screen pixels: the page runs at zoom .8), never white, on keyboard focus only (a Retro ring is square, as its button is); the + stays shown while it has focus (above) */
+html.ct-on #ct-chips:focus-visible:not(#_){outline:calc(2px / var(--alto-zoom,.8)) solid #5b3fc4 !important;outline-offset:calc(2px / var(--alto-zoom,.8)) !important;}
+html.ct-on.alto-retro #ct-chips:focus-visible:not(#_){outline-color:#d9ae55 !important;border-radius:0 !important;}
+html.ct-on.alto-holo #ct-chips:focus-visible:not(#_){outline-color:#4de8d8 !important;}
 html.mobile #ct-chips,html.detail-open #ct-chips{display:none;}   /* (Luke: detail pages keep their bars, and their chips) */
 @media print{ #ct-chips{display:none !important;} }
 """

@@ -130,8 +130,8 @@ def origin(html):
     srv.shutdown()
 
 
-def _open(browser, origin, width, style):
-    page = browser.new_page(viewport={"width": width, "height": 800})
+def _open(browser, origin, width, style, dpr=1):
+    page = browser.new_page(viewport={"width": width, "height": 800}, device_scale_factor=dpr)
     page.goto(origin + "/index.html")
     try:
         page.wait_for_selector("#bldg-root .bl-head", state="attached", timeout=8000)

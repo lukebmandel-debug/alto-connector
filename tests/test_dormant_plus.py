@@ -64,3 +64,27 @@ def test_the_dormant_plus_shows_only_near_the_pointer_or_on_focus(browser, origi
         assert page.evaluate(STATE)["op"] == 1
     finally:
         page.close()
+
+
+@pytest.mark.parametrize("style,color,square", [("classic", "rgb(91, 63, 196)", False), ("retro", "rgb(217, 174, 85)", True), ("holo", "rgb(77, 232, 216)", False)])
+def test_the_plus_focus_ring_is_art_s_two_pixel_outline_in_the_styles_colour(browser, origin, style, color, square):
+    page = _open(browser, origin, 1280, style, dpr=2)                           # (a Retina screen: WebKit snaps an outline to whole device pixels, so at 1x the page's zoom .8 would cost it half a pixel)
+    try:
+        _wind_in(page)
+        page.mouse.move(700, 600)
+        page.keyboard.press("Tab")
+        page.focus("#ct-chips")
+        page.wait_for_timeout(300)
+        r = page.evaluate("""()=>{const b=document.getElementById('ct-chips'), c=getComputedStyle(b);
+          const z=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--alto-zoom'))||.8;
+          return {op:+c.opacity, w:parseFloat(c.outlineWidth)*z, st:c.outlineStyle, col:c.outlineColor, off:parseFloat(c.outlineOffset)*z, rad:c.borderTopLeftRadius, focus:b.matches(':focus-visible')};}""")
+        assert r["focus"] and r["op"] == 1, r                                     # shown while it has focus
+        assert abs(r["w"] - 2) < .05 and abs(r["off"] - 2) < .05 and (r["st"], r["col"]) == ("solid", color), r   # 2 screen px (the page runs at zoom .8)
+        if style == "retro":
+            assert r["rad"] == "0px", r                                           # Retro's ring is square
+        page.evaluate("document.activeElement.blur()")
+        page.mouse.move(700, 600)
+        page.wait_for_timeout(300)
+        assert page.evaluate("getComputedStyle(document.getElementById('ct-chips')).outlineStyle") == "none"   # no ring without keyboard focus
+    finally:
+        page.close()
