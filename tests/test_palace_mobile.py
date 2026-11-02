@@ -39,7 +39,7 @@ def test_the_planner_reuses_the_transit_graph_and_its_costs():
     js = palace_directions.DIR_JS
     assert "window._palTRx" in js and "TX.dijk(" in js and "route(A.node" in js            # transit + walk-only alternative
     from alto.build import palace_transit_js as pj
-    assert "var WALK=1, RIDE=.2, BOARD=120, XFER=70;" in pj.TRANSIT_JS and "window._palTRx=" in pj.TRANSIT_JS
+    assert "var WALK=1, RIDE=.2, BOARD=120, XFER=70," in pj.TRANSIT_JS and "window._palTRx=" in pj.TRANSIT_JS
 
 
 def test_the_phone_map_asks_for_nothing_the_page_would_scroll():
