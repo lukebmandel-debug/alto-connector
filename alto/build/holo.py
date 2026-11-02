@@ -72,6 +72,8 @@ HOLO_CSS = r"""
   X:is(.ct-on,.alto-home.alto-clear-top) :is(#title-text,.nav-group-label):not(#_):not(#__){background:var(--ho-bg) !important;box-shadow:0 0 0 6px var(--ho-bg) !important;border-radius:0 !important;}
   /* a group label's plate stays inside the gap between chips (the row's column gap is 5px): a 6px plate cut a corner off the chip on each side of ELEMENT (Luke, 2026-11-01) */
   X:is(.ct-on,.alto-home.alto-clear-top) #nav .nav-group-label:not(#_):not(#__){box-shadow:0 0 0 4px var(--ho-bg) !important;}
+  /* Back stays on the clef's line: Retro lowers the clef, name and wordmark 8px and Back with them (retro.py), but this style leaves those three where Classic has them, so the carried 7.6px left Back lower than the name and wordmark and put its bottom edge on the header line (Luke, 2026-11-01) */
+  X:not(.mobile) #desk-back:not(#_):not(#__){translate:none;}
   /* no unit-colour sheet, like Retro: clear_top.py's sheet reaching up past the window's top (#glass-slab's 1200px top border) is undone */
   X.alto-clear-top #glass-slab:not(#_):not(#__){margin-top:0 !important;border-top-width:0 !important;}
   X #title-text:not(#_){color:var(--ho-tx) !important;font-weight:500 !important;}

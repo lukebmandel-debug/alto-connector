@@ -312,3 +312,25 @@ def test_holographic_backgrounds_are_offered_only_in_holographic(browser, site):
     assert pg.evaluate(heads).count("Holographic") == 1
     assert not errors, errors
     ctx.close()
+
+
+@pytest.mark.parametrize("width", [1440, 1024])
+def test_back_sits_on_the_clef_line_and_clear_of_the_header_line(browser, site, width):
+    """Luke, 2026-11-01 (Holographic CASES index): Back sat lower than the name and wordmark with its bottom edge on the header line. Retro lowers
+    the whole header row 8px and Back with it; Holographic keeps the row where Classic has it, so Back must not carry the shift."""
+    ctx = browser.new_context(viewport={"width": width, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(500)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(400)
+    pg.evaluate("showDetail('node', NODE_ORDER[0])")
+    pg.wait_for_timeout(900)
+    r = pg.evaluate("""()=>{const q=s=>document.querySelector(s).getBoundingClientRect(), b=q('#desk-back'), m=q('#title-bar .brand-mark'), t=q('#title-bar'), w=q('#title-bar .brand-word');
+      return {bc:b.top+b.height/2, mc:m.top+m.height/2, wc:w.top+w.height/2, bb:b.bottom, barb:t.bottom, on:document.documentElement.classList.contains('alto-holo'),
+              disp:getComputedStyle(document.getElementById('desk-back')).display}}""")
+    assert r["on"] and r["disp"] != "none", r
+    assert abs(r["bc"] - r["mc"]) < 0.6 and abs(r["bc"] - r["wc"]) < 0.6, r
+    assert r["bb"] <= r["barb"] - 4, r
+    ctx.close()
