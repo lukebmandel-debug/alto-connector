@@ -122,6 +122,24 @@ def _open(browser, url, w=1440, h=900, mobile=False, init=NOW):
 
 
 @pytest.mark.parametrize("page", ["o.html", "s.html"])
+def test_the_day_tags_show_and_the_rings_and_fills_are_readable(browser, site, page):
+    """Art's e5aef87 note: tags were display:none; a78bfa fills were ~2.5:1; today solid 3px, soon dashed in full colour, late red."""
+    ctx, pg, errs = _open(browser, site + "/" + page)
+    st = pg.evaluate("""()=>{const q=s=>getComputedStyle(document.querySelector(s));
+      return {tag:q('#node-formation .sp-tag').display, today:[q('#node-formation > .node-card').outlineStyle,q('#node-formation > .node-card').outlineWidth],
+        soon:[q('#node-offer > .node-card').outlineStyle,q('#node-offer > .node-card').outlineWidth,q('#node-offer > .node-card').outlineColor,q('#node-formation > .node-card').outlineColor],
+        late:[q('#node-acceptance > .node-card').outlineStyle,q('#node-acceptance > .node-card').outlineWidth], fill:q('#node-formation .sp-tag').backgroundColor}}""")
+    assert st["tag"] != "none"
+    assert st["today"] == ["solid", "3px"] and st["late"] == ["solid", "3px"]
+    assert st["soon"][0] == "dashed" and st["soon"][1] == "2px" and st["soon"][2] == st["soon"][3]       # full colour, same as today's
+    assert st["fill"] == "rgb(91, 63, 196)"                                                               # #5b3fc4
+    pg.evaluate("document.documentElement.classList.add('dark')")
+    assert pg.evaluate("getComputedStyle(document.querySelector('#node-formation .sp-tag')).backgroundColor") == "rgb(183, 166, 255)"
+    assert not errs, errs
+    ctx.close()
+
+
+@pytest.mark.parametrize("page", ["o.html", "s.html"])
 def test_a_planned_node_wears_one_class_by_the_readers_date(browser, site, page):
     ctx, pg, errs = _open(browser, site + "/" + page)
     got = pg.evaluate(CLASSES)

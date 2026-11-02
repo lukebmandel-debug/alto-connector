@@ -60,29 +60,31 @@ def clean(plan, node_ids) -> dict:
 
 CSS = r"""<style id="alto-sp-css">
   /* a planned node: one class by the reader's date, drawn as Art's look page shows (study_plan.py). A computer's page only: a phone and its whole view draw nothing */
-  html{--sp-late:#b42318;--sp-ok:#1f6b3a;} html.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;}
-  html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{outline:2px solid var(--accent);outline-offset:4px;box-shadow:0 0 0 9px color-mix(in srgb,var(--accent) 20%,transparent);}
-  html:not(.mobile):not(.phone-whole) .node.sp-soon > .node-card{outline:1.5px solid var(--accent);outline-offset:4px;outline-color:color-mix(in srgb,var(--accent) 50%,transparent);}
+  html{--sp-late:#b42318;--sp-ok:#1f6b3a;--sp-acc:#5b3fc4;} html.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;--sp-acc:#b7a6ff;}
+  /* Retro and Holographic dress the page in their own accent (gold, the theme's glow): the plan follows it there, as Art's frames show */
+  html.alto-holo,html.alto-retro{--sp-acc:var(--accent);}
+  html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{outline:3px solid var(--sp-acc);outline-offset:4px;box-shadow:0 0 0 9px color-mix(in srgb,var(--sp-acc) 20%,transparent);}
+  html:not(.mobile):not(.phone-whole) .node.sp-soon > .node-card{outline:2px dashed var(--sp-acc);outline-offset:4px;}
   html:not(.mobile):not(.phone-whole) .node.sp-late > .node-card{outline:3px solid var(--sp-late);outline-offset:4px;}
   html:not(.mobile):not(.phone-whole) .node.sp-done > .node-card{opacity:.66;}
-  html:not(.mobile):not(.phone-whole) .node .sp-tag{position:absolute;top:-11px;right:10px;z-index:3;padding:5px 8px;font:700 11px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
-    border-radius:6px;background:var(--accent);color:var(--bg);pointer-events:none;}
-  html:not(.mobile):not(.phone-whole) .node.sp-soon .sp-tag{background:transparent;color:var(--text);border:1px solid var(--accent);border-color:color-mix(in srgb,var(--accent) 70%,transparent);}
+  html:not(.mobile):not(.phone-whole) .node .sp-tag{display:block;position:absolute;top:-11px;right:10px;z-index:3;padding:5px 8px;font:700 11px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
+    border-radius:6px;background:var(--sp-acc);color:var(--bg);pointer-events:none;}
+  html:not(.mobile):not(.phone-whole) .node.sp-soon .sp-tag{background:transparent;color:var(--text);border:1px solid var(--sp-acc);}
   html:not(.mobile):not(.phone-whole) .node.sp-late .sp-tag{background:var(--sp-late);color:var(--bg);}
   html:not(.mobile):not(.phone-whole) .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
-  html:not(.mobile):not(.phone-whole) .node.sp-go > .node-card{outline:3px solid var(--accent);outline-offset:8px;}
+  html:not(.mobile):not(.phone-whole) .node.sp-go > .node-card{outline:3px solid var(--sp-acc);outline-offset:8px;}
   .sp-tag{display:none;}
   /* the entry: a tab on the right rail under Overview, seen without opening the notes panel; its words say what a click does */
   #sp-chip{display:none;}
   html:not(.mobile):not(.phone-whole) #sp-chip{display:block;position:fixed;right:0;top:calc(50% + 84px);z-index:395;width:34px;box-sizing:border-box;padding:12px 0;writing-mode:vertical-rl;
-    background:var(--surface);border:1px solid var(--border);border-right:none;color:var(--accent);border-radius:6px 0 0 6px;cursor:pointer;font:inherit;font-size:11px;letter-spacing:.08em;white-space:nowrap;}
-  html:not(.mobile):not(.phone-whole) #sp-chip:hover,html:not(.mobile):not(.phone-whole) #sp-chip.open{color:var(--text);border-color:var(--accent);}
+    background:var(--surface);border:1px solid var(--border);border-right:none;color:var(--sp-acc);border-radius:6px 0 0 6px;cursor:pointer;font:inherit;font-size:11px;letter-spacing:.08em;white-space:nowrap;}
+  html:not(.mobile):not(.phone-whole) #sp-chip:hover,html:not(.mobile):not(.phone-whole) #sp-chip.open{color:var(--text);border-color:var(--sp-acc);}
   #sp-chip.late{color:var(--sp-late);}
   html:not(.mobile):not(.phone-whole) #tab-rail > #sp-chip{position:static !important;top:auto !important;right:auto !important;}
   #sp-row{display:none;}
   html:not(.mobile):not(.phone-whole) #sp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 12px 0;padding:8px 12px;border:1px solid var(--border);border-radius:9px;
     background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;cursor:pointer;text-align:left;}
-  html:not(.mobile):not(.phone-whole) #sp-row:hover{border-color:var(--accent);}
+  html:not(.mobile):not(.phone-whole) #sp-row:hover{border-color:var(--sp-acc);}
   #sp-row b{font-weight:600;} #sp-row span{color:var(--muted);font-size:11.5px;}
   #notes-panel.fw-mode #sp-row{display:none !important;}
   #sp-sheet{display:none;}
@@ -92,22 +94,22 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-ex{color:var(--muted);margin:4px 0 12px;font-size:13px;}
   #sp-sheet .sp-tabs{display:inline-flex;align-self:flex-start;border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:6px;}
   #sp-sheet .sp-tabs button{border:0;background:transparent;color:var(--text);font:inherit;font-size:13px;font-weight:600;padding:9px 16px;cursor:pointer;}
-  #sp-sheet .sp-tabs button[aria-selected="true"]{background:var(--accent);color:var(--bg);}
+  #sp-sheet .sp-tabs button[aria-selected="true"]{background:var(--sp-acc);color:var(--bg);}
   #sp-sheet .sp-body{flex:1;overflow-y:auto;}
   #sp-sheet .sp-li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--border);}
-  #sp-sheet .sp-li input{appearance:none;-webkit-appearance:none;width:22px;height:22px;margin:2px 0 0;border:2px solid var(--accent);border-radius:5px;cursor:pointer;display:grid;place-items:center;background:transparent;}
-  #sp-sheet .sp-li input:checked{background:var(--accent);} #sp-sheet .sp-li input:checked::after{content:"\2713";color:var(--bg);font-size:14px;line-height:1;}
-  #sp-sheet .sp-li input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  #sp-sheet .sp-li input{appearance:none;-webkit-appearance:none;width:22px;height:22px;margin:2px 0 0;border:2px solid var(--sp-acc);border-radius:5px;cursor:pointer;display:grid;place-items:center;background:transparent;}
+  #sp-sheet .sp-li input:checked{background:var(--sp-acc);} #sp-sheet .sp-li input:checked::after{content:"\2713";color:var(--bg);font-size:14px;line-height:1;}
+  #sp-sheet .sp-li input:focus-visible{outline:2px solid var(--sp-acc);outline-offset:2px;}
   #sp-sheet .sp-go{display:block;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-size:15px;font-weight:700;text-align:left;cursor:pointer;}
   #sp-sheet .sp-go:hover{text-decoration:underline;}
   #sp-sheet .sp-w{display:block;font-style:normal;color:var(--muted);font-size:13px;margin-top:2px;}
   #sp-sheet .sp-li.done .sp-go{color:var(--muted);}
-  #sp-sheet .sp-pill{padding:5px 8px;border-radius:6px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;background:var(--accent);color:var(--bg);}
-  #sp-sheet .sp-pill.soon{background:transparent;color:var(--text);border:1px solid var(--accent);} #sp-sheet .sp-pill.late{background:var(--sp-late);color:var(--bg);}
+  #sp-sheet .sp-pill{padding:5px 8px;border-radius:6px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;background:var(--sp-acc);color:var(--bg);}
+  #sp-sheet .sp-pill.soon{background:transparent;color:var(--text);border:1px solid var(--sp-acc);} #sp-sheet .sp-pill.late{background:var(--sp-late);color:var(--bg);}
   #sp-sheet .sp-pill.done{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
   #sp-sheet .sp-none{padding:12px 0;color:var(--muted);font-size:13px;border-top:1px solid var(--border);}
   #sp-sheet .sp-btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;}
-  #sp-sheet .sp-btn{min-height:40px;padding:0 16px;border-radius:10px;background:var(--accent);color:var(--bg);font:inherit;font-size:13px;font-weight:700;border:0;cursor:pointer;}
+  #sp-sheet .sp-btn{min-height:40px;padding:0 16px;border-radius:10px;background:var(--sp-acc);color:var(--bg);font:inherit;font-size:13px;font-weight:700;border:0;cursor:pointer;}
   #sp-sheet .sp-btn.o{background:transparent;color:var(--text);border:1.5px solid var(--border);}
   #sp-sheet .sp-pr{margin-top:10px;font-size:12px;color:var(--muted);} #sp-sheet .sp-pr textarea{width:100%;box-sizing:border-box;height:90px;margin-top:6px;font:inherit;font-size:12px;
     background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;resize:none;}
