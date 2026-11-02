@@ -112,7 +112,8 @@ CLASSES = """()=>{const o={};document.querySelectorAll('.node[class*="sp-"]').fo
 
 
 def _open(browser, url, w=1440, h=900, mobile=False, init=NOW):
-    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, has_touch=mobile)
+    ua = {"user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"} if mobile else {}
+    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, has_touch=mobile, **ua)      # (the page picks its phone design from the iPhone user agent)
     pg = ctx.new_page()
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
