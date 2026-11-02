@@ -58,6 +58,15 @@ html.ct-on:not(.mobile) #nav:not(#_){padding-left:42px !important;}
 #ct-chips:hover{color:var(--text);}
 #ct-chips .rl{transform-origin:12px 12px;transform-box:view-box;}
 html.ct-chips-off #ct-chips .rl{transform:rotate(45deg);}
+/* the dormant bar's + waits out of sight (Luke, 2026-11-01: "when top nav bar is not activated and lying dormant, the plus button can disappear
+   and only appear on hovering"; Art's spec): with the chips wound in, the + is invisible until the pointer is within 64 x 96 px of it or of the clef,
+   or it takes keyboard focus. It keeps its space (opacity only, so nothing moves) and fades in 120 ms (none under reduced motion). Only where there is
+   a hover (a mouse or trackpad): a touch screen has no way to point near it, so it keeps the +. Phones never run this file's chips (html.mobile). */
+@media (hover:hover) and (pointer:fine){
+html.ct-on.ct-chips-off #ct-chips:not(#_){opacity:0;transition:opacity .12s,color .12s;}
+html.ct-on.ct-chips-off.ct-near #ct-chips:not(#_),html.ct-on.ct-chips-off #ct-chips:focus-visible:not(#_){opacity:1;}
+}
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:reduce){ html.ct-on.ct-chips-off #ct-chips:not(#_){transition:none;} }
 html.mobile #ct-chips,html.detail-open #ct-chips{display:none;}   /* (Luke: detail pages keep their bars, and their chips) */
 @media print{ #ct-chips{display:none !important;} }
 """
@@ -116,6 +125,15 @@ JS = r"""(function(){
   }
   bt.addEventListener('click', function(e){ e.stopPropagation(); turn(); });
   document.body.appendChild(bt); de.classList.toggle('ct-chips-off', off); label(); place();
+  /* the dormant +: html.ct-near while the pointer is within 64 x 96 px of it, or over the clef (the CSS above shows it then) */
+  var near=false, mark=document.querySelector('#title-bar .brand-mark');
+  function inR(e, l, t, r, b){ return e.clientX>=l && e.clientX<=r && e.clientY>=t && e.clientY<=b; }
+  function setNear(v){ if(v!==near){ near=v; de.classList.toggle('ct-near', v); } }
+  document.addEventListener('pointermove', function(e){
+    if(!de.classList.contains('ct-chips-off')){ setNear(false); return; }
+    var b=bt.getBoundingClientRect(), cx=(b.left+b.right)/2, cy=(b.top+b.bottom)/2, m=mark && mark.getBoundingClientRect();
+    setNear(inR(e, cx-32, cy-48, cx+32, cy+48) || !!(m && m.width && inR(e, m.left-8, m.top-8, m.right+8, m.bottom+8))); }, {passive:true});
+  document.documentElement.addEventListener('pointerleave', function(){ setNear(false); });
   window.addEventListener('resize', place); setTimeout(place, 300); setTimeout(place, 1200); if(document.fonts && document.fonts.ready) document.fonts.ready.then(place);   /* (after the row's own layout settles) */
   if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);
   var pt=0; if(typeof MutationObserver==='function') new MutationObserver(function(){ requestAnimationFrame(place); clearTimeout(pt); pt=setTimeout(place, 400); }).observe(de, {attributes:true, attributeFilter:['class']});   /* (a style switch — Retro's wider labels — moves the row without resizing the bar: the x follows it, so it never sits on the first label) */   /* (a frame later: never a change inside the observer's own pass) */
