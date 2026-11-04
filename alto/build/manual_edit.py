@@ -265,9 +265,13 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #summary-inner > .aed-blk{position:relative;}
   #summary-inner > .aed-blk > .aed-sc{position:absolute;right:-4px;top:-14px;margin:0;}
   html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-24px;z-index:3;opacity:0;transition:opacity .15s;}
-  html.alto-editing .adt-card:hover .aed-tc,html.alto-editing .adt-card:focus-within .aed-tc{opacity:1;}
+  html.alto-editing .adt-card:is(:hover,.aed-keep) .aed-tc,html.alto-editing .adt-card:focus-within .aed-tc{opacity:1;}
   html.alto-editing .amt-i:not(.adt-card) .aed-tc{display:flex;position:absolute;right:2px;top:-36px;z-index:6;opacity:0;transition:opacity .15s;margin:0;}
-  html.alto-editing .amt-i:not(.adt-card):hover .aed-tc,html.alto-editing .amt-i:not(.adt-card):focus-within .aed-tc{opacity:1;}
+  html.alto-editing .amt-i:not(.adt-card):is(:hover,.aed-keep) .aed-tc,html.alto-editing .amt-i:not(.adt-card):focus-within .aed-tc{opacity:1;}
+  /* an invisible bridge round a hover-only strip, so the way from its card never crosses a gap that loses the hover
+     (it sits behind the buttons, and reaches only outward) */
+  html.alto-editing:not(.mobile) :is(.aed-cc,.aed-tc)::before{content:"";position:absolute;z-index:-1;left:-16px;right:-16px;top:-14px;bottom:-2px;}
+  html.alto-editing:not(.mobile) .aed-tc::before{bottom:-10px;}
   html.alto-editing .amt-flag,html.alto-editing .amt-box{overflow:visible;text-overflow:clip;}
   /* the start / end years that edit mode adds sit 7px off the label on each side, on its baseline */
   html.alto-editing .amt-flag .amt-when,html.alto-editing .amt-box > .amt-when:not(:only-child){margin:0 7px 0 0;vertical-align:baseline;}
@@ -304,7 +308,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-link .al-fk{font-size:11px;line-height:1.35;margin-top:6px;}
   /* cards: + / ✕ on a card, + Add a card beside a unit's name */
   .aed-cc{position:absolute;right:40px;top:-13px;z-index:6;display:none;gap:3px;-webkit-user-select:none;user-select:none;}
-  html.alto-editing:not(.mobile):not(.aed-picking) :is(#canvas .node,#wpal-root .wp-enl > .node):hover .aed-cc{display:flex;}
+  html.alto-editing:not(.mobile):not(.aed-picking) :is(#canvas .node,#wpal-root .wp-enl > .node):is(:hover,.aed-keep) .aed-cc{display:flex;}
   .aed-cc button{width:26px;height:24px;padding:0;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--muted);
     cursor:pointer;font:600 13px/22px system-ui,-apple-system,sans-serif;box-shadow:0 4px 12px var(--node-rest-shadow);}
   .aed-cc button::before{content:attr(data-g);}
@@ -390,7 +394,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   /* a card's corner, to resize it */
   .aed-rz{position:absolute;right:-1px;bottom:-1px;width:18px;height:18px;display:none;cursor:nwse-resize;z-index:60;border-radius:0 0 8px 0;
     background:linear-gradient(135deg,transparent 52%,var(--muted) 52%,var(--muted) 60%,transparent 60%,transparent 70%,var(--muted) 70%,var(--muted) 78%,transparent 78%);}
-  html.alto-editing:not(.mobile):not(.aed-picking):not(.aed-linking) #canvas .node:hover .aed-rz,html.aed-resizing .aed-rz{display:block;}
+  html.alto-editing:not(.mobile):not(.aed-picking):not(.aed-linking) #canvas .node:is(:hover,.aed-keep) .aed-rz,html.aed-resizing .aed-rz{display:block;}
   html.alto-editing #canvas .node-card{position:relative;}
   html.aed-resizing,html.aed-resizing *{cursor:nwse-resize !important;user-select:none !important;}
   html.aed-resizing #canvas .node-card{transition:none !important;}
@@ -2004,6 +2008,19 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!isSolar() && !card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
       rz.setAttribute('aria-hidden', 'true'); rz.addEventListener('pointerdown', function(e){ startResize(e, id); }); card.appendChild(rz); }
   });
+  /* a card's tool strip shows on hover only, so leaving the card for its strip must not lose the hover: for a
+     moment after the pointer leaves a card (or a mini-timeline item) its strip stays, and coming back to the
+     card or onto the strip (the strip is inside the card) hands over to plain :hover */
+  (function(){
+    var HOSTS = '#canvas .node,#wpal-root .wp-enl > .node,.adt-card,.amt-i', H = null, T = 0;
+    function drop(){ clearTimeout(T); if(H) H.classList.remove('aed-keep'); H = null; }
+    document.addEventListener('mouseout', function(e){
+      if(!editing() || !structOK() || !e.target || !e.target.closest) return;
+      var h = e.target.closest(HOSTS); if(!h || (e.relatedTarget && h.contains(e.relatedTarget))) return;
+      drop(); H = h; h.classList.add('aed-keep'); T = setTimeout(drop, 500);
+    }, true);
+    document.addEventListener('mouseover', function(e){ if(H && e.target && e.target.closest && e.target.closest(HOSTS)) drop(); }, true);
+  })();
   /* a solar outline (solar.py): sun > planets > moons > satellites, where each
      circle sits is decided by its place in the outline — so no dragging, no
      sizing, and nothing deeper than a satellite */
