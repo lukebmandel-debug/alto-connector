@@ -293,13 +293,34 @@ class CloudStore(Store):
         self.local.delete_share(tid)
 
     # ── private pages, written the way the browser writes them ───────────────
+    def get_page(self, uid: str, key: str) -> str:
+        """The private page stored under `key` as html, or '' when there is none
+        (or it cannot be decoded)."""
+        js = self._req("GET", self._doc(uid, "pages", key),
+                       params="?mask.fieldPaths=z&mask.fieldPaths=html", ok404=True)
+        f = (js or {}).get("fields") or {}
+        z = (f.get("z") or {}).get("bytesValue")
+        if z:
+            from ..build.private_shell import unpack_page
+            try:
+                return unpack_page(base64.b64decode(z))
+            except (ValueError, OSError):
+                return ""
+        return (f.get("html") or {}).get("stringValue", "")
+
     def put_page(self, uid: str, key: str, html: str, title: str,
                  meta: dict) -> None:
         """users/{uid}/pages/{key} + pagemeta/{key}, as alto-cloud.js _putPage
         does — so the homepage lists it and the private shell opens it, with no
         upload by hand. Update masks leave shareKey (set by the share flow)
         alone, and both updatedAt come from the server clock, which the
-        shell's cache compares."""
+        shell's cache compares.
+
+        Refuses (StaleEngineError) to replace a page that a NEWER Alto built.
+        This is the one place every publish passes through, and there is no
+        way to switch it off."""
+        from ..build.engine_stamp import check_no_downgrade
+        check_no_downgrade(self.get_page(uid, key), html)
         page = {"z": {"bytesValue": base64.b64encode(pack_page(html)).decode("ascii")},
                 "enc": _sv(PAGE_ENCODING),
                 "title": _sv(title or ""), "tid": _sv(meta.get("tid", ""))}

@@ -541,6 +541,17 @@ def accounted(fn):
     return wrapper
 
 
+def update_noted(fn):
+    """Build and publish results lead with the out-of-date warning when this
+    extension is older than the latest release (update_check.py)."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        from .update_check import start, with_update_note
+        start()
+        return with_update_note(fn(*args, **kwargs))
+    return wrapper
+
+
 def _consent_ok(doc) -> bool:
     return bool((doc.get("consent") or {}).get("granted"))
 
@@ -2675,6 +2686,7 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
 
 
 @mcp.tool(title="Build timeline", annotations=RW)
+@update_noted
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
                    tree_lines: str = "", hub_look: str = "", palace_view: str = "") -> dict:
@@ -2773,6 +2785,7 @@ def build_timeline(timeline_id: str, layout: str = "",
 
 
 @mcp.tool(title="Preview timeline as an Artifact", annotations=RW)
+@update_noted
 @accounted
 def preview_timeline(timeline_id: str) -> dict:
     """Build the current draft into ONE self-contained HTML page for showing
@@ -2835,6 +2848,22 @@ def _added_epoch(doc) -> int:
         return int(datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp())
     except Exception:
         return 0
+
+
+def _refuse_downgrade_early(timeline_id: str, doc: dict) -> None:
+    """Before anything is rebuilt or deployed: if the page already published
+    under this timeline's key was built by a newer Alto, stop. put_page repeats
+    the check at the moment of writing (store/cloud.py), which is the one that
+    cannot be skipped; this one just keeps an older shell from being deployed
+    first. Raises StaleEngineError."""
+    key = doc.get("private_key")
+    st = get_store()
+    if not key or not hasattr(st, "get_page"):
+        return
+    from .build.engine_stamp import check_no_downgrade
+    existing = st.get_page(uid(), key)
+    if existing:
+        check_no_downgrade(existing, st.get_artifact(uid(), timeline_id, "private.html") or "")
 
 
 def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
@@ -2940,6 +2969,7 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                             "owner creates a share link from their homepage.")}
     if visibility not in ("private", "private-web"):
         return {"error": "bad_visibility", "message": "private|private-web"}
+    _refuse_downgrade_early(timeline_id, doc)
     from .cloud import accounts as A
     if A.current() is not None:
         return _publish_to_account(timeline_id, doc, visibility, A.current())
@@ -3125,10 +3155,19 @@ def _doc_of(src):
 
 
 @mcp.tool(title="Publish timeline", annotations=RW)
+@update_noted
 @accounted
 @_doc_of(_publish_timeline)
 def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
-    r = _publish_timeline(timeline_id, visibility)
+    from .build.engine_stamp import StaleEngineError
+    try:
+        r = _publish_timeline(timeline_id, visibility)
+    except StaleEngineError as e:
+        # No argument or setting passes this: the fix is to update the extension.
+        return {"error": "newer_page_exists", "page_built_by": e.existing,
+                "this_extension": e.mine, "message": str(e),
+                "next": ("Tell the user to update the Alto extension, then publish again. "
+                         "Do not rebuild or retry before that.")}
     if isinstance(r, dict) and not r.get("error") and visibility == "private-web":
         _edits_published(timeline_id)        # the page now carries the folded edits
     return r
@@ -3180,6 +3219,7 @@ def _brief_out(brief):
 
 
 @mcp.tool(title="Restore a published timeline's draft", annotations=RW)
+@update_noted
 @accounted
 def import_timeline(published: str) -> dict:
     """Bring back the editable draft of a timeline that is on the user's
@@ -3480,6 +3520,8 @@ def main(argv: list[str] | None = None) -> None:
     transport = os.environ.get("ALTO_TRANSPORT", "stdio")
     from .cloud import site as site_rec
     site_rec.apply()
+    from .update_check import start as start_update_check
+    start_update_check()          # once per session, in the background; silent on any failure
     mcp.run(transport=transport)
 
 
