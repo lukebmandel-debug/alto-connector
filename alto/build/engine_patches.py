@@ -2820,3 +2820,12 @@ _IDX_TOP_NEW = (_IDX_TOP_OLD + "\nhtml:not(.mobile):has(#node-nav-bar:not(.visib
 PATCHES += [
     {"name": "detail-page-flush-when-no-node-nav", "old": _IDX_TOP_OLD, "new": _IDX_TOP_NEW, "count": 1},
 ]
+
+
+# ── Esc steps back out of a focus on a branch (focus_branch.py) ─────────────
+# After the pop-ups and the detail page (which take Esc first), before the enlarged card's own un-enlarge: one level back.
+_ESC_OLD = "    // 3) otherwise exit prezi focus if a node is zoomed.\n"
+_ESC_NEW = "    if(window._altoFocusEsc && window._altoFocusEsc(e)) return;\n" + _ESC_OLD
+PATCHES += [
+    {"name": "focus-branch-esc", "old": _ESC_OLD, "new": _ESC_NEW, "count": 1},
+]

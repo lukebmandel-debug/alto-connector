@@ -8,7 +8,7 @@ from pathlib import Path
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, migrate_brief, building_view, world_view
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
-from . import backgrounds, clear_top, hover_lines, select_guard
+from . import backgrounds, clear_top, focus_branch, hover_lines, select_guard
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
@@ -325,6 +325,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + tree_block(trees or {}) + study_block_for(brief, study or {})
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
+            + (focus_branch.block() if brief.mode != "palace" and not solar_style(brief) else "")   # focus on a branch: timelines, outlines, the horizontal timeline
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief))
             + select_guard.block()
             + card_block(phone_mode(brief)) + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
