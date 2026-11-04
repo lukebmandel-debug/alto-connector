@@ -460,6 +460,17 @@ its floors, reached by an elevator inside the building.
 - Ask: **"Who is on the page in each scene, and where does the story jump back
   in time?"** Give a person/thread a line only where the material follows
   them; everything told on the page is the main line.
+- **Child nodes (`nest`)** are an offer, never a default. An event can be nested
+  under another (`nest: <parent id>`): it is tucked behind its parent ("n inside")
+  and drawn outline-style beyond it in the Expanded view. There is no timeline
+  setting for it. Offer it ONLY when an event has the same date as another, is
+  clearly derived from it, and the user's own notes link them (a heading under
+  it, a "part of" line, the same passage), and say which events: "These two
+  sit inside 'The Reunion Evening' at the same moment. Nest them?" Set `nest`
+  only on the user's yes; on a no, leave them as events of their own and do not
+  ask again. A child is the user's own entry (never written for the purpose), is
+  on its parent's line, and carries no `present` / `flash`. The user can also
+  nest and un-nest by hand in Edit mode ("Nest under…").
 - Lines and flashbacks go in the `create_timeline` brief; change them later
   with `set_lines` (declare a flashback there before marking events with it).
 - Older horizontal timelines carry a line's `from` / `to` (the event it
@@ -467,7 +478,7 @@ its floors, reached by an elevator inside the building.
   the page — new ones use `present`.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
-  flashback (or a new one) or take it out, add or rename lines, and add,
+  flashback (or a new one) or take it out, nest it under another event of the same line (or take it out of one), add or rename lines, and add,
   move, rename or remove time flags and box tags (the ⚑ and ▭ buttons while editing).
 
 ### §D-Solar. System (`mode: 'outline'`, `layout: 'solar'`)

@@ -1426,7 +1426,14 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
      the material does not say. Main-line events only: `present`: [line ids] — who is on
      the page in this scene; `flash`: a flashback id (declared in the brief,
      or with set_lines) when the story tells this event out of time — a
-     flashback's events must be consecutive on the main line)}.
+     flashback's events must be consecutive on the main line). `nest`
+     (mode 'lanes'): the id of the event this one is NESTED under — a child
+     drawn tucked behind its parent ("n inside"), and outline-style beyond it
+     in the Expanded view. ONLY when the user said yes to it: you may OFFER
+     it when an event has the same date as another, is clearly derived from
+     it and the user's own notes link them, but you never nest by yourself,
+     never write a child the notes do not hold, and the child is on its
+     parent's line (a child never crosses the line); omit it otherwise)}.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
     head a section "Text" unless it is a quote — head it for what it is.

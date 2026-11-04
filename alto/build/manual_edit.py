@@ -1303,7 +1303,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var p = k.split('|'), kind = p[0], id = p[1];
     if(window._altoWorldField && kind === 'w') return window._altoWorldField(k);           // a Memory Atlas card's country (palace_world.py)
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
-    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bx' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
+    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bx' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash|nest)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
       return {kind:'plain', get:function(){ return n[p[2]] || ''; }, set:function(v){
@@ -1643,7 +1643,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(kind === 'bt'){ headingSoon(); return; }
     if((kind === 'n' || kind === 'nn' || kind === 'nd') && window._altoSearch && window._altoSearch.reset) window._altoSearch.reset();     // the search index: the cards as they are now
     if(kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
-    if(kind === 'nl' || kind === 'ln' || kind === 'fb' || (kind === 'n' && /^(when|line|present|flash)$/.test(p[2] || ''))){ relayoutSoon(); return; }
+    if(kind === 'nl' || kind === 'ln' || kind === 'fb' || (kind === 'n' && /^(when|line|present|flash|nest)$/.test(p[2] || ''))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
       if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
@@ -2004,7 +2004,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     else if(window._altoPalaceAddFloor && root.classList.contains('alto-palace')) items.push(['addf', '+', 'Add a floor to this building']);
     if(OUT && (OUT.parent || {})[id]) items.push(['linkc', '⇄', 'Move it, and the cards under it, under another card']);
     if(OUT && (OUT.parent || {})[id]) items.push(['swapc', '⇅', 'Swap places with a card beside it, or with the card it sits under']);
-    if(LN) items.push(['linec', '⟿', 'Put it on another line — or start a new line']);
+    if(LN) items.push(['linec', '⟿', 'Put it on another line, nest it inside another entry — or start a new line']);
     items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
     items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
@@ -2187,14 +2187,16 @@ MANUAL_JS = r"""<script id="alto-manual">
           relayoutSoon(); }};
     }
     if(!srcNode(id)) return null;
-    var e0 = (LN0.ev || {})[id] || {l: 'main', w: '', t: null, present: [], flash: ''};
-    var ev = function(){ return LN.ev[id] = LN.ev[id] || {l: 'main', w: '', t: null, present: [], flash: ''}; };
+    var e0 = (LN0.ev || {})[id] || {l: 'main', w: '', t: null, present: [], flash: '', p: ''};
+    var ev = function(){ return LN.ev[id] = LN.ev[id] || {l: 'main', w: '', t: null, present: [], flash: '', p: ''}; };
     if(f === 'when') return {kind:'plain', sig:function(){ return e0.w || ''; }, get:function(){ return ev().w || ''; },
       set:function(v){ var q = ev(); q.w = String(v || '').trim(); q.t = lanesWhen(q.w); lnSync(); }};
     if(f === 'present') return {kind:'card', sig:function(){ return (e0.present || []).slice(); }, get:function(){ return (ev().present || []).slice(); },
       set:function(v){ ev().present = (v || []).slice(); lnSync(); }};
     if(f === 'flash') return {kind:'card', sig:function(){ return e0.flash || ''; }, get:function(){ return ev().flash || ''; },
       set:function(v){ ev().flash = v || ''; lnSync(); }};
+    if(f === 'nest') return {kind:'card', sig:function(){ return e0.p || ''; }, get:function(){ return ev().p || ''; },
+      set:function(v){ ev().p = v || ''; lnSync(); }};
     return {kind:'card', sig:function(){ return e0.l === 'main' ? '' : e0.l; }, get:function(){ var l = ev().l; return l === 'main' ? '' : l; },
       set:function(v){ ev().l = v || 'main'; lnSync(); }};
   }
@@ -2218,7 +2220,32 @@ MANUAL_JS = r"""<script id="alto-manual">
           if(changes(L)) toast('“' + titleOf(id) + '” is on “' + lineName(l.id) + '” now — ⌘Z puts it back.'); }}); });
     A.push({t: '+ A new line for it…', sub: 'A character, a place or a thread of its own — its line runs alongside while it is off the page.',
       fn: function(){ newLine(id); }});
+    nestItems(id, A);
     ask('“' + titleOf(id) + '”', 'On “' + lineName(at) + '”' + (E.flash && fbOf(E.flash) ? ', in the flashback “' + fbOf(E.flash).label + '”' : '') + '.', A);
+  }
+  /* child nodes: an event nested under another of the same line (it hangs beyond its parent, on the parent's side of the line) */
+  function nestKids(id){ var out = []; (LN.order || []).forEach(function(i){ if((LN.ev[i] || {}).p === id && srcNode(i) && !cardGone(i)) out.push(i); }); return out; }
+  function nestDeep(id){ var out = [], todo = [id], g = 0; while(todo.length && g++ < 400){ nestKids(todo.shift()).forEach(function(k){ if(out.indexOf(k) < 0){ out.push(k); todo.push(k); } }); } return out; }
+  function nestItems(id, A){
+    var E = LN.ev[id] || {}, par = E.p && LN.ev[E.p] && srcNode(E.p) && !cardGone(E.p) ? E.p : '', n = nestKids(id).length;
+    A.push({label: 'Inside another entry'});
+    if(par) A.push({t: 'Take it out of “' + titleOf(par) + '”', sub: 'It stands on the line again, an entry of its own.',
+      fn: function(){ if(change('n|' + id + '|nest', '')) toast('“' + titleOf(id) + '” is out of “' + titleOf(par) + '” — ⌘Z puts it back.'); }});
+    A.push({t: par ? 'Nest under another entry…' : 'Nest under…', sub: 'Tuck it behind an entry of the same moment on this line' + (n ? ' — the ' + (n === 1 ? 'entry' : n + ' entries') + ' inside it come along.' : '.'),
+      fn: function(){ nestUnder(id); }});
+  }
+  function nestUnder(id){
+    var E = LN.ev[id] || {}, at = E.l || 'main', ban = {}; ban[id] = 1; nestDeep(id).forEach(function(k){ ban[k] = 1; });
+    var opts = [['', 'Choose an entry…']];
+    (LN.order || []).forEach(function(i){ var e = LN.ev[i]; if(!e || ban[i] || !srcNode(i) || cardGone(i) || (e.l || 'main') !== at) return;
+      opts.push([i, titleOf(i) + (e.w ? ' · ' + e.w : '')]); });
+    if(opts.length < 2){ toast('There is no other entry on this line to nest it under.'); return; }
+    askForm(document.getElementById('node-' + id) || document.body, 'Nest “' + titleOf(id) + '” under', [{k: 'p', l: 'Inside', type: 'select', val: '', opts: opts, req: 1,
+      hint: 'Only entries on the same line: it hangs beyond its parent, on the same side of the line.'}], 'Nest', function(v){
+      if(!v.p) return;
+      var L = []; if((E.present || []).length) L.push(['n|' + id + '|present', []]); if(E.flash) L.push(['n|' + id + '|flash', '']);
+      L.push(['n|' + id + '|nest', v.p]);
+      if(changes(L)) toast('“' + titleOf(id) + '” is inside “' + titleOf(v.p) + '” — ⌘Z puts it back.'); });
   }
   /* flashbacks (lanes v2): consecutive main-line events the story tells out of time */
   function mainsNow(){ lnSync(); var lids = {}; LN.lines.forEach(function(l){ lids[l.id] = 1; });
