@@ -65,7 +65,8 @@ CSS = r"""<style id="alto-sp-css">
   html.alto-holo,html.alto-retro{--sp-acc:var(--accent);}
   /* Holographic keeps late RED on both its grounds (Art alto-art-1101-4800-a); today stays the theme's own light (--accent), the words stay on the tag */
   html.alto-holo{--sp-late:#b42318;--sp-ok:#1f6b3a;} html.alto-holo.dark{--sp-late:#ff8a7a;--sp-ok:#7fd49a;}
-  html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{outline:3px solid var(--sp-acc);outline-offset:4px;box-shadow:0 0 0 9px color-mix(in srgb,var(--sp-acc) 20%,transparent);}
+  html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{outline:3px solid var(--sp-acc);outline-offset:4px;}
+  @media not print{ html:not(.mobile):not(.phone-whole) .node.sp-today > .node-card{box-shadow:0 0 0 9px color-mix(in srgb,var(--sp-acc) 20%,transparent);} }   /* screen only: in print a planned card keeps its own resting shadow, exactly like an unplanned one */
   html:not(.mobile):not(.phone-whole) .node.sp-soon > .node-card{outline:2px dashed var(--sp-acc);outline-offset:4px;}
   html:not(.mobile):not(.phone-whole) .node.sp-late > .node-card{outline:3px solid var(--sp-late);outline-offset:4px;}
   html:not(.mobile):not(.phone-whole) .node.sp-done > .node-card{opacity:.66;}
@@ -132,7 +133,7 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-pr{margin-top:10px;font-size:12px;color:var(--muted);} #sp-sheet .sp-pr textarea{width:100%;box-sizing:border-box;height:90px;margin-top:6px;font:inherit;font-size:12px;
     background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;resize:none;}
   @media (max-width:640px){ #sp-chip,#sp-row,html:not(.mobile) #sp-sheet,html:not(.mobile) .sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} }
-  @media print{ .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} .sp-tag,#sp-chip,#sp-row,#sp-sheet{display:none !important;} }
+  @media print{ .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;opacity:1 !important;} .sp-tag,#sp-chip,#sp-row,#sp-sheet{display:none !important;} }
 </style>"""
 
 JS = r"""<script id="alto-sp">
