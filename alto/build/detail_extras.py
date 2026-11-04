@@ -61,6 +61,7 @@ window._altoMakeRoom = function(y, x, h, w, ids, moved, parent, gap, top){
   free.forEach(function(i){ fset[i]=1; });
   free.forEach(function(i){ var p=parent[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
   function ww(i){ var v=(w&&w[i])||270; return v===270 ? 290 : v; }     // as drawn (layout.drawn_w)
+  function under(i){ for(var c=parent[i], n=0; c && n<99; c=parent[c], n++) if(moved[c]) return true; return false; }   // a dragged card's own progeny
   function rowroot(i){ for(;;){ var p=parent[i]; if(p && fset[p] && Math.abs(y0[p]-y0[i])<1) i=p; else return i; } }
   function unit(i, whole){ var out=[], q=[i]; while(q.length){ var c=q.shift(); out.push(c);
     (kids[c]||[]).forEach(function(k){ if(whole || Math.abs(y0[k]-y0[c])<1) q.push(k); }); } return out; }
@@ -71,7 +72,7 @@ window._altoMakeRoom = function(y, x, h, w, ids, moved, parent, gap, top){
   free.map(function(i){ return [-(y0[i]+h[i]/2), x[i], i]; }).sort(cmp).forEach(function(e){
     var r=rowroot(e[2]); if(done[r]) return;
     var grp=unit(r,false), t={}, lift=0, again=true, ing={};
-    if(unit(r,true).length>grp.length) return;
+    if(unit(r,true).length>grp.length || grp.some(under)) return;
     grp.forEach(function(k){ t[k]=y[k]-h[k]/2; ing[k]=1; });
     while(again){ again=false;
       grp.forEach(function(k){ obst.forEach(function(j){

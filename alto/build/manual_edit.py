@@ -21,7 +21,7 @@ Field keys ("|"-separated; ids are slugs):
   dt|<tree key>|<step>|when  to           a mini timeline's item: its date, a flag's end (layout "timeline"; the
                                           list op dt|<key>|tree carries its events, flags and box tags in order)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
-  p|<id>|slide                            a card slid along its own line, [dx, dy] (it alone)
+  p|<id>|slide                            a card slid on its own (Option-drag, Option-less arrow nudge), [dx, dy] (it alone)
   n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
   dt|<owner>-new-…|tree                   a new section's decision tree
   sd|<study key>|study                    a section's flash cards or quiz, whole (study.py; study_edit.py)
@@ -49,9 +49,11 @@ connector finds it by name to record its path (edits.find_file).
 A drag lays the whole tree out again with the card where it is held
 (TREE_GLUE _altoTreeCalc), so the cards it lands on step aside
 (layout.make_room) and go back once it moves on; no two cards are left
-touching (layout.separate). Held close to its own line (the one from its
-parent), a card slides along it alone (slide); taken off it, the cards under
-it come along (shift).
+touching (layout.separate). A card dragged moves with all the cards under it
+(shift), in any direction, straight down its line included; with Option held
+it slides alone (slide), along its line. Arrow keys nudge the picked card (the
+last one pressed on) 10 px, Shift 40: the card alone (slide), or with Option
+the whole branch (shift); a quick burst of presses is one step of undo.
 
 A solar outline (layout 'solar', alto/build/solar.py) places every circle from
 its place in the outline, so there is no dragging or sizing there, a card cannot
@@ -242,6 +244,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;}
+  html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-sel > .node-card{outline:2px solid var(--accent,#a78bfa);outline-offset:3px;}
   /* a System circle dragged onto another to go under it (MANUAL_JS solar drag) */
   html.alto-editing.alto-solar-edit:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-editing #canvas .node.aed-sdrag{pointer-events:none;z-index:80 !important;transition:none !important;}
@@ -1727,7 +1730,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function exit(){
     if(!editing()) return;
     endField(true);
-    root.classList.remove('alto-editing', 'alto-drag-ok');
+    root.classList.remove('alto-editing', 'alto-drag-ok'); selCard(null);
     endPick(true); endLink(); hideMenus();
     document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd,.aed-nadd,.aed-nx,.aed-st').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
@@ -4028,11 +4031,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     });
   }
 
-  // Drag a card of an outline (desktop). Held close to its own line (the one
-  // from its parent: down a spine, or across to a card beside its parent) it
-  // slides along it alone, the cards under it staying put; taken off the line
-  // it moves with all of them. A card with nothing under it moves freely.
-  var drag = null, dragJustEnded = false, LINE_OFF = 44, LINE_ON = 26;
+  // Drag a card of an outline (desktop). It moves with all the cards under it,
+  // in any direction. With Option held it slides alone along its own line (the
+  // one from its parent: down a spine, or across to a card beside its parent),
+  // the cards under it staying put. A card with nothing under it moves freely.
+  var drag = null, dragJustEnded = false;
   function subtree(id){ var K = (window._ALTO_OUTLINE || {}).kids || {}, out = [id];
     for(var i = 0; i < out.length; i++) (K[out[i]] || []).forEach(function(c){ out.push(c); }); return out; }
   // Screen px per world px, measured on the card itself: a 100px nudge and how
@@ -4063,8 +4066,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   function dragTip(d, e){
     var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
     b.textContent = !d.n ? 'Drop it anywhere — the cards it lands on make room'
-      : d.mode === 'line' ? 'Sliding along its line — the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it stay'
-      : 'Moving with the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it — back on its line to slide it alone';
+      : d.mode === 'line' ? 'Sliding along its line alone — the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it stay'
+      : 'Moving with the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it — hold Option to move it alone';
     b.style.left = (e.clientX + 16) + 'px'; b.style.top = (e.clientY + 16) + 'px'; b.classList.add('show');
   }
   window.addEventListener('pointermove', function(e){
@@ -4073,9 +4076,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!drag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; drag.on = true; if(cur) endField(true);
       root.classList.add('alto-dragging'); }
     e.preventDefault();
-    // off its line by more than a little: everything under it comes along
-    var off = drag.ax === 'y' ? Math.abs(dx) : Math.abs(dy);
-    var mode = !drag.n ? 'tree' : drag.mode === 'line' ? (off > LINE_OFF ? 'tree' : 'line') : (off < LINE_ON ? 'line' : 'tree');
+    // everything under it comes along; Option held, it slides alone along its line
+    var mode = !drag.n ? 'tree' : e.altKey ? 'line' : 'tree';
     if(!drag.n || mode !== drag.mode || !drag.painted){ drag.mode = mode; drag.painted = true;
       drag.els.forEach(function(el){ el.classList.toggle('aed-moving', mode === 'tree' || el === drag.self); }); }
     drag.wx = dx / drag.k; drag.wy = dy / drag.k;
@@ -4129,24 +4131,74 @@ MANUAL_JS = r"""<script id="alto-manual">
     root.classList.remove('alto-dragging');
     var hk = d.mode === 'line' ? 'slide' : 'shift';
     var f = field('p|' + d.id + '|' + hk); if(!f){ clearPreview(); return; }
-    var wx = d.wx || 0, wy = d.wy || 0;
-    // keep the card on the page
-    var n = liveNode(d.id), el = document.getElementById('node-' + d.id), card = el && el.querySelector('.node-card');
+    var w = keepIn(d.id, hk, d.wx || 0, d.wy || 0);
+    commitMove(d.id, hk, f, w[0], w[1]);
+    clearPreview();
+  }
+  // Store the move: this card's offset (hk 'shift' carries its branch, 'slide' is it alone) grows by (wx, wy).
+  // The layout is worked out again at once, so nothing jumps back first. burst: a press of an arrow key
+  // within a quick burst of the last joins its step of undo.
+  var NUDGE = null;
+  function commitMove(id, hk, f, wx, wy, burst){
+    var old = f.get() || [0, 0], v = [Math.round(old[0] + wx), Math.round(old[1] + wy)], k = 'p|' + id + '|' + hk, val = (v[0] || v[1]) ? v : null;
+    var ok;
+    if(burst && NUDGE && NUDGE.k === k && Date.now() - NUDGE.t < 600 && HP === HIST.length && HIST[HP - 1] === NUDGE.h){
+      ok = apply(k, val); NUDGE.h[0].b = val; NUDGE.t = Date.now();
+    } else {
+      ok = change(k, val);
+      NUDGE = ok && burst ? {k: k, t: Date.now(), h: HIST[HP - 1]} : null;
+    }
+    if(ok){ clearTimeout(relayT); document.querySelectorAll('#world .node').forEach(function(x){ x.classList.remove('aed-room'); }); relayout(); }
+    return ok;
+  }
+  // keep a move on the page and inside its unit: (wx, wy) corrected for card id moved by hint hk
+  function keepIn(id, hk, wx, wy){
+    var n = liveNode(id), el = document.getElementById('node-' + id), card = el && el.querySelector('.node-card');
     if(n && card){ var cx = (n.displayX != null ? n.displayX : 850) + wx, hw = card.offsetWidth / 2;
       var lo = hw + 30, hi = 1700 - hw - 30; if(cx < lo) wx += lo - cx; if(cx > hi) wx -= cx - hi; }
-    // and in its unit: nothing above the unit's first card
     var G = window._altoTreeGeo;
     if(G){ try{
-      var a = NODE_ACT[d.id], H = hintsWith(d, wx, wy), R1 = layoutAll(G.h, H[0], H[1]), R0 = layoutAll(G.h, {}, {});
+      var a = NODE_ACT[id], H = hintsWith({id: id, mode: hk === 'slide' ? 'line' : 'tree'}, wx, wy), R1 = layoutAll(G.h, H[0], H[1]), R0 = layoutAll(G.h, {}, {});
       var top = function(R){ return Math.min.apply(null, Object.keys(R.y).filter(function(i){ return NODE_ACT[i] === a && G.h[i] != null; })
         .map(function(i){ return R.y[i] - G.h[i] / 2; })); };
       if(R0 && R1){ var t0 = top(R0), t1 = top(R1); if(isFinite(t0) && isFinite(t1) && t1 < t0 - 0.5) wy += t0 - t1; }
     }catch(e){} }
-    var old = f.get() || [0, 0], v = [Math.round(old[0] + wx), Math.round(old[1] + wy)];
-    // laid out at once where it was dropped, so nothing jumps back first
-    if(change('p|' + d.id + '|' + hk, (v[0] || v[1]) ? v : null)){ clearTimeout(relayT); document.querySelectorAll('#world .node').forEach(function(x){ x.classList.remove('aed-room'); }); relayout(); }
-    clearPreview();
+    return [wx, wy];
   }
+  /* Arrow keys nudge the picked card (the last one pressed on) in edit mode: the card alone by 10 px, Shift 40,
+     and with Option the whole branch. Never while a field, an input or a picker has the keys. The offsets are
+     the drag's (shift / slide), and a quick burst of presses is one step of undo. */
+  var SEL = null;
+  function selCard(id){
+    SEL = id || null;
+    document.querySelectorAll('#world .node.aed-sel').forEach(function(el){ el.classList.remove('aed-sel'); });
+    var el = SEL && document.getElementById('node-' + SEL); if(el) el.classList.add('aed-sel');
+  }
+  window.addEventListener('pointerdown', function(e){
+    if(!editing() || isSolar() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
+    var t = e.target; if(!t.closest || inUi(t)) return;
+    var nodeEl = t.closest('#canvas .node'), id = nodeEl && nodeEl.id.replace(/^node-/, '');
+    selCard(id && !PICK && !LINK && !isNew(id) && srcNode(id) && field('p|' + id + '|shift') ? id : null);
+  }, true);
+  function typingIn(a){ return !!(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))); }
+  window.addEventListener('keydown', function(e){
+    if(!SEL) return;
+    if(!editing()){ selCard(null); return; }
+    if(isSolar() || !root.classList.contains('alto-drag-ok') || e.metaKey || e.ctrlKey) return;
+    var dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0, dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+    if(!dx && !dy) return;
+    if(cur || drag || sdrag || PICK || LINK || LPICK || typingIn(document.activeElement) || typingIn(e.target)) return;
+    var id = SEL, hk = e.altKey ? 'shift' : 'slide', f = field('p|' + id + '|' + hk);
+    if(!f || !document.getElementById('node-' + id)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    var step = e.shiftKey ? 40 : 10, wx = dx * step, wy = dy * step;
+    if(hk === 'slide'){                       // alone: it stays on its side of its parent
+      var L = lineOf(id), d = {id: id, ax: L.ax, p: L.p, wx: wx, wy: wy}; clampLine(d); wx = d.wx; wy = d.wy;
+    }
+    var w = keepIn(id, hk, wx, wy);
+    commitMove(id, hk, f, w[0], w[1], true);
+    selCard(id);
+  }, true);
   window.addEventListener('pointerup', endDrag, true);
   window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); clearPreview(); }, true);
 

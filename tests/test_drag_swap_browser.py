@@ -1,5 +1,5 @@
-"""Manual edit mode in a real browser (1.9.53): a card slid along its line
-moves alone, off it its progeny come along; cards swap with a sibling or
+"""Manual edit mode in a real browser (1.9.53): a card dragged takes its progeny
+with it, with Option held it slides alone; cards swap with a sibling or
 their parent from the ⇅ menu or by typing a number; nothing ends up touching.
 Skipped when Playwright or its browsers are not installed."""
 import functools
@@ -64,11 +64,13 @@ def page(request, url):
         b.close()
 
 
-def _drag(pg, i, dx, dy):
+def _drag(pg, i, dx, dy, alt=False):
     pg.evaluate(f"document.getElementById('node-{i}').scrollIntoView({{block:'center'}})")
     pg.wait_for_timeout(250)
     x, y = pg.evaluate(f"(()=>{{var r=document.querySelector('#node-{i} .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+18];}})()")
     pg.mouse.move(x, y)
+    if alt:
+        pg.keyboard.down("Alt")
     pg.mouse.down()
     for k in range(1, 13):
         pg.mouse.move(x + dx * k / 12, y + dy * k / 12)
@@ -76,6 +78,8 @@ def _drag(pg, i, dx, dy):
     pg.wait_for_timeout(120)
     tip = pg.evaluate("(document.getElementById('aed-rztip')||{}).textContent")
     pg.mouse.up()
+    if alt:
+        pg.keyboard.up("Alt")
     pg.mouse.move(5, 450)
     pg.wait_for_timeout(600)
     return tip
@@ -85,19 +89,21 @@ def _ops(pg):
     return pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(k=>k.indexOf('alto-ed-')===0)[0])).ops")
 
 
-def test_along_its_line_a_card_slides_alone_and_off_it_takes_its_progeny(page):
+def test_a_dragged_card_takes_its_progeny_and_with_option_slides_alone(page):
+    kids = ("revocation", "option-contracts", "unilateral-offers")
     g0 = page.evaluate(GEO)
-    assert "stay" in _drag(page, "offer", 10, 160)
+    assert "Moving with" in _drag(page, "offer", 10, 160)          # straight down its own line: the branch moves
     g1 = page.evaluate(GEO)
-    assert g1["offer"]["t"] > g0["offer"]["t"] + 100 and g1["offer"]["l"] == g0["offer"]["l"]
-    for k in ("revocation", "option-contracts", "unilateral-offers"):
-        assert g1[k]["l"] == g0[k]["l"] and g1[k]["t"] >= g0[k]["t"], k
-    assert "p|offer|slide" in _ops(page) and _touching(g1) == []
-    assert "Moving with" in _drag(page, "offer", 220, 30)
+    for k in ("offer",) + kids:
+        assert abs((g1[k]["t"] - g0[k]["t"]) - (g1["offer"]["t"] - g0["offer"]["t"])) <= 3, k
+    assert g1["offer"]["t"] > g0["offer"]["t"] + 100
+    assert "p|offer|shift" in _ops(page) and _touching(g1) == []
+    assert "alone" in _drag(page, "offer", 10, 160, alt=True)      # Option: it alone, along its line
     g2 = page.evaluate(GEO)
-    for k in ("offer", "revocation", "option-contracts", "unilateral-offers"):
-        assert abs((g2[k]["l"] - g1[k]["l"]) - (g2["offer"]["l"] - g1["offer"]["l"])) <= 3, k
-    assert "p|offer|shift" in _ops(page) and _touching(g2) == []
+    assert g2["offer"]["t"] > g1["offer"]["t"] + 100 and g2["offer"]["l"] == g1["offer"]["l"]
+    for k in kids:
+        assert g2[k]["l"] == g1[k]["l"] and g2[k]["t"] >= g1[k]["t"], k
+    assert "p|offer|slide" in _ops(page) and _touching(g2) == []
 
 
 def _menu(pg, i):
