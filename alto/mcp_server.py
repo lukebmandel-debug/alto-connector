@@ -30,6 +30,7 @@ from pydantic import Field
 
 from .build.brief import BriefError, ID_RE
 from .build.builder import load_brief, build_timeline as _build, run_layout
+from .build.engine_stamp import stamp as engine_stamp
 from .build.single_file import bundle, preview as preview_page, private_page
 from .build.verify import VerifyError, verify_scripts
 from .store.local import LocalStore
@@ -246,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.211"
+__version__ = "1.9.212"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -538,6 +539,17 @@ def accounted(fn):
         return out
 
     wrapper.__signature__ = sig.replace(parameters=params)
+    return wrapper
+
+
+def update_noted(fn):
+    """Build and publish results lead with the out-of-date warning when this
+    extension is older than the latest release (update_check.py)."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        from .update_check import start, with_update_note
+        start()
+        return with_update_note(fn(*args, **kwargs))
     return wrapper
 
 
@@ -2675,6 +2687,7 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
 
 
 @mcp.tool(title="Build timeline", annotations=RW)
+@update_noted
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
                    tree_lines: str = "", hub_look: str = "", palace_view: str = "") -> dict:
@@ -2715,7 +2728,7 @@ def build_timeline(timeline_id: str, layout: str = "",
             return {"error": "no_nodes", "message": "add_nodes first"}
         html, report = _build(b, nodes, conns)
         offline = bundle(b, html)
-        private = private_page(b, html)
+        private = engine_stamp(private_page(b, html))
     except VerifyError as e:
         return {"error": "verify_failed", "failures": e.failures}
     except (BriefError, ValueError) as e:
@@ -2773,6 +2786,7 @@ def build_timeline(timeline_id: str, layout: str = "",
 
 
 @mcp.tool(title="Preview timeline as an Artifact", annotations=RW)
+@update_noted
 @accounted
 def preview_timeline(timeline_id: str) -> dict:
     """Build the current draft into ONE self-contained HTML page for showing
@@ -2837,6 +2851,49 @@ def _added_epoch(doc) -> int:
         return 0
 
 
+def _refuse_downgrade_early(timeline_id: str, doc: dict, visibility: str = "private-web",
+                            folder: bool = False):
+    """Before anything is rebuilt or deployed: if the page already published
+    under this timeline's key was built by a newer Alto, stop (raises
+    StaleEngineError). put_page repeats the check at the moment of writing
+    (store/cloud.py), which is the one that cannot be skipped; this one keeps an
+    older shell from being deployed first.
+
+    In folder mode the stored page lives in the user's account, not in the store,
+    so it is read through their session. If it cannot be read, this returns an
+    error dict and the caller must not deploy: fail closed. Returns None to go on."""
+    key = doc.get("private_key")
+    if visibility != "private-web" or not key:
+        return None                               # nothing is written under a key, or nothing is there yet
+    st = get_store()
+    if hasattr(st, "get_page"):
+        read = lambda: st.get_page(uid(), key)    # noqa: E731
+    elif folder:
+        from .cloud.session import CloudError, SignInRequired, get_session
+        from .store.cloud import CloudStore
+        s = get_session()
+        if not s.signed_in:
+            return {"error": "cannot_check_existing_page",
+                    "message": ("Alto has not published anything yet: it must first check that the page "
+                                "already online was not built by a newer Alto, and that needs the user "
+                                "signed in to their Alto account."),
+                    "next": "Call sign_in, then publish again."}
+        read = lambda: CloudStore(s, st).get_page(s.uid, key)   # noqa: E731
+    else:
+        return None
+    from .build.engine_stamp import check_no_downgrade
+    try:
+        existing = read()
+    except Exception as e:                         # noqa: BLE001 — unreadable means unchecked, and unchecked does not deploy
+        return {"error": "cannot_check_existing_page",
+                "message": (f"Nothing was published: Alto could not read the page already online to check "
+                            f"it was not built by a newer Alto ({e}). Try again in a moment."),
+                "next": "Publish again once the connection is back."}
+    if existing:
+        check_no_downgrade(existing, st.get_artifact(uid(), timeline_id, "private.html") or "")
+    return None
+
+
 def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
                         acct: dict) -> dict:
     """Publish into an account that is not this connector's own site: connected
@@ -2869,7 +2926,7 @@ def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
         return {"error": "not_built", "message": "build_timeline first"}
     names = {p["project_id"]: p["name"] for p in st.list_projects(u)}
     b, _, _ = load_brief({"brief": doc["brief"]})
-    page = private_page(b, raw, names.get(doc.get("project_id", ""), ""))
+    page = engine_stamp(private_page(b, raw, names.get(doc.get("project_id", ""), "")))
     st.put_artifact(u, timeline_id, "private.html", page)
     stored = stored_bytes(page)
     if stored > MAX_PAGE_BYTES:
@@ -2940,6 +2997,9 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                             "owner creates a share link from their homepage.")}
     if visibility not in ("private", "private-web"):
         return {"error": "bad_visibility", "message": "private|private-web"}
+    err = _refuse_downgrade_early(timeline_id, doc, visibility)
+    if err:
+        return err
     from .cloud import accounts as A
     if A.current() is not None:
         return _publish_to_account(timeline_id, doc, visibility, A.current())
@@ -2949,6 +3009,7 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     doc["visibility"] = visibility
     # Opaque on purpose, and never derived from a timeline's old public
     # share_slug: a timeline that was once 'link' must not reuse that name.
+    had_key = bool(doc.get("private_key"))      # a page can only be stored under a key this timeline already had
     if visibility == "private-web" and not doc.get("private_key"):
         doc["private_key"] = _private_key()
 
@@ -2983,6 +3044,11 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
             doc["urls"] = urls
             st.put_timeline(uid(), timeline_id, doc)
             return {"visibility": visibility, **urls}
+        if had_key and not hasattr(st, "get_page"):
+            # folder mode: check the stored page BEFORE regenerate_site/deploy_site touch the site
+            err = _refuse_downgrade_early(timeline_id, doc, visibility, folder=True)
+            if err:
+                return err
         try:
             site = regenerate_site(st, uid())
             live = deploy_site(site)
@@ -3125,10 +3191,19 @@ def _doc_of(src):
 
 
 @mcp.tool(title="Publish timeline", annotations=RW)
+@update_noted
 @accounted
 @_doc_of(_publish_timeline)
 def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
-    r = _publish_timeline(timeline_id, visibility)
+    from .build.engine_stamp import StaleEngineError
+    try:
+        r = _publish_timeline(timeline_id, visibility)
+    except StaleEngineError as e:
+        # No argument or setting passes this: the fix is to update the extension.
+        return {"error": "newer_page_exists", "page_built_by": e.existing,
+                "this_extension": e.mine, "message": str(e),
+                "next": ("Tell the user to update the Alto extension, then publish again. "
+                         "Do not rebuild or retry before that.")}
     if isinstance(r, dict) and not r.get("error") and visibility == "private-web":
         _edits_published(timeline_id)        # the page now carries the folded edits
     return r
@@ -3180,6 +3255,7 @@ def _brief_out(brief):
 
 
 @mcp.tool(title="Restore a published timeline's draft", annotations=RW)
+@update_noted
 @accounted
 def import_timeline(published: str) -> dict:
     """Bring back the editable draft of a timeline that is on the user's
@@ -3480,6 +3556,8 @@ def main(argv: list[str] | None = None) -> None:
     transport = os.environ.get("ALTO_TRANSPORT", "stdio")
     from .cloud import site as site_rec
     site_rec.apply()
+    from .update_check import start as start_update_check
+    start_update_check()          # once per session, in the background; silent on any failure
     mcp.run(transport=transport)
 
 

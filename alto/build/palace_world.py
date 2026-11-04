@@ -223,7 +223,7 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-nav .wp-btn.r:hover:not(:disabled){color:var(--w-text);}
 #wpal-root .wp-nav .wp-btn.r:disabled{opacity:.35;cursor:default;}
 #wpal-root .wp-nav .wp-btn.r.on{color:var(--accent,#5b6cff);}
-#wpal-root .wp-nav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6px;stroke-linecap:round;stroke-linejoin:round;}
+#wpal-root :is(.wp-nav,.wp-seg) svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6px;stroke-linecap:round;stroke-linejoin:round;}
 #wpal-root .wp-at{border:0;background:none;font:inherit;font-size:12.5px;color:var(--w-sub);padding:0 6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;line-height:28px;}
 #wpal-root .wp-at b{color:var(--w-text);font-weight:650;}#wpal-root .wp-at:hover b{text-decoration:underline;text-underline-offset:3px;}
 #wpal-root .wp-hk{position:absolute;right:-8px;top:-8px;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;border-radius:8px;background:var(--u);color:var(--w-pin);
@@ -254,6 +254,42 @@ html.alto-retro #wpal-root .wp-nav .wp-btn.r:not(#_){border:0;}html.alto-retro #
 html.alto-retro #wpal-root .wp-at{font-family:var(--rt-f,inherit);}html.alto-retro #wpal-root .wp-at b{color:#efe6cf;font-weight:400;}
 html.alto-retro #wpal-root .wp-mm rect{fill:#d9ae55;stroke:#d9ae55;}
 @media (max-width:700px){#wpal-root :is(.wp-nav,.wp-mm,.wp-mmtip){display:none !important;}}
+/* ONE ICON ROW at the bottom centre on a desktop (Luke, L-1104-122629, option C): Start Tour (which becomes the player in the same spot),
+   flat map | globe, the whole world, zoom. The three groups stay three elements in the page (a phone keeps each where it was: the wrapper is
+   display:contents there and nothing below applies); here they are flattened into the one bar. Where you are (back / name / next, and the minimap
+   switch) is a small label bar just above it. */
+#wpal-root .wp-row{display:contents;}
+#wpal-root .wp-row > .wp-seg{display:none;}
+@media (min-width:701px){
+  html:not(.mobile) #wpal-root .wp-row{display:flex;align-items:center;gap:8px;left:50%;bottom:18px;transform:translateX(-50%);max-width:calc(100% - 32px);box-sizing:border-box;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-ctl,html:not(.mobile) #wpal-root .wp-row > .wp-tour:not([hidden]){display:contents;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-seg{display:inline-flex;order:20;margin:0 0 0 6px;position:relative;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r{border:0;color:var(--w-sub);}
+  html:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r[aria-pressed="true"]{color:var(--w-text);}
+  html.alto-retro:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r:not(#_){border:0;}
+  html.alto-retro:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){color:#000;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-seg::before{content:'';position:absolute;left:-7px;top:5px;bottom:5px;width:1px;background:var(--w-edge);}
+  html:not(.mobile) #wpal-root .wp-row .wp-tt{order:1;font-size:0 !important;gap:0;background:var(--accent,#5b6cff);border-color:transparent;color:#fff;padding:5px 12px 5px 10px;}
+  html:not(.mobile) #wpal-root .wp-row .wp-tt:hover{background:var(--accent,#5b6cff);filter:brightness(1.1);}
+  html:not(.mobile) #wpal-root .wp-row .wp-tt::before{content:'\25B6  Start Tour';font-size:12.5px;font-weight:650;white-space:pre;}
+  html:not(.mobile) #wpal-root .wp-row .wp-tt .wp-sw{display:none;}
+  html:not(.mobile) #wpal-root .wp-row:has(> .wp-tour:not([hidden])) .wp-tt{display:none;}
+  html:not(.mobile) #wpal-root .wp-row .wp-tour > *,html:not(.mobile) #wpal-root .wp-row > .wp-tour:not([hidden]) > *{order:1;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-tour .d{display:none;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-tour .c{max-width:clamp(120px,19vw,230px);white-space:nowrap;}
+  html:not(.mobile) #wpal-root .wp-row > .wp-tour .x{margin-left:0;}
+  html:not(.mobile) #wpal-root .wp-row .wp-ctl > .wp-btn:not(.wp-tt){width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  html:not(.mobile) #wpal-root .wp-row .wp-ctl > .wp-btn:nth-child(2){order:21;font-size:0 !important;}
+  html:not(.mobile) #wpal-root .wp-row .wp-ctl > .wp-btn:nth-child(2)::before{content:'';width:15px;height:15px;background:currentColor;
+    -webkit-mask:var(--wp-whole) center/contain no-repeat;mask:var(--wp-whole) center/contain no-repeat;}
+  html:not(.mobile) #wpal-root .wp-row .wp-ctl > .wp-btn:nth-child(4){order:22;}
+  html:not(.mobile) #wpal-root .wp-row .wp-ctl > .wp-btn:nth-child(3){order:23;}
+  html:not(.mobile) #wpal-root .wp-row{--wp-whole:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3h5v5M17 3l-5.5 5.5M8 17H3v-5M3 17l5.5-5.5'/%3E%3C/svg%3E");}
+  html:not(.mobile) #wpal-root .wp-nav{left:50%;bottom:66px;transform:translateX(-50%);max-width:calc(100% - 32px);}
+  html:not(.mobile) #wpal-root .wp-nav .wp-at{max-width:220px;}
+  html.alto-retro:not(.mobile) #wpal-root .wp-row .wp-tt:not(#_){background:#d9ae55;color:#000;border-radius:0;}
+  html.alto-editing:not(.mobile):has(#wpal-root:not([hidden]) .wp-row) #alto-edit-exit{bottom:73px;}
+}
 @media print{#wpal-root{display:none !important;}html.wpal-open #world{visibility:visible !important;}}
 @media (max-width:700px){#wpal-root .wp-card{width:180px;padding:8px 10px 9px;}#wpal-root .wp-card.main{width:220px;}#wpal-root .wp-card h4{font-size:13px;}
   #wpal-root .wp-card.main h4{font-size:15px;}#wpal-root .wp-tour .d{display:none;}#wpal-root .wp-tour{bottom:68px;}
@@ -445,7 +481,7 @@ function labels(){                                  // decided once a gesture se
   var taken=[];
   for(var id in S.pins){ var P=S.pins[id]; taken.push([P.x-8,P.y-8,P.x+8,P.y+8]); }
   if(S.cl) S.cl.boxes.forEach(function(b){ taken.push(b); });
-  [S.ctlEl,S.keyEl,S.tourEl,S.list,S.navEl,S.mmEl].forEach(function(e){ if(!e||e.hidden||(e===S.mmEl&&!e.classList.contains('on'))) return; var r=e.getBoundingClientRect(); if(!r.width) return;      // the map's own panels: no name goes under them
+  [S.rowEl,S.ctlEl,S.keyEl,S.tourEl,S.list,S.navEl,S.mmEl].forEach(function(e){ if(!e||e.hidden||(e===S.mmEl&&!e.classList.contains('on'))) return; var r=e.getBoundingClientRect(); if(!r.width) return;      // the map's own panels: no name goes under them
     var a=cp(r.left,r.top), b=cp(r.right,r.bottom); taken.push([a[0]-6,a[1]-6,b[0]+6,b[1]+6]); });
   var hit=function(b,sl){ sl=sl||0; for(var i=0;i<taken.length;i++){ var t=taken[i]; if(b[0]+sl<t[2]&&b[2]-sl>t[0]&&b[1]+sl<t[3]&&b[3]-sl>t[1]) return true; } return false; };
   var seenC={}, order=Object.keys(S.hint||{}).concat(stops(),Object.keys(S.pins)), was=order.filter(function(id){ return S.pins[id]&&S.pins[id].on; });
@@ -899,7 +935,7 @@ var NKEYS=[['Back','up to the place or unit it belongs to'],['Next','the next on
 function svgI(p,d){ var s=el('svg',{viewBox:'0 0 20 20','aria-hidden':'true'},p); d.forEach(function(x){ el('path',{d:x},s); }); return s; }
 function navChrome(){
   var b=S.navEl=h('div',{'class':'wp-bar wp-nav',role:'navigation','aria-label':'Where you are'},S.root);
-  if(gOk()){ var sg=h('span',{'class':'wp-seg',role:'group','aria-label':'Flat map or globe'},b);
+  if(gOk()){ var sg=h('span',{'class':'wp-seg',role:'group','aria-label':'Flat map or globe'},S.rowEl);      // (in the one row on a desktop; hidden with the nav on a phone)
     S.nFlat=h('button',{type:'button','class':'wp-btn r',title:'Flat map','aria-label':'Flat map'},sg); svgI(S.nFlat,['M3 5.5 7.5 4l5 1.5L17 4v10.5L12.5 16l-5-1.5L3 16z','M7.5 4v10.5','M12.5 5.5V16']);
     S.nGlb=h('button',{type:'button','class':'wp-btn r',title:'Globe','aria-label':'Globe'},sg); svgI(S.nGlb,['M10 3a7 7 0 1 0 0 14a7 7 0 1 0 0-14z','M10 3c-2.6 2.2-2.6 11.8 0 14','M10 3c2.6 2.2 2.6 11.8 0 14','M3.4 8h13.2','M3.4 12h13.2']);
     S.nFlat.addEventListener('click',function(ev){ ev.stopPropagation(); A.globe(false); }); S.nGlb.addEventListener('click',function(ev){ ev.stopPropagation(); A.globe(true); }); }
@@ -1034,12 +1070,13 @@ function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=do
 // ── chrome ──
 function chrome(){
   var root=S.root;
-  var ctl=S.ctlEl=h('div',{'class':'wp-bar wp-ctl'},root);
+  var row=S.rowEl=h('div',{'class':'wp-bar wp-row',role:'group','aria-label':'Tour, flat map or globe, whole world, zoom'},root);      // (one bar on a desktop; a phone keeps the groups apart: CSS)
+  var ctl=S.ctlEl=h('div',{'class':'wp-bar wp-ctl'},row);
   var tb=S.tourBtn=h('button',{type:'button','class':'wp-btn wp-tt','aria-pressed':String(S.tour),title:'Tour the route stop by stop, or turn it off to roam the world (T)'},ctl,'Tour');
   h('span',{'class':'wp-sw','aria-hidden':'true'},tb); tb.addEventListener('click',function(){ A.tourMode(!S.tour); }); root.classList.toggle('wp-free',!S.tour);
-  var wb=h('button',{type:'button','class':'wp-btn',title:D().scope?'The whole of '+homeName():'The whole world'},ctl,D().scope?'⤢ '+homeName():'⤢ World'); wb.addEventListener('click',A.world);
-  var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
-  var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
+  var wb=h('button',{type:'button','class':'wp-btn',title:D().scope?'The whole of '+homeName()+' (O)':'The whole world (O)'},ctl,D().scope?'⤢ '+homeName():'⤢ World'); wb.addEventListener('click',A.world);
+  var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in',title:'Zoom in (+)'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
+  var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out',title:'Zoom out (−)'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
   var narrow=(window.innerWidth||1000)<700||document.documentElement.classList.contains('mobile');      // (the map is not measured yet; a phone on its side too)
   var key=S.keyEl=h('div',{'class':'wp-bar wp-key'+(narrow?' shut':'')},root);
   var kt=h('button',{type:'button','class':'wp-kt'},key); (D().acts||[]).forEach(function(a,i){ h('i',{'class':ucls(i),style:'width:8px;height:8px'},kt); }); kt.appendChild(document.createTextNode(' Key'));
@@ -1051,10 +1088,10 @@ function chrome(){
   // button top left under the bars, the key opening beside it; a phone keeps the small key at the bottom (no room for a toggle there)
   if(!narrow&&typeof window._altoKeyToggle==='function'){ key.className='wk'; kt.remove(); var hd=document.createElement('h5'); h('span',null,hd,'Key'); h('span',null,hd,'');
     key.insertBefore(hd,key.firstChild); try{ window._altoKeyToggle(key,'alto-world-key','Key to the map'); }catch(x){} }
-  var tour=S.tourEl=h('div',{'class':'wp-bar wp-tour',hidden:''},root);
-  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.hop(-1); });
+  var tour=S.tourEl=h('div',{'class':'wp-bar wp-tour',hidden:''},row);
+  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop',title:'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.hop(-1); });
   S.tPrev=h('span',{'class':'d'},tour,''); S.tCur=h('span',{'class':'c'},tour,''); S.tNext=h('span',{'class':'d'},tour,'');
-  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.hop(1); });
+  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop',title:'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.hop(1); });
   var tx=h('button',{type:'button','class':'wp-btn r x','aria-label':'End the Tour',title:'End the Tour: roam the world freely'},tour,'✕'); tx.addEventListener('click',function(){ A.tourMode(false); });
   S.list=h('div',{'class':'wp-list',hidden:''},root);
   navChrome();

@@ -237,18 +237,19 @@ _JS = """
       '<span>This copy was built by an older Alto' +
       (have ? '' : ' and carries no version at all') +
       ', so recent fixes are missing from it.</span>' +
-      '<label class="file">Update<input type="file" id="rf" ' +
+      '<label class="file" title="Replaces this page with a page file you choose. ' +
+      'This does not update the Alto extension.">Replace page file\u2026<input type="file" id="rf" ' +
       'accept=".html,text/html"></label><span class="x" id="rx">\u00d7</span>';
     document.getElementById('rx').onclick = function(){ bar.className = ''; };
     document.getElementById('rf').onchange = function(){
       var f = this.files && this.files[0];
       if(!f) return;
-      bar.firstChild.textContent = 'Updating\u2026';
+      bar.firstChild.textContent = 'Replacing the page\u2026';
       f.text().then(function(h){
         return window.AltoCloud.putPage(KEY, h, titleOf(h))
           .then(function(){ location.reload(); });
       }).catch(function(e){
-        bar.firstChild.textContent = 'Could not update: ' + ((e && e.message) || e);
+        bar.firstChild.textContent = 'Could not replace the page: ' + ((e && e.message) || e);
       });
     };
   }

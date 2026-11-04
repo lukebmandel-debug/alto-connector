@@ -18,6 +18,11 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# The out-of-date check (alto/update_check.py) asks GitHub for the latest release. No test may reach the network, so it is off for the
+# whole run; tests/test_stale_guard.py turns it on with the GitHub call replaced by a stub.
+import os as _os
+_os.environ["ALTO_UPDATE_CHECK"] = "off"
+
 # ── tests never make a sound ─────────────────────────────────────────────────────────────────────────────────────
 # The palace's sound code (battleship, crowd, ...) stays exactly as it is in Alto; only the TEST browsers are silenced, so a run on the
 # owner's Mac is not audible. Every Playwright browser the tests open gets (1) a page script that routes anything an AudioNode sends to the

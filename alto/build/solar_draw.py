@@ -1955,9 +1955,11 @@ function shipOff(){ var P=document.getElementById('sol-craft-pop'); if(!P || P.q
   P.insertBefore(row, h ? h.nextSibling : P.firstChild);   /* (first, under "Your ship") */
   row.firstChild.addEventListener('click', function(e){ e.stopPropagation(); window._altoFlyOff=true; keep('fly', 0); if(window._altoCraft) window._altoCraft.close(); ctl(); });
   if(off) setTimeout(function(){ row.firstChild.focus(); }, 0); }
-/* Orbit (the button audit): the orbits always wait while a body is enlarged, so there the button could do nothing; it goes,
-   and comes back on zooming out */
-function orbHide(m){ var h=!!window._focusedNodeId && !OV; if(m.hidden!==h){ m.hidden=h; var w=document.getElementById('sol-ctl'); if(w) de.style.setProperty('--sol-ctl-h', w.offsetHeight+'px'); } }
+/* Orbit (Luke, L-1102-110829: "make sure orbit button isn't constantly disappearing and reappearing while moving throughout
+   system"): it used to go while a body was enlarged and come back on zooming out, so every move (a flight leaves one body
+   and enlarges the next) blinked it away and back. Now it stays put in every style; while a body is enlarged it reads
+   "Orbit · paused" (the poll below), and only a real change (nothing orbits here: disabled) alters it. Phone: #sol-ctl is not shown there. */
+function orbHide(m){ if(m.hidden){ m.hidden=false; var w=document.getElementById('sol-ctl'); if(w) de.style.setProperty('--sol-ctl-h', w.offsetHeight+'px'); } }
 /* the space bar starts / stops the orbit like the Orbit button: only while the system is showing (the button is there
    and enabled: not a phone, not the detail page, not edit mode, not print), no modifier, not held down, not in a field or on
    a button / link / chip (space does its own thing there) */

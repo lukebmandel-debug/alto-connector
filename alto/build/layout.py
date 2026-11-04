@@ -1059,6 +1059,14 @@ def make_room(y: dict, x: dict, h: dict, w: dict, ids: list, moved: set,
             else:
                 return i
 
+    def _under_moved(i):
+        c, n = parent.get(i), 0
+        while c and n < 99:
+            if c in moved:
+                return True
+            c, n = parent.get(c), n + 1
+        return False
+
     def unit(i, whole):
         """i and the cards on its row (whole: and everything under them)."""
         out, q = [], [i]
@@ -1089,6 +1097,8 @@ def make_room(y: dict, x: dict, h: dict, w: dict, ids: list, moved: set,
         grp = unit(r, False)
         if len(unit(r, True)) > len(grp):
             continue                # cards hang under it: they all go down together
+        if any(_under_moved(k) for k in grp):
+            continue                # a dragged card's own progeny never go up past it
         t = {k: y[k] - h[k] / 2 for k in grp}
         lift = 0.0
         again = True
