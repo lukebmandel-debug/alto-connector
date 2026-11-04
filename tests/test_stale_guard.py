@@ -117,9 +117,17 @@ def test_built_private_pages_carry_the_engine_stamp():
     d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
     b, nodes, conns = load_brief(d)
     html, _ = build_timeline(b, nodes, conns)
-    built = private_page(b, html)
+    built = E.stamp(private_page(b, html))            # what build_timeline and publish do (mcp_server)
     from alto.mcp_server import __version__
     assert E.page_engine(built) == __version__
+
+
+def test_stamping_does_not_change_the_page_fingerprint_inputs():
+    """The stamp is added by mcp_server, outside the files behind page_fingerprint, so existing private
+    pages do not all start showing the shell's 'older Alto' bar because of it."""
+    from alto.build import fingerprint as F
+    assert "engine_stamp.py" not in F._TIMELINE_SOURCES
+    assert E.stamp(E.stamp(page())) == E.stamp(page())          # idempotent
 
 
 def test_version_order_is_numeric_not_textual():
@@ -195,6 +203,65 @@ def test_the_early_check_stops_a_publish_before_any_deploy(monkeypatch):
     with pytest.raises(E.StaleEngineError):
         srv._refuse_downgrade_early("t", {"private_key": "k"})
     srv._refuse_downgrade_early("t", {})            # never published yet: nothing to compare
+
+
+# ── folder mode: refuse BEFORE the site is deployed ─────────────────────────
+
+@pytest.fixture
+def folder_publish(monkeypatch, tmp_path, cloud):
+    """A folder-mode store (drafts on this computer), Firebase 'configured', and a spy on regenerate_site/deploy_site."""
+    from alto import mcp_server as srv
+    from alto import publish_static as PS
+    from alto.cloud import session as S
+    st = LocalStore(tmp_path / "folder")
+    st.put_timeline("U1", "t1", {"status": "built", "private_key": "k", "brief": {}, "project_id": "p"})
+    st.put_artifact("U1", "t1", "private.html", page("1.9.211"))
+    monkeypatch.setattr(srv, "get_store", lambda: st)
+    monkeypatch.setattr(srv, "uid", lambda: "U1")
+    monkeypatch.setattr(PS, "firebase_configured", lambda: True)
+    monkeypatch.setenv("ALTO_PUBLISH_MODE", "firebase-static")
+    deploys = []
+    monkeypatch.setattr(PS, "regenerate_site", lambda *a, **k: deploys.append("regenerate") or tmp_path)
+    monkeypatch.setattr(PS, "deploy_site", lambda *a, **k: deploys.append("deploy") or "https://x.web.app")
+    monkeypatch.setattr(S, "get_session", lambda: cloud.s)
+    return srv, deploys, cloud
+
+
+def test_folder_mode_over_a_newer_page_makes_no_deploy_call(folder_publish):
+    srv, deploys, cloud = folder_publish
+    cloud.put_page("U1", "k", page("1.9.300"), "P", META)          # the page already online, built by a newer Alto
+    with pytest.raises(E.StaleEngineError):
+        srv._publish_timeline("t1", "private-web")
+    assert deploys == []
+
+
+def test_folder_mode_over_an_equal_page_goes_on_to_deploy(folder_publish):
+    srv, deploys, cloud = folder_publish
+    cloud.put_page("U1", "k", page("1.9.211"), "P", META)
+    try:
+        srv._publish_timeline("t1", "private-web")
+    except Exception:                                  # noqa: BLE001 — the stubs stop it after the deploy; only the order matters
+        pass
+    assert deploys[:1] == ["regenerate"]
+
+
+def test_folder_mode_fails_closed_when_the_stored_page_cannot_be_read(folder_publish, monkeypatch):
+    srv, deploys, cloud = folder_publish
+
+    def boom(self, uid, key):
+        raise OSError("offline")
+    monkeypatch.setattr(CloudStore, "get_page", boom)
+    r = srv._publish_timeline("t1", "private-web")
+    assert r["error"] == "cannot_check_existing_page" and "offline" in r["message"]
+    assert deploys == []
+
+
+def test_folder_mode_fails_closed_when_signed_out(folder_publish, monkeypatch):
+    srv, deploys, cloud = folder_publish
+    monkeypatch.setattr(type(cloud.s), "signed_in", property(lambda self: False))
+    r = srv._publish_timeline("t1", "private-web")
+    assert r["error"] == "cannot_check_existing_page" and "sign_in" in r["next"]
+    assert deploys == []
 
 
 # ── the shell's upload control ──────────────────────────────────────────────

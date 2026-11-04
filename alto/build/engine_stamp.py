@@ -69,6 +69,18 @@ def engine_meta_tag(version: str = "") -> str:
     return f'<meta name="{META_ENGINE}" content="{_html.escape(version or running_version(), quote=True)}">'
 
 
+def stamp(page: str) -> str:
+    """The page with this Alto's release stamped into its <head>. Done by the
+    callers that publish (mcp_server), not inside single_file.private_page: that
+    file is one of the sources behind the page fingerprint, and touching it would
+    make every existing private page show the shell's "older Alto" bar for a
+    change that alters nothing a reader sees."""
+    if page_engine(page):
+        return page
+    i = page.find("<head>")
+    return page if i < 0 else page[:i + 6] + engine_meta_tag() + page[i + 6:]
+
+
 def page_engine(html) -> str:
     """The release stamped into a page, or '' when it has none (it predates stamps)."""
     m = _TAG.search(str(html or "")[:60000])

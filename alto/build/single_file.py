@@ -13,7 +13,6 @@ import html as _html
 import json
 
 from .brief import Brief
-from .engine_stamp import engine_meta_tag
 from .fingerprint import page_meta_tag
 from .pages import build_home, course_entry_for
 
@@ -161,7 +160,7 @@ def private_page(brief: Brief, timeline_html: str, label: str = "") -> str:
     # publishing CANNOT refresh — and verify_live only ever sees the shell in
     # front of it. Without this, a private timeline can sit on an engine months
     # old while every check reports the site is current.
-    return page[:i + 6] + meta + page_meta_tag() + engine_meta_tag() + _ACCOUNT_BRIDGE + page[i + 6:]
+    return page[:i + 6] + meta + page_meta_tag() + _ACCOUNT_BRIDGE + page[i + 6:]
 
 
 def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
