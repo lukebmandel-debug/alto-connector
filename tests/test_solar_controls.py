@@ -2,7 +2,7 @@
 
 - Spokes only is gone (its switch, its mode and its arrows); a choice kept from it opens the page as ever;
 - Flights and Ship are one picker, "Ship: Off" or the craft: off goes straight to each body, a craft chosen flies;
-- Orbit is hidden while a body is enlarged (the orbits wait there anyway) and comes back on zooming out;
+- Orbit stays put while a body is enlarged (reads "paused"; Luke L-1102-110829: it must not blink away and back);
 - a move (the Tour bar's Next, a name in the panel) still flies its flight path when there is a ship.
 
 Browser checks run in Chromium and WebKit (Playwright; skipped without them)."""
@@ -89,14 +89,14 @@ def test_the_ship_picker_has_off_and_a_craft_flies(browser, page, style):
 
 
 @pytest.mark.parametrize("style", ["system", "retro", "3d"])
-def test_orbit_hides_while_a_body_is_enlarged(browser, page, style):
+def test_orbit_stays_while_a_body_is_enlarged(browser, page, style):
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("s => window._altoSolarStyles.set(s)", style)
     pg.wait_for_timeout(1200)
     assert "sol-motion" in pg.evaluate(CTL)
     pg.evaluate("() => window.enterFocus('u1-p2')")
     pg.wait_for_timeout(1500)
-    assert "sol-motion:hidden" in pg.evaluate(CTL)
+    assert "sol-motion" in pg.evaluate(CTL)                                      # (kept: no longer hidden while enlarged)
     assert not any(b.startswith(("sol-lock", "sol-fly")) for b in pg.evaluate(CTL))
     pg.keyboard.press("Escape")                                                  # zoomed out: back
     pg.wait_for_timeout(1500)
