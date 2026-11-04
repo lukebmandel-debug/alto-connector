@@ -1,10 +1,45 @@
 rules_version = '2';
 
-// Alto keeps nothing in Firebase Storage. No client may read or write it.
+// Alto Storage rules: Bass Documents originals ONLY. Deploy with
+//   firebase deploy --only storage --project <your-project>
+// (Release & Ops / IT; never from a cloud seat).
+//
+// One path is open, and only to its owner:
+//   users/{uid}/bass/{fid}    the original of one Bass Documents file
+//
+// The proxy is the only writer of the library index, Firestore bass_docs/{uid} (server only: firestore.rules matches no client path for
+// it). A page may write an original only AFTER the proxy listed {fid} for that uid (the per-account count and size caps are checked
+// there), only once, no bigger than the size the proxy recorded, and only as one of the allowed types. A file that is deleted (in its
+// 7-day recovery window) or gone is refused to everyone, its owner included. Nothing is listable, nothing is public, and no other
+// path in the bucket is readable or writable by any client (no match = deny).
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if false;
+    match /users/{uid}/bass/{fid} {
+      function owner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+      function index() {
+        return firestore.get(/databases/(default)/documents/bass_docs/$(uid));
+      }
+      function listed() {
+        return firestore.exists(/databases/(default)/documents/bass_docs/$(uid))
+            && fid in index().data.files
+            && !('deleted' in index().data.files[fid]);
+      }
+      function allowedType() {
+        return request.resource.contentType.matches('application/pdf')
+            || request.resource.contentType.matches('application/vnd[.]openxmlformats-officedocument[.]wordprocessingml[.]document')
+            || request.resource.contentType.matches('text/(plain|markdown|csv)(;.*)?')
+            || request.resource.contentType.matches('image/(png|jpeg|webp|heic)');
+      }
+
+      allow get: if owner() && listed();
+      allow list: if false;
+      allow create: if owner() && listed() && resource == null      // once: never over an existing original
+                    && request.resource.size <= 5000000
+                    && request.resource.size <= index().data.files[fid].bytes
+                    && allowedType();
+      allow update, delete: if false;          // no overwrite; the proxy deletes originals with its own service account
     }
   }
 }

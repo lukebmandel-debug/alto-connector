@@ -139,10 +139,10 @@ class LocalStore(Store):
         p = self._p(uid, "timelines", tid, "artifacts", name, mkdir=False)
         return p.read_text(encoding="utf-8") if p.exists() else None
 
-    def get_share(self, tid):
+    def get_share(self, tid, uid=None):
         return self._read(self._p("_shares", f"{tid}.json"))
 
-    def delete_share(self, tid):
+    def delete_share(self, tid, uid=None):
         self._p("_shares", f"{tid}.json", mkdir=False).unlink(missing_ok=True)
 
     def put_share(self, tid, doc):

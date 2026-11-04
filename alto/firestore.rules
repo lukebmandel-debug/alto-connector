@@ -7,22 +7,82 @@ rules_version = '2';
 // 30 days. Publishing a timeline before these rules are live would expose every
 // reader's highlights and notes to anyone who found the project id.
 //
-// Layout written by alto-cloud.js (v3). The recursive match below already
-// covers every one of these, including private timeline pages:
-//   users/{uid}                       { theme }                    account-wide
-//   users/{uid}/tl/{tid}              { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, updatedAt }
-//   users/{uid}/tl/{tid}/reports/{id} { data, deleted, ts }
-//   users/{uid}/pages/{key}           { html, title, updatedAt }  private
-//   users/{uid}/shared/{key}          { key, title, savedAt }  shares kept
-//   shares/{key}                      { html|items, title, owner, updatedAt }
+// Everything not matched below is denied, including collection-group queries
+// (there is no {path=**} match) and listing any collection outside one's own
+// account.
 //
-// Rules do NOT cascade into subcollections, hence the recursive {document=**}.
+// Layout written by alto-cloud.js (v3) and alto/store/cloud.py:
+//   users/{uid}                         { theme, homeSort, homeBg, ... }   account-wide
+//   users/{uid}/tl/{tid}                { highlights, hl_removed, ..., updatedAt }
+//   users/{uid}/tl/{tid}/reports/{id}   { data, deleted, ts }
+//   users/{uid}/pages/{key}             { z|html, title, shareKey, updatedAt }  private
+//   users/{uid}/pagemeta/{key}          { title, heading, shareKey, ... }
+//   users/{uid}/shared/{key}            { key, title, savedAt }  shares kept
+//   users/{uid}/bglib/{id}, bgimg/{id}  imported backgrounds
+//   users/{uid}/edits/{tid}             manual edits
+//   users/{uid}/alto_projects/{pid}, alto_snapshots/{key}
+//   users/{uid}/alto_timelines/{tid}[/nodes/{id} | /meta/{id}]
+//   shares/{key}                        { z+enc | html, title, updatedAt }  content only
+//   shares/{key}/private/owner          { owner }  who may change or revoke it
+//   terms_acceptance/{uid}_{version}    { uid, version, ageConfirmed, acceptedAt }
+//
+// Nothing about money (credits, ledgers, billing periods) is kept under
+// users/{uid}: an account may write its own documents, so such state there
+// would be the account's to edit.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+    function signedIn() {
+      return request.auth != null;
     }
 
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Every write that adds or changes data needs a verified email on the
+    // beta allowlist: bass_beta/allowlist { emails: [lowercase, ...] }, kept
+    // by the server; no client can read or write it. Reading and deleting
+    // one's own data never needs it.
+    function allowlisted() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.lower()
+             in get(/databases/$(database)/documents/bass_beta/allowlist).data.emails;
+    }
+
+    // ── an account's own data: its owner only ───────────────────────────────
+    function ownCollection(coll) {
+      return coll in ['tl', 'pages', 'pagemeta', 'shared', 'bglib', 'bgimg',
+                      'edits', 'alto_projects', 'alto_snapshots', 'alto_timelines'];
+    }
+
+    match /users/{uid} {
+      allow get: if isUser(uid);
+      allow create, update: if isUser(uid) && allowlisted();
+      allow delete: if isUser(uid);
+
+      match /{coll}/{id} {
+        allow read: if isUser(uid) && ownCollection(coll);
+        allow create, update: if isUser(uid) && ownCollection(coll) && allowlisted();
+        allow delete: if isUser(uid) && ownCollection(coll);
+      }
+
+      match /tl/{tid}/reports/{id} {
+        allow read: if isUser(uid);
+        allow create, update: if isUser(uid) && allowlisted();
+        allow delete: if isUser(uid);
+      }
+
+      match /alto_timelines/{tid}/{sub}/{id} {
+        allow read: if isUser(uid) && sub in ['nodes', 'meta'];
+        allow create, update: if isUser(uid) && sub in ['nodes', 'meta'] && allowlisted();
+        allow delete: if isUser(uid) && sub in ['nodes', 'meta'];
+      }
+    }
+
+    // ── share links ─────────────────────────────────────────────────────────
     // A share link is meant to be opened by someone who is not signed in to
     // anything, so this is the one collection in Alto that is world-readable.
     // What protects it is that the key is 22 random characters and appears
@@ -32,16 +92,89 @@ service cloud.firestore {
     // and a listable collection turns 110 bits of unguessable key into a
     // directory anyone can walk — every share on the project, readable, in one
     // request. Do not merge these two lines back into `read`.
+    //
+    // The public document holds content only. Who owns it is in
+    // shares/{key}/private/owner, readable by that owner alone, and never
+    // changed or removed once written: revoking deletes the content, and the
+    // key stays its owner's, so nobody else can publish under a link that
+    // was once handed out.
+
+    // The browser's key alphabet (alto-cloud.js KEY_ALPHABET), 22 symbols.
+    function validKey(key) {
+      return key.matches('^[a-km-np-z2-9]{22}$');
+    }
+
+    function sharePath(key) {
+      return /databases/$(database)/documents/shares/$(key);
+    }
+
+    function ownerPath(key) {
+      return /databases/$(database)/documents/shares/$(key)/private/owner;
+    }
+
+    // Owner of the share once this request is applied (so a batch that writes
+    // the owner record and the share together is checked as one).
+    function ownsShareAfter(key) {
+      return signedIn() && getAfter(ownerPath(key)).data.owner == request.auth.uid;
+    }
+
+    // A timeline page, gzipped (z + enc) or plain (html), and its title.
+    function shareContent() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['title', 'z', 'enc', 'html', 'updatedAt'])
+        && d.keys().hasAll(['title', 'updatedAt'])
+        && d.title is string && d.title.size() <= 300
+        && d.updatedAt == request.time
+        && ((d.keys().hasAll(['z', 'enc']) && !d.keys().hasAny(['html'])
+             && d.z is bytes && d.z.size() <= 1000000 && d.enc == 'gzip')
+            || (d.keys().hasAny(['html']) && !d.keys().hasAny(['z', 'enc'])
+                && d.html is string && d.html.size() <= 1000000));
+    }
+
     match /shares/{key} {
       allow get: if true;
       allow list: if false;
-      // Only the account named in the document may change or revoke it, and a
-      // new share must name its own author — otherwise anyone signed in could
-      // create shares under someone else's name, or overwrite theirs.
+      allow create, update: if validKey(key) && allowlisted() && shareContent()
+                            && ownsShareAfter(key);
+      // Revoking: always open to the owner, allowlisted or not.
+      allow delete: if ownsShareAfter(key);
+
+      match /private/{doc} {
+        allow get: if doc == 'owner' && signedIn()
+                   && resource.data.owner == request.auth.uid;
+        allow list: if false;
+        // Claimed once, by the account making the share. A share made before
+        // owner records existed names its owner in the share itself; that
+        // owner may claim it (and so revoke it) without the allowlist.
+        allow create: if doc == 'owner' && validKey(key) && signedIn()
+                      && request.resource.data.keys().hasOnly(['owner'])
+                      && request.resource.data.owner == request.auth.uid
+                      && ((allowlisted() && !exists(sharePath(key)))
+                          || (exists(sharePath(key))
+                              && get(sharePath(key)).data.get('owner', '') == request.auth.uid));
+        allow update, delete: if false;
+      }
+    }
+
+    // ── terms acceptance: one record per account and terms version ──────────
+    match /terms_acceptance/{docId} {
+      allow get: if request.auth != null && docId.matches(request.auth.uid + '_.*');
       allow create: if request.auth != null
-                    && request.auth.uid == request.resource.data.owner;
-      allow update, delete: if request.auth != null
-                            && request.auth.uid == resource.data.owner;
+        && docId == request.auth.uid + '_' + request.resource.data.version
+        && request.resource.data.keys().hasOnly(['uid','version','ageConfirmed','acceptedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.version is string && request.resource.data.version.size() <= 20
+        && request.resource.data.ageConfirmed == true
+        && request.resource.data.acceptedAt == request.time
+        && allowlisted();
+      allow list, update, delete: if false;
+    }
+
+    // ── server-only ─────────────────────────────────────────────────────────
+    // The beta allowlist (and anything else under bass_beta) is written and
+    // read by the server; rules above read the allowlist with get().
+    match /bass_beta/{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -205,7 +205,7 @@ async def create_session(request: Request):
 
 def _serve_artifact(request: Request, tid: str, name: str):
     st = get_store()
-    share = st.get_share(tid)
+    share = st.get_share(tid, session_uid(request))
     if not share:
         return PlainTextResponse("Not found", status_code=404)
     owner = share["uid"]
@@ -236,7 +236,7 @@ async def timeline_download(request: Request, tid: str):
 @app.get("/reports", response_class=HTMLResponse)
 async def reports(request: Request, course: str = ""):
     st = get_store()
-    share = st.get_share(course) if course else None
+    share = st.get_share(course, session_uid(request)) if course else None
     if not share:
         return PlainTextResponse("Not found", status_code=404)
     owner = share["uid"]
