@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.212"
+__version__ = "1.9.213"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -3387,7 +3387,7 @@ def _remove_timeline(st, tid: str, doc: dict) -> bool:
     key = doc.get("private_key")
     if key and hasattr(st, "delete_page"):
         st.delete_page(uid(), key)
-    st.delete_share(tid)
+    st.delete_share(tid, uid())
     st.delete_timeline(uid(), tid)
     return on_web
 
