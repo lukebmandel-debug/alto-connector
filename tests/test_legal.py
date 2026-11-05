@@ -279,3 +279,22 @@ def test_a_refused_save_says_so_and_keeps_asking_and_an_unreadable_record_is_nev
         assert errors == []
     finally:
         pg.close()
+
+
+def test_every_browser_store_the_site_opens_is_in_the_policys_device_list_and_the_ones_that_hold_a_persons_files_leave_at_sign_out():
+    """The policy's "Storage on your device" paragraph and ORG's storage notice must name each IndexedDB database the pages open.
+    A new database fails here until it is added to both and to this map."""
+    import re
+    names = set()
+    for p in list((ROOT / "alto").rglob("*.py")) + list((ROOT / "alto" / "cloud").glob("*.js")):
+        t = p.read_text(encoding="utf-8", errors="ignore")
+        names |= set(re.findall(r"indexedDB\.open\(\s*'(alto-[a-z-]+)'", t))
+        names |= set(re.findall(r"(?:DBN|DB)\s*=\s*'(alto-[a-z-]+)'", t))
+    in_policy = {"alto-pv-cache": "your page list and pages", "alto-files": "files you attach while editing",
+                 "alto-bg-lib": "backgrounds you import", "alto-pics": "pictures you add"}
+    assert names == set(in_policy), names ^ set(in_policy)
+    priv = (ROOT / "alto" / "legal" / "privacy-policy.md").read_text(encoding="utf-8").split("## Storage on your device")[1].split("##")[0]
+    for words in in_policy.values():
+        assert words in priv, words
+    js = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
+    assert "indexedDB.deleteDatabase('alto-bg-lib'); indexedDB.deleteDatabase('alto-pics');" in js            # signing out takes both
