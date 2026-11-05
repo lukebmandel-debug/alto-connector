@@ -87,7 +87,7 @@ CHROME_CSS = r"""
   X:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:8px;background:#d9ae55 !important;color:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;
     font-family:var(--rt-f) !important;font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
     clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px));}
-  X:not(.mobile) #title-bar #title-text:not(#_)::after{-webkit-mask-size:contain;mask-size:contain;}
+  X:not(.mobile) #title-bar #title-text:not(#_)::after{background-image:var(--tt-syr) !important;}
   }
   X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
     background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */

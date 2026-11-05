@@ -39,21 +39,23 @@ HOME = [{"name": "Law", "pid": "p", "courses": [
 
 # ── what the pages and scripts carry ─────────────────────────────────────────
 
-def test_the_mask_of_every_symbol_is_a_self_contained_css_url():
+def test_the_image_of_every_symbol_is_a_self_contained_css_url_in_its_own_ink():
     for k in format_symbols.KEYS:
-        u = format_symbols.mask_uri(k)
+        u = format_symbols.ink_uri(k, "#06485c")
+        assert "stroke='%2306485c'" in u
         assert u.startswith('url("data:image/svg+xml,') and u.endswith('")')
         body = u[len('url("data:image/svg+xml,'):-2]
         assert '"' not in body and "<" not in body and "#" not in body.replace("%23", "") and "currentColor" not in body
+        assert "mask" not in u
 
 
 def test_a_timeline_page_carries_the_tab_and_its_own_symbol_and_a_system_its_dark_sheet():
     t = _build("outline")
     assert 'id="alto-title-tab"' in t and "--tt-sym:" in t and "border-radius:0 0 14px 14px" in t
-    assert format_symbols.mask_uri("outline") in t
-    assert format_symbols.mask_uri("lanes") in _build("lanes")
+    assert format_symbols.ink_uri("outline", "#1a1a2e") in t and format_symbols.ink_uri("outline", "#000") in t
+    assert format_symbols.ink_uri("lanes", "#c9fffa") in _build("lanes") and "mask" not in t.split('id="alto-title-tab"')[1].split("</style>")[0]
     s = _build("outline", layout="solar")
-    assert format_symbols.mask_uri("system") in s and "html.alto-stars:not(.mobile) #title-bar #title-text" in s
+    assert format_symbols.ink_uri("system", "#eef2ff") in s and "html.alto-stars:not(.mobile) #title-bar #title-text" in s
     assert "html.alto-stars:not(.mobile) #title-bar #title-text" not in t
 
 

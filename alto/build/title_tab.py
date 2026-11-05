@@ -6,9 +6,10 @@ Classic's tab is below and rides in the page; Retro's (a gold plate with chamfer
 scripts (retro.py, holo.py), which restyle the same element with the same two variables.
 
 How the symbol gets there. The name is a bare <span id="title-text"> that other code rewrites (a rename sets its textContent, the cloud
-store swaps its text), so no markup goes inside it. The symbol is its ::after, a mask of this page's own drawing (format_symbols.mask_uri)
-in the name's colour, in two variables set on the page: --tt-sym (the drawing) and --tt-sw (the room it takes beside the name; 0 where a page
-has no format, the homepage and Reports). The hover line (hover_lines.py) is the name's ::before, laid at the name's own padding.
+store swaps its text), so no markup goes inside it. The symbol is its ::after, this page's own drawing as a background image with the ink baked
+in (format_symbols.ink_uri; no mask), one per ink the styles use: --tt-sym on a light theme and --tt-syd on a dark one (Classic), --tt-syr (Retro's
+black), --tt-syh and --tt-syk (Holographic's light and dark), and --tt-sw (the room it takes beside the name; 0 where a page has no format, the
+homepage and Reports). The hover line (hover_lines.py) is the name's ::before, laid at the name's own padding.
 """
 from __future__ import annotations
 
@@ -18,7 +19,8 @@ from .backgrounds import _lean
 # the tab's room, shared by every style (the hover line is laid at the same place)
 AFTER_CSS = r"""
 html:not(.mobile) #title-bar #title-text:not(#_)::after{content:"";position:absolute;left:var(--tt-px);top:calc(50% - 1.5px);translate:0 -50%;
-  width:var(--tt-w,0);height:var(--tt-w,0);background:currentColor;-webkit-mask:var(--tt-sym) center/contain no-repeat;mask:var(--tt-sym) center/contain no-repeat;}
+  width:var(--tt-w,0);height:var(--tt-w,0);background:var(--tt-sym) center/contain no-repeat;}
+html.dark:not(.mobile) #title-bar #title-text:not(#_)::after{background-image:var(--tt-syd);}
 """
 BASE_CSS = r"""
 html:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:7px;position:relative;align-self:start;box-sizing:border-box;display:block;white-space:nowrap;
@@ -39,11 +41,19 @@ html.alto-stars:not(.mobile) #title-bar #title-text:not(#_){background:rgba(8,10
 """
 
 
+# the inks, as the styles colour the name: Classic's text (light, dark), Retro's black on gold, Holographic's text (light, dark; holo.TOKENS tx), a System's light
+INKS = {"sym": "#1a1a2e", "syd": "#e2e2f0", "syr": "#000", "syh": "#06485c", "syk": "#c9fffa"}
+
+
 def vars_css(key: str | None) -> str:
-    """The page's own symbol (none for the homepage and Reports)."""
+    """The page's own symbol, once in each ink (none for the homepage and Reports). A System's sky is light in every theme: its one ink is the dark theme's."""
     if not key:
         return ""
-    return ":root{--tt-sym:%s;--tt-w:18px;--tt-sw:26px;}" % format_symbols.mask_uri(key)
+    ink = {k: format_symbols.ink_uri(key, v) for k, v in INKS.items()}
+    if key == "system":
+        ink["sym"] = format_symbols.ink_uri(key, "#eef2ff")
+        ink["syd"] = "var(--tt-sym)"
+    return ":root{" + ";".join("--tt-%s:%s" % kv for kv in ink.items()) + ";--tt-w:18px;--tt-sw:26px;}"
 
 
 def block(key: str | None = None) -> str:
