@@ -36,7 +36,7 @@ html.sk-3d .aph-tray{display:none !important;}
 JS = r"""
   /* ── the System's rising panel (solar_pics.py) ── */
   (function(){
-    var layer=null, tags={}, panel=null, panId=null, rafH=0, reduce=window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var layer=null, tags={}, panel=null, panId=null, rafH=0, mq=window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
     function S3(){ var p=window._altoSolar3D; return p && p.on && p.screen && p.on() && !root.classList.contains('mobile') ? p : null; }
     function ids(){ var c=C(); return Object.keys(c).filter(function(k){ return (c[k]||[]).length; }); }
     function ensure(){ if(layer) return; layer=el('div'); layer.id='aph-hp'; document.body.appendChild(layer); }
@@ -83,7 +83,7 @@ JS = r"""
         if(x+w+20>vw){ x=q.x-q.r-34-w; left=true; }
         panel.style.width=w+'px';
         var h=panel.offsetHeight, y=Math.max(70, Math.min(vh-h-70, q.y-h/2));
-        var rise=reduce ? 0 : (1-t2), turn=reduce ? 0 : rise*(left ? 62 : -62);
+        var reduce=mq && mq.matches, rise=reduce ? 0 : (1-t2), turn=reduce ? 0 : rise*(left ? 62 : -62);
         panel.style.transformOrigin=left ? '100% 50%' : '0 50%';
         panel.style.transform='translate('+Math.round(x)+'px,'+Math.round(y+rise*46)+'px) rotateY('+turn.toFixed(1)+'deg) scale('+(.62+.38*t2).toFixed(3)+')';
         panel.style.opacity=String(Math.min(1, t2*1.4)); panel.style.pointerEvents=t2>.55 ? 'auto' : 'none';

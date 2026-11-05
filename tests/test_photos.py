@@ -276,7 +276,7 @@ def _open(browser, site, page="seeded", edit=False, mobile=False, viewport=None,
     pg = ctx.new_page()
     pg.errs = []
     pg.on("pageerror", lambda e: pg.errs.append(str(e)))
-    pg.goto(f"{base}/{page}.html")
+    pg.goto(f"{base}/{page}.html", timeout=90000)
     pg.wait_for_timeout(1800)
     if edit:
         pg.click("#alto-edit-pill .aep-manual")
@@ -482,6 +482,10 @@ def test_a_card_on_a_phone_carries_its_picture(browser, site):
     n = pg.evaluate("document.querySelectorAll('.node .aph-thumb').length")
     assert n >= 1
     _loaded(pg, ".node .aph-thumb img")
+    pg.evaluate("window.__opened = 0; var o = window.showDetail; window.showDetail = function(){ window.__opened++; return o.apply(this, arguments); };")
+    pg.tap(".node.mobile-featured .aph-thumb, .node .aph-thumb >> nth=0")                              # a tap on the picture: the viewer, not the card's page
+    pg.wait_for_selector("#aph-lb", timeout=8000)
+    assert pg.evaluate("window.__opened") == 0
     pg.context.close()
 
 
@@ -584,4 +588,175 @@ def test_a_share_copies_the_pages_pictures_says_how_many_and_stops_with_the_link
     assert pg.evaluate("window.AltoCloud.shareRevoke('pk1')") is True
     assert pg.evaluate("Object.keys(window.__fs.docs).filter(k => k.startsWith('shares/'))") == [f"shares/{key}/private/owner"] or \
         pg.evaluate("Object.keys(window.__fs.docs).filter(k => k.startsWith('shares/') && /pics|picbig/.test(k))") == []
+    pg.context.close()
+
+
+# ── quizzes, flash cards, the Filter ─────────────────────────────────────────
+
+def _study_doc():
+    d = _seeded()
+    d["nodes"][0]["sections"] += [
+        {"h": "Flash cards", "t": "", "cards": {"label": "Elements", "cards": [
+            {"id": "c1", "front": "What is an offer?", "back": "A manifestation of willingness.", "front_pic": {"ref": S1, "caption": "The letter"}},
+            {"id": "c2", "front": "Acceptance?", "back": "Assent.", "back_pic": {"ref": S2, "alt": "A shop"}}]}},
+        {"h": "Quiz", "t": "", "quiz": {"label": "Quiz", "questions": [
+            {"id": "q1", "q": "What does the letter show?", "choices": ["An offer", "A claim"], "answer": 0, "pic": {"ref": S3, "caption": "Ledger page"}}]}}]
+    return d
+
+
+def test_a_question_and_a_card_side_carry_a_picture_through_the_brief_and_the_page():
+    html = _html(_study_doc())
+    m = re.search(r'window\._ALTO_ST=(.*?);</script>', html)
+    st = json.loads(m.group(1).replace("<\\/", "</"))
+    cards = next(v for v in st.values() if v["k"] == "c")["n"]
+    quiz = next(v for v in st.values() if v["k"] == "q")["n"]
+    assert cards[0]["fp"] == {"r": S1, "c": "The letter"} and "fp" not in cards[1] and cards[1]["bp"] == {"r": S2, "a": "A shop"}
+    assert quiz[0]["p"] == {"r": S3, "c": "Ledger page"}
+    bad = _study_doc()
+    bad["nodes"][0]["sections"][-1]["quiz"]["questions"][0]["pic"] = {"ref": "nope"}
+    with pytest.raises(BriefError, match="pic-"):
+        _html(bad)
+
+
+def test_the_study_editors_list_folds_with_its_pictures():
+    from alto.build.study import compact, from_compact
+    st = Store(_study_doc())
+    v = _view(st)
+    secs = v.owner("n", "formation").sections
+    for s in secs:
+        if s.cards or s.quiz:
+            c = compact(s)
+            which, back = from_compact(c)
+            assert back == (s.cards if which == "cards" else s.quiz) or which in ("cards", "quiz")
+    cards = compact(next(s for s in secs if s.cards))
+    cards["n"][0]["bp"] = {"r": S4, "c": "Back side"}
+    which, out = from_compact(cards)
+    assert out["cards"][0]["back_pic"] == {"ref": S4, "caption": "Back side"} and out["cards"][0]["front_pic"] == {"ref": S1, "caption": "The letter"}
+    sec = next(s for s in secs if s.cards)
+    k = "sd|n-formation-%d|study" % secs.index(sec)
+    st.edits = {"v": 1, "ops": {k: {"b": jhash(_jdump(compact(sec))), "v": cards, "t": 3}}}
+    r = fold(st, "u", "t1")
+    assert not r["conflicts"] and r["folded"] == 1, r
+    got = next(s for s in _node(st, "formation")["sections"] if s.get("cards"))["cards"]["cards"][0]
+    assert got["back_pic"]["ref"] == S4
+    _build_store(st)
+
+
+def test_a_quiz_question_and_a_flash_card_show_their_pictures(browser, site, tmp_path_factory):
+    base, root = site
+    (root / "study.html").write_text(_html(_study_doc()), encoding="utf-8")
+    pg = _open(browser, site, page="study")
+    _detail(pg)
+    pg.wait_for_selector(".ast-quiz .asq-q .aph-q img", timeout=8000)
+    _loaded(pg, ".ast-quiz .aph-q img")
+    assert pg.inner_text(".ast-quiz .aph-q .aph-cap") == "Ledger page"
+    pg.wait_for_selector(".ast-cards .aph-cf img", timeout=8000)
+    _loaded(pg, ".ast-cards .asc-front .aph-cf img")
+    assert pg.evaluate("document.querySelectorAll('.ast-cards .asc-front .aph-cf').length") == 1 and pg.evaluate("document.querySelectorAll('.ast-cards .asc-back .aph-cf').length") == 0
+    pg.click(".ast-cards .asc-next, .ast-cards .asc-nav >> nth=1")                                   # the second card: its picture is on the back
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.querySelectorAll('.ast-cards .asc-back .aph-cf').length") == 1
+    pg.click(".ast-quiz .aph-q .aph-img")                                                             # a picture in a question opens large
+    pg.wait_for_selector("#aph-lb img[src^='blob:']", timeout=8000)
+    assert not pg.errs, pg.errs
+    pg.context.close()
+
+
+def test_the_study_editor_adds_and_removes_a_picture_on_a_question(browser, site):
+    _base, root = site
+    (root / "study.html").write_text(_html(_study_doc()), encoding="utf-8")
+    pg = _open(browser, site, page="study", edit=True)
+    _detail(pg)
+    pg.click(".aed-st >> nth=0")
+    pg.wait_for_selector("#aed-study .as-pic", timeout=8000)
+    pg.wait_for_function("document.querySelectorAll('#aed-study .as-pict img[src^=\"blob:\"]').length >= 1", timeout=8000)
+    assert pg.evaluate("document.querySelectorAll('#aed-study .as-pic').length") >= 2                  # a row for each side of each card
+    pg.click("#aed-study .as-pic .as-picx >> nth=0")                                                  # take the front card's picture off
+    pg.click("#aed-study .as-save")
+    pg.wait_for_timeout(1200)
+    key = next(k for k in pg.evaluate("Object.keys(window.__edits.ops)") if k.startswith("sd|"))
+    v = pg.evaluate("window.__edits.ops['%s'].v" % key)
+    assert "fp" not in v["n"][0] and v["n"][1]["bp"]["r"] == S2
+    assert not pg.errs, pg.errs
+    pg.context.close()
+
+
+def test_the_filter_gains_has_pictures_and_a_picture_added_in_edit_mode_joins_it(browser, site):
+    pg = _open(browser, site)
+    f = pg.evaluate("(window.FILTER_SECTIONS || []).filter(s => s.key === 'pics').map(s => [s.label, s.items[0].name, s.items[0].count, (window.FILTER_NODES.pics || {}).has])")
+    assert f == [["Pictures", "Has pictures", 2, ["definiteness", "formation"]]], f
+    pg.context.close()
+    pg = _open(browser, site, page="plain", edit=True)
+    assert pg.evaluate("(window.FILTER_SECTIONS || []).filter(s => s.key === 'pics').length") == 0
+    _detail(pg)
+    _add(pg, ".aph-top .aph-add", [str(site[1] / "p3.jpg")])
+    assert pg.evaluate("(window.FILTER_NODES.pics || {}).has") == ["formation"]
+    pg.context.close()
+
+
+# ── the System: the rising hologram panel (solar_pics.py), desktop 3D only ───────────────────────
+
+UNITS = [[[2, 1, 0], [1, 0], [0], [3, 1]], [[1, 1], [0, 2], [2]], [[], [0]]]
+
+
+def _system_doc():
+    from tests.test_solar_draw import solar_doc
+    d = solar_doc(UNITS, "orbit", [("u1-p1", "u2-p2")])
+    for n in d["nodes"]:
+        if n["id"] == "u1-p1":
+            n["photos"] = [{"ref": S1, "caption": "Signed letter, 1892"}, {"ref": S2}, {"ref": S3}]
+        if n["id"] == "u1-p2":
+            n["photos"] = [{"ref": S4, "caption": "Ledger"}]
+    return d
+
+
+def _in_3d(pg):
+    pg.evaluate("() => { window._altoCraft.set('explorer'); window._altoFlyOff=true; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2800)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pg.context.close()
+        pytest.skip("no WebGL in this browser")
+
+
+def test_a_body_with_pictures_carries_a_tag_from_afar_and_a_panel_rises_as_the_camera_comes_near(browser, site):
+    base, root = site
+    (root / "system.html").write_text(_html(_system_doc()), encoding="utf-8")
+    pg = _open(browser, site, page="system", viewport={"width": 1500, "height": 950})
+    _in_3d(pg)
+    pg.wait_for_function("document.querySelectorAll('#aph-hp .hp-tag').length >= 1", timeout=10000)
+    assert pg.evaluate("document.querySelector('#aph-hp .hp-panel')") is None                        # far: a tag, no panel
+    g = pg.evaluate("() => { var g = window._altoSolarGeo().bodies['u1-p1']; return [g.x, g.y]; }")
+    pg.evaluate("a => window._altoSolar3D.set({tx: a[0], tz: a[1], d: 170})", g)
+    pg.wait_for_function("document.querySelector('#aph-hp .hp-panel') && +document.querySelector('#aph-hp .hp-panel').style.opacity > .8", timeout=10000)
+    r = pg.evaluate("""() => { const p = document.querySelector('#aph-hp .hp-panel'), b = p.getBoundingClientRect(), s = window._altoSolar3D.screen('u1-p1');
+      return {w: b.width, l: b.left, r: b.right, bx: s.x, br: s.r, imgs: p.querySelectorAll('img').length, name: p.querySelector('.hp-name').textContent, cap: p.querySelector('.hp-cap').textContent,
+              tether: !!document.querySelector('#aph-hp .hp-tether line'), vw: innerWidth}; }""")
+    assert r["imgs"] == 3 and r["cap"] == "Signed letter, 1892" and r["tether"] and r["name"].lower().startswith("planet concept 1.1"), r
+    assert r["l"] >= 0 and r["r"] <= r["vw"], r                                                      # on screen, beside the body, not on it
+    pg.click("#aph-hp .hp-panel .hp-main", force=True)
+    pg.wait_for_selector("#aph-lb", timeout=5000)
+    pg.keyboard.press("Escape")
+    # rising: between far and near the panel is part-grown and turned; with Reduce Motion it stands without the turn
+    ROT = "() => { const p = document.querySelector('#aph-hp .hp-panel'); return p ? [+p.style.opacity, +(/rotateY\\((-?[0-9.]+)deg/.exec(p.style.transform) || [0, 0])[1]] : null; }"
+    seen = None
+    for dist in (900, 800, 700, 620, 560, 500):
+        pg.evaluate("a => window._altoSolar3D.set({tx: a[0], tz: a[1], d: a[2]})", [g[0], g[1], dist])
+        pg.wait_for_timeout(500)
+        o = pg.evaluate(ROT)
+        if o and 0 < o[0] < .95:
+            seen = o
+            break
+    assert seen and abs(seen[1]) > 3, seen
+    pg.emulate_media(reduced_motion="reduce")
+    pg.wait_for_timeout(400)
+    assert abs(pg.evaluate(ROT)[1]) < .01
+    assert not pg.errs, pg.errs
+    pg.context.close()
+
+
+def test_a_phone_has_no_hologram_panel(browser, site):
+    base, root = site
+    (root / "system.html").write_text(_html(_system_doc()), encoding="utf-8")
+    pg = _open(browser, site, page="system", mobile=True)
+    assert pg.evaluate("!document.querySelector('#aph-hp .hp-panel') && (!document.getElementById('aph-hp') || getComputedStyle(document.getElementById('aph-hp')).display === 'none')")
     pg.context.close()

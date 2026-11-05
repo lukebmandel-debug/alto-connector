@@ -237,9 +237,16 @@ html.alto-editing .aph .aph-add{display:flex;}
 .aph .aph-err{width:100%;font-size:12.5px;color:#dc2626;}
 .aph-ph .aph-ph-h{font-size:12.5px;color:var(--muted);}
 @media (max-width:760px){.aph .aph-fig,.aph .aph-add,.aph.aph-few .aph-fig{flex-basis:calc(50% - 6px);}}
-html.mobile .aph .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few .aph-fig,html.mobile .aph.aph-one .aph-fig,html.mobile .aph.aph-top .aph-fig{flex-basis:100%;max-width:none;}
-html.mobile .aph .aph-img{aspect-ratio:auto;max-height:70vh;}
-html.mobile .aph .aph-img img{position:static;height:auto;max-height:70vh;object-fit:contain;}
+html.mobile .aph:not(.aph-top) .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few:not(.aph-top) .aph-fig,html.mobile .aph.aph-one:not(.aph-top) .aph-fig{flex-basis:100%;max-width:none;}
+/* a card's own pictures on a phone's detail page: a row of small squares under the title, side to side, each opens large */
+html.mobile .aph.aph-top{margin:8px 0 16px;}
+html.mobile .aph.aph-top .aph-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:8px;padding-bottom:4px;}
+html.mobile .aph.aph-top .aph-fig{flex:0 0 112px;max-width:112px;}
+html.mobile .aph.aph-top .aph-img{aspect-ratio:1;max-height:none;}
+html.mobile .aph.aph-top .aph-img img{position:absolute;height:100%;max-height:none;object-fit:cover;}
+html.mobile .aph.aph-top .aph-cap{display:none;}
+html.mobile .aph:not(.aph-top) .aph-img{aspect-ratio:auto;max-height:70vh;}
+html.mobile .aph:not(.aph-top) .aph-img img{position:static;height:auto;max-height:70vh;object-fit:contain;}
 /* the viewer */
 #aph-lb{position:fixed;inset:0;z-index:8600;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:3vh 3vw;background:rgba(6,7,12,.88);color:#eceef5;-webkit-tap-highlight-color:transparent;}
 #aph-lb img{max-width:94vw;max-height:78vh;object-fit:contain;border-radius:4px;background:#000;}
@@ -248,6 +255,7 @@ html.mobile .aph .aph-img img{position:static;height:auto;max-height:70vh;object
 #aph-lb button{position:absolute;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.45);color:#fff;font-size:20px;line-height:1;cursor:pointer;}
 #aph-lb .lb-x{top:14px;right:14px;} #aph-lb .lb-p{left:14px;top:50%;} #aph-lb .lb-nx{right:14px;top:50%;}
 #aph-lb button:hover{background:rgba(255,255,255,.18);}
+#aph-lb .lb-trap{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;}
 /* a card's picture: a small square at its right with +n; enlarged, the pictures open beside it */
 .node-card.aph-has{position:relative;}
 .aph-thumb{position:absolute;right:9px;bottom:9px;width:38px;height:38px;padding:0;margin:0;border:1px solid var(--border);border-radius:7px;overflow:hidden;background:color-mix(in srgb,var(--text) 10%,var(--surface));cursor:pointer;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.25);}
@@ -260,6 +268,7 @@ html.mobile .aph .aph-img img{position:static;height:auto;max-height:70vh;object
 .aph-tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 .aph-tray .aph-tc{flex:1 0 100%;font-size:12px;line-height:1.4;color:var(--muted);}
 html.mobile .aph-tray{display:none;}
+html.alto-solar .aph-thumb,html.alto-solar .aph-cardadd{display:none !important;}
 .aph-cardadd{position:absolute;right:9px;bottom:9px;width:34px;height:34px;display:none;align-items:center;justify-content:center;border:1.5px dashed var(--muted);border-radius:7px;background:var(--surface);color:var(--text);font-size:11px;cursor:pointer;z-index:4;padding:0;}
 html.alto-editing:not(.mobile) .node-card:hover .aph-cardadd{display:flex;}
 html.alto-editing .node-card.aph-has .aph-cardadd{display:none !important;}
@@ -275,21 +284,13 @@ html.alto-editing .node-card.aph-has .aph-cardadd{display:none !important;}
 .aph.aph-side .aph-img .aph-n{position:absolute;right:0;bottom:0;padding:2px 7px;border-top-left-radius:7px;background:var(--text);color:var(--bg,#fff);font:700 12px/1.4 system-ui,sans-serif;z-index:2;}
 /* in a quiz question and on a flash card */
 .aph-q{margin:8px 0 10px;max-width:420px;}
-.aph-q .aph-img{aspect-ratio:auto;max-height:260px;}
-.aph-q .aph-img img{position:static;width:100%;height:auto;max-height:260px;object-fit:contain;}
+.aph-q .aph-img,.aph-cf .aph-img{display:inline-block;width:auto;max-width:100%;aspect-ratio:auto;min-width:120px;min-height:70px;background:none;vertical-align:top;}
+.aph-q .aph-img img,.aph-cf .aph-img img{position:static;display:block;width:auto;max-width:100%;height:auto;object-fit:contain;}
+.aph-q .aph-img img{max-height:260px;}
 .aph-q .aph-cap{font-size:12px;color:var(--muted);margin-top:4px;}
-.aph-cf{margin:6px auto 4px;max-width:100%;}
-.aph-cf .aph-img{aspect-ratio:auto;max-height:150px;}
-.aph-cf .aph-img img{position:static;width:auto;max-width:100%;height:auto;max-height:150px;margin:0 auto;object-fit:contain;}
-/* a picture in the study editor (a question or a card side) */
-#aed-study .as-pic{display:flex;align-items:center;gap:8px;margin:6px 0 4px;flex-wrap:wrap;}
-#aed-study .as-picadd,#aed-study .as-picx{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:9px;border:1.5px dashed var(--border);background:none;color:var(--muted);cursor:pointer;}
-#aed-study .as-picadd:hover,#aed-study .as-picx:hover{color:var(--text);border-color:var(--muted);}
-#aed-study .as-pict{flex:none;width:56px;height:42px;border-radius:6px;overflow:hidden;border:1px solid var(--border);position:relative;background:color-mix(in srgb,var(--text) 8%,transparent);}
-#aed-study .as-pict img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-#aed-study .as-picf{flex:1;display:flex;flex-direction:column;gap:4px;min-width:160px;}
-#aed-study .as-picf input{width:100%;box-sizing:border-box;padding:5px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;font-size:12px;}
-#aed-study .as-picerr{font-size:12px;color:#dc2626;}
+.aph-cf{margin:6px auto 4px;max-width:100%;text-align:center;}
+.aph-cf .aph-img img{max-height:150px;}
+.aph-cf .aph-cap{font-size:11.5px;color:var(--muted);margin-top:3px;}
 /* print: the strip prints with its captions; the ink-saver sheet leaves the pictures out and prints the captions */
 @media print{
   .aph .aph-ed,.aph .aph-tools,.aph .aph-add,.aph-thumb,.aph-tray,.aph-cardadd,#aph-lb{display:none !important;}
@@ -449,8 +450,14 @@ PICS_JS = r"""(function(){
       else if(!e.target.closest('img')) lbClose();
     });
     lb.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    var sx=null;       // a swipe turns to the next or the previous picture
+    lb.addEventListener('touchstart', function(e){ sx=e.touches.length===1 ? e.touches[0].clientX : null; }, {passive:true});
+    lb.addEventListener('touchend', function(e){ if(sx==null || lbItems.length<2) return; var dx=e.changedTouches[0].clientX-sx; sx=null;
+      if(Math.abs(dx)>50){ lbAt=(lbAt+(dx<0 ? 1 : lbItems.length-1))%lbItems.length; lbDraw(); } }, {passive:true});
     document.body.appendChild(lb); if(window._unifiedEscape) window.removeEventListener('keydown', window._unifiedEscape, true); window.addEventListener('keydown', lbKey, true); lbDraw();   // (Escape closes the viewer, not the page behind it)
-    var x=lb.querySelector('.lb-x'); if(x) x.focus();
+    // focus rests in a hidden field: the page's own arrow and Escape keys stand down for a text field (the Tour, an enlarged card's hops)
+    var tr=el('input','lb-trap'); tr.readOnly=true; tr.tabIndex=-1; tr.setAttribute('aria-hidden','true'); lb.appendChild(tr); tr.focus();
+    lb.addEventListener('click', function(){ if(lb && tr.parentNode) tr.focus(); });
   }
   API.lightbox=lightbox;
 
@@ -658,8 +665,12 @@ PICS_JS = r"""(function(){
         th.setAttribute('aria-label', pics.length+' picture'+(pics.length>1?'s':'')+' — open'); th.title=pics.length+' picture'+(pics.length>1?'s':'');
         var im=el('img'); im.alt=''; im.draggable=false; th.appendChild(im); paint(im, null, pics[0].r, 'th');
         if(pics.length>1) th.appendChild(el('b','aph-n','+'+(pics.length-1)));
-        ['mousedown','pointerdown','touchstart'].forEach(function(t){ th.addEventListener(t, function(e){ e.stopPropagation(); }); });
+        ['mousedown','pointerdown'].forEach(function(t){ th.addEventListener(t, function(e){ e.stopPropagation(); }); });
         th.addEventListener('click', function(e){ e.stopPropagation(); lightbox(cardPics(id)||[], 0); });
+        // a phone's card opens its page on a tap anywhere on it (the engine's touchend): a tap on the picture opens the viewer instead
+        var tp=null;
+        th.addEventListener('touchstart', function(e){ e.stopPropagation(); var c=e.touches[0]; tp={x:c.clientX, y:c.clientY}; }, {passive:true});
+        th.addEventListener('touchend', function(e){ e.stopPropagation(); var c=e.changedTouches[0]; if(tp && Math.hypot(c.clientX-tp.x, c.clientY-tp.y)<10){ e.preventDefault(); lightbox(cardPics(id)||[], 0); } tp=null; }, {passive:false});
         card.appendChild(th);
       }
     }
