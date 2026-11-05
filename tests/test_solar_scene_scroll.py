@@ -68,8 +68,16 @@ def _wheel_over(pg, panel, scroller):
 @pytest.mark.parametrize("style", STYLES)
 def test_the_scene_chooser_scrolls_and_the_chart_behind_it_stays_still(browser, base, style):
     pg = _open(browser, base, style)
-    pg.click("#bg-toggle")
+    # a System draws its own background and offers the style picker only (Luke, 2026-11-04); the full, scrolling chooser is the one a page opened
+    # from it shows (its detail-open state: the chart stays where it is behind it)
+    pg.evaluate("document.documentElement.classList.add('detail-open')")
+    pg.wait_for_timeout(300)
+    pg.evaluate("document.getElementById('bg-toggle').click()")
     pg.wait_for_timeout(600)
+    if style == "retro":          # Retro is plain black everywhere: its panel holds the style picker only, so there is no list to scroll
+        assert pg.evaluate("document.getElementById('bg-panel').classList.contains('bg-only')")
+        pg.close()
+        return
     assert pg.evaluate("document.querySelector('#bg-panel .bg-body').scrollHeight > document.querySelector('#bg-panel .bg-body').clientHeight")
     s0, s1, top0, top1 = _wheel_over(pg, "#bg-panel", "#bg-panel .bg-body")
     assert top1 > top0 + 50, "the list did not scroll"

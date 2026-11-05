@@ -278,7 +278,8 @@ def _add_background_head(html: str, brief: Brief) -> str:
     retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
     from .phone import head_block as phone_head
     from .phone_minimal import head_block as phone_min_head
-    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro, own=not retro) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
+    auto = brief.mode == "palace" or solar_style(brief) == "orbit"     # an Atlas, a Blueprint, a city map and a System make their own background
+    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro, own=not retro, auto=auto) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
                         + "\n" + anchor, 1)
 
 

@@ -198,6 +198,12 @@ def open_page(browser, page_file, w=1500, h=900, dark=False):
     return pg
 
 
+def on_detail(pg):
+    """A city map draws its own ground and offers only the style picker (Luke, 2026-11-04); a chosen background and the full picker belong to the
+    pages opened from it (the page's own detail-open state)."""
+    pg.evaluate("document.documentElement.classList.add('detail-open')"); pg.wait_for_timeout(400)
+
+
 RECT = """(sel)=>{const e=document.querySelector(sel); if(!e) return null; const s=getComputedStyle(e);
   if(s.display==='none'||s.visibility==='hidden') return null; const r=e.getBoundingClientRect();
   return r.width?{l:r.left,t:r.top,r:r.right,b:r.bottom}:null}"""
@@ -336,6 +342,11 @@ def test_a_palace_opens_on_the_atlas_and_the_picker_offers_the_set_first(browser
     assert s == {"on": True, "map": True, "id": "m-atlas"}
     assert pg.evaluate("localStorage.getItem(window._altoBg.key)") is None            # a default is not a choice: nothing to sync
     pg.click("#bg-toggle"); pg.wait_for_timeout(400)
+    assert pg.evaluate("document.getElementById('bg-panel').classList.contains('bg-only')")       # the map's own ground: the style picker only
+    assert pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-body > .bg-sec')].filter(e=>getComputedStyle(e).display!=='none').length") == 1
+    on_detail(pg)
+    pg.evaluate("document.getElementById('bg-toggle').click()"); pg.wait_for_timeout(400)
+    assert not pg.evaluate("document.getElementById('bg-panel').classList.contains('bg-only')")   # a page opened from it: the full picker
     heads = pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].map(e=>e.textContent)")
     assert heads[0] == "Memory Palace" and heads.index("Colors") > 0
     tiles = pg.evaluate("[...document.querySelector('#bg-panel .bg-grid').children].map(e=>e.getAttribute('data-bg'))")
@@ -347,6 +358,7 @@ def test_a_palace_opens_on_the_atlas_and_the_picker_offers_the_set_first(browser
 @pytest.mark.parametrize("dark", [False, True])
 def test_each_map_background_paints_the_page_and_the_map_with_it(browser, page_file, dark):
     pg = open_page(browser, page_file, dark=dark)
+    on_detail(pg)
     th = "d" if dark else "l"
     for pid, _n, _b in pbg.PALACE_BGS:
         want = pbg.client_entries()[pid][th]
@@ -372,19 +384,23 @@ def test_each_map_background_paints_the_page_and_the_map_with_it(browser, page_f
 
 def test_a_map_choice_persists_follows_the_theme_and_the_alto_wallpaper_stays_a_choice(browser, page_file):
     pg = open_page(browser, page_file)
+    on_detail(pg)
     pg.evaluate("window._altoBg.choose('m-dusk')"); pg.wait_for_timeout(300)
     light = pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pal-ground').trim()")
     pg.reload(); pg.wait_for_timeout(2500)
+    assert pg.evaluate("window._altoBgId") == "m-atlas"                                 # (the map's own ground on the map itself: the choice is kept, not drawn)
+    on_detail(pg)
     assert pg.evaluate("window._altoBgId") == "m-dusk"
     pg.evaluate("toggleMode()"); pg.wait_for_timeout(600)
     dark = pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pal-ground').trim()")
     assert dark != light and pg.evaluate("window._altoBgId") == "m-dusk"
     # the Alto wallpaper, picked on purpose, is remembered as that (it is not the default again)
-    pg.click("#bg-toggle"); pg.wait_for_timeout(300)
+    pg.evaluate("document.getElementById('bg-toggle').click()"); pg.wait_for_timeout(300)
     pg.click('.bg-tile[data-bg=""]'); pg.wait_for_timeout(500)
     assert pg.evaluate("window._altoBgId") == "" and not pg.evaluate("document.documentElement.classList.contains('alto-bg')")
     assert json.loads(pg.evaluate("localStorage.getItem(window._altoBg.key)"))["v"] == ""
     pg.reload(); pg.wait_for_timeout(2500)
+    on_detail(pg)
     assert pg.evaluate("window._altoBgId") == "" and not pg.evaluate("document.documentElement.classList.contains('alto-bg')")
     assert not pg.evaluate("document.documentElement.style.cssText.includes('--pal-')")
     # and an ordinary background still works on a palace (on a web address: a file keeps the Alto look)

@@ -222,3 +222,144 @@ def test_holographic_is_dark_only_so_its_credit_line_never_says_light(browser, s
     assert "light or dark" not in tip and "light and dark" not in tip, tip
     ctx.close()
 
+
+# ── F3b: which pages offer what ─────────────────────────────────────────────
+
+# the picture of the page as drawn: the saved choice's mark on <html>, and what is behind everything
+DRAWN_JS = r"""(function(){
+  var r=document.documentElement, pb=document.getElementById('page-bg'), p=document.getElementById('bg-panel');
+  function col(e){ return e ? getComputedStyle(e).backgroundColor : ''; }
+  function lit(w){ if(!pb) return false; var s=getComputedStyle(pb,w); return s.display!=='none' && s.backgroundImage!=='none' && s.content!=='none'; }
+  var vis=[].filter.call(p ? p.querySelectorAll('.bg-body > .bg-sec') : [], function(s){ return getComputedStyle(s).display!=='none' && !s.classList.contains('bg-auto'); }).map(function(s){ return s.id || (s.querySelector('.bg-h')||{}).textContent || s.className; });
+  var det=document.getElementById('detail-page');
+  return {id:window._altoBgId||'', bgOn:r.classList.contains('alto-bg'), map:r.classList.contains('alto-bg-map'), only:!!(p && p.classList.contains('bg-only')),
+    html:col(r), body:col(document.body), pb:col(pb), before:lit('::before'), after:pb ? getComputedStyle(pb,'::after').display : '', detail:col(det), sections:vis,
+    retro:r.classList.contains('alto-retro')||r.classList.contains('sk-retro'), holo:r.classList.contains('alto-holo'), dp:r.classList.contains('detail-open')};
+})()"""
+BLACK = ("rgb(0, 0, 0)", "rgba(0, 0, 0, 0)")
+
+NODE = {"outline": "formation", "lanes": "tomas", "atlas": "erie", "blueprint": "a", "city": "erie", "system": "u1-p1"}
+AUTO = ("atlas", "blueprint", "city", "system")
+ALL = ("outline", "lanes") + AUTO + ("home",)
+
+
+def _drawn(pg):
+    return pg.evaluate(DRAWN_JS)
+
+
+def _detail(pg, page, on=True):
+    if on:
+        pg.evaluate("(id)=>showDetail('node', id)", NODE[page])
+    else:
+        pg.evaluate("()=>{ if(typeof closeDetail==='function') closeDetail(); else if(typeof showTimeline==='function') showTimeline(); }")
+    pg.wait_for_timeout(900)
+
+
+def _style_of(pg, page, style):
+    """Put a page in a style (a System through its own switch)."""
+    if page == "system":
+        pg.evaluate("s=>window._altoSolarStyles.set(s)", {"classic": "system", "retro": "retro", "holo": "holo"}[style])
+        pg.wait_for_timeout(1500)
+    else:
+        pg.evaluate("s=>window._altoStyle.set(s)", style)
+        pg.wait_for_timeout(1200)
+
+
+@pytest.mark.parametrize("page", ALL)
+def test_retro_is_plain_black_whatever_is_saved_and_the_choice_returns(browser, site, page):
+    f, key = PAGES[page]
+    pg, ctx, errors = _go(browser, site, page, 1400, style="classic", saved=PHOTO)
+    if page not in AUTO:
+        assert _drawn(pg)["id"] == PHOTO                      # (before: Classic draws it)
+    _style_of(pg, page, "retro")
+    for detail in ([False, True] if page in NODE else [False]):
+        if detail:
+            _detail(pg, page)
+        d = _drawn(pg)
+        _shot(pg, "retro-with-a-saved-photo", page, "detail" if detail else "main")
+        assert d["retro"] and not d["bgOn"] and not d["id"] and not d["map"], (page, detail, d)
+        assert d["html"] in BLACK or d["body"] in BLACK or d["pb"] in BLACK, (page, detail, d)
+        assert not d["before"] and d["after"] in ("none", ""), (page, detail, d)
+        if page != "home" and detail:
+            assert d["detail"] in BLACK, (page, d)
+    if page in NODE:
+        _detail(pg, page, False)
+    _open_panel(pg)
+    d = _drawn(pg)
+    _shot(pg, "retro-scene-panel", page)
+    assert d["only"] and d["sections"] in (["bg-style"],), (page, d)          # the style picker, nothing else
+    # the choice is kept and returns in Classic
+    _style_of(pg, page, "classic")
+    d = _drawn(pg)
+    if page not in AUTO:
+        assert d["bgOn"] and d["id"] == PHOTO, (page, d)
+    assert json.loads(pg.evaluate("k=>localStorage.getItem(k)", key))["v"] == PHOTO, page
+    assert not _real(errors), errors
+    ctx.close()
+
+
+@pytest.mark.parametrize("page", AUTO)
+def test_a_page_that_makes_its_own_background_offers_only_the_style_picker_until_a_detail_page_opens(browser, site, page):
+    f, key = PAGES[page]
+    pg, ctx, errors = _go(browser, site, page, 1400, style="classic", saved=PHOTO)
+    _open_panel(pg)
+    d = _drawn(pg)
+    _shot(pg, "own-background-main", page)
+    assert d["only"] and d["sections"] == ["bg-style"], (page, d)
+    assert d["id"] != PHOTO and (not d["bgOn"] or d["map"]), (page, d)         # the saved choice is not drawn (a city's own map ground is)
+    _detail(pg, page)
+    d = _drawn(pg)
+    assert d["dp"] and d["bgOn"] and d["id"] == PHOTO, (page, d)               # a detail page takes it
+    _open_panel(pg)
+    d = _drawn(pg)
+    _shot(pg, "own-background-detail", page)
+    assert not d["only"] and len(d["sections"]) > 3, (page, d)                 # and the full options
+    _detail(pg, page, False)
+    assert _drawn(pg)["id"] != PHOTO
+    assert json.loads(pg.evaluate("k=>localStorage.getItem(k)", key))["v"] == PHOTO, page
+    assert not _real(errors), errors
+    ctx.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "holo"])
+@pytest.mark.parametrize("page", ["outline", "lanes", "home"])
+def test_classic_and_holographic_keep_their_options_where_the_page_takes_them(browser, site, page, style):
+    pg, ctx, errors = _go(browser, site, page, 1400, style=style, saved=PHOTO)
+    d = _drawn(pg)
+    assert d["bgOn"] and d["id"] == PHOTO and d["holo"] == (style == "holo"), (page, style, d)
+    _open_panel(pg)
+    d = _drawn(pg)
+    assert not d["only"] and "bg-style" in d["sections"] and len(d["sections"]) > 4, (page, style, d)
+    assert not _real(errors), errors
+    ctx.close()
+
+
+def test_holographic_on_an_atlas_shows_the_style_picker_only(browser, site):
+    pg, ctx, errors = _go(browser, site, "atlas", 1400, style="holo", saved=PHOTO)
+    _open_panel(pg)
+    d = _drawn(pg)
+    assert d["holo"] and d["only"] and d["sections"] == ["bg-style"] and not d["bgOn"], d
+    ctx.close()
+
+
+# ── what a page carries (no browser) ────────────────────────────────────────
+
+def _auto(html):
+    return re.search(r"AUTO=(\d)", re.search(r'<script id="alto-bg-head">(.*?)</script>', html, re.S).group(1)).group(1)
+
+
+def test_only_the_formats_that_make_their_own_background_are_marked_for_it():
+    assert _auto(_brief_page("outline")[0]) == "0" and _auto(_brief_page("lanes")[0]) == "0"
+    assert _auto(_wld.built()[0]) == "1" and _auto(_bld.built()[0]) == "1"                  # a Memory Atlas, a Blueprint
+    assert _auto(_city()) == "1" and _auto(_sol._page()) == "1"                              # a city map, a System
+    assert _auto(pages.build_home([])) == "0" and _auto(pages.build_reports([], "")) == "0"
+
+
+def test_a_chosen_background_is_drawn_only_where_the_page_takes_it():
+    head = bg.head_block("alto-hl-x-bg", retro=True, auto=True)
+    assert "function only()" in head and "function want()" in head
+    assert "r.classList.contains('alto-retro')||r.classList.contains('sk-retro')" in head.replace(" ", "")     # Retro, whatever the format
+    assert "r.classList.contains('detail-open')||r.classList.contains('summary-open')" in head.replace(" ", "")   # a page opened from the format
+    ui = bg.ui_block("This timeline", rail=True)
+    assert "bg-only" in ui and "bg-auto" in ui and "bg-solar-seg" in ui
+    assert "for the light and the dark theme" in ui and "alto-holo" in ui                      # (and Holographic never says it)
