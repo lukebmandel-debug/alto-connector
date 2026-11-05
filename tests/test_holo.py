@@ -492,7 +492,8 @@ def test_the_logo_turns_on_the_same_motion_budget_and_holds_still_under_reduced_
     assert "transform" in kf and not re.search(r"filter|box-shadow|width|height|top|left|margin|opacity", kf), kf
     assert "ho-logo 10s linear infinite" in css            # the format symbols' 10 s turn
     assert re.search(r"prefers-reduced-motion:reduce\)\{[^@]*brand-mark[^}]*animation:none", css)
-    assert "hp-hid #title-bar svg.brand-mark{animation-play-state:paused" in css   # a hidden tab stops it
+    assert re.search(r"hp-hid #title-bar svg\.brand-mark[^{]*\{animation-play-state:paused", css)   # a hidden tab stops it (the phone clef too)
+    assert "translateY(-50%) perspective(260px) rotateY(360deg)" in css and "ho-logo-p" in css   # the phone clef keeps its centring while it turns
 
 
 @pytest.mark.parametrize("page", ["t", "h"])
