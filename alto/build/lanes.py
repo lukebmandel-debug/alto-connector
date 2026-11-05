@@ -845,7 +845,26 @@ LANES_CSS = KEY_CSS + """
   #ln-view{position:fixed;right:16px;bottom:102px;z-index:8100;width:38px;height:38px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;
     background:var(--card-glass-bg, var(--surface));border:1px solid var(--card-glass-border, var(--border));color:var(--text);cursor:pointer;
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
+  /* a vanishing toggle (Luke, 2026-11-05): invisible until the pointer is over its corner or the board, fades in, and fades out again
+     a moment after the pointer leaves; always there for the keyboard (Tab brings it into view) and while Alto's one-time offer is up */
+  #ln-view{opacity:0;transition:opacity .28s ease;}
+  #ln-view.ln-show,#ln-view:hover,#ln-view:focus-visible{opacity:1;}
   #ln-view:hover{border-color:var(--accent);color:var(--accent);}
+  #ln-offer{position:fixed;right:16px;bottom:150px;z-index:8100;box-sizing:border-box;width:min(300px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;
+    background:var(--surface,#fff);border:1px solid var(--card-glass-border, var(--border));color:var(--text);font-size:13px;line-height:1.4;
+    box-shadow:0 10px 26px var(--node-rest-shadow, rgba(0,0,0,.25));opacity:0;transition:opacity .28s ease;}
+  html.alto-holo #ln-offer{background:#05070b;}
+  #ln-offer.ln-on{opacity:1;}
+  #ln-offer p{margin:0 0 10px;}
+  #ln-offer .ln-offer-b{display:flex;gap:8px;justify-content:flex-end;}
+  #ln-offer button{font:inherit;font-weight:600;padding:5px 11px;border-radius:8px;border:1px solid var(--card-glass-border, var(--border));background:transparent;color:var(--text);cursor:pointer;}
+  #ln-offer button:first-child{background:var(--accent);border-color:var(--accent);color:var(--surface,#fff);}
+  #ln-offer button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  html:not(.dark):not(.alto-retro):not(.alto-holo) #ln-offer button:first-child{color:#14122b;}
+  html:is(.alto-retro,.alto-holo) #ln-offer,html:is(.alto-retro,.alto-holo) #ln-offer button{border-radius:0;}
+  @media (prefers-reduced-motion:reduce){#ln-view,#ln-offer{transition:none;}}
+  html.mobile #ln-offer,html.phone-whole #ln-offer,html.detail-open #ln-offer,html.printing #ln-offer{display:none !important;}
+  @media print{#ln-offer{display:none !important;}}
   #ln-view[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
   /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
   html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,#ln-view[aria-pressed=true]){color:#14122b;}
@@ -1404,9 +1423,15 @@ function viewSwitch(has){
   var b=document.getElementById('ln-view');
   if(!has || !kidsOn() || document.getElementById('canvas')===null){ if(b) b.remove(); return; }
   if(!b){
-    b=document.createElement('button'); b.type='button'; b.id='ln-view';
-    b.addEventListener('click', function(){ setView(!EXPD); });
+    b=document.createElement('button'); b.type='button'; b.id='ln-view'; b.tabIndex=0;
+    b.addEventListener('click', function(){ closeOffer(); setView(!EXPD); });
     document.body.appendChild(b);
+    var cv=document.getElementById('canvas');                       // seen while the pointer is on the board or on its corner, a moment after it leaves
+    [cv, b].forEach(function(t){
+      t.addEventListener('pointerenter', function(){ clearTimeout(VT); b._over=1; b.classList.add('ln-show'); });
+      t.addEventListener('pointerleave', function(){ clearTimeout(VT); b._over=0; VT=setTimeout(function(){ if(!document.getElementById('ln-offer') && !b._over) b.classList.remove('ln-show'); }, 1100); });
+    });
+    offerSoon();
   }
   var icon=EXPD
     ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="15" height="5" rx="1.5"/><path d="M6 8v9h4"/><rect x="10" y="14" width="11" height="6" rx="1.5"/></svg>'
@@ -1414,6 +1439,31 @@ function viewSwitch(has){
   var tip=EXPD ? 'Expanded view: entries inside another are shown beneath it. Click for the Compact view.' : 'Compact view: entries inside another are tucked behind it. Click for the Expanded view.';
   if(b.getAttribute('data-v')!==(EXPD ? 'x' : 'c')){ b.setAttribute('data-v', EXPD ? 'x' : 'c'); b.innerHTML=icon; }
   b.title=tip; b.setAttribute('aria-label', tip); b.setAttribute('aria-pressed', EXPD ? 'true' : 'false');
+}
+/* Alto's one-time offer (once a board has entries tucked inside others: the Compact page shows less than it holds): says where the
+   switch is and what it does; either answer ends it for good, and the glyph stays as the vanishing toggle after it */
+var VT=0, OFFK='alto-compact-offer';
+function offerSoon(){
+  var done=false; try{ done=!!localStorage.getItem(OFFK); }catch(e){}
+  if(done) return;
+  setTimeout(function(){
+    var fams=(window._altoLanesGeo||{}).fams||{}, n=0; Object.keys(fams).forEach(function(k){ n+=fams[k].length; });
+    var b=document.getElementById('ln-view');
+    if(!b || !n || EXPD || document.getElementById('ln-offer') || de.classList.contains('alto-editing') || de.classList.contains('mobile') || de.classList.contains('phone-whole')) return;
+    try{ localStorage.setItem(OFFK, '1'); }catch(e){}
+    var o=document.createElement('div'); o.id='ln-offer'; o.setAttribute('role','status');
+    o.innerHTML='<p></p><div class="ln-offer-b"><button type="button" data-a="x">Show Expanded</button><button type="button" data-a="c">Keep Compact</button></div>';
+    o.querySelector('p').textContent=(n===1 ? '1 entry is tucked inside another card.' : n+' entries are tucked inside other cards.')+' Expanded lays them out beneath their parent. The switch is the glyph at the bottom right; it appears when you point at the board.';
+    o.addEventListener('click', function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; closeOffer(); if(a==='x') setView(true); });
+    document.body.appendChild(o); b.classList.add('ln-show');
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ o.classList.add('ln-on'); }); });
+    window._lnOfferT=setTimeout(closeOffer, 14000);
+  }, 1800);
+}
+function closeOffer(){
+  clearTimeout(window._lnOfferT); var o=document.getElementById('ln-offer'); if(!o) return;
+  o.classList.remove('ln-on'); setTimeout(function(){ o.remove(); }, 300);
+  var b=document.getElementById('ln-view'); if(b && !b._over) b.classList.remove('ln-show');
 }
 function relayoutNow(){ if(window._altoLanesGeo && window._altoLanesH) window._altoLanes(window._altoLanesH); }
 function setView(x){
