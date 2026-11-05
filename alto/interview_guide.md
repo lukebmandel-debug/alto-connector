@@ -534,18 +534,20 @@ Palace.
 - A phone keeps the usual single-column card view; a System is a computer
   view.
 
-**Four styles, switched in the page.** Every System page carries all four
-styles of the same layout, and the reader flips between them with the one
-style switch on the page (**System | Star chart | Retro | 3D Star chart**),
-instantly, any time — nothing to rebuild, nothing for you to do:
-- **Star chart** (the style it opens in): the orbit rings with realistic
+**Two views and two looks, switched in the page.** Every System page carries both
+views of the same layout, and the reader flips between them with the one switch
+on the page (**System | Star chart**), instantly, any time — nothing to rebuild,
+nothing for you to do:
+- **Star chart** (the view it opens in): the orbit rings with lit, turning 3D
   planets, moons, satellites and a sun, and travel between bodies along
-  spaceflight-style routes (a ship the reader picks).
+  spaceflight-style routes (a ship the reader picks). Without WebGL it draws the
+  flat chart instead.
 - **System**: the same concentric rings, spokes and circles (number and
   title) in Alto's usual glass look, no space graphics.
-- **Retro**: the Star chart as a vintage space poster, black and gold.
-- **3D Star chart**: lit, turning 3D globes with depth.
-In all of them, the planets, moons and satellites orbit, each on its own ring; an
+
+In Scene > Style, either view can also be dressed as **Retro** (a vintage space
+poster, black and gold) or **Holographic**; this is a look, not another view.
+In both, the planets, moons and satellites orbit, each on its own ring; an
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.

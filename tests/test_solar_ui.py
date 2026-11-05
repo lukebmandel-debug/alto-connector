@@ -183,8 +183,8 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
 
 
 def test_the_guide_tells_claude_about_the_four_styles_and_never_about_converting():
-    sec = _sec("**Four styles, switched in the page.**", "**Ask**")
-    for want in ("Star chart** (the style it opens in)", "**System**", "System | Star chart | Retro | 3D Star chart", "**Retro**", "**3D Star chart**", "spaceflight-style routes", "Zoom out",
+    sec = _sec("**Two views and two looks, switched in the page.**", "**Ask**")
+    for want in ("Star chart** (the view it opens in)", "**System**", "System | Star chart", "**Retro**", "Scene > Style", "**Holographic**", "spaceflight-style routes", "Zoom out",
                  "Orbit** switch", "click on the circle", "enlarged circle stays circular", "hub_look: 'hub'", "nothing to rebuild"):
         assert want in sec, want
     low = GUIDE.lower()

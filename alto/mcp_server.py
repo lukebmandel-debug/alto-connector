@@ -1050,10 +1050,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
      hub_look?: 'stars'|'hub' (System only; default 'stars'): the look a
-      viewer sees FIRST. Every System page carries all its styles of the same
+      viewer sees FIRST. Every System page carries both views of the same
       content and the same orbit layout, and one switch in the page (System |
-      Star chart | Retro | 3D Star chart) flips them instantly, with no rebuild (the viewer's choice is
-      remembered for that timeline): HUB = System (concentric orbit rings,
+      Star chart) flips them instantly, with no rebuild (the viewer's choice is
+      remembered for that timeline; Retro and Holographic are looks in Scene > Style): HUB = System (concentric orbit rings,
       spokes, circles with number and title in Alto's usual glass look) and
       STARS = the Star chart (the same rings with realistic space graphics and
       spaceflight-style travel between bodies). In both the planets, moons and
