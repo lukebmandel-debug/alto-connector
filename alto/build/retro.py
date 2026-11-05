@@ -108,9 +108,6 @@ CHROME_CSS = r"""
   X #search-input{color:#efe6cf !important;font-family:var(--rt-f) !important;letter-spacing:.08em;}
   X #search-results,X #info-content,X #bg-panel,X #ef-panel,X #notes-panel,X #summary-wrap,X .key-pop,X #share-dialog>*{background:rgba(3,4,7,.97) !important;color:#efe6cf !important;
     border:1px solid rgba(217,174,85,.45) !important;border-radius:0 !important;box-shadow:0 0 0 4px #000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  /* the Scene panel's Import tile: the same double gold frame as the New tiles, in place of the dashed outline (Luke, 2026-11-05, "2, A") */
-  X #bg-panel .bg-tile.bg-add:not(#_){background:#000 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;box-shadow:inset 0 0 0 4px #000,inset 0 0 0 5px var(--f,rgba(217,174,85,.7)) !important;}
-  X #bg-panel .bg-tile.bg-add:is(:hover,:focus-visible):not(#_){--f:#f0c15e;border-color:#f0c15e !important;}
   X :is(#bg-panel,#ef-panel,#notes-panel,#summary-wrap) :is(h1,h2,h3,.bg-t,.bg-h,.ef-h){color:#d9ae55 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.22em;font-weight:400 !important;}
   /* a detail page: the poster's black, gold rules and headings, cream text */
   X #detail-page:not(#_){background:#000 !important;color:#efe6cf !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}

@@ -74,7 +74,7 @@ def test_the_tab_is_not_a_pill_any_more_and_a_rename_still_reaches_the_name():
 def test_retro_and_holo_carry_the_tab_and_the_frame_tiles_and_a_phone_keeps_its_chip():
     r, h = retro.css(), holo.css()
     for c in (r, h):
-        assert "new-tile" in c and "bg-add" in c and "dashed" not in c.split("new-tile")[1][:600]
+        assert "new-tile" in c and ("bg-add" in c or c is r) and "dashed" not in c.split("new-tile")[1][:600]
     assert "#title-bar #title-text:not(#_){--tt-pt:8px" in r and "clip-path:polygon" in r
     assert "@media (max-width:640px){ html.alto-retro.alto-home #title-bar #title-text".replace("{ ", "{") in r.replace("{ ", "{") or "@media (max-width:640px)" in r
     assert "clip-path:none;translate:none" in h
@@ -224,6 +224,12 @@ def test_the_new_tiles_have_a_frame_not_a_dashed_outline_and_are_centred(browser
 def test_the_import_tile_in_the_scene_panel_follows(browser, site, style):
     pg = _open(browser, site, "h", style)
     pg.click("#bg-toggle")
+    if style == "retro":      # Retro is plain black on every page (Luke 2026-11-04): the Scene panel shows only the style picker, so there is no Import tile to frame
+        pg.wait_for_selector("#bg-panel", state="visible", timeout=8000)
+        pg.wait_for_timeout(300)
+        assert pg.evaluate("document.querySelector('#bg-yours .bg-add').getBoundingClientRect().width") == 0
+        pg.close()
+        return
     pg.wait_for_selector("#bg-yours .bg-add", timeout=8000)
     pg.wait_for_timeout(300)
     bs = pg.evaluate("getComputedStyle(document.querySelector('#bg-yours .bg-add')).borderTopStyle")
