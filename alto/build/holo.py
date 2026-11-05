@@ -304,7 +304,7 @@ def css() -> str:
     body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
-            f"  {sel}.dark:not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")
+            f"  :is({sel}.dark,{sel}.alto-stars.sk-real):not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")   # (the Star chart's sky is space in both themes)
     return "@media screen{\n" + _rt._slim(toks + _rt.scoped(body, sel)) + "\n}"
 
 

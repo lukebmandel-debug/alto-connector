@@ -652,8 +652,9 @@ def compact(plan, key=None):
 
 
 # Style C (the star-chart-retire sheet, option C; Luke 2026-11-05): the bar keeps System | Star chart (the 3D one), Retro and Holographic are the page's Style
-# in the Scene panel. OFF here until it is released on purpose; a viewer can try it with localStorage alto-style-c=1 (solar_draw.py).
-STYLE_C = False
+# in the Scene panel. ON (Luke picked C, 2026-11-05). Rollback: set this False and rebuild, or a viewer sets localStorage alto-style-c=0 (solar_draw.py);
+# the old five-button path, the flat chart and sk-retro are all still in the code.
+STYLE_C = True
 
 
 def page_plans(brief, nodes) -> dict:

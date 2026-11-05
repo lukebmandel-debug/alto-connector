@@ -292,7 +292,7 @@ def test_a_system_keeps_its_planets_round(browser, site):
     pg = ctx.new_page()
     pg.goto(site + "/s.html")
     pg.wait_for_timeout(500)
-    pg.evaluate("localStorage.clear(); window._altoSolarStyles.set('holo')")
+    pg.evaluate("localStorage.clear(); (window._altoSolarStyles||window._altoStyle).set('holo')")
     pg.wait_for_timeout(500)
     assert pg.evaluate("document.documentElement.classList.contains('alto-holo')")
     radii = pg.evaluate("[...document.querySelectorAll('#world .node[data-solar] .node-card')].map(c => getComputedStyle(c).borderTopLeftRadius)")

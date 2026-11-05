@@ -257,7 +257,7 @@ def _detail(pg, page, on=True):
 
 def _style_of(pg, page, style):
     """Put a page in a style (a System through its own switch)."""
-    if page == "system":
+    if page == "system" and not pg.evaluate("!!window._altoStyleC && !!window._altoSolarBar"):      # (Style C, the default: the page style is the Scene panel's, like every format's)
         pg.evaluate("s=>window._altoSolarStyles.set(s)", {"classic": "system", "retro": "retro", "holo": "holo"}[style])
         pg.wait_for_timeout(1500)
     else:

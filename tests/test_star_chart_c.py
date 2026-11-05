@@ -31,10 +31,10 @@ NOGL = ("(function(){var g=HTMLCanvasElement.prototype.getContext;HTMLCanvasElem
 STYLE = "alto-hl-solar-draw-style"       # the page's own style key (backgrounds.py head script)
 
 
-def test_the_flag_is_off_in_the_plan_and_on_when_set(monkeypatch):
-    assert solar.STYLE_C is False and '"stylec"' not in _sol._page()
-    monkeypatch.setattr(solar, "STYLE_C", True)
-    assert '"stylec":1' in _sol._page()
+def test_the_flag_is_on_in_the_plan_and_off_when_cleared(monkeypatch):
+    assert solar.STYLE_C is True and '"stylec":1' in _sol._page()
+    monkeypatch.setattr(solar, "STYLE_C", False)
+    assert '"stylec"' not in _sol._page()
 
 
 def test_a_system_page_carries_the_style_switch_under_its_own_name_and_the_hosted_retro_hook():
@@ -116,16 +116,17 @@ def _real(errors):
 
 
 ON = {"alto-style-c": "1"}
+OFF = {"alto-style-c": "0"}      # the rollback: a viewer's localStorage (the plan's flag is solar.STYLE_C)
 
 
-def test_off_the_bar_keeps_its_five_styles(browser, site):
-    pg, ctx, errors = _open(browser, site)
+def test_rolled_back_the_bar_keeps_its_five_styles(browser, site):
+    pg, ctx, errors = _open(browser, site, OFF)
     assert len(_bar(pg)) == 5 and "sk-real" not in _cls(pg) and not _real(errors)
     ctx.close()
 
 
-def test_on_the_bar_is_system_and_star_chart_and_the_star_chart_is_the_3d_one(browser, site):
-    pg, ctx, errors = _open(browser, site, ON)
+def test_the_bar_is_system_and_star_chart_by_default_and_the_star_chart_is_the_3d_one(browser, site):
+    pg, ctx, errors = _open(browser, site)
     assert _bar(pg) == ["System", "Star chart*"], _bar(pg)
     c = _cls(pg)
     assert {"alto-stars", "sk-real"} <= c and "sk-retro" not in c and "alto-retro" not in c and "alto-holo" not in c
@@ -172,14 +173,14 @@ def test_scene_has_the_style_row_and_retro_and_holo_work_in_both_modes(browser, 
 
 
 def test_a_saved_flat_star_chart_becomes_the_star_chart(browser, site):
-    pg, ctx, errors = _open(browser, site, {**ON, "alto-solar-look:page": "stars", "alto-solar-style:page": "classic"})
+    pg, ctx, errors = _open(browser, site, { "alto-solar-look:page": "stars", "alto-solar-style:page": "classic"})
     assert _bar(pg) == ["System", "Star chart*"] and "sk-real" in _cls(pg)
     assert pg.evaluate("localStorage.getItem('alto-solar-style:page')") == "real"
     ctx.close()
 
 
 def test_a_saved_retro_chart_becomes_system_in_retro(browser, site):
-    pg, ctx, errors = _open(browser, site, {**ON, "alto-solar-look:page": "stars", "alto-solar-style:page": "retro"})
+    pg, ctx, errors = _open(browser, site, { "alto-solar-look:page": "stars", "alto-solar-style:page": "retro"})
     c = _cls(pg)
     assert _bar(pg) == ["System*", "Star chart"] and "alto-retro" in c and "alto-solar-hub" in c and "sk-retro" not in c and "sk-real" not in c
     assert pg.evaluate("localStorage.getItem(%r)" % STYLE) == "retro"
@@ -189,13 +190,13 @@ def test_a_saved_retro_chart_becomes_system_in_retro(browser, site):
 
 
 def test_a_saved_holographic_stays_holographic(browser, site):
-    pg, ctx, errors = _open(browser, site, {**ON, STYLE: "holo", "alto-solar-look:page": "hub"})
+    pg, ctx, errors = _open(browser, site, {STYLE: "holo", "alto-solar-look:page": "hub"})
     assert "alto-holo" in _cls(pg) and _bar(pg) == ["System*", "Star chart"]
     ctx.close()
 
 
 def test_without_webgl_the_star_chart_stays_and_draws_the_flat_scene(browser, site):
-    pg, ctx, errors = _open(browser, site, ON, nogl=True)
+    pg, ctx, errors = _open(browser, site, None, nogl=True)
     c = _cls(pg)
     assert _bar(pg) == ["System", "Star chart*"] and "sk-real" in c and "sk-3d" not in c and not pg.evaluate("!!document.getElementById('sk3d')")
     assert pg.evaluate("document.querySelectorAll('#world .node[data-solar]').length") > 3
@@ -206,8 +207,36 @@ def test_without_webgl_the_star_chart_stays_and_draws_the_flat_scene(browser, si
 
 
 def test_a_phone_is_unchanged_with_the_flag_on(browser, site):
-    pg, ctx, errors = _open(browser, site, ON, phone=True)
+    pg, ctx, errors = _open(browser, site, None, phone=True)
     c = _cls(pg)
     assert "mobile" in c and not pg.evaluate("!!document.getElementById('sol-ctl')") and "sk-real" not in c and "sk-3d" not in c
+    assert not _real(errors), errors
+    ctx.close()
+
+
+def test_holo_css_gives_the_star_chart_the_dark_tokens():
+    css = holo.css()
+    assert "html.alto-holo.alto-stars.sk-real" in css and "html.alto-holo.dark" in css
+
+
+def test_retro_css_dresses_the_ship_tour_and_craft_popups_without_the_retro_charts_art():
+    css = retro.FORMAT_CSS
+    for want in ("#sol-craft-pop", ".nvo", "#nvo-map"):
+        assert want in css
+    assert ".sh-" not in css.split("the ship and craft popups")[1].split("\n  X.alto")[0]      # the ship art and flames stay on sk-retro
+
+
+@pytest.mark.parametrize("style", ["Retro", "Holographic"])
+def test_the_craft_and_nav_popups_wear_the_page_style(browser, site, style):
+    pg, ctx, errors = _open(browser, site)
+    _scene_style(pg, style)
+    pg.evaluate("var c=document.getElementById('sol-craft'); if(c) c.click();")
+    pg.wait_for_timeout(600)
+    got = pg.evaluate("""()=>['#sol-craft-pop','.nvo'].map(function(s){ var e=document.querySelector(s); if(!e) return null; var c=getComputedStyle(e);
+        return [c.borderTopLeftRadius, c.borderTopWidth, c.backgroundColor]; })""")
+    assert got[0], "the craft popup opens"
+    for g in got:
+        if g:
+            assert g[0] == "0px" and g[1] != "0px", got
     assert not _real(errors), errors
     ctx.close()

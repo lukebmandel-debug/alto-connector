@@ -424,6 +424,10 @@ FORMAT_CSS = r"""
   X #sk3d-l i kbd{border-radius:0;background:#d9ae55;color:#000;}
   X.alto-stars.sk-real:not(.sk-3d) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card:not(#_):not(#__){border-radius:50% !important;background:transparent !important;border-color:transparent !important;box-shadow:none !important;}   /* (no WebGL: the flat scene's globes keep their round bodies, no square plate) */
   X.alto-solar .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;}
+  /* the ship and craft popups wear the page's style (the tour bar already does, above); Style C is frame-only: the Retro chart's own ship art, flames, fly path and flight clock stay on sk-retro): a black plate, a gold rim, square corners, Avenir capitals */
+  X :is(#sol-craft-pop,.nvo,#nvo-map){background:#000 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;color:#efe6cf !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X :is(#sol-craft-pop,.nvo) :is(h1,h2,h3,b,.cr-n,.cr-h,.cr-g,.cr-t span){font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.12em;}
+  X #sol-craft-pop .cr-t{border-radius:0;} X #sol-craft-pop .cr-t.on{border-color:#d9ae55;background:rgba(217,174,85,.14);box-shadow:0 0 0 1px #d9ae55 inset;border-radius:0;}
 """
 
 # ── the homepage (home_look.py; Art's spec, Luke 2026-10-28 "8A": the homepage follows Classic | Retro): square plates, gold caps, solid dialogs ──
