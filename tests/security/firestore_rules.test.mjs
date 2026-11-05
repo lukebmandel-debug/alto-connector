@@ -357,3 +357,117 @@ test("an expired token naming B reaches none of Alice's data", async () => {
   }
   for (const c of A_COLLS) assert.equal(await rest(tok, 'GET', c), 403, 'LIST ' + c);
 });
+
+// ── pictures: users/{uid}/pics|picbig and shares/{key}/pics|picbig ──────────
+
+const PIC = 'pic-abcd1234';
+const KEY_C = 'cartkeyabcdefghijk2345';   // Carol's share (owner record, not allowlisted)
+const pic = (n = 4) => ({ d: bytes(n), type: 'image/jpeg', t: 1, w: 10, h: 10 });
+const PICS = ['pics', 'picbig'];
+
+async function seedPics() {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    for (const c of PICS) {
+      await db.doc(`users/alice/${c}/${PIC}`).set(pic());
+      await db.doc(`shares/${KEY_A}/${c}/${PIC}`).set(pic());
+    }
+    await db.doc(`shares/${KEY_C}`).set({ html: 'x', title: 't', updatedAt: new Date() });
+    await db.doc(`shares/${KEY_C}/private/owner`).set({ owner: 'carol' });
+  });
+}
+
+test("another user's, anonymous and unverified accounts cannot get or list Alice's pictures", async () => {
+  await seedPics();
+  for (const c of PICS) {
+    for (const w of OTHERS) {
+      await assertFails(who[w].doc(`users/alice/${c}/${PIC}`).get());
+      await assertFails(who[w].collection(`users/alice/${c}`).get());
+      await assertFails(who[w].doc(`users/alice/${c}/${PIC}`).set(pic()));
+      await assertFails(who[w].doc(`users/alice/${c}/pic-zzzzzzzz`).set(pic()));
+      await assertFails(who[w].doc(`users/alice/${c}/${PIC}`).delete());
+    }
+    await assertSucceeds(who.alice.doc(`users/alice/${c}/${PIC}`).get());
+    await assertSucceeds(who.alice.collection(`users/alice/${c}`).get());
+  }
+  for (const w of OTHERS) await assertFails(who[w].collectionGroup('pics').get());
+  await assertFails(who.alice.collectionGroup('picbig').get());
+});
+
+test("an owner's own picture write needs the allowlist (verified, listed email)", async () => {
+  await seedPics();
+  for (const c of PICS) {
+    await assertSucceeds(who.alice.doc(`users/alice/${c}/pic-newnew01`).set(pic()));
+    await assertSucceeds(who.bob.doc(`users/bob/${c}/${PIC}`).set(pic()));
+    await assertFails(who.carol.doc(`users/carol/${c}/${PIC}`).set(pic()));     // signed in, not allowlisted
+    await assertFails(who.dave.doc(`users/dave/${c}/${PIC}`).set(pic()));       // allowlisted, unverified
+    await assertFails(who.anon.doc(`users/anon1/${c}/${PIC}`).set(pic()));
+    await assertFails(who.anonUser.doc(`users/anon1/${c}/${PIC}`).set(pic()));
+    await assertFails(who.forged.doc(`users/bob/${c}/${PIC}`).set(pic()));      // forged email, unverified
+    await assertSucceeds(who.carol.doc(`users/carol/${c}/${PIC}`).delete());    // deleting one's own never needs it
+    await assertSucceeds(who.alice.doc(`users/alice/${c}/${PIC}`).delete());
+  }
+});
+
+test('a share picture is gettable with a valid key while the share exists, and never listable', async () => {
+  await seedPics();
+  for (const c of PICS) {
+    for (const w of [...OTHERS, 'alice']) {
+      const snap = await assertSucceeds(who[w].doc(`shares/${KEY_A}/${c}/${PIC}`).get());
+      assert.deepEqual(Object.keys(snap.data()).sort(), ['d', 'h', 't', 'type', 'w']);
+      await assertFails(who[w].collection(`shares/${KEY_A}/${c}`).get());
+    }
+  }
+  for (const w of [...OTHERS, 'alice']) {
+    await assertFails(who[w].collectionGroup('pics').get());
+    await assertFails(who[w].collectionGroup('picbig').get());
+  }
+});
+
+test('a share picture is unreadable once its share is deleted, even if the copy is left behind', async () => {
+  await seedPics();
+  await assertSucceeds(who.alice.doc(`shares/${KEY_A}`).delete());   // the owner stops the link; pic copies remain
+  for (const c of PICS) for (const w of [...OTHERS, 'alice'])
+    await assertFails(who[w].doc(`shares/${KEY_A}/${c}/${PIC}`).get());
+});
+
+test('a bad ref or a bad key never reads or writes a share picture', async () => {
+  await seedPics();
+  for (const c of PICS) {
+    for (const ref of ['bad', 'PIC-ABCD1234', 'pic-abc', 'pic-abcd_1234', 'pic-abcdefghijklmnopq', PIC + '!']) {
+      await assertFails(who.anon.doc(`shares/${KEY_A}/${c}/${ref}`).get());
+      await assertFails(who.alice.doc(`shares/${KEY_A}/${c}/${ref}`).set(pic()));
+    }
+    for (const key of ['short', KEY_A.toUpperCase(), KEY_A + 'a', KEY_A.replace(/.$/, '1')]) {    // not 22 symbols of the alphabet (1 is outside it)
+      await assertFails(who.anon.doc(`shares/${key}/${c}/${PIC}`).get());
+      await assertFails(who.alice.doc(`shares/${key}/${c}/${PIC}`).set(pic()));
+    }
+    await assertFails(who.anon.doc(`shares/${KEY_NEW}/${c}/${PIC}`).get());       // no such share
+  }
+  await assertFails(who.anon.doc(`shares/${KEY_A}/other/${PIC}`).get());          // not a picture collection
+  await assertFails(who.alice.doc(`shares/${KEY_A}/other/${PIC}`).set(pic()));
+});
+
+test("only the share's owner writes or deletes its pictures, and only in the exact shape", async () => {
+  await seedPics();
+  for (const c of PICS) {
+    for (const w of ['anon', 'anonUser', 'bob', 'carol', 'dave', 'forged']) {
+      await assertFails(who[w].doc(`shares/${KEY_A}/${c}/pic-newnew01`).set(pic()));
+      await assertFails(who[w].doc(`shares/${KEY_A}/${c}/${PIC}`).set(pic()));
+      await assertFails(who[w].doc(`shares/${KEY_A}/${c}/${PIC}`).delete());
+    }
+    await assertFails(who.alice.doc(`shares/${KEY_LEGACY}/${c}/${PIC}`).set(pic()));   // legacy share: no owner record
+    await assertFails(who.alice.doc(`shares/${KEY_C}/${c}/${PIC}`).set(pic()));        // someone else's share
+    await assertFails(who.carol.doc(`shares/${KEY_C}/${c}/${PIC}`).set(pic()));        // owner, but not allowlisted
+    await assertSucceeds(who.alice.doc(`shares/${KEY_A}/${c}/pic-newnew01`).set(pic()));
+    await assertSucceeds(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set(pic(960000)));
+    await assertFails(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set(pic(960001)));
+    await assertFails(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set({ ...pic(), extra: 1 }));
+    await assertFails(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set({ ...pic(), owner: 'bob' }));
+    await assertFails(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set({ ...pic(), d: 'not bytes' }));
+    await assertFails(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set({ type: 'image/jpeg', t: 1, w: 1, h: 1 }));   // no bytes
+    await assertSucceeds(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).set({ d: bytes(4) }, { merge: true }));
+    await assertSucceeds(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).delete());
+    await assertSucceeds(who.carol.doc(`shares/${KEY_C}/${c}/${PIC}`).delete());      // revoking never needs the allowlist
+  }
+});
