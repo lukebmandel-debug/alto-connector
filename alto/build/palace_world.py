@@ -56,7 +56,7 @@ html.wpal-open #world{visibility:hidden !important;}
 #wpal-root .wp-land{filter:drop-shadow(0 3px 5px rgba(40,55,95,.13));}
 html.dark #wpal-root .wp-land{filter:none;}
 #wpal-root .wp-c.wp-u{fill:color-mix(in srgb,var(--u) var(--w-used),var(--w-mix));stroke:color-mix(in srgb,var(--u) 80%,transparent);stroke-width:1.2px;cursor:pointer;}
-#wpal-root .wp-c.wp-on{fill:color-mix(in srgb,var(--u) 52%,var(--w-mix));stroke-width:2.2px;}
+#wpal-root .wp-c.wp-u.wp-on{fill:color-mix(in srgb,var(--u) 52%,var(--w-mix));stroke-width:2.2px;}
 #wpal-root.wp-focus .wp-c.wp-u:not(.wp-on){opacity:.55;}
 #wpal-root.wp-one .wp-c:not(.wp-u){opacity:.45;}
 #wpal-root .wp-a1{fill:none;stroke:var(--w-edge);stroke-width:.8px;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;}

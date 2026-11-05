@@ -343,6 +343,14 @@ def plan(b, nodes) -> dict:
     for nid, p in given.items():
         if nid not in places and p.get("c") in C and nid in par:
             places[nid] = dict(p, k="city")
+    unit_of = {t: a for a, u in enumerate(out_units) for t in u["tops"]}
+    for nid, p in places.items():           # a country only a hand-placed card stands in (the US under a French card) takes its unit's colour too
+        if p.get("c") not in used:
+            up = nid
+            while up in par and up not in unit_of:
+                up = par[up]
+            if up in unit_of:
+                used[p["c"]] = unit_of[up]
     # pins: a country's capital, unless two or more of its states / cities are in use
     subs = {}
     for nid, p in places.items():
