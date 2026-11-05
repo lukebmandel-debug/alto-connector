@@ -318,7 +318,7 @@ html.alto-retro #wpal-root .wp-mm rect{fill:#d9ae55;stroke:#d9ae55;}
   html.alto-retro:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r:not(#_){border:0;}
   html.alto-retro:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){color:#000;}
   html:not(.mobile) #wpal-root .wp-row > .wp-seg::before{content:'';position:absolute;left:-7px;top:5px;bottom:5px;width:1px;background:var(--w-edge);}
-  html:not(.mobile) #wpal-root .wp-row .wp-tt{order:1;font-size:0 !important;gap:0;background:var(--accent,#5b6cff);border-color:transparent;color:#fff;padding:5px 12px 5px 10px;}
+  html:not(.mobile) #wpal-root .wp-row .wp-tt{order:1;font-size:0 !important;gap:0;background:var(--accent,#5b6cff);border-color:transparent;color:#14122b;padding:5px 12px 5px 10px;}
   html:not(.mobile) #wpal-root .wp-row .wp-tt:hover{background:var(--accent,#5b6cff);filter:brightness(1.1);}
   html:not(.mobile) #wpal-root .wp-row .wp-tt::before{content:'\25B6  Start Tour';font-size:12.5px;font-weight:650;white-space:pre;}
   html:not(.mobile) #wpal-root .wp-row .wp-tt .wp-sw{display:none;}
