@@ -530,3 +530,28 @@ def test_phone_hides_the_swipe_hint_and_keeps_the_toolbar_on_one_row(phone):
     pg.tap("#notes-close"); pg.wait_for_timeout(500)
     pg.evaluate("document.getElementById('scroll-hint').classList.add('show')")
     assert pg.evaluate("getComputedStyle(document.getElementById('scroll-hint')).display") != "none"
+
+
+# ── the right-edge tabs follow the panel back from Freewrite to Notes; the header starts high (Luke, 2026-11-05) ──
+
+def test_the_edge_tabs_sit_against_the_panel_after_freewrite_goes_back_to_notes(desk):
+    """The engine's glass rule animates the panel's width, so dock() once read the Freewrite width on the way back and left the filter /
+    overview / picture tabs parked over the cards, a panel's width left of the panel."""
+    pg = desk
+    open_fw(pg); pg.wait_for_timeout(500)
+    pg.click("#fw-seg button[data-m=notes]"); pg.wait_for_timeout(900)
+    r = pg.evaluate("""(()=>{const p=document.getElementById('notes-panel').getBoundingClientRect(), t=document.getElementById('tab-rail').getBoundingClientRect(),
+      d=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--np-dock')), w=parseFloat(getComputedStyle(document.getElementById('notes-panel')).width);
+      return {gap:p.left-t.right, d:d, w:w}})()""")
+    assert abs(r["d"] - r["w"]) < 2 and -2 <= r["gap"] <= 6, r
+
+
+def test_the_notes_header_starts_just_under_the_wordmark_not_under_the_whole_bar_area(desk):
+    """With the bars clear the panel runs the window's height; its header used to be padded down by every bar (about 80 px here)."""
+    pg = desk
+    pg.click("#notes-toggle"); pg.wait_for_timeout(900)
+    r = pg.evaluate("""(()=>{const h=document.getElementById('notes-header').getBoundingClientRect(), w=document.querySelector('#title-bar .brand-word').getBoundingClientRect(),
+      nb=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-bottom'))*(parseFloat(getComputedStyle(document.documentElement).zoom)||1);
+      return {hdr:h.top, word:w.bottom, nb:nb, on:document.documentElement.classList.contains('ct-on')}})()""")
+    assert r["on"] and r["hdr"] >= r["word"] - 1, r          # clear of the wordmark
+    assert r["hdr"] < r["nb"] - 20, r                        # and well above where the whole bar area ends

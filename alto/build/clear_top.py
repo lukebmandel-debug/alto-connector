@@ -28,7 +28,10 @@ html.ct-on #canvas{padding-top:var(--nav-bottom,0px);scroll-padding-top:var(--na
    parked off to the right, and sized to the window it would sit invisible over the board and take its touches) */
 html.ct-on:not(.phone-whole) #summary-wrap.open:not(#_){top:0 !important;bottom:0 !important;height:auto !important;max-height:none !important;
   box-sizing:border-box;padding-top:var(--nav-bottom,0px);}
-html.ct-on:not(.phone-whole) #notes-panel:not(#_){top:0 !important;bottom:0 !important;box-sizing:border-box;padding-top:var(--nav-bottom,0px);}
+/* the Notes panel is the exception (Luke, 2026-11-05: "I don't like how far down the content of the notes/freewrite panel starts"): its
+   header starts only below whatever of the bars really stands over it (the wordmark, a chip that runs in under it), not below the whole
+   bar area; --np-top is measured by the script below, and with no measure the old full-bar clearance stands */
+html.ct-on:not(.phone-whole) #notes-panel:not(#_){top:0 !important;bottom:0 !important;box-sizing:border-box;padding-top:var(--np-top,var(--nav-bottom,0px));}
 html.ct-on.np-open:not(.phone-whole) :is(#title-bar,#nav):not(#_){z-index:401;}
 html.ct-on.np-open:not(.phone-whole) #ct-chips{z-index:402;}
 /* each thing on the bars keeps itself legible over whatever scrolls under it: the chips have their own glass already;
@@ -101,7 +104,18 @@ JS = r"""(function(){
     else if(t==='0px' && c._ctT){ c.style.setProperty('top', c._ctT, 'important'); } }
   if(typeof MutationObserver==='function'){ var c=document.getElementById('canvas');
     if(c) new MutationObserver(sync).observe(c, {attributes:true, attributeFilter:['style']});
-    new MutationObserver(function(){ sync(); setTimeout(function(){ try{ place(); }catch(e){} }, 160); }).observe(de, {attributes:true, attributeFilter:['class']}); }   /* (edit mode adds a chip and re-centres the row: put the x clear of the first label again) */
+    new MutationObserver(function(){ sync(); npTop(); setTimeout(function(){ try{ place(); }catch(e){} npTop(); }, 160); }).observe(de, {attributes:true, attributeFilter:['class']}); }   /* (edit mode adds a chip and re-centres the row: put the x clear of the first label again) */
+  /* where the Notes panel's header may start: just under the last control of the bars that stands over the panel's column (css px) */
+  function npTop(){ var p=document.getElementById('notes-panel'); if(!p) return;
+    if(!de.classList.contains('ct-on') || !p.offsetWidth){ de.style.removeProperty('--np-top'); return; }
+    var z=p.getBoundingClientRect().width/p.offsetWidth || 1, left=window.innerWidth-p.offsetWidth*z, low=0;
+    [].forEach.call(document.querySelectorAll('#title-bar svg,#title-bar button,#title-bar #title-text,#nav button,#nav .nav-group-label'), function(e){
+      var r=e.getBoundingClientRect(); if(!r.width || r.right<=left+1 || getComputedStyle(e).visibility==='hidden' || (e.parentElement && e.parentElement.closest('#nav button, #title-bar button'))) return;
+      if(r.bottom>low) low=r.bottom; });
+    de.style.setProperty('--np-top', Math.round(low/z+10)+'px'); }
+  window._altoNpTop=npTop;
+  if(typeof ResizeObserver==='function'){ var rp=document.getElementById('notes-panel'); if(rp) new ResizeObserver(npTop).observe(rp); }
+  window.addEventListener('resize', npTop); setTimeout(npTop, 300); setTimeout(npTop, 1200);
   sync();
   __SHEET__
   /* the chips' reel, centred on the chip row (its place follows the row) */
