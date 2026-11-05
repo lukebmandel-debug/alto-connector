@@ -153,3 +153,12 @@ def test_retro_reaches_the_same_nodes(browser, origin, globe):
 def test_classic_is_untouched(browser, origin):
     r = _look(browser, origin, "classic", True, False)
     assert r["card"]["borderTopLeftRadius"] == "14px" and r["pin"]["borderTopLeftRadius"] == "999px"
+
+
+def test_the_start_tour_pill_wears_the_pages_dark_ink_square_in_holographic():
+    """Art, 2026-11-05: white on the cyan plate was 1.41:1 (a blank block). The pill takes --ho-bg, square, and that pair reads 4.5:1 in both themes."""
+    c = holo.css()
+    assert "#wpal-root .wp-row .wp-tt" in c and "color:var(--ho-bg) !important;border-radius:0" in c
+    for mode in ("dark", "light"):
+        t = holo.TOKENS[mode]
+        assert holo.contrast(t["bg"], t["ac"]) >= 4.5, mode

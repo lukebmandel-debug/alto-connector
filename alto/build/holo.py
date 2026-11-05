@@ -204,6 +204,8 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-pin:not(.wp-hint):not(#_):not(#__){box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
   X #wpal-root .wp-pin.wp-hint:not(#_):not(#__){box-shadow:0 0 0 4px color-mix(in srgb,var(--u) 38%,transparent),0 0 10px color-mix(in srgb,var(--u) 55%,transparent);}
   X #wpal-root .wp-pin.wp-on:not(#_):not(#__){border-width:2px;font-size:11px;}
+  /* the Atlas's Start Tour pill (Art, 2026-11-05: white on the cyan plate was 1.41:1 and read as a blank block): the page's dark ink on the light, square like the rest */
+  X:not(.mobile) #wpal-root .wp-row .wp-tt:not(#_):not(#__){color:var(--ho-bg) !important;border-radius:0;}
   X #wpal-root .wp-tag:not(#_):not(#__){letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
 """
 
