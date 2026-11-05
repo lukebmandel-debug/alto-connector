@@ -1346,7 +1346,10 @@
     // Delete the readable copy FIRST. If this throws, the owner still sees the
     // share on their homepage and can try again; clearing our end first would
     // leave a live public document nobody knew about any more.
-    try { const was = await _getShare(shareKey); await _unsharePics(shareKey, _picRefsOf(was && was.html)); } catch (e) {}
+    // The picture copies too: a failed delete (or a failed read of the share, so we cannot say which copies
+    // exist) throws HERE, before the share is deleted, so the link stays listed and the owner can try again.
+    const was = await _getShare(shareKey);
+    await _unsharePics(shareKey, _picRefsOf(was && was.html));
     await _revokeShare(shareKey);
     await setDoc(ref, { shareKey: '' }, { merge: true });
     await setDoc(doc(db, 'users', u.uid, 'pagemeta', pageKey), { shareKey: '' }, { merge: true });
@@ -1650,7 +1653,8 @@
     return refs.length;
   }
   async function _unsharePics(key, refs) {
-    for (const ref of refs) for (const coll of ['pics', 'picbig']) { try { await deleteDoc(doc(db, 'shares', key, coll, ref)); } catch (e) {} }
+    // a delete that fails throws (the caller decides: stopping a link must not go on; an update only warns)
+    for (const ref of refs) for (const coll of ['pics', 'picbig']) await deleteDoc(doc(db, 'shares', key, coll, ref));
   }
 
   function _editsRef(tid) {

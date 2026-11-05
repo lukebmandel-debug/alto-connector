@@ -112,5 +112,6 @@ def test_picture_copies_under_a_share_are_get_by_key_and_owner_written_only():
             assert a.endswith("if false;")
         elif a.startswith("allow get"):
             assert "validKey(key)" in a and "coll in ['pics', 'picbig']" in a and "ownsShareAfter" not in a
+            assert "exists(sharePath(key))" in a        # a stopped link's copies are unreadable even if one could not be deleted
         else:                       # writes and removal: the share's owner only
             assert "ownsShareAfter(key)" in a and "coll in ['pics', 'picbig']" in a

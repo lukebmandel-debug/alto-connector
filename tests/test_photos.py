@@ -526,7 +526,9 @@ def cloud_site(tmp_path_factory):
     (d / "alto-cloud.js").write_text(emit_cloud_js({"apiKey": "k", "authDomain": "p.firebaseapp.com", "projectId": "p", "storageBucket": "",
                                                     "messagingSenderId": "", "appId": "a"}), encoding="utf-8")
     stubs = dict(_STUBS)
-    stubs["firebase-firestore.js"] = _STUBS["firebase-firestore.js"] + _BATCH
+    stubs["firebase-firestore.js"] = _STUBS["firebase-firestore.js"].replace(
+        "export async function deleteDoc(ref){",
+        "export async function deleteDoc(ref){ if(window.__failDelete && ref.path.includes(window.__failDelete)) throw new Error('offline');", 1) + _BATCH
     h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(d))
     h.log_message = lambda *a: None
     socketserver.TCPServer.allow_reuse_address = True
@@ -594,6 +596,30 @@ def test_a_share_copies_the_pages_pictures_says_how_many_and_stops_with_the_link
     assert pg.evaluate("window.AltoCloud.shareRevoke('pk1')") is True
     assert pg.evaluate("Object.keys(window.__fs.docs).filter(k => k.startsWith('shares/'))") == [f"shares/{key}/private/owner"] or \
         pg.evaluate("Object.keys(window.__fs.docs).filter(k => k.startsWith('shares/') && /pics|picbig/.test(k))") == []
+    pg.context.close()
+
+
+def test_stopping_a_link_whose_picture_copies_cannot_be_deleted_fails_and_keeps_the_link(browser, cloud_site):
+    _base, _stubs, html = cloud_site
+    block = re.search(r'<script id="alto-ph">.*?</script>', html, re.S).group(0)
+    small = "<html><body><script>var COURSE_ID = 'contracts-outline';</script>" + block + "</body></html>"
+    seed = {"users/u1/pages/pk1": {"html": small}}
+    for ref in sorted({S1, S2, S3, S4, S5}):
+        seed[f"users/u1/pics/{ref}"] = {"d": {"__b64": "AQID"}, "type": "image/webp", "t": 1, "w": 10, "h": 10}
+        seed[f"users/u1/picbig/{ref}"] = {"d": {"__b64": "BAUGBwgJ"}, "type": "image/webp", "t": 1}
+    pg = _cloud_page(browser, cloud_site, seed)
+    key = pg.evaluate("window.AltoCloud.sharePush('pk1', 'T')")["shareKey"]
+    pg.evaluate("window.__failDelete = '/picbig/%s'" % S3)             # one copy cannot be deleted (offline blip, quota)
+    err = pg.evaluate("window.AltoCloud.shareRevoke('pk1').then(() => 'stopped', e => String(e.message))")
+    assert err != "stopped" and "offline" in err, err
+    # the share document and the owner record are still there, and the page still names its link: the owner sees it live and can retry
+    assert pg.evaluate("!!window.__fs.docs['shares/%s']" % key) is True
+    assert pg.evaluate("window.__fs.docs['users/u1/pages/pk1'].shareKey") == key
+    # (retry once the failure is gone)
+    pg.evaluate("window.__failDelete = ''")
+    assert pg.evaluate("window.AltoCloud.shareRevoke('pk1')") is True
+    left = pg.evaluate("Object.keys(window.__fs.docs).filter(k => k.startsWith('shares/') && /pics|picbig/.test(k))")
+    assert left == [] and pg.evaluate("window.__fs.docs['users/u1/pages/pk1'].shareKey") == ""
     pg.context.close()
 
 

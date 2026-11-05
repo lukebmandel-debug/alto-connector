@@ -143,7 +143,8 @@ service cloud.firestore {
       // The pictures a share's page names, copied beside it when it is made or updated: readable (by `get`) with the key, written
       // and removed by the share's owner, each one document (Bytes), never listable.
       match /{coll}/{ref} {
-        allow get: if validKey(key) && coll in ['pics', 'picbig'] && ref.matches('^pic-[a-z0-9]{8,16}$');
+        // exists(): a stopped link's copies are unreadable even if one of them could not be deleted
+        allow get: if validKey(key) && exists(sharePath(key)) && coll in ['pics', 'picbig'] && ref.matches('^pic-[a-z0-9]{8,16}$');
         allow list: if false;
         allow create, update: if validKey(key) && coll in ['pics', 'picbig'] && ref.matches('^pic-[a-z0-9]{8,16}$')
                               && allowlisted() && ownsShareAfter(key)
