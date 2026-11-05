@@ -495,6 +495,54 @@ def test_a_card_on_a_phone_carries_its_picture(browser, site):
     pg.context.close()
 
 
+def _geotagged(path):
+    """A JPEG that carries a GPS position in its EXIF, a camera name, and an XMP packet naming a place."""
+    from PIL import Image
+    im = Image.new("RGB", (1700, 1200), (60, 120, 200))
+    ex = Image.Exif()
+    ex[0x010F], ex[0x0110] = "SpyCam Co", "Model-GPS-77"
+    ex.get_ifd(0x8825).update({1: "N", 2: (40.0, 44.0, 54.0), 3: "W", 4: (73.0, 59.0, 8.0)})
+    im.save(path, "JPEG", quality=90, exif=ex)
+    raw = Path(path).read_bytes()
+    xmp = (b"http://ns.adobe.com/xap/1.0/\x00<x:xmpmeta xmlns:x='adobe:ns:meta/'><rdf:RDF><rdf:Description photoshop:City='Hometown' "
+           b"exif:GPSLatitude='40,44.9N'/></rdf:RDF></x:xmpmeta>")
+    Path(path).write_bytes(raw[:2] + b"\xff\xe1" + (len(xmp) + 2).to_bytes(2, "big") + xmp + raw[2:])
+    return Path(path).read_bytes()
+
+
+def test_a_picture_with_a_location_in_it_is_stored_without_one(browser, site):
+    _base, root = site
+    src = _geotagged(root / "geo.jpg")
+    for needle in (b"Exif", b"GPS", b"Model-GPS-77", b"xmpmeta", b"Hometown"):
+        assert needle in src, needle                                    # the test file really carries them
+    pg = _open(browser, site, page="plain", edit=True)
+    _detail(pg)
+    pg.click(".aed-add >> nth=-1")
+    pg.wait_for_selector("#aed-kinds button[data-k=photos]")
+    pg.click("#aed-kinds button[data-k=photos]")
+    pg.wait_for_selector(".aph:not(.aph-top) .aph-add", timeout=8000)
+    _add(pg, ".aph:not(.aph-top) .aph-add", [str(root / "geo.jpg")])
+    stored = pg.evaluate("Object.values(window.__pics).map(p => [Array.from(p.th), Array.from(p.big), p.type, p.thType])")
+    assert len(stored) == 1
+    for blob in (stored[0][0], stored[0][1]):                           # pics (small) and picbig (large), the bytes sent to the account
+        data = bytes(blob)
+        assert len(data) > 100 and (data[:2] == b"\xff\xd8" or data[:4] == b"RIFF"), data[:8]
+        low = data.lower()
+        for needle in (b"gps", b"xmp", b"xmpmeta", b"adobe", b"model-gps", b"spycam", b"hometown", b"40,44", b"makernote"):
+            assert needle not in low, needle
+        # The browser's own encoder may write a tiny Exif block of its own (WebKit: only the pixel size). It must hold no GPS
+        # directory (tag 0x8825), nothing of the source's camera, and be that small.
+        at = data.find(b"Exif\x00\x00")
+        if at >= 0:
+            seg = data[at:at + int.from_bytes(data[at - 2:at], "big") - 2]
+            assert len(seg) <= 128 and b"\x88\x25" not in seg and b"\x25\x88" not in seg, seg
+    # and the copy kept in this browser (IndexedDB) is the same shrunk file
+    idb = pg.evaluate("""new Promise(res => { const q = indexedDB.open('alto-pics', 1); q.onsuccess = () => { const s = q.result.transaction('p').objectStore('p').getAll();
+      s.onsuccess = () => { q.result.close(); res(s.result.map(v => Array.from(new Uint8Array(v.buf || v)))); }; }; })""")
+    assert idb and all(b"gps" not in bytes(x).lower() and b"xmp" not in bytes(x).lower() and b"spycam" not in bytes(x).lower() for x in idb)
+    pg.context.close()
+
+
 # ── the account layer, the real alto-cloud.js against an in-memory Firestore ──────────────────────
 
 def test_the_account_layer_keeps_pictures_under_the_owner_and_copies_a_shares_beside_it():
