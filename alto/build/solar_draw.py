@@ -1894,7 +1894,7 @@ var STYLES=[['system', 'System', 'System: the orbits in Alto\u2019s own glass lo
   ['chart', 'Star chart', 'Star chart: the orbits as a painted space scene, with flights between bodies'],
   ['retro', 'Retro', 'Retro: a vintage space poster in black and gold'],
   ['3d', '3D Star chart', '3D Star chart: turning globes lit by their suns, in depth'],
-  ['holo', 'Holographic', 'Holographic: the System in one cyan light, square wireframe chrome, a faint grid (holo.py), light or dark']];
+  ['holo', 'Holographic', 'Holographic: the System in one cyan light, square wireframe chrome, a faint grid (holo.py)']];
 /* Holographic (holo.py) is the System's look with the hosted Holographic layer on (the page's head script, window._altoHoloLayer) */
 function holoOn(){ var H=window._altoHoloLayer; return !!(H && H.get()); }
 function styleOf(){ return holoOn() ? 'holo' : LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }

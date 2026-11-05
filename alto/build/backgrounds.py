@@ -423,13 +423,16 @@ html.mobile #bg-panel .bg-head{ position:sticky; top:0; z-index:1; margin:0 0 12
 #bg-close{ display:none; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:14px; align-items:center;
   justify-content:center; color:var(--text); letter-spacing:0; background:var(--card-glass-bg); border:1px solid var(--card-glass-border); }
 html.mobile #bg-close{ display:flex; }
-#bg-panel .bg-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#bg-panel .bg-body{ flex:1 1 auto; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+/* the picker's body clips at its own edge: on a computer a few pixels of air inside it keep the last column's ring and the style switch's last border from being clipped (Retro and Holographic draw them in a line that shows) */
+@media (min-width:641px){ html:not(.mobile) #bg-panel .bg-body{ padding:3px 3px 1px; } }
 #bg-panel .bg-head, #bg-panel .bg-foot{ flex:none; }
 #bg-panel .bg-sec{ margin:0 0 12px; }
 html.mobile #bg-panel .bg-sec{ padding:0 16px; margin-bottom:18px; }
 #bg-panel .bg-h{ font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:2px 2px 7px; }
 html.mobile #bg-panel .bg-h{ font-size:11px; margin-bottom:9px; }
-#bg-panel .bg-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+#bg-panel .bg-grid{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; min-width:0; }
+#bg-panel .bg-sec{ min-width:0; }
 .bg-tile{ position:relative; display:block; width:100%; aspect-ratio:16 / 10; padding:0; margin:0; overflow:hidden; cursor:pointer;
   border-radius:10px; border:2px solid transparent; background:var(--surface); font:inherit; color:#fff;
   box-shadow:0 0 0 1px var(--border); -webkit-tap-highlight-color:transparent; }
@@ -467,9 +470,10 @@ UI_JS = r"""(function(){
   function credit(){
     var id=B.read(), c=B.get(id); foot.textContent='';
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
-    if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map, for the light and the dark theme.'; return; }
-    if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background, for the light and the dark theme.'; return; }
-    if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+' — for the light and the dark theme.'; return; }
+    var both=root.classList.contains('alto-holo') ? '' : ', for the light and the dark theme';     // (Holographic is dark-only: it never says light)
+    if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map'+both+'.'; return; }
+    if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background.'; return; }
+    if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+(both ? ' —'+both.slice(1) : '')+'.'; return; }
     // one of the account's own pictures: its name, rename and remove (the hosted library script)
     if(c.u){ foot.textContent=c.n; B.need(function(L){ L.credit(id, foot); }); return; }
     var v=variant(c);

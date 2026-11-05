@@ -161,8 +161,8 @@ LIB_JS = r"""(function(){
   // ── the look ──
   var CSS=[
     // the style row (Classic | Retro): two halves of one pill, the chosen one filled
-    '#bg-panel .bg-seg{display:flex;width:100%;border:1px solid var(--border);border-radius:9px;overflow:hidden;}',
-    '#bg-panel .bg-segb{flex:1;font:inherit;font-size:12px;height:30px;border:0;background:transparent;color:var(--text);cursor:pointer;}',
+    '#bg-panel .bg-seg{display:flex;width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--border);border-radius:9px;overflow:hidden;}',
+    '#bg-panel .bg-segb{flex:1 1 0;min-width:0;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;font-size:12px;height:30px;border:0;background:transparent;color:var(--text);cursor:pointer;}',
     '#bg-panel .bg-segb+.bg-segb{border-left:1px solid var(--border);}',
     '#bg-panel .bg-segb.on{background:var(--accent,#6d5bd0);color:#fff;font-weight:600;}',
     'html.alto-retro #bg-panel .bg-seg{border-radius:0;border-color:rgba(217,174,85,.6);} html.alto-retro #bg-panel .bg-segb{font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.2em;font-size:11px;}',
@@ -237,7 +237,7 @@ LIB_JS = r"""(function(){
     function mark(){ var c=S.get(); [].forEach.call(seg.children, function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
     [['classic', 'Classic'], ['retro', 'Retro'], ['holo', 'Holographic']].filter(function(v){ return !S.list || S.list.indexOf(v[0])>=0; }).forEach(function(v){
       var b=el('button', 'bg-segb', v[1]); b.type='button'; b.setAttribute('data-sty', v[0]);
-      b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : v[0]==='holo' ? 'Holographic: one cyan light, square wireframe cards, a faint grid, light or dark' : 'Classic: Alto\u2019s own look, with the background below';
+      b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : v[0]==='holo' ? 'Holographic: one cyan light, square wireframe cards, a faint grid' : 'Classic: Alto\u2019s own look, with the background below';
       b.addEventListener('click', function(e){ e.stopPropagation(); S.set(v[0]); mark(); }); seg.appendChild(b); });
     row.appendChild(el('div', 'bg-h', 'Style')); row.appendChild(seg); ui.body.insertBefore(row, ui.body.firstChild); mark();
   }
