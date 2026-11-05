@@ -416,3 +416,93 @@ def test_edit_mode_menu_offers_nest_under_and_taking_it_out():
     src = Path(me.__file__).read_text()
     for t in ("'Nest under…'", "'Take it out of “'", "'n|' + id + '|nest'", "Only entries on the same line"):
         assert t in src, t
+
+
+# ── Art, 2026-11-05: the Expanded / Edit board fits the window, top AND bottom; the chip and the pressed switch read; square in Retro / Holographic ──
+_EXTENT = """()=>{ var top=1e9, bot=-1e9;
+  document.querySelectorAll('#world .node').forEach(function(n){ if(getComputedStyle(n).display==='none') return; var c=n.querySelector('.node-card'); if(!c) return;
+    var r=c.getBoundingClientRect(); if(!r.width) return; top=Math.min(top, r.top); bot=Math.max(bot, r.bottom); });
+  var nav=document.getElementById('lanes-nav'), nt=nav ? nav.getBoundingClientRect().top : innerHeight;
+  return {top:top, bottom:bot, vh:innerHeight, navTop:nt}; }"""
+
+
+@pytest.mark.parametrize("viewport", [(1600, 1000), (1440, 900)])
+@pytest.mark.parametrize("mode", ["expanded", "edit"])
+def test_the_whole_stack_fits_the_window_top_and_bottom(browser, tmp_path, viewport, mode):
+    pg, errs = _open(browser, _d(), tmp_path, viewport=viewport, edit=(mode == "edit"))
+    if mode == "expanded":
+        pg.click("#ln-view")
+    else:
+        pg.evaluate("window._altoManual.enter()")
+    pg.wait_for_timeout(1500)
+    r = pg.evaluate(_EXTENT)
+    assert r["top"] >= 125, r                                # the highest card clear of the header band, not cut off at the top (was -72 / -66)
+    assert r["bottom"] <= r["vh"] - 109, r                   # the lowest above the player bar / nav, not under it or off the bottom (was 1116 / 1006)
+    assert not errs, errs
+
+
+_INK = """(sel)=>{ var lum=function(m){ var a=m.map(function(v){ v/=255; return v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055,2.4); }); return .2126*a[0]+.7152*a[1]+.0722*a[2]; };
+  var rgb=function(c){ return c.match(/[\\d.]+/g).map(Number).slice(0,3); };
+  var e=document.querySelector(sel), c=getComputedStyle(e), x=lum(rgb(c.color)), y=lum(rgb(c.backgroundColor));
+  return {cr:(Math.max(x,y)+.05)/(Math.min(x,y)+.05), radius:c.borderTopLeftRadius}; }"""
+
+
+@pytest.mark.parametrize("style,dark", [("classic", False), ("classic", True), ("retro", False), ("holo", False), ("holo", True)])
+def test_the_chip_and_the_pressed_switch_read_and_are_square_in_retro_and_holo(browser, tmp_path, style, dark):
+    import http.server
+    import socketserver
+    import threading
+    from alto.build import palace_assets
+    html, _ = build_timeline(*load_brief(copy.deepcopy(_d())))
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            p = self.path.split("?")[0]
+            if p == "/lc.html":
+                ct, body = "text/html", html.encode()
+            else:
+                hit = palace_assets.find(p)
+                if not hit:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                ct, body = hit[0], hit[1]
+                body = body.encode() if isinstance(body, str) else body
+            self.send_response(200)
+            self.send_header("Content-Type", ct)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    class S(socketserver.ThreadingTCPServer):
+        allow_reuse_address = True
+        daemon_threads = True
+
+    srv = S(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        ctx = browser.new_context(viewport={"width": 1600, "height": 1000})
+        pg = ctx.new_page()
+        pg.goto(f"http://127.0.0.1:{srv.server_address[1]}/lc.html")
+        pg.wait_for_timeout(2200)
+        if style != "classic":
+            pg.evaluate(f"window._altoStyle.set('{style}')")
+            pg.wait_for_timeout(900)
+        if style != "retro":
+            pg.evaluate(f"document.documentElement.classList.toggle('dark', {str(dark).lower()})")
+            pg.wait_for_timeout(300)
+        chip = pg.evaluate(_INK, ".node-card .ln-chip")
+        pg.click("#ln-view")
+        pg.wait_for_timeout(900)
+        sw = pg.evaluate(_INK, "#ln-view")                     # pressed: Expanded
+        for name, r in (("chip", chip), ("switch", sw)):
+            assert r["cr"] >= 4.5, (name, r)
+            if style in ("retro", "holo"):
+                assert r["radius"] == "0px", (name, r)
+        assert chip["radius"] != "0px" if style == "classic" else True
+        ctx.close()
+    finally:
+        srv.shutdown()

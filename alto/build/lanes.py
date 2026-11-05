@@ -847,6 +847,9 @@ LANES_CSS = KEY_CSS + """
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
   #ln-view:hover{border-color:var(--accent);color:var(--accent);}
   #ln-view[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
+  /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
+  html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,#ln-view[aria-pressed=true]){color:#14122b;}
+  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,#ln-view){border-radius:0;}
   #ln-view:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   html.mobile #ln-view,html.phone-whole #ln-view,html.detail-open #ln-view,html.printing #ln-view{display:none !important;}
   @media print{#ln-view,.node-card .ln-chip{display:none !important;}}
@@ -893,7 +896,7 @@ window._altoLanesGeo=null;
    its parent ("▾ n inside"; the chip, or Down, opens it); in the Expanded view it is always shown, outline-style from the
    parent on the far side of the line. It is never an event of the line (no dot, no stem, no step of the ← → path). ── */
 var KIDW=220, KIDH=60, KIDLY=70, KIDGAP=14, KIDIND=26;
-var OPEN={}, EXPD=false, PRINTX=false, KG=null, KC='';
+var OPEN={}, EXPD=false, PRINTX=false, KG=null, KC='', KSHOW=false;
 var VK='alto-lanes-view-'+String(window._ALTO_LANES_PICK||'').replace(/^alto-lanes-pick-/,'');
 try{ EXPD=localStorage.getItem(VK)==='expanded'; }catch(e){}
 function kidsOn(){ return !de.classList.contains('mobile') && !de.classList.contains('phone-whole'); }
@@ -998,7 +1001,10 @@ function axisNums(order, fbOf){
   if(!order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; })) return false;
   return order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); });
 }
-window._altoLanes=function(h){
+/* the Expanded / Edit board must fit the window, children included, top AND bottom (Art, 2026-11-05): the rows of a family close up
+   first (KIDLY 70 -> 58, here and in layoutLanes), then fitStage() scales the whole stage into the room. The lines keep their layout. */
+window._altoLanes=function(h){ KIDLY=70; return layoutLanes(h); };
+function layoutLanes(h){
   if(de.classList.contains('mobile')) return false;
   var world=document.getElementById('world'); if(!world) return false;
   derive();
@@ -1229,6 +1235,8 @@ window._altoLanes=function(h){
   if(frows) ys.push(flTop-frows*FL_ROW);
   FLG.forEach(function(f){ f.y=flTop-FL_ROW*(f.row+.5); });
   var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys)+AX;
+  /* children make the board taller than the fit allowed for: close their rows up first (fitStage() scales what is left) */
+  if(room && anyKids && KIDLY>58 && (y1-y0)-A>1){ KIDLY=58; return layoutLanes(h); }
   /* the board's top where the room starts (the slack shared above and below); the page no taller than the canvas */
   var dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2 : TOP-y0;
   var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
@@ -1313,8 +1321,9 @@ window._altoLanes=function(h){
   var sl=document.getElementById('glass-slab');
   if(sl && sl.offsetHeight){ var wcs=getComputedStyle(world), pads=(parseFloat(wcs.paddingTop)||0)+(parseFloat(wcs.paddingBottom)||0);
     var mh=Math.max(0, sl.offsetTop+sl.offsetHeight-pads)+'px'; if(world.style.minHeight!==mh) world.style.minHeight=mh; }
+  fitStage(KSHOW);                 // (once more, now that the world and the slab have their final heights)
   return true;
-};
+}
 /* ── child nodes: where they stand ────────────────────────────────────────────
    The Expanded view (and a family opened in the Compact view): outline-style from the parent on the far side of the line,
    one row each, KIDLY apart, each depth KIDIND further in, joined by an elbow off a rail down the parent's left. The Compact view
@@ -1359,6 +1368,25 @@ function placeKids(){
   if(G){ G.geoK=geoK; G.fams=fams; }
   if(window._altoLanesGeo){ window._altoLanesGeo.kids=geoK; window._altoLanesGeo.fams=fams; }
   kidsDim(); viewSwitch(Object.keys(fams).length>0);
+  KSHOW=Object.keys(geoK).length>0; fitStage(KSHOW);
+}
+/* the whole stack inside the window: where children are showing and the cards stand beyond the room (130 px of header above, 110 of
+   player bar and nav below), the stage (#world, which carries #lanes-svg) is scaled from its top to fit and centred in that room.
+   Measured on the cards themselves, highest top to lowest bottom, so BOTH sides count. Never in print; the layout itself is untouched. */
+function fitStage(on){
+  var world=document.getElementById('world'); if(!world) return;
+  world.style.translate=''; world.style.scale='';                    // (the individual properties, so the overview's own transform is left alone)
+  if(!on || de.classList.contains('printing') || PRINTX) return;
+  var wr=world.getBoundingClientRect(), k=(wr.width && world.offsetWidth) ? wr.width/world.offsetWidth : 1;
+  /* from where the cards stand in the world (centre top + height), not from their rects: a card still easing in would be measured where it started */
+  var lt=1e9, lb=-1e9;
+  world.querySelectorAll('.node').forEach(function(n){
+    if(getComputedStyle(n).display==='none') return; var c=n.querySelector('.node-card'), y=parseFloat(n.style.top); if(!c || !c.offsetHeight || isNaN(y)) return;
+    lt=Math.min(lt, y-c.offsetHeight/2); lb=Math.max(lb, y+c.offsetHeight/2); });
+  var TOPB=130, BOTB=110, room=window.innerHeight-TOPB-BOTB, ext=(lb-lt)*k;
+  if(!(ext>0) || ext<=room+1) return;
+  var sc=Math.max(.3, room/ext), T=TOPB+(room-ext*sc)/2, ty=(T-wr.top)/k-sc*lt;
+  world.style.transformOrigin='0 0'; world.style.translate='0 '+ty.toFixed(2)+'px'; world.style.scale=sc.toFixed(4);
 }
 /* a child dims with its parent (any filter that dims a card: a chip, a slot, a relation) */
 function kidsDim(){
