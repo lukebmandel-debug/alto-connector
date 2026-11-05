@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import heapq
 import math
+from bisect import bisect_left, bisect_right
 import re
 
 from .palace_grid import CW, CH, LEAD, norm, numbered, _dp, _inside
@@ -111,7 +112,19 @@ def poly_d(p, pts):
         return pts.dist(p)
     if len(pts) == 1:
         return math.dist(p, pts[0])
-    return min(segd(p, a, b) for a, b in zip(pts, pts[1:]))
+    px, py = p[0], p[1]
+    best = None
+    ax, ay = pts[0][0], pts[0][1]
+    for q in pts[1:]:       # segd, inlined: this is the hot loop of the avenue fit
+        bx, by = q[0], q[1]
+        dx, dy = bx - ax, by - ay
+        t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy or 1e-12)
+        t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+        d = math.hypot(ax + t * dx - px, ay + t * dy - py)
+        if best is None or d < best:
+            best = d
+        ax, ay = bx, by
+    return best
 
 
 def ring_d(p, ring):
@@ -513,7 +526,7 @@ def _cost(path, S, back, bound=None):
 
 
 def _crossings(path, xs, ys):
-    """{("v", x) | ("h", y): arc length along path where it first crosses that lattice column / row}."""
+    """{("v", x) | ("h", y): arc length along path where it first crosses that lattice column / row}. xs, ys: sorted."""
     out, acc = {}, 0.0
     for a, b in zip(path, path[1:]):
         L = math.dist(a, b)
@@ -523,8 +536,9 @@ def _crossings(path, xs, ys):
             lo, hi = sorted((a[k], b[k]))
             if hi - lo < 1e-9:
                 continue
-            for v in vals:
-                if lo < v < hi and (o, v) not in out:
+            for i in range(bisect_right(vals, lo), bisect_left(vals, hi)):     # vals is sorted: only the lines inside the span
+                v = vals[i]
+                if (o, v) not in out:
                     out[(o, v)] = acc + (v - a[k]) / (b[k] - a[k]) * L
         acc += L
     return out

@@ -232,10 +232,10 @@ def test_outline_and_all_detail_pages_come_in_outline_order(browser, built):
     got = pg.evaluate("""() => {
       const host = document.getElementById('print-timeline-host'), all = document.getElementById('print-all');
       return {outlineFirst: !!(host.compareDocumentPosition(all) & Node.DOCUMENT_POSITION_FOLLOWING),
-              outline: host.textContent.slice(0, 80),
+              outline: host.textContent.slice(0, 80), isOutline: !!host.querySelector('.print-ol-doc'),
               secs: [...all.querySelectorAll('.print-detail')].map(s => s.textContent)}
     }""")
-    assert got["outlineFirst"] and "Outline" in got["outline"]
+    assert got["outlineFirst"] and got["isOutline"]            # the heading names the format by its symbol, not the word
     byid = {n["id"]: n["title"] for n in pg.evaluate("NODES")}
     assert len(got["secs"]) == len(order)
     for sec, nid in zip(got["secs"], order):                      # page i is node i of the outline order
@@ -271,7 +271,7 @@ def test_printing_from_an_open_detail_page_returns_to_it(browser, built):
     pg.evaluate("showDetail('node', NODE_ORDER[2])")
     pg.evaluate("window.altoPrint('ink')")
     pg.wait_for_timeout(300)
-    assert pg.evaluate("document.querySelectorAll('.ink-tile').length") >= 1
+    pg.wait_for_function("document.querySelectorAll('.ink-tile').length >= 1", timeout=10000)   # an outline is re-flowed: slow when the machine is busy
     pg.evaluate("window.dispatchEvent(new Event('afterprint'))")     # the print sheet closed
     pg.wait_for_timeout(300)
     assert pg.evaluate("window._currentDetailId") == pg.evaluate("NODE_ORDER[2]")

@@ -515,21 +515,22 @@ HOME_CSS = r"""
 """
 
 HOME_B_JS = r"""(function(){
+if(window._altoRetroHome) return;   /* (Retro's script and Holographic's each carry this copy: the first to load is the one that runs) */
 var NAMES={timeline:'Timeline',lanes:'Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Blueprint',world:'Atlas'};
 var mo=null, busy=false, raf=0;
 function el(t,c,x){var e=document.createElement(t); if(c) e.className=c; if(x!=null) e.textContent=x; return e;}
 function two(n){return n<10?'0'+n:''+n;}
-function live(){ return document.documentElement.classList.contains('alto-retro') && document.documentElement.classList.contains('alto-home'); }
+function live(){ var c=document.documentElement.classList; return (c.contains('alto-retro') || c.contains('alto-holo')) && c.contains('alto-home'); }
 function decorate(){
   if(!live()) return; busy=true;
   document.querySelectorAll('.project-slab:not(.new-project-slab)').forEach(function(slab){
     var k=slab.querySelector('.slab-kicker'), g=slab.querySelector('.course-grid'); if(!k||!g) return;
     var tiles=g.querySelectorAll('.course-tile:not(.new-tile)');
     var c=k.querySelector('.slab-count'); if(!c){ c=el('span','slab-count'); k.appendChild(c); }
-    c.textContent=tiles.length+(tiles.length==1?' timeline':' timelines');
+    var ct=tiles.length+(tiles.length==1?' timeline':' timelines'); if(c.textContent!==ct) c.textContent=ct;   /* (written only when it changed: a write alone wakes the observer, which drew it again, every frame) */
     tiles.forEach(function(t,i){
       var no=t.querySelector('.t-no');
-      if(no){ no.textContent='Nº '+two(i+1); return; }   /* already decorated: only the number can change (a re-sort) */
+      if(no){ var nt='Nº '+two(i+1); if(no.textContent!==nt) no.textContent=nt; return; }   /* already decorated: only the number can change (a re-sort) */
       var st=t.querySelector('.unit-strip'), em=t.querySelector('.tile-emblem'), body=t.querySelector('.tile-body'), sub=t.querySelector('.tile-sub');
       var btns=['tile-download','tile-share','tile-reports','tile-more'].map(function(n){return t.querySelector('.'+n);}).filter(Boolean);
       if(!st||!em||!body) return;
@@ -590,7 +591,7 @@ function art(){
 }
 HOMEB
 __DARK__
-function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
+function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); if(typeof window.redrawConnections==='function') window.redrawConnections(); window.dispatchEvent(new Event('resize')); }catch(e){} }   // (the lines break at a divider by the style: vSegWithGaps)
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-retro-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);

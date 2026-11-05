@@ -160,6 +160,7 @@ function ofChar(id, c){
 var _S=null;       // cached per call chain: {ids, at}
 function stops(){
   var o=pageOrder(), c=picks(), lg=legacy();
+  if(!c.length && _ln && lineDef(_ln)) c=[_ln];       // a line reached with a held or pressed ↑ / ↓: the steps and the travel go along it
   var ids=o.filter(function(id){ if(!live(id)) return false; if(c.length) return c.some(function(k){ return ofChar(id,k); }); return lg || (L.ev[id].l||'main')==='main'; });
   if(!ids.length) ids=o.filter(live);
   var at={}; o.forEach(function(id,i){ at[id]=i; });
@@ -237,7 +238,7 @@ function camFor(id, B){
    path (a character's own event, the page as it opened, a scrollbar drag) is an
    offset (ox, oy) from the nearest point of the path, which fades out over the
    next few hundred px of travel, so nothing ever jumps back onto the path. */
-var M={u:0, uT:0, pend:[], vel:0, ox:0, oy:0, raf:0, last:0, input:-1e9, dir:1, restU:0, restId:null, gl:null, drag:null, pth:null, wr:null, near:null, stale:false};
+var M={hv:0, u:0, uT:0, pend:[], vel:0, ox:0, oy:0, raf:0, last:0, input:-1e9, dir:1, restU:0, restId:null, gl:null, drag:null, pth:null, wr:null, near:null, stale:false};
 function buildPath(){
   var c=cv(), S=stops(), B=band(c), ids=S.ids, P=[], U=[], ml=0, mt=0;
   _fit={t:B.t, b:B.b, y:fitHome(c,B,ids)};
@@ -331,7 +332,7 @@ function thumb(){ if(!R || !M.pth) return; var N=M.pth.ids.length, f=railFrac(fr
 function tick(now){
   M.raf=0;
   var c=cv();
-  if(!c || !on() || _ov || window._focusedNodeId){ if(M.gl && M.gl.step){ _busy=false; _q.length=0; } M.gl=null; M.pend.length=0; return; }
+  if(!c || !on() || _ov || window._focusedNodeId){ if(M.gl && M.gl.step){ _busy=false; _q.length=0; } M.gl=null; M.pend.length=0; M.hv=0; return; }
   if(M.stale && !M.drag){                                     // laid out again mid-travel: carry on from the view as it is
     M.stale=false; var g0=M.gl; M.gl=null; resync();
     if(g0){ glideTo(g0.id, {settle:g0.settle, step:g0.step}, g0.done); return; }
@@ -339,20 +340,21 @@ function tick(now){
   if(!M.pth) resync();
   var dt=Math.max(1,Math.min(50,now-M.last)), u0=M.u; M.last=now;
   if(M.gl){
-    var g=M.gl, p=g.ms>0 ? Math.max(0,Math.min(1,(now-g.s0)/g.ms)) : 1, k=g.pw ? 1-Math.pow(1-p,g.pw) : ease(p);
+    var g=M.gl, p=g.ms>0 ? Math.max(0,Math.min(1,(now-g.s0)/g.ms)) : 1, k=g.hv ? herm(p, g.hv*g.ms/(g.u1-g.u0)) : g.pw ? 1-Math.pow(1-p,g.pw) : ease(p);
     M.u=M.uT=g.u0+(g.u1-g.u0)*k; M.ox=g.ox0+(g.ox1-g.ox0)*k; M.oy=g.oy0+(g.oy1-g.oy0)*k; M.vel=(M.u-u0)/dt;
     if(p>=1){ M.gl=null; land(g); return; }
     draw(); thumb(); M.raf=requestAnimationFrame(tick); return;
   }
   {
     if(M.pend.length) release(now);
+    if(M.hv){ M.uT=clampU(M.uT+M.hv*Math.min(32,dt)); M.input=now; }     // a held arrow: this frame's travel, on the same clock as the chase below
     var kk=(reduced() || M.drag) ? 1 : 1-Math.exp(-dt/TAU_CHASE), nu2=M.u+(M.uT-M.u)*kk;
     if(Math.abs(M.uT-nu2)<.05) nu2=M.uT;
     fade(nu2-M.u); M.u=nu2;
   }
   M.vel=(M.u-u0)/dt;
   draw(); follow(); thumb();
-  var moving=!!M.drag || M.pend.length>0 || Math.abs(M.uT-M.u)>.05;
+  var moving=!!M.drag || !!M.hv || M.pend.length>0 || Math.abs(M.uT-M.u)>.05;
   if(!moving && now-M.input>=SETTLE){ settle(); return; }
   M.raf=requestAnimationFrame(tick);
 }
@@ -372,6 +374,8 @@ function settle(){
   var id=pick(); if(!id){ M.raf=0; return; }
   glideTo(id, {settle:true});
 }
+/* a glide that starts at the camera's own speed and ends at rest (Hermite: slope m at the start, none at the end; m <= 3 keeps it from backing up) */
+function herm(p, m){ m=Math.max(0,Math.min(3,m||0)); var p2=p*p, p3=p2*p; return (p3-2*p2+p)*m+(-2*p3+3*p2); }
 function settleMs(d){ return Math.round(Math.min(700, Math.max(380, 340+.6*d))); }
 /* glide the camera to an event along the path (on the engine's curve); done() when it rests */
 function glideTo(id, opt, done){
@@ -385,7 +389,7 @@ function glideTo(id, opt, done){
   var q0=pathAt(M.u), q2=pathAt(u1), dx=(q2[0]+ox1)-(q0[0]+M.ox), dy=(q2[1]+oy1)-(q0[1]+M.oy), d=Math.sqrt(dx*dx+dy*dy);
   var ms=(opt.instant || reduced() || d<.5) ? 0 : opt.ms ? opt.ms : (opt.settle ? settleMs(d) : glideMs(d));
   setCur(id); M.near=id; _trust=true; M.pend.length=0;
-  var g={id:id, u0:M.u, u1:u1, ox0:M.ox, oy0:M.oy, ox1:ox1, oy1:oy1, s0:performance.now(), ms:ms, done:done, settle:!!opt.settle, step:!!opt.step, quiet:d<.5, pw:opt.pw||0};
+  var g={id:id, u0:M.u, u1:u1, ox0:M.ox, oy0:M.oy, ox1:ox1, oy1:oy1, s0:performance.now(), ms:ms, done:done, settle:!!opt.settle, step:!!opt.step, quiet:d<.5, pw:opt.pw||0, hv:opt.hv||0};
   if(!ms){ if(M.raf){ cancelAnimationFrame(M.raf); M.raf=0; } land(g); return; }
   M.gl=g; wake(); ui(id,0);
 }
@@ -489,17 +493,62 @@ document.addEventListener('keydown', function(e){
   if(d==null) return;
   if(_ov){ e.preventDefault(); return; }
   e.preventDefault();
-  if(d==='first'){ step(stops().ids[0],'key'); return; }
-  if(d==='last'){ var S=stops().ids; step(S[S.length-1],'key'); return; }
-  if(d==='n'||d==='s'){
-    /* up and down: the nearest event on the next line over (lanes.py) */
-    if(_busy){ return; }
-    var from=current(), nx=from && _navPrev ? _navPrev(from, d) : null;
-    if(nx) step(nx,'key');
-    return;
+  var kk=(!sh && e.isTrusted) ? KEYS[k] : null;
+  if(kk){                                       // a real arrow key: a quick press steps, a held one travels (below)
+    if(e.repeat) return;
+    var other=K.l||K.r||K.u||K.d; K[kk]=performance.now(); holdStart();
+    if(other && !KT) return;                     // the second key of a combo (↑ → …): the first one's step stands
   }
+  if(d==='first'){ lnReset(); step(stops().ids[0],'key'); return; }
+  if(d==='last'){ lnReset(); var S=stops().ids; step(S[S.length-1],'key'); return; }
+  if(d==='n'||d==='s'){ hop(d); return; }
   step(d,'key',e.repeat);
 }, true);
+/* held arrows (Luke, 2026-11-01: "a quick press of one of the arrow keys should navigate you to the next node in the direction you
+   pressed, but a long press should smoothly navigate you along the timeline in that direction … if you long press up, down, or up and
+   right … it can jump you to other lines … and smoothly navigate you that way"). A press is a step (above). Held HOLD ms, ← / →
+   become travel along the line the camera is on (the wheel's own travel, ramped up to VMAX px/s, so the magnetic settle lands it on an
+   event when the key goes up); ↑ / ↓ alone go on to the next line over each time the last one lands; ↑ / ↓ with ← / → hop one line
+   and travel along it. Only real key events (isTrusted): a script's bare keydowns stay presses. */
+var HOLD=260, VMAX=1500, RAMP=450, HOPGAP=120, KEYS={ArrowRight:'r', ArrowLeft:'l', ArrowUp:'u', ArrowDown:'d'};
+var K={l:0, r:0, u:0, d:0}, KT=0, _kraf=0, _kl=0, _khop=0, _ln=null;
+function lnReset(){ if(_ln){ _ln=null; _S=null; stopLoop(); M.pth=null; } }
+/* the nearest event on the next line over, and that line becomes the one the travel follows */
+function hop(d){
+  if(_busy) return false;
+  var from=current(), nx=from && _navPrev ? _navPrev(from, d) : null; if(!nx) return false;
+  var lid=(L.ev[nx] && L.ev[nx].l) || 'main', nl=(lid==='main' || !lineDef(lid)) ? null : lid;
+  if(nl!==_ln){ _ln=nl; _S=null; stopLoop(); M.pth=null; }
+  step(nx,'key'); return true;
+}
+function holdStart(){ if(!_kraf){ _kl=0; _kraf=requestAnimationFrame(holdTick); } }
+function holdClear(){ K.l=K.r=K.u=K.d=0; endTravel(); if(_kraf){ cancelAnimationFrame(_kraf); _kraf=0; } }
+function holdTick(now){
+  _kraf=0;
+  if(!K.l && !K.r && !K.u && !K.d){ KT=0; return; }
+  if(!on() || _ov || window._focusedNodeId || busyElsewhere()){ holdClear(); return; }
+  var h=(K.r?1:0)-(K.l?1:0), v=(K.d?1:0)-(K.u?1:0), ht=h>0 ? K.r : K.l, vt=v>0 ? K.d : K.u;
+  if(v && !h && now-vt>=HOLD && !_busy && now-_khop>=HOPGAP){ if(hop(v>0?'s':'n')) _khop=now; }
+  if(h && now-ht>=HOLD){
+    if(!KT) KT=now;
+    if(!_busy){ if(!M.hv) prepare(false); M.hv=h*VMAX*Math.min(1,(now-KT)/RAMP)/1000; M.dir=h; M.input=now; wake(); } else M.hv=0;
+  } else if(!h){ endTravel(); }
+  _kl=now; _kraf=requestAnimationFrame(holdTick);
+}
+/* the key goes up: not a stop and a fresh start (a settle waits for stillness) but ONE ease-out from the speed the camera has to the
+   first event at or beyond where braking would end (about 0.3 s of travel on), 0.5 to 0.7 s, speed never near 0 before it arrives (Art) */
+function endTravel(){
+  KT=0; if(!M.hv) return; M.hv=0;
+  var v=M.vel, a=Math.abs(v), p=M.pth; if(!p || !p.ids.length || a<.2){ M.input=performance.now(); return; }       // slow: the ordinary settle
+  var dir=v>0?1:-1, U=p.U, I=p.ids, goal=M.u+dir*a*300, k, id=null;
+  if(dir>0){ for(k=0;k<U.length;k++) if(U[k]>=goal){ id=I[k]; break; } if(!id) id=I[I.length-1]; }
+  else { for(k=U.length-1;k>=0;k--) if(U[k]<=goal){ id=I[k]; break; } if(!id) id=I[0]; }
+  var D=Math.abs(U[stopIx(id)]-M.u); M.uT=M.u; M.pend.length=0;
+  glideTo(id, {settle:true, ms:Math.max(500, Math.min(700, 2*D/a)), hv:D>1 ? v : 0});
+  if(M.gl) M.gl.s0=M.last;            // the glide starts at the last frame, so the frame after key-up already moves (s0 = the key event's time was ahead of that frame: one frame at rest)
+}
+document.addEventListener('keyup', function(e){ var kk=KEYS[e.key]; if(!kk) return; K[kk]=0; if(!K.l && !K.r) endTravel(); }, true);
+window.addEventListener('blur', holdClear);
 /* Tab onto a card: the camera goes to it the same way (not the browser's jump) */
 var _tabAt=null;
 document.addEventListener('keydown', function(e){ if(e.key==='Tab'){ var c=cv(); _tabAt=c?[c.scrollLeft,c.scrollTop,performance.now()]:null; } }, true);
@@ -534,6 +583,7 @@ function onWheel(e){
   if(window._focusedNodeId) return;                         // an enlarged card: the engine's swipe hops (along the stops)
   if(_ov){ ovWheel(e); return; }
   if(busyElsewhere()) return;
+  lnReset();
   e.preventDefault();                                       // the camera stays on the path: no free scroll
   if(M.drag) return;
   var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, now=performance.now();
@@ -583,7 +633,7 @@ document.addEventListener('pointerdown', function(e){
   /* the background (a finger or a pen may set off from a card too: a tap is still a tap) */
   var bg=!(e.target.closest && e.target.closest((e.pointerType==='mouse' ? '.node-card,' : '')+'.lanes-tag,button,a,input,textarea,select,[contenteditable="true"]'));
   if(!bg){ if(M.raf){ prepare(true); M.input=performance.now(); } return; }   // a card: held still; its click enlarges it, or the settle goes on
-  prepare(true);
+  lnReset(); prepare(true);
   DR=M.drag={id:e.pointerId, x:e.clientX, y:e.clientY, lx:e.clientX, ly:e.clientY, moved:false, ax:null, smp:[]};
   M.input=performance.now(); wake();
 }, true);
