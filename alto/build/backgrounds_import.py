@@ -165,7 +165,7 @@ LIB_JS = r"""(function(){
     '#bg-panel .bg-segb{flex:1 1 0;min-width:0;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;font-size:12px;height:30px;border:0;background:transparent;color:var(--text);cursor:pointer;}',
     '#bg-panel .bg-segb+.bg-segb{border-left:1px solid var(--border);}',
     '#bg-panel .bg-segb.on{background:var(--accent,#6d5bd0);color:#fff;font-weight:600;}',
-    'html.alto-retro #bg-panel .bg-seg{border-radius:0;border-color:rgba(217,174,85,.6);} html.alto-retro #bg-panel .bg-segb{font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.2em;font-size:11px;}',
+    'html.alto-retro #bg-panel .bg-seg{border-radius:0;border-color:rgba(217,174,85,.6);} html.alto-retro #bg-panel .bg-segb{font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.1em;font-size:10px;padding:0 2px;flex:1 1 auto;text-overflow:clip;}',
     'html.alto-retro #bg-panel .bg-segb.on{background:#d9ae55;color:#000;}',
     '#bg-panel .bg-tile.bg-mine .bg-more{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;',
     ' font-size:13px;line-height:1;color:#fff;background:rgba(0,0,0,.45);opacity:0;transition:opacity .15s;cursor:pointer;}',

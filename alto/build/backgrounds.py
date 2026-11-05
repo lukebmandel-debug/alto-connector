@@ -475,6 +475,7 @@ html.mobile #bg-panel .bg-foot{ padding:8px 16px 0; margin:0; border-top:1px sol
 #bg-panel .bg-solar-seg .bg-segb.on{ background:var(--accent,#6d5bd0); color:#fff; font-weight:600; }
 html.sk-retro #bg-panel .bg-solar-seg{ border-radius:0; border-color:rgba(217,174,85,.6); } html.sk-retro #bg-panel .bg-solar-seg .bg-segb{ text-transform:uppercase; letter-spacing:.14em; font-size:11px; }
 html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#000; }
+#bg-panel .bg-solar-seg .bg-segb:last-child:nth-child(odd){ grid-column:1 / -1; border-left:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(-n+2){ border-top:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(odd){ border-left:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(even){ border-left:1px solid var(--border); }
@@ -581,7 +582,7 @@ UI_JS = r"""(function(){
     var on=!!(B.only && B.only());
     panel.classList.toggle('bg-only', on);
     if(on){ if(drawn) solarRow(); var plain=root.classList.contains('alto-retro') || root.classList.contains('sk-retro');
-      note.textContent=plain ? 'Retro is plain black, so there is no background to choose. Switch to Classic or Holographic to pick one.' : 'This format draws its own background. Open a card to choose a background for its pages.'; }
+      note.textContent=plain ? 'Retro is plain black, so there is no background to choose. Switch to Classic or Holographic to pick one.' : 'This format draws its own background. Open anything in it to choose a background for its detail page.'; }
     else solarMark();
   }
   function open(v){
