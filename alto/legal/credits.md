@@ -2,7 +2,7 @@
 ## Maps
 Map data © OpenStreetMap contributors, available under the Open Database Licence (ODbL): [openstreetmap.org/copyright](https://www.openstreetmap.org/copyright).
 ## World map
-Made with Natural Earth: free vector and raster map data from [naturalearthdata.com](https://www.naturalearthdata.com) (public domain).
+Made with Natural Earth: free vector and raster map data from [naturalearthdata.com](https://www.naturalearthdata.com) (public domain). Country flags: [flag-icons](https://github.com/lipis/flag-icons) by Panayiotis Lipiridis, MIT License.
 ## First-person view
 Textures and sky, all CC0 1.0 (public domain): Poly Haven (polyhaven.com) marble, herringbone parquet, oak planks, brick, asphalt, concrete pavement, brick pavement and the "kloofendal_48d_partly_cloudy_puresky" sky by Greg Zaal, and the street furniture shapes (hydrant, bin, bench); ambientCG (ambientcg.com) Marble012 and Terrazzo011.
 ## Software

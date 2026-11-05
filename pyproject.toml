@@ -63,6 +63,10 @@ include = ["alto*"]
   # the Memory Atlas's map (Natural Earth, public domain; docs/world-palace/build_world_geo.py)
   "assets/world/*.gz",
   "assets/world/NOTICE",
+  # the Memory Atlas's country flags (flag-icons, MIT; docs/world-palace/build_world_flags.py)
+  "assets/flags/*.gz",
+  "assets/flags/LICENSE",
+  "assets/flags/NOTICE",
   "buildings/*.json",
   "cloud/*.js",
   # Committed copies of engine/*.html, refreshed by

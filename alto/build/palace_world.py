@@ -216,11 +216,33 @@ html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit
 #wpal-root .wp-where{display:flex;align-items:center;gap:5px;margin:7px auto 0;width:max-content;max-width:100%;box-sizing:border-box;padding:3px 10px 3px 8px;border-radius:999px;
   background:var(--w-card);border:1px solid var(--w-panel-b);box-shadow:var(--w-shadow);font-size:10.5px;font-weight:600;line-height:1.3;letter-spacing:.12em;text-transform:uppercase;
   color:var(--w-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
-#wpal-root .wp-where svg,#detail-page .wp-where-d svg{width:9px;height:11px;flex:none;}
-#wpal-root .wp-where path,#detail-page .wp-where-d path{fill:var(--u,currentColor);}
+#wpal-root .wp-where > svg,#detail-page .wp-where-d svg{width:9px;height:11px;flex:none;}
+#wpal-root .wp-where > svg path,#detail-page .wp-where-d path{fill:var(--u,currentColor);}
 #detail-page .wp-where-d{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#5b6478);}
 html.alto-retro #wpal-root .wp-where:not(#_){border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--rt-f);font-weight:400;letter-spacing:.2em;color:#d9ae55;border-color:rgba(217,174,85,.55);background:#0b0d12;}
 html.alto-retro #detail-page .wp-where-d:not(#_){color:#d9ae55;font-family:var(--rt-f);letter-spacing:.3em;}
+/* the country's flag beside where an enlarged card stands (Luke 2026-11-04: "please have country flags pop up with nodes. In holo style, it should be
+   animated like the file-type glyphs"): Classic a plain still flag, Retro a square one in a gold hairline, Holographic the same three-layer turn on Y as
+   the format symbols (transform only, 10 s linear, perspective; still at 28deg under reduced motion, paused while the tab is hidden). No flag
+   (Antarctica, a disputed area, a file the site lacks): a neutral outline pennant. The flag is a hosted SVG fetched when a card opens (world_flags.py). */
+#wpal-root .wp-flag{position:relative;flex:none;display:block;width:24px;height:18px;margin:-2px 1px -2px -3px;perspective:240px;}
+#wpal-root .wp-flag .fl-spin{position:absolute;inset:0;display:block;transform-style:preserve-3d;}
+#wpal-root .wp-flag img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;border-radius:3px;box-shadow:0 0 0 1px color-mix(in srgb,var(--w-text) 22%,transparent);}
+#wpal-root .wp-flag .fl-b,#wpal-root .wp-flag .fl-s{display:none;}
+#wpal-root .wp-flag.none svg{display:block;width:100%;height:100%;fill:none;stroke:var(--w-sub);stroke-width:1.4px;stroke-linecap:round;stroke-linejoin:round;}
+html.alto-retro #wpal-root .wp-flag img:not(#_){border-radius:0;box-shadow:0 0 0 1px #d9ae55;}
+html.alto-retro #wpal-root .wp-flag.none svg:not(#_){stroke:#d9ae55;}
+html.alto-holo #wpal-root .wp-flag{--fg:var(--ho-ac,#2ee6ff);}
+html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:wp-flag-spin 10s linear infinite;will-change:transform;}
+html.alto-holo #wpal-root .wp-flag img:not(#_){border-radius:0;box-shadow:0 0 0 1px var(--fg),0 0 7px color-mix(in srgb,var(--fg) 55%,transparent);}
+html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:block;opacity:.45;transform:translateZ(-4px);box-shadow:none;filter:grayscale(1) sepia(1) hue-rotate(255deg) saturate(5);}
+html.alto-holo #wpal-root .wp-flag .fl-s:not(#_){display:block;position:absolute;inset:0;transform:translateZ(1px);pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(var(--ho-rgb,46,230,255),.22) 0 1px,transparent 1px 3px);}
+html.alto-holo #wpal-root .wp-flag.none svg:not(#_){stroke:var(--fg);}
+html.alto-holo #wpal-root.wp-hid .wp-flag .fl-spin:not(#_){animation-play-state:paused;}
+@keyframes wp-flag-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+@media (prefers-reduced-motion:reduce){html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:none;transform:rotateY(28deg);will-change:auto;}
+  html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:none;}}
 html.alto-retro #wpal-root .wp-sw,html.alto-retro #wpal-root .wp-sw::after{border-radius:0;}
 html.alto-retro #wpal-root .wp-tt[aria-pressed="true"] .wp-sw{background:#d9ae55;}
 #wpal-root .wp-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--w-sub);font-size:13px;}
@@ -629,9 +651,21 @@ function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.class
 function enlarge(id,kid){
   var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
   giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
-  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); whereLine(id,'wp-where',w);
+  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); flagIn(id,whereLine(id,'wp-where',w));
   return w;
 }
+// the flag of the country a card sits in, first in its place line: a hosted SVG fetched now, only this one (GEO.flag, world_flags.py); Holographic turns
+// it (CSS), a country without a flag, or a file the site lacks, gets the neutral pennant
+function pennant(w){ while(w.firstChild) w.removeChild(w.firstChild); w.classList.add('none'); w.setAttribute('aria-label','No flag shown'); w.title='No flag shown';
+  var s=el('svg',{viewBox:'0 0 24 18','aria-hidden':'true'},w); el('path',{d:'M5 2.5v14M5 3.5h14l-3.5 4.5 3.5 4.5H5'},s); }
+function flagIn(id,line){ if(!line) return null; var p=placeOf(id), n=p&&N(p), cid=n&&n.c, url=cid&&(GEO.flag||{})[cid], nm=cid?dec((D().names||{})[cid]||''):'';
+  if(!cid) return null;
+  var w=h('span',{'class':'wp-flag',role:'img','aria-label':nm?'Flag of '+nm:'Flag','data-c':cid}); line.insertBefore(w,line.firstChild);
+  if(!url){ pennant(w); return w; }
+  var sp=h('span',{'class':'fl-spin'},w);
+  ['fl-b','fl-a'].forEach(function(k){ var i=h('img',{'class':k,alt:'',decoding:'async',draggable:'false'},sp); i.addEventListener('error',function(){ pennant(w); }); i.src=url; });
+  h('span',{'class':'fl-s','aria-hidden':'true'},sp);
+  return w; }
 // where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
 function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
   var n=N(p), cn=dec((D().names||{})[n.c]||''), pl=dec(n.pl||''); if(n.k==='country'||!pl) return cn||pl; return pl+(cn&&pl!==cn?', '+cn:''); }
@@ -1159,6 +1193,7 @@ A.mount=function(data){
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail(); watchPage();
+  document.addEventListener('visibilitychange',function(){ if(S.root) S.root.classList.toggle('wp-hid',document.hidden); });
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
     msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); if(one()){ var hv=homeView(); S.cx=hv.cx; S.cy=hv.cy; S.k=hv.k; apply(); } settle(); watchBoard(); dim(); navSync();
     new MutationObserver(function(){ if(S.globe&&S.G) setTimeout(function(){ gPaint(); gDraw(); },60); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
@@ -1195,8 +1230,9 @@ def _countries() -> dict:
 
 def _asset() -> str:
     from .world_geo import REGIONS, manifest, continent_boxes
+    from .world_flags import manifest as flag_manifest
     from .key_toggle import KEY_CSS, KEY_JS
-    return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
+    return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps({**manifest(), "flag": flag_manifest()}, sort_keys=True)
             + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\nvar CTRY=" + _json.dumps(_countries(), sort_keys=True, separators=(",", ":"))
             + ";\nvar REG=" + _json.dumps([r for r, _ in REGIONS]) + ";\n" + WORLD_JS + "\n})();\n")
 
