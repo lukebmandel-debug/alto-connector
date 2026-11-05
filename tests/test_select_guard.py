@@ -321,9 +321,17 @@ def test_a_search_field_still_selects_and_types(browser, origin, pages, name):
             box.click()
             page.keyboard.type("hello world")
             assert box.input_value() == "hello world"
-            box.dblclick()
-            sel = box.evaluate("e => e.value.slice(e.selectionStart, e.selectionEnd)")
-            assert sel in ("hello", "world", "hello ", " world", "hello world"), sel
+            if info[3] >= 60:
+                box.dblclick()
+                sel = box.evaluate("e => e.value.slice(e.selectionStart, e.selectionEnd)")
+                assert sel in ("hello", "world", "hello ", " world", "hello world"), sel
+            else:
+                # the search field starts collapsed (~11 px wide): a double-click lands on no word there, in Chromium it selects '' even with no
+                # guard on the page, so a narrow field is checked with select-all, which still has to select its text under the rule set
+                box.focus()
+                page.keyboard.press("ControlOrMeta+a")
+                sel = box.evaluate("e => e.value.slice(e.selectionStart, e.selectionEnd)")
+                assert sel == "hello world", sel
     finally:
         ctx.close()
 
