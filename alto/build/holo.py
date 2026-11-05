@@ -257,11 +257,14 @@ FORMAT_CSS = r"""
     color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.8) !important;border-top:0 !important;border-radius:0 !important;box-shadow:var(--ho-glow) !important;
     font-weight:500 !important;font-size:14px;letter-spacing:.2em;text-transform:uppercase;clip-path:none;translate:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   }
-  /* the New timeline and Start new project tiles: a lit glass pane that shows the grid through it (Luke, 2026-11-05, "2, A": no dashed outline) */
+  /* the New timeline and Start new project tiles: a lit glass pane that shows the grid through it (Luke, 2026-11-05, "2, A": no dashed outline); the Import tile in the Scene panel the same */
   X.alto-home .course-tile.new-tile:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;
     border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;box-shadow:0 0 14px rgba(var(--ho-rgb),.22),inset 0 0 22px rgba(var(--ho-rgb),.12) !important;color:var(--ho-ac2);}
   X.alto-home .course-tile.new-tile:hover:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:hover:not(#_):not(#__){border-color:var(--ho-ac) !important;
     box-shadow:0 0 18px rgba(var(--ho-rgb),.4),inset 0 0 26px rgba(var(--ho-rgb),.2) !important;color:var(--ho-ac2);}
+  X #bg-panel .bg-tile.bg-add:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;
+    box-shadow:0 0 12px rgba(var(--ho-rgb),.22),inset 0 0 18px rgba(var(--ho-rgb),.12) !important;}
+  X #bg-panel .bg-tile.bg-add:hover:not(#_):not(#__),X #bg-panel .bg-tile.bg-add:focus-visible:not(#_):not(#__){border-color:var(--ho-ac) !important;box-shadow:0 0 16px rgba(var(--ho-rgb),.4),inset 0 0 22px rgba(var(--ho-rgb),.2) !important;}
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))

@@ -72,7 +72,7 @@ def test_the_tab_is_not_a_pill_any_more_and_a_rename_still_reaches_the_name():
 def test_retro_and_holo_carry_the_tab_and_the_frame_tiles_and_a_phone_keeps_its_chip():
     r, h = retro.css(), holo.css()
     for c in (r, h):
-        assert "new-tile" in c and "dashed" not in c.split("new-tile")[1][:600]
+        assert "new-tile" in c and "bg-add" in c and "dashed" not in c.split("new-tile")[1][:600]
     assert "#title-bar #title-text:not(#_){--tt-px:20px" in r and "clip-path:polygon" in r
     assert "@media (max-width:640px){ html.alto-retro.alto-home #title-bar #title-text".replace("{ ", "{") in r.replace("{ ", "{") or "@media (max-width:640px)" in r
     assert "clip-path:none;translate:none" in h
@@ -215,4 +215,15 @@ def test_the_new_tiles_have_a_frame_not_a_dashed_outline_and_are_centred(browser
         assert c["bs"] == "dashed"                              # Classic untouched
     else:
         assert c["bs"] == "solid" and c["br"] == "0px", c
+    pg.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_the_import_tile_in_the_scene_panel_follows(browser, site, style):
+    pg = _open(browser, site, "h", style)
+    pg.click("#bg-toggle")
+    pg.wait_for_selector("#bg-yours .bg-add", timeout=8000)
+    pg.wait_for_timeout(300)
+    bs = pg.evaluate("getComputedStyle(document.querySelector('#bg-yours .bg-add')).borderTopStyle")
+    assert bs == ("dashed" if style == "classic" else "solid")
     pg.close()
