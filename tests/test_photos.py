@@ -463,12 +463,17 @@ def test_print_includes_the_strip_and_the_ink_saver_prints_the_captions_only(bro
     pg.context.close()
 
 
-def test_a_phone_shows_pictures_on_the_card_and_in_one_column_on_the_page(browser, site):
+def test_a_phone_shows_pictures_on_the_card_and_a_swipe_strip_on_the_page(browser, site):
     pg = _open(browser, site, mobile=True)
     _detail(pg)
     _loaded(pg, ".aph:not(.aph-top) .aph-img img")
     w = pg.evaluate("[...document.querySelectorAll('.aph:not(.aph-top) .aph-fig')].map(f => Math.round(f.getBoundingClientRect().width))")
-    assert len(set(w)) == 1 and w[0] > 300, w                                                       # one column: each as wide as the page
+    vw = pg.evaluate("window.innerWidth")
+    assert len(set(w)) == 1 and abs(w[0] - vw * 0.78) < vw * 0.12, (w, vw)                         # a swipe strip: each ~78% of the page
+    assert pg.evaluate("(() => { const r = document.querySelector('.aph:not(.aph-top) .aph-row'); const c = getComputedStyle(r); "
+                       "return c.flexWrap === 'nowrap' && c.overflowX === 'auto' && c.scrollSnapType.startsWith('x'); })()")
+    assert pg.evaluate("(() => { const f = [...document.querySelectorAll('.aph:not(.aph-top) .aph-fig')].map(e => e.getBoundingClientRect()); "
+                       "return f.length < 2 || (f[1].top === f[0].top && f[1].left < innerWidth); })()")  # side by side; the next one peeks in
     assert pg.evaluate("!document.querySelector('.aph-side')")                                       # the card's own pictures: below its title
     assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
     pg.click(".aph:not(.aph-top) .aph-img >> nth=0")
@@ -766,3 +771,13 @@ def test_a_phone_has_no_hologram_panel(browser, site):
     pg = _open(browser, site, page="system", mobile=True)
     assert pg.evaluate("!document.querySelector('#aph-hp .hp-panel') && (!document.getElementById('aph-hp') || getComputedStyle(document.getElementById('aph-hp')).display === 'none')")
     pg.context.close()
+
+
+def test_art_look_fixes_are_in_the_css():
+    from alto.build import photos, study
+    css = photos.BASE_CSS
+    assert ".aph-tray > button:last-of-type:nth-of-type(odd){flex-basis:100%" in css                  # 3 pictures: no empty 4th cell
+    assert "scroll-snap-type:x mandatory" in css and "flex:0 0 78%" in css                              # phone strip
+    src = (ROOT / "alto" / "build" / "study.py").read_text(encoding="utf-8")
+    assert ".asc-face > *,.asc-face img{backface-visibility:hidden;-webkit-backface-visibility:hidden;}" in src
+    assert ".asc-front{transform:rotateY(0deg);}" in src                                              # WebKit: the back's text no longer shows through

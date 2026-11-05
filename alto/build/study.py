@@ -401,6 +401,8 @@ STUDY_CSS = r"""<style id="alto-st-css">
     background:var(--card-glass-bg,var(--surface));box-shadow:0 6px 20px var(--node-rest-shadow,rgba(0,0,0,.08));
     display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
     backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+  .asc-face > *,.asc-face img{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+  .asc-front{transform:rotateY(0deg);}
   .asc-back{transform:rotateY(180deg);background:color-mix(in srgb,var(--ast-acc) 9%,var(--card-glass-bg,var(--surface)));}
   .asc-side{position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
   .asc-tx{font-size:19px;line-height:1.45;font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;}

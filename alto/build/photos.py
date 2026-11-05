@@ -237,7 +237,9 @@ html.alto-editing .aph .aph-add{display:flex;}
 .aph .aph-err{width:100%;font-size:12.5px;color:#dc2626;}
 .aph-ph .aph-ph-h{font-size:12.5px;color:var(--muted);}
 @media (max-width:760px){.aph .aph-fig,.aph .aph-add,.aph.aph-few .aph-fig{flex-basis:calc(50% - 6px);}}
-html.mobile .aph:not(.aph-top) .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few:not(.aph-top) .aph-fig,html.mobile .aph.aph-one:not(.aph-top) .aph-fig{flex-basis:100%;max-width:none;}
+/* a Photos section on a phone: a swipe strip, each picture 78% wide so the next one peeks in at the edge */
+html.mobile .aph:not(.aph-top) .aph-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;gap:10px;padding-bottom:4px;}
+html.mobile .aph:not(.aph-top) .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few:not(.aph-top) .aph-fig,html.mobile .aph.aph-one:not(.aph-top) .aph-fig{flex:0 0 78%;max-width:none;scroll-snap-align:start;}
 /* a card's own pictures on a phone's detail page: a row of small squares under the title, side to side, each opens large */
 html.mobile .aph.aph-top{margin:8px 0 16px;}
 html.mobile .aph.aph-top .aph-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:8px;padding-bottom:4px;}
@@ -264,7 +266,7 @@ html.mobile .aph:not(.aph-top) .aph-img img{position:static;height:auto;max-heig
 .aph-tray{position:absolute;left:calc(100% + 16px);top:0;z-index:30;display:flex;flex-wrap:wrap;gap:8px;width:min(300px,26vw);padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 14px 36px rgba(0,0,0,.35);}
 .aph-tray.aph-left{left:auto;right:calc(100% + 16px);}
 .aph-tray button{flex:0 0 calc(50% - 4px);min-width:0;aspect-ratio:1;padding:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;position:relative;background:color-mix(in srgb,var(--text) 8%,transparent);cursor:zoom-in;}
-.aph-tray button:only-child{flex-basis:100%;aspect-ratio:4/3;}
+.aph-tray button:only-child,.aph-tray > button:last-of-type:nth-of-type(odd){flex-basis:100%;aspect-ratio:4/3;}
 .aph-tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 .aph-tray .aph-tc{flex:1 0 100%;font-size:12px;line-height:1.4;color:var(--muted);}
 html.mobile .aph-tray{display:none;}
