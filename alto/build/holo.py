@@ -123,7 +123,11 @@ HOLO_CSS = r"""
     animation:ho-logo 10s linear infinite;will-change:transform;}
   X.hp-hid #title-bar svg.brand-mark,X.hp-hid.pmin #nav svg.brand-mark{animation-play-state:paused;}
   @keyframes ho-logo{from{transform:perspective(260px) rotateY(0)}to{transform:perspective(260px) rotateY(360deg)}}
-  @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;} }
+  /* the phone's clef is centred by translateY(-50%) (html.mobile #nav .brand-mark), and an animated or reduced-motion transform replaces it: carry it */
+  @keyframes ho-logo-p{from{transform:translateY(-50%) perspective(260px) rotateY(0)}to{transform:translateY(-50%) perspective(260px) rotateY(360deg)}}
+  X.pmin #nav svg.brand-mark:not(#_):not(#__){animation-name:ho-logo-p;}
+  @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;}
+    X.pmin #nav svg.brand-mark:not(#_):not(#__){transform:translateY(-50%) perspective(260px) rotateY(24deg);} }
   /* the toggles (Luke, 2026-11-01: "toggles feel a little bit heavy and not holographic enough"; Art's sheet, accepted): one 1px soft-cyan edge, square, the
      same on every one of them (the bottom-left and bottom-right controls, the edit pair, the right-edge tabs); at rest the plate is the page's own colour (so
      nothing under it shows through a glyph), no glow; hover and focus brighten the edge, the chosen one takes a faint tint. A computer only: a phone keeps its own */
