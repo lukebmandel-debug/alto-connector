@@ -101,3 +101,16 @@ def test_connect_page_says_who_gets_access():
     html = connect_page()
     assert "is asking for full access" in html and "(port ' + port + ')" in html
     assert "Continue only if you just asked Claude" in html
+
+
+def test_picture_copies_under_a_share_are_get_by_key_and_owner_written_only():
+    mine = [(p, a) for p, a in _blocks() if p.endswith("/shares/{key}/{coll}/{ref}")]
+    kinds = sorted(a.split(":")[0] for _, a in mine)
+    assert kinds == ["allow create, update", "allow delete", "allow get", "allow list"]
+    for _, a in mine:
+        if a.startswith("allow list"):
+            assert a.endswith("if false;")
+        elif a.startswith("allow get"):
+            assert "validKey(key)" in a and "coll in ['pics', 'picbig']" in a and "ownsShareAfter" not in a
+        else:                       # writes and removal: the share's owner only
+            assert "ownsShareAfter(key)" in a and "coll in ['pics', 'picbig']" in a
