@@ -361,7 +361,7 @@ FORMAT_CSS = r"""
 
   /* the Memory Atlas's map (palace_world.py): a navigator's chart, gold on night blue, the units in the poster's inks */
   X #wpal-root:not(#_){--w-sea1:#0a1b34;--w-sea2:#05070b;--w-land:#0b0d12;--w-edge:rgba(217,174,85,.32);--w-grat:rgba(217,174,85,.07);--w-text:#efe6cf;--w-sub:#b9b2a0;
-    --w-panel:#000;--w-panel-b:rgba(217,174,85,.55);--w-card:#000;--w-shadow:none;--w-font:var(--rt-f);--w-mix:#0b0d12;--w-used:22%;--w-pin:#05070b;
+    --w-panel:#000;--w-panel-b:rgba(217,174,85,.55);--w-card:#000;--w-shadow:none;--w-font:var(--rt-f);--w-mix:#0b0d12;--w-used:22%;--w-pin:#05070b;--w-halo:#000;
     background:radial-gradient(120% 90% at 50% 45%,#0a1b34 0%,#05070b 75%) !important;}
   X #wpal-root .wu0:not(#_){--u:#d9ae55;}
   X #wpal-root .wu1:not(#_){--u:#9fb27a;}

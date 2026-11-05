@@ -22,14 +22,30 @@ import json as _json
 
 from .palace_assets import loader as _loader
 
+def _ring() -> str:
+    """The label halo as text-shadows: a solid ring of copies round the letters (12 round at 2.1 px, 6 at 1.05 px, so no gap is left in a thin
+    stroke), then a soft glow past it. One colour, var(--w-halo)."""
+    import math
+    out = []
+    for r, n, ph in ((2.1, 12, 0), (1.05, 6, 15)):
+        for i in range(n):
+            t = math.radians(ph + i * 360 / n)
+            out.append("%.2fpx %.2fpx 0 var(--w-halo)" % (r * math.cos(t), r * math.sin(t)))
+    return ",".join(out + ["0 0 2px var(--w-halo)", "0 0 3px var(--w-halo)", "0 0 6px var(--w-halo)"])
+
+
 WORLD_CSS = r"""
 #wpal-root{--w-sea1:#eef2fb;--w-sea2:#dde6f6;--w-land:rgba(255,255,255,.93);--w-edge:rgba(110,125,165,.30);--w-grat:rgba(110,130,180,.11);
   --w-text:var(--text,#1d2433);--w-sub:var(--text-dim,#5b6478);--w-panel:rgba(255,255,255,.78);--w-panel-b:rgba(255,255,255,.95);
-  --w-card:rgba(255,255,255,.9);--w-shadow:0 10px 30px rgba(40,55,95,.16);--w-font:inherit;--w-mix:#fff;--w-used:30%;--w-pin:#fff;
+  --w-card:rgba(255,255,255,.9);--w-shadow:0 10px 30px rgba(40,55,95,.16);--w-font:inherit;--w-mix:#fff;--w-used:30%;--w-pin:#fff;--w-halo:#fff;
   position:fixed;left:0;right:0;bottom:0;top:0;z-index:30;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
   background:radial-gradient(120% 90% at 50% 42%,var(--w-sea1),var(--w-sea2));color:var(--w-text);font-family:var(--w-font);}
 html.dark #wpal-root{--w-sea1:#16203a;--w-sea2:#0b1122;--w-land:rgba(36,44,66,.95);--w-edge:rgba(170,185,225,.22);--w-grat:rgba(170,190,240,.07);
-  --w-panel:rgba(20,26,42,.86);--w-panel-b:rgba(255,255,255,.12);--w-card:rgba(22,28,46,.94);--w-shadow:0 12px 32px rgba(0,0,0,.45);--w-mix:#1a2238;--w-used:42%;--w-pin:#121a2e;}
+  --w-panel:rgba(20,26,42,.86);--w-panel-b:rgba(255,255,255,.12);--w-card:rgba(22,28,46,.94);--w-shadow:0 12px 32px rgba(0,0,0,.45);--w-mix:#1a2238;--w-used:42%;--w-pin:#121a2e;--w-halo:#0b1122;}
+/* a map label is read over ANY land or sea colour (Luke 2026-11-01; Art's method: a solid outline in the plate's own colour, --w-halo, round the letters, then a soft
+   glow past it) so the letters are always set against the halo, never against the map; each style sets only --w-halo */
+#wpal-root{--w-ring:__RING__;}
+/* (the rules that use it are the ATLAS CONTRAST block further down; a phone keeps its own, unchanged) */
 #wpal-root[hidden]{display:none;}
 html.wpal-open #world{visibility:hidden !important;}
 #wpal-root svg.wp-svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
@@ -232,6 +248,17 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-pin.wp-hint:not(.n):not(.wp-on){width:16px;height:16px;}
 #wpal-root .wp-lbl.wp-hint{font-size:12.5px;}#wpal-root .wp-lbl.wp-hint b{text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--u) 60%,transparent);text-underline-offset:3px;}
 #wpal-root .wp-card.wp-hint,#wpal-root .wp-enl.wp-hint{outline:0;}
+/* ATLAS CONTRAST (Luke 2026-11-01: "some text here isn't that visible with similar colors to the background"). Not on a phone (html.mobile keeps its own).
+   A map label is read over ANY land or sea colour, in every style: the letters get a solid halo (--w-halo, set by each style) and sit nearer the full text colour
+   (the grey second line was the worst); the numbers on pins, tags and cards are set mostly in the text colour with the unit's hue in the ring, not in the hue itself
+   (a pale yellow unit made a pale yellow number on white). Held by tests/test_atlas_label_contrast.py: WCAG 4.5:1 at 3 zooms in every style. */
+html:not(.mobile) #wpal-root .wp-lbl{color:var(--w-text);text-shadow:var(--w-ring);}
+html:not(.mobile) #wpal-root .wp-lbl i{color:color-mix(in srgb,var(--w-sub) 30%,var(--w-text));}
+html:not(.mobile) #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:not(.mobile) #wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:not(.mobile) #wpal-root .wp-card .n,html:not(.mobile) #wpal-root .wp-list button b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:not(.mobile) #wpal-root .wp-hk{background:var(--w-pin);border:1.5px solid var(--u);color:var(--w-text);line-height:12px;}
+html:is(.alto-retro,.alto-holo):not(.mobile) #wpal-root .wp-lbl:not(#_){text-shadow:var(--w-ring);}
 #wpal-root .wp-mm{position:absolute;right:16px;bottom:66px;padding:5px;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;cursor:pointer;touch-action:none;}
 #wpal-root .wp-mm.on{opacity:1;visibility:visible;transition:opacity .28s ease;}
 #wpal-root .wp-mm svg{display:block;width:calc(var(--mh,86px)*2.05);height:var(--mh,86px);}
@@ -297,6 +324,7 @@ html.alto-retro #wpal-root .wp-mm rect{fill:#d9ae55;stroke:#d9ae55;}
   #wpal-root .wp-list{left:12px;right:12px;width:auto;top:auto;bottom:120px;max-height:40%;}
   #wpal-root .wp-enl > .node{zoom:1;max-width:calc(100vw - 28px);}}
 """
+WORLD_CSS = WORLD_CSS.replace("__RING__", _ring())
 
 WORLD_JS = r"""
 var NS='http://www.w3.org/2000/svg', A=window.AltoWorld={}, ev={};
@@ -312,6 +340,7 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function mj(t){ return t*t*t*(10-15*t+6*t*t); }            // minimum jerk: Alto's one motion curve
 function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(x){ return false; } }
 function phone(){ return S.vw<700; }
+function lbo(){ return document.documentElement.classList.contains('mobile')?0:2; }          // a name sits 2 px clearer of its pin's glow (a phone keeps its place)
 
 // ── geometry: integer delta rings → smooth closed curves (centripetal Catmull-Rom) ──
 function decode(flat,q){ var x=flat[0],y=flat[1],o=[[x/q,y/q]]; for(var i=2;i<flat.length;i+=2){ x+=flat[i]; y+=flat[i+1]; o.push([x/q,y/q]); } return o; }
@@ -455,7 +484,7 @@ function place(){
   for(var id in S.pins){ var P=S.pins[id], n=N(id), s=scr(n.x,n.y), f=big?1.6:1, x=s[0]+P.off[0]*f, y=s[1]+P.off[1]*f;
     if(s[2]===false){ x=-9999; y=-9999; } P.el.style.visibility=s[2]===false?'hidden':'';
     P.x=x; P.y=y; P.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
-    P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)).toFixed(1)+'px)'; }
+    P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)+lbo()).toFixed(1)+'px)'; }
   S.tags.forEach(function(T){ if(T.pos&&T.d){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
   var ov=S.ovChev; while(ov.firstChild) ov.removeChild(ov.firstChild);
   if(S.globe) gArcs(); else if(S.ovg&&S.ovg.firstChild) S.ovg.textContent='';
@@ -489,7 +518,7 @@ function labels(){                                  // decided once a gesture se
     var L=P.lbl, show=!S.out[id]&&!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
     if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
     L.querySelector('i').style.display=tight?'none':'';
-    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
     P.on=show; off(L,show); });
   for(var k in S.pins) delete S.pins[k]._done;
   // the unit tags (world view only): beside their unit's pins where nothing else is; a tag keeps its side while that is free
