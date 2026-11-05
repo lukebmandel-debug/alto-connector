@@ -93,7 +93,7 @@ PROBE = """() => { const q = s => document.querySelector(s);
   const cs = (e, ps) => { if (!e) return null; const c = getComputedStyle(e), o = {}; ps.forEach(p => o[p] = c[p]); return o; };
   const P = ['backgroundColor', 'color', 'borderTopLeftRadius', 'borderTopColor', 'borderTopWidth', 'boxShadow', 'fontFamily', 'textTransform'];
   return {pin: cs(q('#wpal-root .wp-pin.n:not(.wp-hint):not(.wp-on)'), P), tag: cs(q('#wpal-root .wp-tag'), P), card: cs(q('#wpal-root .wp-enl .node-card'), P),
-          chip: cs(q('#wpal-root .wp-enl .node-footer .esym-btn'), P), unit: cs(q('#wpal-root .wp-enl .node-unit'), P)}; }"""
+          chip: cs(q('#wpal-root .wp-enl .node-footer .esym-btn'), P), unit: cs(q('#wpal-root .wp-enl .node-unit'), P), tt: cs(q('#wpal-root .wp-row .wp-tt'), P)}; }"""
 
 
 def _look(browser, origin, style, dark, globe, size=(1400, 900)):
@@ -131,6 +131,8 @@ def test_holo_reaches_the_pins_the_enlarged_card_its_chips_and_the_unit_labels(b
     # the unit label: square, glowing, spaced capitals
     assert r["tag"]["borderTopLeftRadius"] == "0px" and r["tag"]["boxShadow"] != "none" and r["tag"]["textTransform"] == "uppercase"
     assert r["tag"]["backgroundColor"] == _rgb(t["bg"]) and r["tag"]["color"] == _rgb(t["tx"])
+    # the Start Tour pill (Art 2026-11-05): the page's dark ink on the cyan plate, square, 4.5:1 or better
+    assert r["tt"] and r["tt"]["color"] == _rgb(t["bg"]) and r["tt"]["borderTopLeftRadius"] == "0px", r["tt"]
     # the enlarged card: the board's Holo card (the glass plate, the cyan rim, the glow), not the engine's rounded dark glass
     assert r["card"]["backgroundColor"] == _rgb(t["sf"]) and r["card"]["borderTopLeftRadius"] == "0px" and r["card"]["borderTopWidth"] == "1px"
     assert t["rgb"].replace(",", ", ") in r["card"]["boxShadow"]
