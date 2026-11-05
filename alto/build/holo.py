@@ -128,6 +128,11 @@ HOLO_CSS = r"""
   X.pmin #nav svg.brand-mark:not(#_):not(#__){animation-name:ho-logo-p;}
   @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;}
     X.pmin #nav svg.brand-mark:not(#_):not(#__){transform:translateY(-50%) perspective(260px) rotateY(24deg);} }
+  /* the Back strip (Luke, 2026-11-05: "holo needs visibility work"): on every ground of the style, a solid plate in the page's own black, the light's full-strength rim, a 3px halo of the plate round it (so no ground, however bright, touches the edge) and the lightest ink */
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row:not(#_):not(#__){box-shadow:0 0 0 1px var(--ho-ac),0 0 0 4px var(--ho-bg),var(--ho-glow) !important;}
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):not(#_):not(#__){background:var(--ho-bg) !important;color:var(--ho-tx) !important;font-weight:500;}
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):hover:not(#_):not(#__){color:var(--ho-ac2) !important;}
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):not([hidden]) ~ :is(.dbr-back,.dbr-prev):not([hidden]):not(#_):not(#__){border-left-color:var(--ho-ac) !important;}
   /* the toggles (Luke, 2026-11-01: "toggles feel a little bit heavy and not holographic enough"; Art's sheet, accepted): one 1px soft-cyan edge, square, the
      same on every one of them (the bottom-left and bottom-right controls, the edit pair, the right-edge tabs); at rest the plate is the page's own colour (so
      nothing under it shows through a glyph), no glow; hover and focus brighten the edge, the chosen one takes a faint tint. A computer only: a phone keeps its own */

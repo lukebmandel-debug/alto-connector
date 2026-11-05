@@ -130,6 +130,13 @@ CHROME_CSS = r"""
   X:is(.mobile,.phone-whole) #detail-back-fixed:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #desk-back:not(#_){font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.14em;font-size:12px;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  /* the Back strip of a detail page (Back to Overview / Back to <page>; Luke 2026-11-05, "6 B"): quiet glass, no colour of its own: the black plate and gold rim of Back above, one rim round the row */
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row:not(#_){border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;}
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):not(#_){font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.14em;font-size:12px;background:#000 !important;color:#d9ae55 !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):hover:not(#_){color:#f0c15e !important;}
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row .dbr-arr:not(#_){top:-1px;}   /* (capitals only: the arrow's centre is the caps' centre, half a pixel higher than lower-case text's) */
+  X:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):not([hidden]) ~ :is(.dbr-back,.dbr-prev):not([hidden]):not(#_){border-left:1px solid rgba(217,174,85,.55) !important;}
   X #detail-page .char-chip:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
   X #detail-page .ast-btn.pri:not(#_){background:#d9ae55 !important;color:#000 !important;}
   /* the controls drawn round in Classic, as deliberate squares in Retro (Luke, 2026-10-23: "things that were designed to be circular
