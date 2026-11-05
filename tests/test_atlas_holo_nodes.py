@@ -118,7 +118,7 @@ def _look(browser, origin, style, dark, globe, size=(1400, 900)):
 
 
 @pytest.mark.parametrize("globe", [False, True])
-@pytest.mark.parametrize("dark", [True, False])
+@pytest.mark.parametrize("dark", [True])    # (Holographic is dark only on a computer, as on main: no light row)
 def test_holo_reaches_the_pins_the_enlarged_card_its_chips_and_the_unit_labels(browser, origin, dark, globe):
     t = holo.TOKENS["dark" if dark else "light"]
     r = _look(browser, origin, "holo", dark, globe)

@@ -27,7 +27,7 @@ try:
 except ImportError:
     pw = None
 
-PAGE_BYTES_BEFORE = 1451650          # the same sample page built without flags (measured on defa53c3 + the contrast branch)
+PAGE_BYTES_BEFORE = 1454434          # the same sample page built without flags (measured on origin/main 789c58d0, whose page grew since defa53c3)
 
 
 # ── the data ──────────────────────────────────────────────────────────────────────────────────────────────────────────
