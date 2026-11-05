@@ -383,7 +383,7 @@ def psite(tmp_path_factory):
 def test_the_projector_css_is_compositor_only_and_has_a_reduced_motion_still():
     css = holo.css()
     kf = re.findall(r"@keyframes (ho-\w+)\{(.*?)\}\}?(?=@keyframes|\s*@media|\s*html|\s*$|\})", css)
-    assert {k for k, _ in kf} == {"ho-spin", "ho-pulse", "ho-scan"}
+    assert {k for k, _ in kf} == {"ho-spin", "ho-pulse", "ho-scan", "ho-logo"}
     body = "".join(re.findall(r"@keyframes ho-\w+\{.*?\}\}", css))
     assert body and not re.search(r"filter|box-shadow|background-position|width|height|top|left|margin", body), body
     rm = css[css.index("@media (prefers-reduced-motion:reduce)"):]
@@ -482,3 +482,115 @@ def test_the_home_plate_leaves_the_page_alone_once_drawn(browser, psite, style):
     pg.wait_for_timeout(1500)
     assert pg.evaluate("window.__m") == 0
     pg.close()
+
+
+# ── the Alto marks and dark only (Luke, 2026-11-01) ──
+
+def test_the_logo_turns_on_the_same_motion_budget_and_holds_still_under_reduced_motion():
+    css = holo.css()
+    kf = re.search(r"@keyframes ho-logo\{(.*?)\}\}", css).group(1)
+    assert "transform" in kf and not re.search(r"filter|box-shadow|width|height|top|left|margin|opacity", kf), kf
+    assert "ho-logo 10s linear infinite" in css            # the format symbols' 10 s turn
+    assert re.search(r"prefers-reduced-motion:reduce\)\{[^@]*brand-mark[^}]*animation:none", css)
+    assert "hp-hid #title-bar svg.brand-mark{animation-play-state:paused" in css   # a hidden tab stops it
+
+
+@pytest.mark.parametrize("page", ["t", "h"])
+def test_the_alto_marks_wear_the_light_and_the_clef_turns_on_a_computer_and_a_phone(browser, site, page):
+    js = """()=>{var m=document.querySelector('.brand-mark'),w=document.querySelector('.brand-word'),a=m&&getComputedStyle(m);
+      return {anim:a&&a.animationName,fill:w&&getComputedStyle(w.querySelector('.alto-word')||w).fill,ghost:a&&a.filter.indexOf('255, 95, 210')>-1}}"""
+    for size, touch in (((1400, 900), False), ((390, 844), True)):
+        ctx = browser.new_context(viewport={"width": size[0], "height": size[1]}, has_touch=touch, is_mobile=touch)
+        pg = ctx.new_page()
+        pg.goto(site + "/" + page + ".html")
+        pg.wait_for_timeout(400)
+        pg.evaluate("window._altoStyle.set('holo')")
+        pg.wait_for_timeout(900)
+        r = pg.evaluate(js)
+        assert r["anim"] == "ho-logo" and r["ghost"] and r["fill"] != 'url("#altoWordG")', (size, r)
+        pg.evaluate("window._altoStyle.set('classic')")
+        pg.wait_for_timeout(300)
+        r = pg.evaluate(js)
+        assert r["anim"] == "none" and r["fill"].startswith("url"), (size, r)
+        ctx.close()
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900}, reduced_motion="reduce")
+    pg = ctx.new_page()
+    pg.goto(site + "/" + page + ".html")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("getComputedStyle(document.querySelector('.brand-mark')).animationName") == "none"
+    ctx.close()
+
+
+@pytest.mark.parametrize("page", ["t", "h"])
+def test_holographic_is_dark_only_on_a_computer_and_the_readers_theme_comes_back(browser, site, page):
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/" + page + ".html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear(); document.documentElement.classList.remove('dark')")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.documentElement.classList.contains('dark')")
+    assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") == "none"
+    pg.evaluate("document.documentElement.classList.remove('dark')")            # anything that tries the light theme
+    pg.wait_for_timeout(200)
+    assert pg.evaluate("document.documentElement.classList.contains('dark')")
+    pg.evaluate("window._altoStyle.set('classic')")
+    pg.wait_for_timeout(300)
+    assert not pg.evaluate("document.documentElement.classList.contains('dark')")   # the theme the reader had
+    assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") != "none"
+    pg.evaluate("window._altoStyle.set('holo')")                                    # and Retro to Holographic keeps it dark
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.documentElement.classList.contains('dark')")
+    ctx.close()
+
+
+def test_holographic_on_a_phone_keeps_its_light_dark_button_and_its_theme(browser, site):
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear(); document.documentElement.classList.remove('dark')")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(600)
+    assert not pg.evaluate("document.documentElement.classList.contains('dark')")
+    assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") != "none"
+    ctx.close()
+
+
+# ── the toggles' one edge (Luke, 2026-11-01, Art's sheet) ──
+
+TOGGLES = "#search-btn,#info-btn,#account-btn,.alto-edit-pill,#tab-rail>button"
+
+
+def test_the_toggle_edge_rule_is_for_a_computer_only_and_has_no_glow():
+    css = holo.css()
+    i = css.index("--ho-edge:#2fa79d")
+    block = css[css.rindex("@media (min-width:641px)", 0, i):i + 1400]
+    assert "box-shadow:0 0 0 1px var(--ho-edge)" in block and "glow" not in block
+    assert ":not(.mobile):not(.pmin)" in block
+
+
+def test_every_toggle_wears_the_same_one_pixel_edge_on_a_computer_and_a_phone_keeps_its_own(browser, site):
+    js = """(sel)=>[...document.querySelectorAll(sel)].filter(e=>e.getBoundingClientRect().width).map(e=>getComputedStyle(e).boxShadow)"""
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(700)
+    got = pg.evaluate(js, TOGGLES)
+    assert len(got) >= 4 and set(got) == {"rgb(47, 167, 157) 0px 0px 0px 1px"}, got       # one edge, no glow, every one
+    assert pg.evaluate("getComputedStyle(document.querySelector('.alto-edit-pill .aep-half')).boxShadow") == "none"
+    ctx.close()
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html?mobile")
+    pg.wait_for_timeout(400)
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(700)
+    assert "rgb(47, 167, 157) 0px 0px 0px 1px" not in pg.evaluate(js, "button,#search-btn,#info-btn")   # a phone's controls are as they were
+    ctx.close()
