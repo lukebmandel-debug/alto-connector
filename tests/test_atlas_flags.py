@@ -27,7 +27,7 @@ try:
 except ImportError:
     pw = None
 
-PAGE_BYTES_BEFORE = 1454434          # the same sample page built without flags (measured on origin/main 789c58d0, whose page grew since defa53c3)
+PAGE_BYTES_BEFORE = 1462817          # the same sample page built without flags (re-measured 2026-11-05 C-1105-170500 on a907328 + back-glass + holo-detail, no atlas-lane-r or tour-flag; atlas+tour add 0 bytes over it)
 
 
 # ── the data ──────────────────────────────────────────────────────────────────────────────────────────────────────────
