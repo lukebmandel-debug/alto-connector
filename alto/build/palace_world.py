@@ -559,16 +559,22 @@ function labels(){                                  // decided once a gesture se
 function fetchJSON(url){ return fetch(url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
 function visBox(){ var a=wld(0,0), b=wld(S.vw,S.vh); return [a[0],a[1],b[0],b[1]]; }
 function meets(a,b){ return a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1]; }
-function detail(){ if(S.globe) return;
-  var want=S.k>=S.kW*2.4, vb=visBox();
+// (the globe asks for the same tiers once its sharp land is drawn, F2: what is on the screen, as the world boxes of a grid of its points)
+function wantD(){ return S.globe?gOn():S.k>=S.kW*2.4; }
+function gVis(){ var R=S.k*GR, b=[1e9,1e9,-1e9,-1e9], N=6;
+  for(var i=0;i<=N;i++) for(var j=0;j<=N;j++){ var dx=(i/N-.5)*S.vw/R, dy=(j/N-.5)*S.vh/R, r=Math.sqrt(dx*dx+dy*dy), f=r>.99?.99/r:1, w=gWld(S.vw/2+dx*f*R,S.vh/2+dy*f*R);
+    if(w){ b[0]=Math.min(b[0],w[0]); b[1]=Math.min(b[1],w[1]); b[2]=Math.max(b[2],w[0]); b[3]=Math.max(b[3],w[1]); } }
+  return [b,[b[0]-2000,b[1],b[2]-2000,b[3]],[b[0]+2000,b[1],b[2]+2000,b[3]]]; }
+function seen(a,V){ return V.some(function(v){ return meets(a,v); }); }
+function detail(){ var want=wantD(), vb=S.globe?gVis():[visBox()];
   Object.keys(GEO.cont).forEach(function(cs){
-    if(want&&meets(CBOX[cs]||[-1e9,-1e9,1e9,1e9],vb)){
-      if(!S.cont[cs]){ S.cont[cs]='loading'; fetchJSON(GEO.cont[cs]).then(function(G){ S.cont[cs]=G; if(S.k>=S.kW*2.4) swapIn(cs); }).catch(function(){ S.cont[cs]=null; }); }
+    if(want&&seen(CBOX[cs]||[-1e9,-1e9,1e9,1e9],vb)){
+      if(!S.cont[cs]){ S.cont[cs]='loading'; fetchJSON(GEO.cont[cs]).then(function(G){ S.cont[cs]=G; if(wantD()) swapIn(cs); }).catch(function(){ S.cont[cs]=null; }); }
       else if(S.cont[cs]!=='loading') swapIn(cs);
     } else if(S.detOn[cs]) swapOut(cs);
   });
-  if(want) (D().multi||[]).forEach(function(cid){ if(S.a1[cid]||!GEO.a1[cid]||!S.bb[cid]||!meets(S.bb[cid],vb)) return; S.a1[cid]='loading';
-    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); }).catch(function(){}); });
+  if(want) (D().multi||[]).forEach(function(cid){ if(S.a1[cid]||!GEO.a1[cid]||!S.bb[cid]||!seen(S.bb[cid],vb)) return; S.a1[cid]='loading';
+    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); gAgain(); }).catch(function(){ S.a1[cid]=null; }); });
   S.gA1.style.display=want?'':'none';
 }
 function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
@@ -576,8 +582,9 @@ function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) retu
     if(cid==='ATA'&&used[cid]==null) return;
     if(!p){ p=el('path',{'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._cid=cid; p._extra=1; S.paths[cid]=p; }
     if(!p._det){ var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
-    p.setAttribute('d',p._det); p.style.display=''; }); }
-function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); }
+    p.setAttribute('d',p._det); p.style.display=''; }); gAgain(); }
+function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); gAgain(); }
+function gAgain(){ if(S.globe&&S.G&&S.gM) gVector(S.k*GR); }
 
 // ── a place and its cluster ──
 function placeView(id){
@@ -779,7 +786,7 @@ A.world=function(){ unfocus(); var v=homeView(); fly(v.cx,v.cy,v.k); };
 function one(){ var c=D().scope; return c&&S.bb[c]?c:null; }
 function homeView(){ var c=one(); if(!c) return worldView(); var b=S.bb[c], v=fitBox(b,phone()?14:40); return v; }
 function homeName(){ var c=D().scope; return c?dec((D().names||{})[c]||c):'Whole world'; }
-A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
+A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW,g:S.gN}; };
 function tourBar(){ navSync();
   var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.tour&&s.length>0; B.hidden=!on; if(!on) return;      // (the Tour on: its bar is there before the first stop)
   var nm=function(id){ var n=N(id), a=hubUnit(id); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var q=N(placeOf(id)||id); return dec((n.n||'')+' '+(n.pl||(q&&q.pl)||'')); };
@@ -866,7 +873,7 @@ function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(
   Object.keys(S.base.c).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
     x.fillStyle='rgba(255,255,255,.9)'; x.fillStyle=st.fill; x.strokeStyle=edge; x.strokeStyle=st.stroke; x.lineWidth=pth.classList.contains('wp-u')?2.2:1.3;
     x.beginPath(); S.base.c[cid].forEach(function(fl){ var P=decode(fl,q), last=null, pts=[], vv=new Float32Array(P.length*3);
-      P.forEach(function(w,i){ var g=gVec(w[0],w[1]); vv[3*i]=g[0]; vv[3*i+1]=g[1]; vv[3*i+2]=g[2]; }); S.gRings.push({c:cid,v:vv});
+      P.forEach(function(w,i){ var g=gVec(w[0],w[1]); vv[3*i]=g[0]; vv[3*i+1]=g[1]; vv[3*i+2]=g[2]; }); S.gRings.push(gR(cid,vv));
       P.forEach(function(w){ var l=eeI(w[0],w[1]); if(last!=null){ while(l[0]-last>180) l[0]-=360; while(l[0]-last<-180) l[0]+=360; } last=l[0]; pts.push([(l[0]+180)/360*W,(90-l[1])/180*H]); });
       [-W,0,W].forEach(function(o){ pts.forEach(function(p,i){ if(i) x.lineTo(p[0]+o,p[1]); else x.moveTo(p[0]+o,p[1]); }); x.closePath(); }); });
     x.fill('evenodd'); x.stroke(); });
@@ -877,19 +884,66 @@ function gDraw(){ var G=S.G; if(!G) return; S.gM=gRot(); var gl=G.gl, M=S.gM, d=
   gl.uniform1i(G.u.T,0); gl.uniform2f(G.u.C,S.vw/2*d,S.vh/2*d); gl.uniform1f(G.u.R,R); gl.uniform1f(G.u.E,1.4*d/R);
   gl.uniformMatrix3fv(G.u.M,false,new Float32Array(M));                        // (column-major: M as given is Mᵀ, the view-to-world turn)
   gl.uniform4fv(G.u.K,G.K||[.5,.55,.7,.6]); gl.uniform4fv(G.u.B,G.B||[1,1,1,0]); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); gVector(R/d); }
-// zoomed in, the land is drawn sharp over the surface, from the same rings and in their live colours (a picked or hidden country shows),
-// each ring only while it is wholly on the near side (a ring that runs round the back stays on the surface)
-function gVector(R){ var cv=S.gv, on=R>Math.max(S.vw,S.vh)*.55&&S.gRings; cv.style.display=on?'':'none'; if(!on) return;
+// zoomed in, the land is drawn sharp over the surface, from the map's own rings and in their live colours (a picked or hidden country shows).
+// F2 (Luke, 2026-11-04: "clearly higher quality geography/borders in flat map"): zoomed in as far as the flat map swaps in a continent at
+// 1:50m and a country's state lines, so does the globe (the same hosted tiers, fetched by detail()); a ring that runs round the back is cut
+// at the limb (filled to the chord, stroked only where it is seen) instead of falling back to the blurry surface; the coasts are drawn as the
+// flat map draws them (centripetal Catmull-Rom); rings off the screen or behind it are skipped by their bounding cap, points under .6 px apart are dropped.
+function gOn(){ return S.k*GR>Math.max(S.vw,S.vh)*.55; }
+function gVecs(flat,q){ var n=flat.length>>1, v=new Float32Array(3*n), x=flat[0], y=flat[1];
+  for(var i=0;i<n;i++){ if(i){ x+=flat[2*i]; y+=flat[2*i+1]; } var l=eeI(x/q,y/q), la=l[1]*D2R, lo=l[0]*D2R, c=Math.cos(la); v[3*i]=c*Math.sin(lo); v[3*i+1]=Math.sin(la); v[3*i+2]=c*Math.cos(lo); }
+  return v; }
+function gR(c,v){ var n=v.length/3, a=0, b=0, d=0, r=Math.PI, i; for(i=0;i<n;i++){ a+=v[3*i]; b+=v[3*i+1]; d+=v[3*i+2]; }
+  var s=Math.sqrt(a*a+b*b+d*d); if(s>.3*n){ a/=s; b/=s; d/=s; r=0; for(i=0;i<n;i++) r=Math.max(r,Math.acos(clamp(a*v[3*i]+b*v[3*i+1]+d*v[3*i+2],-1,1))); } else { a=0; b=0; d=1; }
+  return {c:c,v:v,k:[a,b,d,r]}; }
+function gSkip(k,R){ var M=S.gM, a=k[0], b=k[1], c=k[2], r=k[3];
+  if(r<1.5&&M[6]*a+M[7]*b+M[8]*c<-Math.sin(r)) return true;                      // (wholly behind)
+  var rr=2*R*Math.sin(Math.min(r,Math.PI)/2)+2, px=S.vw/2+R*(M[0]*a+M[1]*b+M[2]*c), py=S.vh/2-R*(M[3]*a+M[4]*b+M[5]*c);
+  return px+rr<0||px-rr>S.vw||py+rr<0||py-rr>S.vh; }
+// a ring's seen stretches, in screen px (flat x,y lists); a stretch that leaves the near side ends on the limb
+function gRuns(v,R,closed){ var M=S.gM, cx=S.vw/2, cy=S.vh/2, n=v.length/3, m=closed?n+1:n, runs=[], cur=null, pv=false, pX=0, pY=0, pZ=0, hid=false, v0=false;
+  for(var j=0;j<m;j++){ var i=j%n, a=v[3*i], b=v[3*i+1], c=v[3*i+2], X=M[0]*a+M[1]*b+M[2]*c, Y=M[3]*a+M[4]*b+M[5]*c, Z=M[6]*a+M[7]*b+M[8]*c, vis=Z>0;
+    if(!j) v0=vis; if(!vis) hid=true;
+    if(j&&vis!==pv){ var t=pZ/(pZ-Z), X0=pX+(X-pX)*t, Y0=pY+(Y-pY)*t, s=Math.sqrt(X0*X0+Y0*Y0)||1, lx=cx+R*X0/s, ly=cy-R*Y0/s;
+      if(vis){ cur=[lx,ly]; runs.push(cur); } else { cur.push(lx,ly); cur=null; } }
+    if(vis){ var sx=cx+R*X, sy=cy-R*Y; if(!cur){ cur=[]; runs.push(cur); } var L=cur.length;
+      if(!(L>=2&&j<m-1&&(sx-cur[L-2])*(sx-cur[L-2])+(sy-cur[L-1])*(sy-cur[L-1])<.36)) cur.push(sx,sy); }
+    pv=vis; pX=X; pY=Y; pZ=Z; }
+  if(closed&&runs.length){ if(!hid) runs[0].length-=2; else if(v0&&runs.length>1){ var e=runs.pop(); e.length-=2; runs[0]=e.concat(runs[0]); } }      // (the closing point is the first again)
+  return {runs:runs,whole:!hid}; }
+function gCurve(p,P,closed){ var n=P.length>>1; if(!n) return; p.moveTo(P[0],P[1]);
+  if(n<4){ for(var j=1;j<n;j++) p.lineTo(P[2*j],P[2*j+1]); if(closed) p.closePath(); return; }
+  var ix=function(i){ return 2*(closed?(i+n)%n:i<0?0:i>n-1?n-1:i); }, m=closed?n:n-1, e=1e-9;
+  for(var i=0;i<m;i++){ var i0=ix(i-1), i1=ix(i), i2=ix(i+1), i3=ix(i+2), x0=P[i0], y0=P[i0+1], x1=P[i1], y1=P[i1+1], x2=P[i2], y2=P[i2+1], x3=P[i3], y3=P[i3+1],
+      l01=Math.sqrt(Math.sqrt((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0))), l12=Math.sqrt(Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))), l23=Math.sqrt(Math.sqrt((x3-x2)*(x3-x2)+(y3-y2)*(y3-y2))), ax=x1, ay=y1, bx=x2, by=y2;
+    if(l01>e){ var a=2*l01*l01+3*l01*l12+l12*l12, nn=3*l01*(l01+l12); ax=(x1*a-x0*l12*l12+x2*l01*l01)/nn; ay=(y1*a-y0*l12*l12+y2*l01*l01)/nn; }
+    if(l23>e){ var b=2*l23*l23+3*l23*l12+l12*l12, mm=3*l23*(l23+l12); bx=(x2*b+x1*l23*l23-x3*l12*l12)/mm; by=(y2*b+y1*l23*l23-y3*l12*l12)/mm; }
+    p.bezierCurveTo(ax,ay,bx,by,x2,y2); }
+  if(closed) p.closePath(); }
+// a country's colours as the map has them now (read again only when its classes, the page's or the theme change)
+function gSt(pth){ var k=pth.getAttribute('class')+'|'+S.root.className+'|'+S.G.key; if(pth._gk!==k){ var st=getComputedStyle(pth); pth._gk=k; pth._gs={f:st.fill,s:st.stroke,w:parseFloat(st.strokeWidth)||1,o:+st.opacity||1}; } return pth._gs; }
+function gTile(G,key,f){ if(!G[key]){ G[key]={}; f(G[key]); } return G[key]; }
+function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'none'; if(!on){ S.gN=null; return; }
   var d=S.G.d||1; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
-  var x=cv.getContext('2d'), M=S.gM, cx=S.vw/2, cy=S.vh/2, W=S.vw, H=S.vh; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
-  var by={}; S.gRings.forEach(function(r){ var v=r.v, n=v.length/3, pts=new Array(n), inn=false;
-    for(var i=0;i<n;i++){ var a=v[3*i],b=v[3*i+1],c=v[3*i+2], z=M[6]*a+M[7]*b+M[8]*c; if(z<=0) return;
-      var px=cx+R*(M[0]*a+M[1]*b+M[2]*c), py=cy-R*(M[3]*a+M[4]*b+M[5]*c); pts[i]=[px,py]; if(px>-50&&px<W+50&&py>-50&&py<H+50) inn=true; }
-    if(inn) (by[r.c]=by[r.c]||[]).push(pts); });
-  Object.keys(by).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
-    x.globalAlpha=+st.opacity||1; x.fillStyle=st.fill; x.strokeStyle=st.stroke; x.lineWidth=parseFloat(st.strokeWidth)||1; x.beginPath();
-    by[cid].forEach(function(P){ P.forEach(function(p,i){ if(i) x.lineTo(p[0],p[1]); else x.moveTo(p[0],p[1]); }); x.closePath(); }); x.fill('evenodd'); x.stroke(); });
-  x.globalAlpha=1; }
+  var x=cv.getContext('2d'), W=S.vw, H=S.vh, used=D().used||{}; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
+  var nR=0, nP=0, src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
+  Object.keys(S.detOn).forEach(function(cs){ var G=S.cont[cs]; if(!S.detOn[cs]||!G||!G.c) return;                 // (a country in a continent that is in: its 1:50m rings instead)
+    var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=G.c[cid].map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
+    Object.keys(g).forEach(function(cid){ if(!(cid==='ATA'&&used[cid]==null)) src[cid]=g[cid]; }); });
+  Object.keys(src).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var W0=new Path2D(), PF=new Path2D(), PS=new Path2D(), any=false;
+    src[cid].forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; any=true; nR++; q.runs.forEach(function(P){ nP+=P.length>>1; });
+      if(q.whole) gCurve(W0,q.runs[0],true);
+      else q.runs.forEach(function(P){ gCurve(PS,P,false); if(r.k[3]<1.5){ PF.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) PF.lineTo(P[i],P[i+1]); PF.closePath(); } }); });
+    if(!any) return; var st=gSt(pth); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w;
+    x.fill(W0,'evenodd'); x.fill(PF,'evenodd'); x.stroke(W0); x.stroke(PS); });
+  x.globalAlpha=1;
+  var a1=S.gA1.querySelector('path');                                                                                // (the state lines, dashed as the flat map has them)
+  if(a1&&S.gA1.style.display!=='none'){ var as=gSt(a1), P1=new Path2D();
+    Object.keys(S.a1).forEach(function(cid){ var G=S.a1[cid]; if(!G||!G.l) return;
+      gTile(G,'_g',function(o){ o.r=G.l.map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }).r.forEach(function(r){ if(gSkip(r.k,R)) return;
+        gRuns(r.v,R,false).runs.forEach(function(P){ P1.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) P1.lineTo(P[i],P[i+1]); }); }); });
+    x.strokeStyle=as.s; x.lineWidth=as.w; x.setLineDash([3,3]); x.stroke(P1); x.setLineDash([]); }
+  S.gN=[nR,nP]; }
 // the route on the globe: great circles, the near side only
 function gArcs(){ var g=S.ovg; g.textContent=''; var fu=S.sel!=null?unitOf(S.sel):S.ua;
   (S.tubes||[]).forEach(function(T){ var a=gVec(T.a[0],T.a[1]), b=gVec(T.b[0],T.b[1]), d='', pen=false;
@@ -901,7 +955,7 @@ A.globe=function(on){ if(on==null) return !!S.globe; on=!!on&&!phone()&&!documen
   if(on){ S.globe=1; S.root.classList.add('wp-g'); gSize(); gPaint(); }
   else { S.gv.style.display='none'; var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]); S.globe=0; S.cx=f[0]; S.cy=f[1]; S.root.classList.remove('wp-g'); }
   try{ localStorage.setItem('alto-world-globe',S.globe?'1':'0'); }catch(x){}
-  apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); return S.globe; };
+  apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); settleSoon(); return S.globe; };
 
 
 // ── adding and removing countries by hand (edit mode; Luke 2026-10-29: "Make sure user can manually add countries", no Claude, no MCP) ──
