@@ -67,7 +67,7 @@ def test_the_dormant_plus_shows_only_near_the_pointer_or_on_focus(browser, origi
 
 
 @pytest.mark.parametrize("style,color,square", [("classic", "rgb(91, 63, 196)", False), ("dark", "rgb(183, 166, 255)", False), ("retro", "rgb(217, 174, 85)", True),
-                                           ("holo", "rgb(10, 111, 140)", False), ("holodark", "rgb(77, 232, 216)", False)])
+                                           ("holodark", "rgb(77, 232, 216)", False)])    # (Holographic is dark only on a computer, so it has no light row here)
 def test_the_plus_focus_ring_is_art_s_two_pixel_outline_in_the_styles_colour(browser, origin, style, color, square):
     page = _open(browser, origin, 1280, "holo" if style == "holodark" else style, dpr=2)
     if style == "holodark":
