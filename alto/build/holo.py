@@ -114,16 +114,16 @@ HOLO_CSS = r"""
   /* dark only on a computer (Luke, 2026-11-01): no light/dark button; a phone keeps its own (JS: hdark) */
   @media (min-width:641px){ X:not(.mobile) #mode-toggle:not(#_):not(#__){display:none !important;} }
   /* the Alto marks (Luke, 2026-11-01: "the alto logo and glyph in holographic style ... the glyph should rotate like the glyphs for file type"):
-     the clef and the wordmark in the light, on every page that has them, a phone's too; the clef turns on Y on the homepage's motion budget
+     the clef and the wordmark in the light, on every page that has them, a phone's too; the clef turns on Y on the homepage's motion budget, the phone timeline's clef in #nav too (CEO 2026-11-05)
      (transform only, 10 s, still under reduced motion and while the tab is hidden) */
   X svg:is(.brand-mark,.brand-word) [fill^="url"],X svg:is(.brand-mark,.brand-word) .alto-word{fill:var(--ho-ac2) !important;}
   X svg:is(.brand-mark,.brand-word) [stroke^="url"],X svg.brand-mark .alto-head{stroke:var(--ho-ac2) !important;}
   X #title-bar svg.brand-word:not(#_):not(#__){filter:drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;}
-  X #title-bar svg.brand-mark:not(#_):not(#__){filter:drop-shadow(-1.5px 0 0 rgba(255,95,210,.5)) drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;
+  X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){filter:drop-shadow(-1.5px 0 0 rgba(255,95,210,.5)) drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;
     animation:ho-logo 10s linear infinite;will-change:transform;}
-  X.hp-hid #title-bar svg.brand-mark{animation-play-state:paused;}
+  X.hp-hid #title-bar svg.brand-mark,X.hp-hid.pmin #nav svg.brand-mark{animation-play-state:paused;}
   @keyframes ho-logo{from{transform:perspective(260px) rotateY(0)}to{transform:perspective(260px) rotateY(360deg)}}
-  @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;} }
+  @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;} }
   /* the toggles (Luke, 2026-11-01: "toggles feel a little bit heavy and not holographic enough"; Art's sheet, accepted): one 1px soft-cyan edge, square, the
      same on every one of them (the bottom-left and bottom-right controls, the edit pair, the right-edge tabs); at rest the plate is the page's own colour (so
      nothing under it shows through a glyph), no glow; hover and focus brighten the edge, the chosen one takes a faint tint. A computer only: a phone keeps its own */
