@@ -93,7 +93,7 @@ FILL = """() => { const g = document.querySelector('#wpal-root .wp-ff'); if (!g)
   gh = g.querySelector('.ff-g'), sc = g.querySelector('.ff-s'), pth = document.querySelector('#wpff-c path');
   return {on: g.classList.contains('on'), op: +cs(g).opacity, vis: cs(g).visibility, href: a.getAttribute('href'), aop: +cs(a).opacity, clip: pth ? pth.getAttribute('d').length : 0,
     ghost: cs(gh).display, ganim: cs(gh).animationName, gdur: cs(gh).animationDuration, scan: cs(sc).display, sanim: cs(sc).animationName, sdur: cs(sc).animationDuration,
-    gstate: gh.getAnimations ? gh.getAnimations().map(x => x.animationName) : null, w: +a.getAttribute('width')}; }"""
+    gstate: gh.getAnimations ? gh.getAnimations().map(x => x.animationName) : null, w: +a.getAttribute('width'), h: +a.getAttribute('height')}; }"""
 
 
 def _open(browser, base, style="classic", size=(1400, 900), reduced=False, globe=False):
@@ -135,6 +135,9 @@ def test_plain_while_flying_then_fades_in_after_it_settles_then_out_on_leaving(b
     assert r["on"] and r["op"] > .95 and r["vis"] == "visible" and r["href"].startswith("/world/flag-FRA-") and r["clip"] > 100 and .3 <= r["aop"] <= .36 and r["w"] > 5
     assert any(f.startswith("/world/flag-FRA-") for f in log) and not any(f.startswith("/world/flag-USA-") for f in log)       # (the card's own file; no other country's)
     if style == "holo":
+        offs = page.evaluate("[].map.call(document.querySelectorAll('#wpff-s stop'), s => +s.getAttribute('offset'))")        # (the scan line is ~14 px, whatever the country's size)
+        k = page.evaluate("+/scale\\(([\\d.]+)\\)/.exec(document.querySelector('#wpal-root svg.wp-svg > g').getAttribute('transform'))[1]")
+        assert offs[0] == 0 and offs[1] < offs[2] < offs[3] == 1 and abs((1 - offs[1]) * r["h"] * k - 14) < .5
         assert r["ghost"] == "inline" and r["ganim"] == "wp-ff-drift" and r["gdur"] == "10s" and r["scan"] == "inline" and r["sanim"] == "wp-ff-scan" and r["sdur"] == "7s"
         assert page.evaluate("document.querySelector('#wpal-root .wp-enl .fl-spin').getAnimations()[0].startTime") == page.evaluate("document.querySelector('#wpal-root .wp-ff .ff-g').getAnimations()[0].startTime")
     else:

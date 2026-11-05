@@ -609,14 +609,17 @@ function ffInit(){ if(S.ffG) return; var d=el('defs',null,S.svg);
   S.ffPath=el('path',{'clip-rule':'evenodd'},el('clipPath',{id:'wpff-c'},d));
   el('feColorMatrix',{type:'matrix',values:'.3 .59 .11 0 0 .11 .22 .04 0 0 .25 .48 .09 0 0 0 0 0 1 0'},el('filter',{id:'wpff-m',x:0,y:0,width:1,height:1,'color-interpolation-filters':'sRGB'},d));
   var gr=el('linearGradient',{id:'wpff-s',x1:0,y1:0,x2:0,y2:1},d);
-  [['0',0],['.93',0],['.985',.85],['1',.1]].forEach(function(t){ el('stop',{offset:t[0],'stop-opacity':t[1]},gr); });
+  S.ffStops=[0,0,.6,.1].map(function(o){ return el('stop',{offset:0,'stop-opacity':o},gr); });
   S.ffG=el('g',{'class':'wp-ff','clip-path':'url(#wpff-c)'}); S.g.insertBefore(S.ffG,S.gA1);
   var im=function(c,f){ return el('image',{'class':c,preserveAspectRatio:'xMidYMid slice',filter:f||'none'},S.ffG); };
   im('ff-g','url(#wpff-m)'); im('ff-a'); el('rect',{'class':'ff-s',fill:'url(#wpff-s)'},S.ffG); }
 function ffWant(){ if(!S.tour||!S.sel||!S.cur||S.ua!=null||!S.ready) return null; var n=N(S.sel), cid=n&&n.c;
   if(!cid||!(GEO.flag||{})[cid]||!S.paths[cid]||!S.bb[cid]||!S.paths[cid].classList.contains('wp-u')||S.k<S.kW*1.6) return null; return cid; }
+// the scan line is ~14 px of screen at any zoom (Art 2026-11-05: a fixed share of the box was a 45 px slab on France), refitted when the camera settles
+function ffBand(){ if(!S.ffC||!S.ffStops) return; var bb=S.bb[S.ffC], f=Math.min(.25,14/Math.max((bb[3]-bb[1])*S.k,1)), o=[0,1-f,1-f*.15,1];
+  S.ffStops.forEach(function(t,i){ t.setAttribute('offset',o[i].toFixed(4)); }); }
 function ffClip(){ if(S.ffC&&S.ffPath) S.ffPath.setAttribute('d',S.paths[S.ffC].getAttribute('d')); }
-function ffShow(cid){ var url=GEO.flag[cid], bb=S.bb[cid]; ffInit(); S.ffC=cid; ffClip();
+function ffShow(cid){ var url=GEO.flag[cid], bb=S.bb[cid]; ffInit(); S.ffC=cid; ffClip(); ffBand();
   [].forEach.call(S.ffG.children,function(c){ c.setAttribute('x',bb[0].toFixed(2)); c.setAttribute('y',bb[1].toFixed(2)); c.setAttribute('width',(bb[2]-bb[0]).toFixed(2)); c.setAttribute('height',(bb[3]-bb[1]).toFixed(2));
     if(c.tagName==='image') c.setAttribute('href',url); });
   S.ffG.classList.add('on'); requestAnimationFrame(ffPhase);
@@ -624,7 +627,7 @@ function ffShow(cid){ var url=GEO.flag[cid], bb=S.bb[cid]; ffInit(); S.ffC=cid; 
   clearTimeout(S.gfT); S.gf.classList.add('on'); gAgain(); }
 function ffHide(){ if(!S.ffC) return; S.ffC=null; if(S.ffG) S.ffG.classList.remove('on'); S.gf.classList.remove('on');
   clearTimeout(S.gfT); S.gfT=setTimeout(function(){ if(!S.ffC){ var x=S.gf.getContext('2d'); x.setTransform(1,0,0,1,0,0); x.clearRect(0,0,S.gf.width,S.gf.height); } },400); }
-function ffSync(){ if(!S.root||!S.gf) return; var want=ffWant();
+function ffSync(){ if(!S.root||!S.gf) return; ffBand(); var want=ffWant();
   if(S.ffC&&S.ffC!==want) ffHide();
   if(!want||S.ffC===want||S.anim||S.plane){ if(S.ffT&&(!want||S.ffC===want)){ clearTimeout(S.ffT); S.ffT=0; } return; }
   if(!S.ffT) S.ffT=setTimeout(function(){ S.ffT=0; if(ffWant()===want&&!S.anim&&!S.plane&&S.ffC!==want) ffShow(want); },160); }
