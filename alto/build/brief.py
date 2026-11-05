@@ -118,6 +118,11 @@ class Section:
     # cards, quiz. Empty: none.
     cards: dict = field(default_factory=dict)
     quiz: dict = field(default_factory=dict)
+    # Pictures drawn inside this section as a row under its text (photos.py):
+    # {items: [{id?, ref, caption?, alt?}], label?}. `ref` names a picture of the
+    # owner's own, kept off the page. A section carries one of tree, cards, quiz,
+    # photos. Empty: none.
+    photos: dict = field(default_factory=dict)
 
 
 PROVENANCE = {"quoted": "Quoted", "notes": "From your notes",
@@ -353,6 +358,9 @@ class Node:
     # Brief.source_docs ids this node was built from. In outline mode a node
     # with none inherits its nearest ancestor's (ALTO-011).
     sources: list[str] = field(default_factory=list)
+    # Pictures of the owner's own on this card (photos.py): [{id?, ref, caption?, alt?}],
+    # drawn as a small picture with a +n on the card and beside it when it is enlarged.
+    photos: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -523,6 +531,12 @@ def _check_sections(sections, what, warnings=None) -> None:
                                  "`cards` or `quiz` — put each in its own section")
             check_cards(s.cards, f"{what} section {i+1}")
             check_quiz(s.quiz, f"{what} section {i+1}")
+        if s.photos:
+            from .photos import check_photos
+            if any((s.tree, s.cards, s.quiz)):
+                raise BriefError(f"{what} section {i+1}: a section carries one of `tree`, "
+                                 "`cards`, `quiz` or `photos` — put each in its own section")
+            check_photos(s.photos, f"{what} section {i+1}")
         if (warnings is not None and s.t and s.prov != "quoted"
                 and (s.h or "").strip().lower() in PRIMARY_TEXT_HEADINGS):
             warnings.append(
@@ -1301,6 +1315,9 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
         _check_len(n.tag, "tag", f"node {n.id} tag")
         _check_len(n.desc, "desc", f"node {n.id} desc")
         _check_sections(n.sections, f"node {n.id}", warnings)
+        if n.photos:
+            from .photos import check_items
+            check_items(n.photos, f"node {n.id}", 12)
         if not (n.desc or "").strip():
             warnings.append(f"node {n.id}: empty desc (sparse by design?)")
 

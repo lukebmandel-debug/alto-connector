@@ -150,7 +150,9 @@ def edit_keys(b, nodes=()) -> str:
 
 def manual_edit(b, nodes=()) -> str:
     from .study_edit import STUDY_EDIT_CSS, STUDY_EDIT_FIELD, STUDY_EDIT_DECORATE, STUDY_EDIT_JS
+    from .photos import EDIT_FIELD, EDIT_REFRESH
     js = (MANUAL_JS.replace("/*__STUDY_FIELD__*/", STUDY_EDIT_FIELD)
+          .replace("/*__PICS_FIELD__*/", EDIT_FIELD).replace("/*__PICS_REFRESH__*/", EDIT_REFRESH)
           .replace("/*__STUDY_DECORATE__*/", STUDY_EDIT_DECORATE)
           .replace("/*__STUDY_EDIT__*/", STUDY_EDIT_JS))
     css = MANUAL_CSS[:MANUAL_CSS.rindex("</style>")] + STUDY_EDIT_CSS + "\n</style>"
@@ -663,7 +665,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = (EDK.ovf || {})[a], pm = (typeof PHASE_META !== 'undefined') ? PHASE_META[a] : null;
     h.textContent = f === 'short' ? ((EDK.sh || {})[a] || (pm && pm.label) || '') : ((pm && pm.label) || '');
   }
-  var PROV = '<span class="sec-prov">', SLOT = /<span class="a(?:dt|st)-slot"[\s\S]*$/;
+  var PROV = '<span class="sec-prov">', SLOT = /<span class="a(?:dt|st|ph)-slot"[\s\S]*$/;
   function hParts(h){ h = String(h || ''); var at = h.indexOf(PROV), mk = /^<span class="aed-k"[^>]*><\/span>/.exec(h);
     var lead = mk ? mk[0] : '', body = mk ? h.slice(lead.length) : h; at = body.indexOf(PROV);
     return {lead:lead, text: at >= 0 ? body.slice(0, at) : body, tail: at >= 0 ? body.slice(at) : ''}; }
@@ -1352,6 +1354,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         set:function(v){ reorder(kind, id, v || []); }};
     }
     /*__STUDY_FIELD__*/
+    /*__PICS_FIELD__*/
     if(kind === 'dt' && p.length === 3 && p[2] === 'tree' && NEWT.test(id)){
       // a tree in a section added here: made with its first step
       if(!window._ALTO_DT || (!window._ALTO_DT[id] && !newTreeSec(id))) return null;
@@ -1489,6 +1492,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   ['n', 'c', 'env', 'theme'].forEach(function(kind){ Object.keys(EDK[kind] || {}).forEach(function(id){ PRIS[kind + '|' + id] = jh(JSON.stringify(ownPairs(kind, id))); }); });
   Object.keys(window._ALTO_DT || {}).forEach(function(k){ PRIS['dt|' + k] = jh(JSON.stringify(window._ALTO_DT[k].n)); });
   Object.keys(window._ALTO_ST || {}).forEach(function(k){ PRIS['sd|' + k] = jh(JSON.stringify(window._ALTO_ST[k])); });
+  Object.keys(window._ALTO_PH || {}).forEach(function(k){ PRIS['ph|' + k] = jh(JSON.stringify(window._ALTO_PH[k])); });
   var conflicts = {}, APPLIED = {};      // APPLIED: what this page last set each field to
   function sigOf(f){ return f.sig ? f.sig() : f.get(); }
   // structure first (a section list, a tree), then new sections' words, then the rest, oldest first
@@ -1509,7 +1513,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(p[0] === 'fl') return -1;
     if(p[0] === 'pu') return -2.5;
     if(p[0] === 'pf') return -0.9;
-    if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd') return NEWT.test(p[1]) ? 0.5 : 0;
+    if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd' || p[0] === 'ph') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
   function overlay(){
     var any = false;
@@ -1622,7 +1626,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   window._altoEditChanges = changes;      // a Memory Palace's drags (palace.py)
   // what a Memory Palace needs to add a building or a floor: a fresh card id, the units to choose
   // from (and the key the page stores one under), the glass form, the toast
-  window._altoEdit = {rid: rid, ask: function(){ return askForm.apply(null, arguments); }, toast: toast, editing: editing,
+  window._altoEdit = {rid: rid, ask: function(){ return askForm.apply(null, arguments); }, toast: toast, editing: editing, field: field, change: change,
     addCard: function(p, a, sun, more){ return addCard(p, a, sun, more); }, removeCard: function(id){ return removeCard(id); },
     units: function(){ var out = []; for(var i = 0; i < ACT_SEQS.length; i++) out.push({i: i, key: unitKeyOf(i), name: unitName(i)}); return out; }};
   function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; h.slice().reverse().forEach(function(e){ apply(e.k, e.a); }); syncHist(); return true; }
@@ -1661,6 +1665,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(P && P.type === 'node' && editing()) decorateFlags(true);
       return;
     }
+    /*__PICS_REFRESH__*/
     if(kind === 'sd'){
       if(NEWT.test(p[1] || '')){ if(P){ rerenderPage(P); repaint(); } return; }
       var sb0 = dc && dc.querySelector('.ast[data-ast-key="' + p[1] + '"]');
@@ -1718,6 +1723,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(editing()) return;
     try{ if(window._focusedNodeId && window.exitFocus) window.exitFocus(); }catch(e){}
     markSections();
+    if(window._altoPicsLoad) window._altoPicsLoad();
     root.classList.add('alto-editing');
     root.classList.toggle('alto-solar-edit', isSolar() && !root.classList.contains('mobile') && !PHONE);
     root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !isSolar() && !root.classList.contains('mobile') && !PHONE));
@@ -1855,7 +1861,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
         var box = mk.closest('.detail-section'), h3 = box && box.querySelector(':scope > h3'); if(!h3) return; var k = mk.getAttribute('data-k');
         setF(h3, k + '|h'); box.setAttribute('data-aed-body', k + '|t'); lastOwn = box;
-        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('ast') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
+        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('ast') && !c.classList.contains('aph') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
         if(structOK() && !h3.querySelector('.aed-sc')) h3.appendChild(ctl('aed-sc', [['up', '↑', 'Move this section up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this section']], {sk: k}));
         decorateLists(box, k, h3);
       });
@@ -3108,7 +3114,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     ['quiz', 'Quiz', 'Multiple-choice questions that grade you — best written by Claude from your notes'],
     ['cards', 'Flash cards', 'Cards you flip and mark Know it / Still learning — best written by Claude from your notes'],
     ['cases', 'Cases', 'A list of cases — each with its citation, a note and a link'],
-    ['authorities', 'Authorities', 'A list of statutes, rules, Restatement sections or other sources']];
+    ['authorities', 'Authorities', 'A list of statutes, rules, Restatement sections or other sources'],
+    ['photos', 'Photos', 'A row of your own pictures, each with a caption']];
   function chooseKind(at, ok){
     hideMenus();
     var b = document.getElementById('aed-kinds');
@@ -3124,13 +3131,17 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = field(ok + '|order'); if(!f) return;
     if(kind === 'cases' || kind === 'authorities'){ addAuthSection(ok, kind, at || document.body); return; }
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
-    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', timeline:'Timeline', quiz:'Quiz', cards:'Flash cards'}[kind] || 'New section';
-    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : (kind === 'tree' || kind === 'timeline') ? '' : 'Write here.';
+    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', timeline:'Timeline', quiz:'Quiz', cards:'Flash cards', photos:'Photos'}[kind] || 'New section';
+    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : (kind === 'tree' || kind === 'timeline' || kind === 'photos') ? '' : 'Write here.';
     var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H]];
     if(T) L.push([base + '|t', T]);
     if(PROVL[kind]) L.push([base + '|p', kind]);
     if(kind === 'tree') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), t: 'First question'}]]);
     if(kind === 'timeline') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), k: 'e', t: 'First event'}, {i: rid('s-'), k: 'e', t: 'Second event'}]]);
+    if(kind === 'photos'){
+      if(window._altoPicsLoad) window._altoPicsLoad();
+      L.push(['ph|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|pics', {lab: '', n: []}]);
+    }
     if(kind === 'quiz' || kind === 'cards'){
       var sk = DTPRE[q[0]] + '-' + q[1] + '-' + nk;
       L.push(['sd|' + sk + '|study', studyStarter(kind)]);

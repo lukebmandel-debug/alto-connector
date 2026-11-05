@@ -287,7 +287,7 @@ def _jdump(v) -> str:
 def _shown(obj):
     """The object's sections a page carries, by own index (subtree.prepare
     gives a tree section a slot, so it shows even with no words of its own)."""
-    return [j for j, s in enumerate(obj.sections) if s.t or s.tree or s.cards or s.quiz]
+    return [j for j, s in enumerate(obj.sections) if s.t or s.tree or s.cards or s.quiz or s.photos]
 
 
 def order_sig(obj) -> str:
@@ -307,6 +307,17 @@ def study_list(sec):
     """A sanitized flash-card / quiz section as the page carries it (study.compact)."""
     from .build.study import compact
     return compact(sec)
+
+
+def photos_list(sec):
+    """A sanitized Photos section as the page carries it (photos.compact)."""
+    from .build.photos import compact
+    return compact(sec)
+
+
+def _norm_pics(lst):
+    """A list of pictures as the page keeps it, in a form two of them compare by (key order does not matter)."""
+    return json.dumps([{k: x[k] for k in sorted(x)} for x in (lst or [])], sort_keys=True, ensure_ascii=False)
 
 
 # ── where each key lives in a stored draft ──────────────────────────────────
@@ -402,6 +413,16 @@ def _target(key, brief, by_id, conns):
             return (None, None, "newstudy") if _owner(_OWNER[m.group(1)], m.group(2), brief, by_id) is not None else None
         t = _dt_section(p[1], brief, by_id)
         return (t[0], "study", "study") if t and (t[0].get("cards") or t[0].get("quiz")) else None
+    if kind == "ph" and len(p) == 3 and p[2] == "pics":
+        m = NEW_TREE.match(p[1])
+        if m:
+            return (None, None, "newphotos") if _owner(_OWNER[m.group(1)], m.group(2), brief, by_id) is not None else None
+        t = _dt_section(p[1], brief, by_id)
+        return (t[0], "photos", "photos") if t and t[0].get("photos") else None
+    if kind == "pc" and len(p) == 3 and p[2] == "pics":
+        if p[1] in by_id:
+            return by_id[p[1]], "photos", "cardpics"
+        return (None, None, "pending") if NEW_CARD.match(p[1]) else None
     if kind == "dt" and len(p) in (3, 4) and NEW_TREE.match(p[1]):
         m = NEW_TREE.match(p[1])
         if _owner(_OWNER[m.group(1)], m.group(2), brief, by_id) is None:
@@ -614,9 +635,9 @@ def fold(store, uid, tid) -> "dict | None":
 
     def touch(key):
         p = key.split("|")
-        m = DT_KEY.match(p[1]) if p[0] in ("dt", "sd") else None
-        mn = NEW_TREE.match(p[1]) if p[0] in ("dt", "sd") else None
-        if p[0] in ("n", "fn", "ch", "pf"):
+        m = DT_KEY.match(p[1]) if p[0] in ("dt", "sd", "ph") else None
+        mn = NEW_TREE.match(p[1]) if p[0] in ("dt", "sd", "ph") else None
+        if p[0] in ("n", "fn", "ch", "pf", "pc"):
             touched["nodes"].add(p[1])
         elif mn and mn.group(1) == "n":
             touched["nodes"].add(mn.group(2))
@@ -1072,7 +1093,32 @@ def fold(store, uid, tid) -> "dict | None":
         written.append(k)
         touch(k)
 
-    singles = [k for k in live if kinds[k] not in ("tree", "study", "newstudy", "order", "newsec", "newnode", "delnode",
+    # 1c. a Photos section's whole list (photos.py), the same way
+    for k in by_time([k for k in live if kinds[k] == "photos"]):
+        sec = _dt_section(k.split("|")[1], brief, by_id)
+        pv = pristine.owner(sec[1], sec[2])
+        lst = photos_list(pv.sections[sec[3]]) if pv and sec[3] < len(pv.sections) else None
+        if lst is not None and _jdump(lst) == _jdump(live[k].get("v")):
+            already.append(k)
+            continue
+        if lst is None or jhash(_jdump(lst)) != live[k].get("b"):
+            conflicts.append(k)
+            continue
+        from .build.photos import from_compact as photos_from_compact
+        v = live[k].get("v") or {}
+        try:
+            new = photos_from_compact(v) if (v.get("n") if isinstance(v, dict) else None) else {}
+        except BriefError:
+            conflicts.append(k)
+            continue
+        if new:
+            sec[0]["photos"] = new
+        else:
+            sec[0].pop("photos", None)             # every picture taken off: the section keeps its heading and words
+        written.append(k)
+        touch(k)
+
+    singles = [k for k in live if kinds[k] not in ("tree", "study", "newstudy", "photos", "newphotos", "order", "newsec", "newnode", "delnode",
                                                     "newtree", "newtreef", "newunit", "unitname",
                                                     "newchip", "reparent", "unitmove", "unitdel",
                                                     "newaxis", "axisdel", "chipdel", "cardsize")
@@ -1109,6 +1155,27 @@ def fold(store, uid, tid) -> "dict | None":
                 holder[f] = norm(v)
             else:
                 holder.pop(f, None)
+        elif kind == "cardpics":
+            # a card's pictures (photos.py): the whole list, as the page keeps it
+            from .build.photos import compact_items, items_from_compact, check_items, sanitize_items, MAX_CARD
+            cur = compact_items(sanitize_items(holder.get("photos")))
+            if _norm_pics(cur) == _norm_pics(v):
+                already.append(k)
+                continue
+            if _norm_pics(cur) != _norm_pics(b):
+                conflicts.append(k)
+                continue
+            try:
+                new = items_from_compact(v or [])
+                if new:
+                    check_items(new, k, MAX_CARD)
+            except BriefError:
+                conflicts.append(k)
+                continue
+            if new:
+                holder["photos"] = new
+            else:
+                holder.pop("photos", None)
         elif kind == "lane":
             # a line of a horizontal timeline (lanes.py): the whole line, or None to remove it
             from .build.lanes import norm_line
@@ -1423,8 +1490,19 @@ def fold(store, uid, tid) -> "dict | None":
                         mine.append(skey)
                     except BriefError:
                         conflicts.append(skey)
+                pkey = f"ph|{DTPRE_OF[p[0]]}-{p[1]}-{x}|pics"
+                pv_ = (live.get(pkey) or {}).get("v")
+                if isinstance(pv_, dict) and pv_.get("n"):
+                    from .build.photos import from_compact as photos_from_compact
+                    try:
+                        d["photos"] = photos_from_compact(pv_)
+                        mine.append(pkey)
+                    except BriefError:
+                        conflicts.append(pkey)
+                elif pkey in live:
+                    mine.append(pkey)                  # a Photos section nothing was put in: nothing to keep
                 mine.extend(q for q in (hk, tk, pk) if q in live)
-                if (d["t"] or "").strip() or d.get("tree") or d.get("cards") or d.get("quiz"):
+                if (d["t"] or "").strip() or d.get("tree") or d.get("cards") or d.get("quiz") or d.get("photos"):
                     out.append(d)
         if waiting:
             continue
@@ -1433,7 +1511,7 @@ def fold(store, uid, tid) -> "dict | None":
         written.append(k)
         touch(k)
     # words of a new section whose place was never recorded have nowhere to go
-    missing += [k for k in live if kinds[k] in ("newsec", "newtree", "newtreef", "newstudy") and k not in written]
+    missing += [k for k in live if kinds[k] in ("newsec", "newtree", "newtreef", "newstudy", "newphotos") and k not in written]
 
     # 4. cards taken out (nothing under them; their lines go with them)
     for k in by_time([k for k in live if kinds[k] == "delnode"]):
