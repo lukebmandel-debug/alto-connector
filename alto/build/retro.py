@@ -81,6 +81,14 @@ CHROME_CSS = r"""
   /* the bars: the name in poster letters, the chips cut square and rimmed in gold */
   X #title-text:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  /* the name: a gold plate hung from the top edge, its feet cut at 45deg, the format symbol in black beside it (Luke, 2026-11-05, "1, B"; title_tab.py).
+     Shown where the name shows: the homepage, a detail page, a narrow window (the crown on the board carries it otherwise) */
+  @media (min-width:641px){
+  X:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:8px;background:#d9ae55 !important;color:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
+    clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px));}
+  X:not(.mobile) #title-bar #title-text:not(#_)::after{-webkit-mask-size:contain;mask-size:contain;}
+  }
   X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
     background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */
   X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border-color:transparent !important;}
@@ -438,7 +446,7 @@ HOME_CSS = r"""
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   /* the top row: the Home pill a square chip in gold capitals */
   X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
-  X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;}   /* (500, not the engine title's 300 hairline: HOME reads as heavy as PRIVATE and SORT; computer and phone) */
+  @media (max-width:640px){ X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
   /* projects: no glass, a fine gold rim, the name in gold capitals */
   X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}
@@ -461,7 +469,14 @@ HOME_CSS = r"""
   X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):not(#_){width:28px;height:28px;border-radius:0;background:#000;border:1px solid rgba(217,174,85,.7);color:#d9ae55;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;}
   X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):hover{color:#f0c15e;border-color:#d9ae55;}
   X.alto-home .tile-more{width:32px;height:24px;}
-  X.alto-home .course-tile.new-tile:not(#_),X.alto-home .project-slab.new-project-slab:not(#_){background:transparent !important;border:1px dashed #d9ae55 !important;border-radius:0 !important;color:#d9ae55;text-transform:uppercase;letter-spacing:.14em;font-family:var(--rt-f);}
+  /* the New timeline and Start new project tiles: an open slot in a double gold frame, like a poster border (Luke, 2026-11-05, "2, A" of the new-tiles sheet; no dashed outline).
+     The plus and the words are one group, centred in the frame (line-height 1 and no padding, so no line box tips it low) */
+  X.alto-home .course-tile.new-tile:not(#_),X.alto-home .project-slab.new-project-slab:not(#_){background:#000 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;
+    box-shadow:inset 0 0 0 5px #000,inset 0 0 0 6px rgba(217,174,85,.7) !important;color:#d9ae55;text-transform:uppercase;letter-spacing:.14em;font-family:var(--rt-f);padding:0 !important;gap:10px;}
+  X.alto-home .course-tile.new-tile:hover:not(#_),X.alto-home .project-slab.new-project-slab:hover:not(#_){border-color:#f0c15e !important;color:#f0c15e;
+    box-shadow:inset 0 0 0 5px #000,inset 0 0 0 6px #f0c15e !important;}
+  X.alto-home :is(.new-tile .nt-plus,.new-project-slab .nps-plus,.nt-label,.nps-label){line-height:1 !important;margin:0 !important;}
+  X.alto-home .project-slab.new-project-slab{min-height:84px;gap:14px;}
   X.alto-home .new-project-note{color:#b9b2a0;}
   X.alto-home .bin-group .bin-toggle:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
   X.alto-home .bin-row:not(#_){background:#070a0f;border:1px solid rgba(217,174,85,.5);border-radius:0;}

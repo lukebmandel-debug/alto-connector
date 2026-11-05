@@ -385,8 +385,12 @@ def test_the_retro_home_label_is_not_a_hairline_on_a_computer_or_a_phone(tmp_pat
     out = _home_label(tmp_path, _CASES)
     for case, r in out.items():
         assert r["retro"], (case, r["fw"])
-        assert r["fw"] == "500" and r["ls"] == "2.6px" and r["fs"].startswith("13"), (case, r["fw"], r["ls"], r["fs"])   # heavier, .2em of 13px
-        assert r["color"] == "rgb(217, 174, 85)", case                                                                  # still the gold
+        if case.startswith("p"):                                                                                         # a phone keeps its Home chip
+            assert r["fw"] == "500" and r["ls"] == "2.6px" and r["fs"].startswith("13"), (case, r["fw"], r["ls"], r["fs"])   # heavier, .2em of 13px
+            assert r["color"] == "rgb(217, 174, 85)", case                                                              # still the gold
+        else:                                                                                                           # a computer wears the gold tab (title_tab.py): black on gold
+            assert r["fw"] == "500" and r["fs"].startswith("14"), (case, r["fw"], r["fs"])
+            assert r["color"] == "rgb(0, 0, 0)", case
 
 
 @pytest.mark.skipif(pw is None, reason="no Playwright")

@@ -250,6 +250,18 @@ FORMAT_CSS = r"""
   X.sk-3d #sk3d-l b{color:#c9fffa;text-shadow:0 0 3px #010a0e,0 0 2px #010a0e;}
   X.sk-3d #sk3d-l b.u{background:rgba(1,10,14,.9);color:#4ff0e0;border-color:#4ff0e0;text-shadow:none;}
   X.sk-3d #sk3d-l i{background:rgba(1,10,14,.92);color:#c9fffa;border-color:#4ff0e0;}
+  /* the name: a dark pane hung from the top edge, its sides and foot lit, a brighter tick in each bottom corner, the format symbol in the light beside it
+     (Luke, 2026-11-05, "1, B"; title_tab.py). The same plate on every page that shows the name; the light theme's is its pale pane in a teal edge */
+  @media (min-width:641px){
+  X:not(.mobile) #title-bar #title-text:not(#_):not(#__){background:linear-gradient(var(--ho-ac),var(--ho-ac)) 0 100%/9px 2px no-repeat,linear-gradient(var(--ho-ac),var(--ho-ac)) 100% 100%/9px 2px no-repeat,var(--ho-bg) !important;
+    color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.8) !important;border-top:0 !important;border-radius:0 !important;box-shadow:var(--ho-glow) !important;
+    font-weight:500 !important;font-size:14px;letter-spacing:.2em;text-transform:uppercase;clip-path:none;translate:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  }
+  /* the New timeline and Start new project tiles: a lit glass pane that shows the grid through it (Luke, 2026-11-05, "2, A": no dashed outline) */
+  X.alto-home .course-tile.new-tile:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;
+    border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;box-shadow:0 0 14px rgba(var(--ho-rgb),.22),inset 0 0 22px rgba(var(--ho-rgb),.12) !important;color:var(--ho-ac2);}
+  X.alto-home .course-tile.new-tile:hover:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:hover:not(#_):not(#__){border-color:var(--ho-ac) !important;
+    box-shadow:0 0 18px rgba(var(--ho-rgb),.4),inset 0 0 26px rgba(var(--ho-rgb),.2) !important;color:var(--ho-ac2);}
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
