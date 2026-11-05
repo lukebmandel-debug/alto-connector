@@ -545,6 +545,7 @@ function endTravel(){
   else { for(k=U.length-1;k>=0;k--) if(U[k]<=goal){ id=I[k]; break; } if(!id) id=I[0]; }
   var D=Math.abs(U[stopIx(id)]-M.u); M.uT=M.u; M.pend.length=0;
   glideTo(id, {settle:true, ms:Math.max(500, Math.min(700, 2*D/a)), hv:D>1 ? v : 0});
+  if(M.gl) M.gl.s0=M.last;            // the glide starts at the last frame, so the frame after key-up already moves (s0 = the key event's time was ahead of that frame: one frame at rest)
 }
 document.addEventListener('keyup', function(e){ var kk=KEYS[e.key]; if(!kk) return; K[kk]=0; if(!K.l && !K.r) endTravel(); }, true);
 window.addEventListener('blur', holdClear);
