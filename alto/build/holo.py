@@ -197,6 +197,14 @@ PROJ_CSS = r"""
 
 # ── each format's own refinement lives here: its department adds rules (Retro's FORMAT_CSS, re-inked, is the base) ──
 FORMAT_CSS = r"""
+  /* the Memory Atlas's own nodes (Luke, 2026-11-04: "the holo style didn't make it to nodes"): the map's pins and unit labels are the same square glass plates as
+     the cards, rimmed in their unit's light with a faint glow, in the cards' own type (the enlarged card and its chips are the board's own rules, copied below) */
+  X #wpal-root .wp-enl .node :is(.node-order,.node-unit):not(#_):not(#__){color:var(--ho-ac2) !important;opacity:1 !important;}   /* (the board's rule for these two is global, so the copied card rules would otherwise out-rank it) */
+  X #wpal-root .wp-pin:not(#_):not(#__){border-radius:0;font:inherit;font-size:9px;font-weight:500;line-height:1;letter-spacing:.06em;border-width:1px;}   /* (`font:inherit`: the sheet names no font family) */
+  X #wpal-root .wp-pin:not(.wp-hint):not(#_):not(#__){box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
+  X #wpal-root .wp-pin.wp-hint:not(#_):not(#__){box-shadow:0 0 0 4px color-mix(in srgb,var(--u) 38%,transparent),0 0 10px color-mix(in srgb,var(--u) 55%,transparent);}
+  X #wpal-root .wp-pin.wp-on:not(#_):not(#__){border-width:2px;font-size:11px;}
+  X #wpal-root .wp-tag:not(#_):not(#__){letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
@@ -235,10 +243,20 @@ def ink(css: str) -> str:
     return css
 
 
+def atlas_cards(css: str) -> str:
+    """The board's card rules (`#world .node...`: plate, rim, glow, type, chips, the chosen card) said again for the card the Memory Atlas enlarges
+    (`#wpal-root .wp-enl .node...`, palace_world.py borrows the board's own card), so the map's card wears exactly what the board's does. A System's
+    round planets and the phase rows are not part of it."""
+    css = _re.sub(r"/\*.*?\*/", "", css, flags=_re.S)
+    rows = [c for c in _chunks(css) if "#world .node" in c.split("{")[0] and "phase" not in c.split("{")[0] and "solar" not in c.split("{")[0]]
+    return "\n".join(rows).replace("#world .node", "#wpal-root .wp-enl .node")
+
+
 def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
     base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)   # (HOME_CSS: the homepage, home_look.py)
-    body = base + "\n" + HOLO_CSS + PROJ_CSS + FORMAT_CSS + _UNIT_CSS
+    board = base + "\n" + HOLO_CSS
+    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
             f"  {sel}.dark:not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")
