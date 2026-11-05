@@ -60,6 +60,18 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) :is(body,#canvas):not(#_){background-color:var(--ho-bg) !important;
     background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
     background-size:auto,48px 48px,48px 48px !important;}
+  /* the same ground on the page-bg layer, which is fixed and the screen's whole size, for every page that scrolls its document (the homepage, Reports,
+     a detail page). Painted on the body it stopped at the body's own height and the rest of a long page scrolled over a flat colour (a non-Holographic
+     background chosen or saved: Retro's sheet hides every photograph, and the grid was all that was left, cut off partway down: Luke, 2026-11-05).
+     The body lets it through (a phone's page too: Luke's standing phone rule, 2026-11-05). */
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #page-bg:not(#_):not(#__){background-color:var(--ho-bg) !important;
+    background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
+    background-size:auto,48px 48px,48px 48px !important;}
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) body:not(#_):not(#__){background:transparent !important;}
+  /* the Background picker in Holographic lists the style's own backgrounds (and the Alto default tile) and nothing else; a photograph or colour chosen
+     earlier stays stored and comes back with Classic. A phone's picker too; the palaces and the Star chart keep theirs. */
+  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(:has(.bg-tile[data-bg^="h-"],.bg-def)){display:none !important;}
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
   X.alto-bg-h #page-bg:not(#_):not(#__){background:var(--alto-top) !important;}

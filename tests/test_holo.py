@@ -136,6 +136,7 @@ def site(outline, tmp_path_factory):
     (d / "t.html").write_text(outline, encoding="utf-8")
     (d / "h.html").write_text(pages.build_home(HOME), encoding="utf-8")
     (d / "s.html").write_text(_build("outline", layout="solar"), encoding="utf-8")
+    (d / "r.html").write_text(pages.build_reports([], ""), encoding="utf-8")
     (d / "holo").mkdir()
     (d / "retro").mkdir()
     name, text = holo.holo_asset()
@@ -349,6 +350,72 @@ def test_holographic_backgrounds_are_offered_only_in_holographic(browser, site):
     assert pg.evaluate(cls + ".contains('alto-bg-h')")
     assert pg.evaluate(heads).count("Holographic") == 1
     assert not errors, errors
+    ctx.close()
+
+
+# what a non-Holographic background chosen (or saved earlier) looks like in Holographic, and what the picker offers there (Luke, 2026-11-05: "with the
+# non-holo backgrounds, it reverts to a default background, which cuts off when you scroll down. Only the holo backgrounds should be available as well")
+PICKER_JS = ("[...document.querySelectorAll('#bg-panel .bg-sec')].filter(s => getComputedStyle(s).display !== 'none' && s.querySelector('.bg-tile'))"
+             ".map(s => [(s.querySelector('.bg-h') || {}).textContent || '', [...s.querySelectorAll('.bg-tile')].map(t => t.getAttribute('data-bg'))])")
+
+
+@pytest.mark.parametrize("page,phone", [("t.html", False), ("h.html", False), ("r.html", False), ("h.html", True), ("r.html", True)])
+def test_the_holographic_picker_lists_only_the_holographic_backgrounds_and_keeps_a_saved_choice(browser, site, page, phone):
+    """(Luke's standing phone rule, L-1105-160112@Board: a phone's picker follows too.)"""
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True) if phone else browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/" + page)
+    pg.wait_for_timeout(500)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("window._altoBg.choose('moraine-lake')")                 # a saved photograph
+    pg.evaluate("document.getElementById('bg-toggle').click()")
+    pg.wait_for_timeout(300)
+    classic = pg.evaluate(PICKER_JS)
+    assert any(h == "Space" for h, _ in classic) and any(h == "Colors" for h, _ in classic)       # Classic: the whole list, as before
+    pg.evaluate("window._altoStyle.set('holo')") if page == "t.html" else pg.evaluate(
+        "(localStorage.setItem('alto-bg-home-v1-style','holo'), window._altoStyle && window._altoStyle.set('holo'))")
+    pg.wait_for_timeout(700)
+    pg.evaluate("document.getElementById('bg-panel').classList.contains('open') || document.getElementById('bg-toggle').click()")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-holo')")
+    holo_list = pg.evaluate(PICKER_JS)
+    tiles = [t for _, ts in holo_list for t in ts]
+    assert [h for h, _ in holo_list if h] == ["Holographic"], holo_list
+    assert tiles and all(t == "" or t.startswith("h-") for t in tiles), tiles
+    assert pg.evaluate("window._altoBg.read()") == "moraine-lake"        # not deleted
+    pg.evaluate("window._altoStyle.set('classic')")
+    pg.wait_for_timeout(500)
+    pg.evaluate("document.getElementById('bg-panel').classList.contains('open') || document.getElementById('bg-toggle').click()")
+    pg.wait_for_timeout(300)
+    back = pg.evaluate(PICKER_JS)
+    assert any(h == "Space" for h, _ in back) and pg.evaluate("window._altoBg.read()") == "moraine-lake"
+    assert pg.evaluate("document.documentElement.classList.contains('alto-bg')")
+    assert not errors, errors
+    ctx.close()
+
+
+def test_a_non_holographic_background_leaves_the_holographic_ground_over_the_whole_scroll(browser, psite):
+    """The fallback ground (the grid) lives on the fixed page-bg layer, not on the body (whose box ends at the first screen)."""
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h45.html")
+    pg.wait_for_timeout(1200)
+    pg.evaluate("window._altoBg.choose('moraine-lake')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("window._altoBg.read()") == "moraine-lake"
+    pg.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.documentElement.scrollHeight") > 1800 and pg.evaluate("scrollY") > 900
+    r = pg.evaluate("""()=>{const pb=document.getElementById('page-bg'), cs=getComputedStyle(pb), b=pb.getBoundingClientRect(), bs=getComputedStyle(document.body);
+        return {pos:cs.position, top:b.top, bottom:b.bottom, w:b.width, img:cs.backgroundImage.slice(0,40), body:bs.backgroundImage + '|' + bs.backgroundColor,
+                before:getComputedStyle(pb,'::before').display}}""")
+    assert r["pos"] == "fixed" and r["top"] <= 0 and r["bottom"] >= 900 and r["w"] >= 1400, r
+    assert r["img"].startswith("repeating-linear-gradient"), r
+    assert r["body"].endswith("rgba(0, 0, 0, 0)") and r["body"].startswith("none"), r
+    assert r["before"] == "none"                                           # no photograph under Holographic
     ctx.close()
 
 
