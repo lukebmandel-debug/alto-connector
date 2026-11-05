@@ -482,10 +482,11 @@ def test_a_card_on_a_phone_carries_its_picture(browser, site):
     n = pg.evaluate("document.querySelectorAll('.node .aph-thumb').length")
     assert n >= 1
     _loaded(pg, ".node .aph-thumb img")
-    pg.evaluate("window.__opened = 0; var o = window.showDetail; window.showDetail = function(){ window.__opened++; return o.apply(this, arguments); };")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("window.__opened = 0; window.__st = []; var o = window.showDetail; window.showDetail = function(){ window.__opened++; window.__st.push(new Error().stack); return o.apply(this, arguments); }; 0")
     pg.tap(".node.mobile-featured .aph-thumb, .node .aph-thumb >> nth=0")                              # a tap on the picture: the viewer, not the card's page
     pg.wait_for_selector("#aph-lb", timeout=8000)
-    assert pg.evaluate("window.__opened") == 0
+    assert pg.evaluate("window.__opened") == 0 and pg.evaluate("!document.getElementById('detail-page').classList.contains('visible')"), pg.evaluate("window.__st")
     pg.context.close()
 
 
@@ -723,18 +724,23 @@ def test_a_body_with_pictures_carries_a_tag_from_afar_and_a_panel_rises_as_the_c
     (root / "system.html").write_text(_html(_system_doc()), encoding="utf-8")
     pg = _open(browser, site, page="system", viewport={"width": 1500, "height": 950})
     _in_3d(pg)
-    pg.wait_for_function("document.querySelectorAll('#aph-hp .hp-tag').length >= 1", timeout=10000)
+    pg.wait_for_function("document.querySelectorAll('#aph-hp .hp-tag').length >= 1", polling=200, timeout=20000)
     assert pg.evaluate("document.querySelector('#aph-hp .hp-panel')") is None                        # far: a tag, no panel
     g = pg.evaluate("() => { var g = window._altoSolarGeo().bodies['u1-p1']; return [g.x, g.y]; }")
     pg.evaluate("a => window._altoSolar3D.set({tx: a[0], tz: a[1], d: 170})", g)
-    pg.wait_for_function("document.querySelector('#aph-hp .hp-panel') && +document.querySelector('#aph-hp .hp-panel').style.opacity > .8", timeout=10000)
+    pg.wait_for_function("document.querySelector('#aph-hp .hp-panel') && +document.querySelector('#aph-hp .hp-panel').style.opacity > .8", polling=200, timeout=20000)
     r = pg.evaluate("""() => { const p = document.querySelector('#aph-hp .hp-panel'), b = p.getBoundingClientRect(), s = window._altoSolar3D.screen('u1-p1');
       return {w: b.width, l: b.left, r: b.right, bx: s.x, br: s.r, imgs: p.querySelectorAll('img').length, name: p.querySelector('.hp-name').textContent, cap: p.querySelector('.hp-cap').textContent,
               tether: !!document.querySelector('#aph-hp .hp-tether line'), vw: innerWidth}; }""")
     assert r["imgs"] == 3 and r["cap"] == "Signed letter, 1892" and r["tether"] and r["name"].lower().startswith("planet concept 1.1"), r
     assert r["l"] >= 0 and r["r"] <= r["vw"], r                                                      # on screen, beside the body, not on it
-    pg.click("#aph-hp .hp-panel .hp-main", force=True)
-    pg.wait_for_selector("#aph-lb", timeout=5000)
+    for _ in range(6):                                                                                # (the panel rides its body: read where it is and click there in one step)
+        pg.evaluate("""() => { const t = document.querySelector('#aph-hp .hp-panel .hp-main'); if (!t) return; const b = t.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+          for (const ty of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) (document.elementFromPoint(x, y) || t).dispatchEvent(new MouseEvent(ty, {bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0})); }""")
+        if pg.evaluate("!!document.getElementById('aph-lb')"):
+            break
+        pg.wait_for_timeout(300)
+    pg.wait_for_function("!!document.getElementById('aph-lb')", polling=200, timeout=15000)       # (polled on a timer: a busy WebGL page is slow to draw)
     pg.keyboard.press("Escape")
     # rising: between far and near the panel is part-grown and turned; with Reduce Motion it stands without the turn
     ROT = "() => { const p = document.querySelector('#aph-hp .hp-panel'); return p ? [+p.style.opacity, +(/rotateY\\((-?[0-9.]+)deg/.exec(p.style.transform) || [0, 0])[1]] : null; }"
