@@ -255,6 +255,8 @@
       put:    async (ref, th, big, meta) => { await _bgReady(); return _picPut(ref, th, big, meta); },
       get:    async (ref, kind) => { await _bgReady(); return _picGet(ref, kind); },
       remove: async (ref) => { await _bgReady(); return _picRemove(ref); },
+      // remove what timeline `tid` named and no longer names, unless something else still names it (done a while after each edit)
+      sweep:  async (tid) => { await _bgReady(); return _picSweep(String(tid || '')); },
       shared: async (key, ref, kind) => { if (!configured) throw new Error('not-configured'); await ready; return _picShared(key, ref, kind); },
       count:  (html) => _picRefsOf(html).length,
       // how many pictures this account's page would send with a share link (the share dialog says so before it is made)
@@ -1627,7 +1629,24 @@
   }
   async function _picRemove(ref) {
     await deleteDoc(_picDoc('pics', ref)); await deleteDoc(_picDoc('picbig', ref));
+    await _picIdbDrop(ref);
     return true;
+  }
+  // this browser's copy (IndexedDB 'alto-pics', store 'p', keys ref and ref#b: photos.py); a browser without it has nothing to drop
+  function _picIdbDrop(ref) {
+    return new Promise((res) => {
+      try {
+        const q = indexedDB.open('alto-pics', 1);
+        q.onupgradeneeded = () => { q.result.createObjectStore('p'); };
+        q.onerror = () => res(false);
+        q.onsuccess = () => {
+          const db0 = q.result, tx = db0.transaction('p', 'readwrite'), st = tx.objectStore('p');
+          st.delete(ref); st.delete(ref + '#b');
+          tx.oncomplete = () => { db0.close(); res(true); };
+          tx.onerror = tx.onabort = () => { db0.close(); res(false); };
+        };
+      } catch (e) { res(false); }
+    });
   }
   async function _picShared(key, ref, kind) {
     if (!PIC_REF.test(String(ref || '')) || !/^[a-km-np-z2-9]{22}$/.test(String(key || ''))) throw new Error('bad picture id');
@@ -1652,6 +1671,102 @@
     }
     return refs.length;
   }
+  /* ── a picture no page names any more ──────────────────────────────────────────────────────────────────
+     Taking a picture off a page (or deleting the card or section that holds it) is an edit in users/{uid}/edits/{tid}.
+     A while after the last edit (so ⌘Z still brings it back) the pictures that timeline named and no longer names are
+     removed here (pics + picbig, and this browser's copy), unless another page of the account, the edits laid over it,
+     or another timeline's draft still names them. If anything cannot be read or understood, nothing is removed. */
+  const PIC_QUIET_MS = 120000;
+  const _picLast = new Map();        // tid -> the refs its page named after its last edit
+  const _picTimer = new Map();       // tid -> pending sweep
+  function _picJson(html, name) {
+    const at = html.indexOf('window.' + name + '=');
+    if (at < 0) return {};
+    let i = at + name.length + 8;
+    if (html[i] !== '{') throw new Error('unreadable ' + name);
+    const start = i; let depth = 0, str = false;
+    for (; i < html.length; i++) {
+      const c = html[i];
+      if (str) { if (c === '\\') i++; else if (c === '"') str = false; continue; }
+      if (c === '"') str = true; else if (c === '{') depth++; else if (c === '}' && --depth === 0) break;
+    }
+    if (depth !== 0) throw new Error('unreadable ' + name);
+    return JSON.parse(html.slice(start, i + 1));
+  }
+  function _picRegs(html) {
+    html = String(html || '');
+    return { ph: _picJson(html, '_ALTO_PH'), pc: _picJson(html, '_ALTO_PC'), st: _picJson(html, '_ALTO_ST') };
+  }
+  // (looser than _picRefsOf: a draft keeps its nodes as JSON text inside JSON, so the quotes around a ref are escaped there)
+  function _picsIn(x) { return new Set(JSON.stringify(x).match(/pic-[a-z0-9]{8,16}/g) || []); }
+  // the pictures a page names once the owner's edits (not yet built into it) are laid over it
+  function _picsEffective(regs, ops) {
+    const ph = Object.assign({}, regs.ph), pc = Object.assign({}, regs.pc), st = Object.assign({}, regs.st);
+    const gone = new Set(), order = {};
+    const PRE = { n: 'n', c: 'c', env: 'a0', theme: 'a1' };
+    for (const k of Object.keys(ops || {})) {
+      const o = ops[k]; if (!o || o.done) continue;
+      const p = k.split('|');
+      if (p[0] === 'ph' && p[2] === 'pics') { if (o.v == null) delete ph[p[1]]; else ph[p[1]] = o.v; }
+      else if (p[0] === 'pc' && p[2] === 'pics') { if (o.v == null || !o.v.length) delete pc[p[1]]; else pc[p[1]] = o.v; }
+      else if (p[0] === 'sd' && p[2] === 'study') { if (o.v == null) delete st[p[1]]; else st[p[1]] = o.v; }
+      else if (p[0] === 'nd' && p.length === 2 && o.v) gone.add(p[1]);
+      else if (p[0] === 'nn' && p.length === 2 && o.v == null) gone.add(p[1]);
+      else if (p.length === 3 && p[2] === 'order' && PRE[p[0]] && Array.isArray(o.v)) order[PRE[p[0]] + '-' + p[1]] = o.v.map(String);
+    }
+    gone.forEach((id) => { delete pc[id]; });
+    const KEY = /^(n|c|a0|a1)-(.+)-(\d+|new-[a-z0-9]+)$/;
+    for (const reg of [ph, st]) {
+      for (const k of Object.keys(reg)) {
+        const m = KEY.exec(k); if (!m) continue;
+        if (m[1] === 'n' && gone.has(m[2])) { delete reg[k]; continue; }                       // the card went, so did its sections
+        const L = order[m[1] + '-' + m[2]];
+        if (L && L.indexOf(m[3]) < 0) delete reg[k];                                            // the section was removed
+      }
+    }
+    return _picsIn([ph, pc, st]);
+  }
+  async function _picSweep(tid) {
+    const u = auth.currentUser;
+    if (!u || !tid) return [];
+    const pg = await getDoc(doc(db, 'users', u.uid, 'pages', tid));
+    if (!pg.exists()) return [];                                         // no page to compare with: do nothing
+    const regs = _picRegs(await _unpackPage(pg.data() || {}));
+    const ops = ((await _getEdits(tid)) || {}).ops || {};
+    const base = _picsIn([regs.ph, regs.pc, regs.st]), eff = _picsEffective(regs, ops);
+    const cand = new Set();
+    for (const r of (_picLast.get(tid) || base)) if (!eff.has(r)) cand.add(r);
+    for (const r of base) if (!eff.has(r)) cand.add(r);
+    _picLast.set(tid, eff);
+    if (!cand.size) return [];
+    const used = new Set();
+    const pages = await getDocs(collection(db, 'users', u.uid, 'pages'));
+    for (const d of pages.docs) {
+      if (d.id === tid) continue;
+      const rg = _picRegs(await _unpackPage(d.data() || {}));
+      const e2 = ((await _getEdits(d.id)) || {}).ops || {};
+      _picsIn([rg.ph, rg.pc, rg.st]).forEach((r) => used.add(r));               // (both: another page's own sweep decides its removals)
+      _picsEffective(rg, e2).forEach((r) => used.add(r));
+    }
+    const drafts = await getDocs(collection(db, 'users', u.uid, 'alto_timelines'));
+    for (const d of drafts.docs) {
+      if (d.id === tid) continue;                                            // this timeline's own draft takes the removal at the next fold
+      const nodes = await getDocs(collection(db, 'users', u.uid, 'alto_timelines', d.id, 'nodes'));
+      nodes.docs.forEach((n) => _picsIn(n.data()).forEach((r) => used.add(r)));
+    }
+    const out = [];
+    for (const r of cand) { if (used.has(r)) continue; await _picRemove(r); out.push(r); }
+    if (out.length) { try { window.dispatchEvent(new CustomEvent('alto-pics-removed', { detail: { refs: out } })); } catch (e) {} }
+    return out;
+  }
+  function _picSweepSoon(tid) {
+    clearTimeout(_picTimer.get(tid));
+    const q = window.__altoPicQuiet, ms = typeof q === 'number' ? q : PIC_QUIET_MS;      // (a test shortens the wait)
+    _picTimer.set(tid, setTimeout(() => { _picTimer.delete(tid); _picSweep(tid).catch((e) => console.warn('[AltoCloud] picture sweep', e)); }, ms));
+  }
+  window.addEventListener('pagehide', () => {            // leaving: the undo history goes with the page
+    for (const [tid, t] of Array.from(_picTimer.entries())) { clearTimeout(t); _picTimer.delete(tid); _picSweep(tid).catch(() => {}); }
+  });
   async function _unsharePics(key, refs) {
     // a delete that fails throws (the caller decides: stopping a link must not go on; an update only warns)
     for (const ref of refs) for (const coll of ['pics', 'picbig']) await deleteDoc(doc(db, 'shares', key, coll, ref));
@@ -1670,6 +1785,7 @@
   async function _getEdits(tid) { return _decodeEdits(await getDoc(_editsRef(tid))); }
   async function _putEdits(tid, obj) {
     await setDoc(_editsRef(tid), { data: JSON.stringify(obj || {}), updatedAt: serverTimestamp() });
+    try { _picSweepSoon(String(tid)); } catch (e) {}
     return true;
   }
   function _watchEdits(tid, cb) {

@@ -623,6 +623,87 @@ def test_stopping_a_link_whose_picture_copies_cannot_be_deleted_fails_and_keeps_
     pg.context.close()
 
 
+# ── pictures nothing names any more are removed (cloud, and this browser's copy) ─────────────────────────────
+
+def _reg_page(ph=None, pc=None):
+    return ("<html><body><script id=\"alto-ph\">window._ALTO_PH=" + json.dumps(ph or {}, separators=(",", ":")) +
+            ";window._ALTO_PC=" + json.dumps(pc or {}, separators=(",", ":")) + ";</script></body></html>")
+
+
+def _item(ref):
+    return {"i": "x" + ref[-3:], "r": ref}
+
+
+_PA, _PB, _PC, _PD = "pic-aaaaaaaaaa", "pic-bbbbbbbbbb", "pic-cccccccccc", "pic-dddddddddd"
+
+
+def _pic_seed(extra=None, ops=None):
+    seed = {"users/u1/pages/pk1": {"html": _reg_page({"n-card1-2": {"lab": "", "n": [_item(_PA)]}}, {"card1": [_item(_PB)], "card2": [_item(_PC)]})}}
+    for r in (_PA, _PB, _PC, _PD):
+        seed[f"users/u1/pics/{r}"] = {"d": {"__b64": "AQID"}, "type": "image/webp", "t": 1}
+        seed[f"users/u1/picbig/{r}"] = {"d": {"__b64": "BAUG"}, "type": "image/webp", "t": 1}
+    seed.update(extra or {})
+    if ops is not None:
+        seed["users/u1/edits/pk1"] = {"data": json.dumps({"v": 1, "ops": ops})}
+    return seed
+
+
+def _op(v):
+    return {"b": "x", "v": v, "t": 1}
+
+
+def test_a_picture_taken_off_a_card_or_a_photos_section_is_removed_for_good_and_the_others_stay(browser, cloud_site):
+    pg = _cloud_page(browser, cloud_site, _pic_seed(ops={"pc|card1|pics": _op([]), "ph|n-card1-2|pics": _op({"lab": "", "n": []})}))
+    pg.evaluate("""async () => { await new Promise(res => { const q = indexedDB.open('alto-pics', 1); q.onupgradeneeded = () => q.result.createObjectStore('p');
+      q.onsuccess = () => { const t = q.result.transaction('p', 'readwrite'); t.objectStore('p').put(new ArrayBuffer(3), 'pic-aaaaaaaaaa'); t.objectStore('p').put(new ArrayBuffer(3), 'pic-aaaaaaaaaa#b');
+        t.objectStore('p').put(new ArrayBuffer(3), 'pic-cccccccccc'); t.oncomplete = () => { q.result.close(); res(); }; }; }); }""")
+    gone = pg.evaluate("window.AltoCloud.pics.sweep('pk1')")
+    assert sorted(gone) == [_PA, _PB]
+    left = [k for k in pg.evaluate("Object.keys(window.__fs.docs)") if "/pics/" in k or "/picbig/" in k]
+    assert sorted(left) == sorted(f"users/u1/{c}/{r}" for r in (_PC, _PD) for c in ("pics", "picbig"))
+    idb = pg.evaluate("""new Promise(res => { const q = indexedDB.open('alto-pics', 1); q.onsuccess = () => { const s = q.result.transaction('p').objectStore('p').getAllKeys();
+      s.onsuccess = () => { q.result.close(); res(s.result.sort()); }; }; })""")
+    assert idb == [_PC]                                              # this browser's copy of the removed one is gone too
+    pg.context.close()
+
+
+def test_deleting_a_card_or_a_section_removes_its_pictures_unless_another_page_names_them(browser, cloud_site):
+    other = {"users/u1/pages/pk2": {"html": _reg_page({}, {"cardX": [_item(_PC)]})}}              # another page names C
+    ops = {"nd|card1": _op(1), "nn|card2": _op(None), "n|card1|order": _op(["0", "1"])}
+    pg = _cloud_page(browser, cloud_site, _pic_seed(extra=other, ops=ops))
+    # card1 is deleted (its card pictures B and its Photos section A go); card2's C is also named by pk2
+    assert sorted(pg.evaluate("window.AltoCloud.pics.sweep('pk1')")) == [_PA, _PB]
+    assert sorted(k.rsplit("/", 1)[1] for k in pg.evaluate("Object.keys(window.__fs.docs).filter(k => k.includes('/pics/'))")) == [_PC, _PD]
+    pg.context.close()
+    # a section removed from its card's order (the card stays)
+    pg = _cloud_page(browser, cloud_site, _pic_seed(ops={"n|card1|order": _op(["0", "1"])}))
+    assert sorted(pg.evaluate("window.AltoCloud.pics.sweep('pk1')")) == [_PA]
+    pg.context.close()
+
+
+def test_a_picture_another_timelines_draft_or_page_still_names_is_kept_and_an_unreadable_page_removes_nothing(browser, cloud_site):
+    ops = {"pc|card1|pics": _op([])}
+    draft = {"users/u1/alto_timelines/t2": {"data": json.dumps({"id": "t2", "title": "T2", "nodes": []}), "created": 1}, "users/u1/alto_timelines/t2/nodes/n1": {"data": json.dumps({"id": "n1", "photos": [{"ref": _PB}]})}}
+    pg = _cloud_page(browser, cloud_site, _pic_seed(extra=draft, ops=ops))
+    assert pg.evaluate("window.AltoCloud.pics.sweep('pk1')") == []
+    assert pg.evaluate("!!window.__fs.docs['users/u1/pics/%s']" % _PB) is True
+    pg.context.close()
+    bad = {"users/u1/pages/pk3": {"html": "<script>window._ALTO_PH={\"a\":{</script>"}}
+    pg = _cloud_page(browser, cloud_site, _pic_seed(extra=bad, ops=ops))
+    err = pg.evaluate("window.AltoCloud.pics.sweep('pk1').then(() => 'ok', e => String(e.message))")
+    assert err != "ok" and pg.evaluate("!!window.__fs.docs['users/u1/pics/%s']" % _PB) is True
+    pg.context.close()
+
+
+def test_saving_an_edit_starts_the_sweep_after_a_quiet_moment(browser, cloud_site):
+    pg = _cloud_page(browser, cloud_site, _pic_seed())
+    pg.evaluate("window.__altoPicQuiet = 50")
+    pg.evaluate("window.AltoCloud.putEdits('pk1', {v: 1, ops: {'pc|card1|pics': {b: 'x', v: [], t: 1}}})")
+    pg.wait_for_function("!window.__fs.docs['users/u1/pics/%s']" % _PB, timeout=5000)
+    assert pg.evaluate("!!window.__fs.docs['users/u1/pics/%s']" % _PC) is True
+    pg.context.close()
+
+
 # ── quizzes, flash cards, the Filter ─────────────────────────────────────────
 
 def _study_doc():
