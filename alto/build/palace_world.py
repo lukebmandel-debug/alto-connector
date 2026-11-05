@@ -865,7 +865,7 @@ function gSize(){ if(!S.G) return; var d=Math.min(window.devicePixelRatio||1,2),
 function rgba(c){ var x=document.createElement('canvas').getContext('2d'); x.fillStyle='#000'; x.fillStyle=c; x.fillRect(0,0,1,1); var d=x.getImageData(0,0,1,1).data; return [d[0]/255,d[1]/255,d[2]/255,d[3]/255]; }
 // the surface: the sea, a dotted graticule, every country in its own colours (a used one in its unit's tint), coasts and borders one weight
 function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(S.root), v=function(n){ return cs.getPropertyValue(n).trim(); };
-  var sea=v('--w-sea1')||'#eef2fb', edge=v('--w-edge'), grat=v('--w-grat'), key=[sea,edge,v('--w-land'),document.documentElement.className].join('|'); if(key===S.G.key) return; S.G.key=key;
+  var sea=v('--w-sea1')||'#eef2fb', edge=v('--w-edge'), grat=v('--w-grat'), key=[sea,edge,v('--w-land'),document.documentElement.className].join('|'); if(key===S.G.key) return; S.G.key=key; S.G.sea=sea;
   S.gRings=[]; GC={}; var W=2048, H=1024, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d'), q=S.base.q;
   x.fillStyle=sea; x.fillRect(0,0,W,H); x.lineCap='round'; x.lineJoin='round';
   x.strokeStyle=grat; x.lineWidth=2; x.setLineDash([1,7]); x.beginPath();
@@ -926,7 +926,7 @@ function gTile(G,key,f){ if(!G[key]){ G[key]={}; f(G[key]); } return G[key]; }
 function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'none'; if(!on){ S.gN=null; return; }
   var d=S.G.d||1; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
   var x=cv.getContext('2d'), W=S.vw, H=S.vh, used=D().used||{}; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
-  var nR=0, nP=0, src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
+  var nR=0, nP=0, todo=[], src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
   Object.keys(S.detOn).forEach(function(cs){ var G=S.cont[cs]; if(!S.detOn[cs]||!G||!G.c) return;                 // (a country in a continent that is in: its 1:50m rings instead)
     var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=G.c[cid].map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
     Object.keys(g).forEach(function(cid){ if(!(cid==='ATA'&&used[cid]==null)) src[cid]=g[cid]; }); });
@@ -934,8 +934,11 @@ function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'no
     src[cid].forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; any=true; nR++; q.runs.forEach(function(P){ nP+=P.length>>1; });
       if(q.whole) gCurve(W0,q.runs[0],true);
       else q.runs.forEach(function(P){ gCurve(PS,P,false); if(r.k[3]<1.5){ PF.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) PF.lineTo(P[i],P[i+1]); PF.closePath(); } }); });
-    if(!any) return; var st=gSt(pth); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w;
-    x.fill(W0,'evenodd'); x.fill(PF,'evenodd'); x.stroke(W0); x.stroke(PS); });
+    if(any) todo.push([pth,W0,PF,PS]); });
+  // the surface's own coast line, magnified, is a soft band round every coast: laid over with the sea first, then the land
+  x.strokeStyle=S.G.sea; x.lineWidth=R*Math.PI/1024*2.6+2; todo.forEach(function(t){ x.stroke(t[1]); x.stroke(t[3]); });
+  todo.forEach(function(t){ var st=gSt(t[0]); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w;
+    x.fill(t[1],'evenodd'); x.fill(t[2],'evenodd'); x.stroke(t[1]); x.stroke(t[3]); });
   x.globalAlpha=1;
   var a1=S.gA1.querySelector('path');                                                                                // (the state lines, dashed as the flat map has them)
   if(a1&&S.gA1.style.display!=='none'){ var as=gSt(a1), P1=new Path2D();

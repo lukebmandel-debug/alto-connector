@@ -87,6 +87,7 @@ def _open(browser, origin, globe=True):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.on("request", lambda r: log.append(r.url.split("?")[0]))       # (a held-back request never reaches the server)
     page.goto(url + "/index.html")
     page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=30000)
     if globe and not page.evaluate("AltoWorld.globe(true)"):
