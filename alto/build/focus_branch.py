@@ -58,12 +58,6 @@ html.af-on:not(.mobile) #canvas.focus-mode .node:not(.focused):not(.af-out) .nod
 html.af-on:not(.mobile) #canvas :is(.phase-label,.phase-label-float,.unit-bar){opacity:.22 !important;transition:opacity .3s;}
 html.af-on:not(.mobile) #canvas .phase-numeral{opacity:1 !important;}
 html.af-on #river-svg [data-af-out]{opacity:.12 !important;transition:opacity .3s;}
-html.alto-retro :is(#af-btn,#af-exit),html.sk-retro :is(#af-btn,#af-exit){border-radius:0;}
-/* the Exit pill's ink is dark on the accent fill: Retro gold and Holographic cyan here (Classic's is set in JS from the accent's brightness, so these win over it) */
-html.alto-retro #af-exit,html.sk-retro #af-exit{color:#000 !important;}
-html.alto-holo #af-exit{color:var(--ho-bg) !important;}
-html.alto-holo #af-exit :is(.af-who,.af-esc){opacity:1;}
-html.alto-holo :is(#af-btn,#af-exit){border-radius:0;}
 @media (prefers-reduced-motion:reduce){#af-btn{transition:none;}}
 """
 

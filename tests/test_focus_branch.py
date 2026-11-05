@@ -393,11 +393,16 @@ def test_a_phone_card_gets_the_button_and_walks_only_the_branch(browser, server)
     try:
         pg.evaluate("featureNode('acceptance', false)")
         pg.wait_for_function("() => document.getElementById('af-btn').classList.contains('in')", timeout=6000)
+        # settled, not slept on: the button has finished fading in and neither it nor the card has moved for several frames (a tap that lands
+        # while the phone card is still easing into place misses the button and hits the page: 1 run in 3 on a loaded machine)
+        pg.wait_for_function("""() => new Promise(done => { var el = document.getElementById('af-btn'), c = document.querySelector('#node-acceptance .node-card'), last = '', n = 0;
+            (function look() { var r = el.getBoundingClientRect(), q = c.getBoundingClientRect(), k = [r.left, r.top, q.left, q.top, getComputedStyle(el).opacity].join();
+              n = k === last ? n + 1 : 0; last = k; if (n >= 8 && getComputedStyle(el).opacity === '1') done(true); else requestAnimationFrame(look); })(); })""", timeout=8000)
         b, c = _btn(pg), _card(pg, "acceptance")
         assert b["on"] and b["b"] <= c["t"] + 1 and b["r"] <= 390
         bx, by = (b["l"] + b["r"]) / 2, (b["t"] + b["b"]) / 2
         pg.touchscreen.tap(bx, by)
-        pg.wait_for_timeout(700)
+        pg.wait_for_function(f"() => {F}.root() === 'acceptance'", timeout=4000)
         assert _st(pg)["root"] == "acceptance"
         assert pg.evaluate("window._filteredOrder()") == ["acceptance", "mirror-image", "mailbox-rule", "acceptance-by-conduct"]
         pg.evaluate("document.getElementById('nav-next-btn').click()")
