@@ -45,7 +45,7 @@ html.dark #wpal-root{--w-sea1:#16203a;--w-sea2:#0b1122;--w-land:rgba(36,44,66,.9
 /* a map label is read over ANY land or sea colour (Luke 2026-11-01; Art's method: a solid outline in the plate's own colour, --w-halo, round the letters, then a soft
    glow past it) so the letters are always set against the halo, never against the map; each style sets only --w-halo */
 #wpal-root{--w-ring:__RING__;}
-/* (the rules that use it are the ATLAS CONTRAST block further down; a phone keeps its own, unchanged) */
+/* (the rules that use it are the ATLAS CONTRAST block further down; phones and desktops alike) */
 #wpal-root[hidden]{display:none;}
 html.wpal-open #world{visibility:hidden !important;}
 #wpal-root svg.wp-svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
@@ -248,17 +248,17 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-pin.wp-hint:not(.n):not(.wp-on){width:16px;height:16px;}
 #wpal-root .wp-lbl.wp-hint{font-size:12.5px;}#wpal-root .wp-lbl.wp-hint b{text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--u) 60%,transparent);text-underline-offset:3px;}
 #wpal-root .wp-card.wp-hint,#wpal-root .wp-enl.wp-hint{outline:0;}
-/* ATLAS CONTRAST (Luke 2026-11-01: "some text here isn't that visible with similar colors to the background"). Not on a phone (html.mobile keeps its own).
+/* ATLAS CONTRAST (Luke 2026-11-01: "some text here isn't that visible with similar colors to the background"). On a phone too (Luke 2026-11-04: "phone version too"); `html:root` only keeps each rule's specificity as it was.
    A map label is read over ANY land or sea colour, in every style: the letters get a solid halo (--w-halo, set by each style) and sit nearer the full text colour
    (the grey second line was the worst); the numbers on pins, tags and cards are set mostly in the text colour with the unit's hue in the ring, not in the hue itself
    (a pale yellow unit made a pale yellow number on white). Held by tests/test_atlas_label_contrast.py: WCAG 4.5:1 at 3 zooms in every style. */
-html:not(.mobile) #wpal-root .wp-lbl{color:var(--w-text);text-shadow:var(--w-ring);}
-html:not(.mobile) #wpal-root .wp-lbl i{color:color-mix(in srgb,var(--w-sub) 30%,var(--w-text));}
-html:not(.mobile) #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
-html:not(.mobile) #wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
-html:not(.mobile) #wpal-root .wp-card .n,html:not(.mobile) #wpal-root .wp-list button b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
-html:not(.mobile) #wpal-root .wp-hk{background:var(--w-pin);border:1.5px solid var(--u);color:var(--w-text);line-height:12px;}
-html:is(.alto-retro,.alto-holo):not(.mobile) #wpal-root .wp-lbl:not(#_){text-shadow:var(--w-ring);}
+html:root #wpal-root .wp-lbl{color:var(--w-text);text-shadow:var(--w-ring);}
+html:root #wpal-root .wp-lbl i{color:color-mix(in srgb,var(--w-sub) 30%,var(--w-text));}
+html:root #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:root #wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:root #wpal-root .wp-card .n,html:root #wpal-root .wp-list button b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:root #wpal-root .wp-hk{background:var(--w-pin);border:1.5px solid var(--u);color:var(--w-text);line-height:12px;}
+html:is(.alto-retro,.alto-holo):root #wpal-root .wp-lbl:not(#_){text-shadow:var(--w-ring);}
 #wpal-root .wp-mm{position:absolute;right:16px;bottom:66px;padding:5px;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;cursor:pointer;touch-action:none;}
 #wpal-root .wp-mm.on{opacity:1;visibility:visible;transition:opacity .28s ease;}
 #wpal-root .wp-mm svg{display:block;width:calc(var(--mh,86px)*2.05);height:var(--mh,86px);}
@@ -340,7 +340,7 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function mj(t){ return t*t*t*(10-15*t+6*t*t); }            // minimum jerk: Alto's one motion curve
 function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(x){ return false; } }
 function phone(){ return S.vw<700; }
-function lbo(){ return document.documentElement.classList.contains('mobile')?0:2; }          // a name sits 2 px clearer of its pin's glow (a phone keeps its place)
+function lbo(){ return 2; }          // a name sits 2 px clearer of its pin's glow (phones too)
 
 // ── geometry: integer delta rings → smooth closed curves (centripetal Catmull-Rom) ──
 function decode(flat,q){ var x=flat[0],y=flat[1],o=[[x/q,y/q]]; for(var i=2;i<flat.length;i+=2){ x+=flat[i]; y+=flat[i+1]; o.push([x/q,y/q]); } return o; }

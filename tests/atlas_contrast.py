@@ -146,11 +146,18 @@ SCENES = [
 LEAN = ("world", "tour-unit", "country", "unit-6")      # the four that show the most labels over the most colours
 
 
-def run_all(browser, origin, styles=STYLES, zooms=(0, 1, 3), scenes=LEAN, verbose=False):
-    ctx = browser.new_context(viewport={"width": 1280, "height": 800}, device_scale_factor=1)
+PHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+
+def run_all(browser, origin, styles=STYLES, zooms=(0, 1, 3), scenes=LEAN, verbose=False, phone=False):
+    """phone=True: a 390x844 iPhone (its user agent makes the page add html.mobile). The pages are never page.close()d (WebKit hangs there): the context is closed."""
+    ctx = (browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1, user_agent=PHONE_UA, has_touch=True, is_mobile=False)
+           if phone else browser.new_context(viewport={"width": 1280, "height": 800}, device_scale_factor=1))
     scratch = ctx.new_page()
     page = ctx.new_page()
     page.goto(origin + "/index.html")
+    if phone:
+        assert page.evaluate("document.documentElement.classList.contains('mobile')"), "the phone page did not get html.mobile"
     page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
     out = []
     for st in styles:
@@ -204,6 +211,7 @@ if __name__ == "__main__":
         b = p.webkit.launch()
         only = sys.argv[2].split(",") if len(sys.argv) > 2 and sys.argv[2] else STYLES
         sc = tuple(sys.argv[3].split(",")) if len(sys.argv) > 3 and sys.argv[3] else LEAN
-        res = run_all(b, f"http://127.0.0.1:{srv.server_address[1]}", styles=only, scenes=sc, verbose=True)
-        b.close()
-    Path(sys.argv[1] if len(sys.argv) > 1 else "contrast.json").write_text(json.dumps(res, indent=1))
+        res = run_all(b, f"http://127.0.0.1:{srv.server_address[1]}", styles=only, scenes=sc, verbose=True, phone=bool(__import__('os').environ.get('PHONE')))
+        Path(sys.argv[1] if len(sys.argv) > 1 else "contrast.json").write_text(json.dumps(res, indent=1))
+        import os
+        os._exit(0)          # (WebKit's teardown can hang: the numbers are written)
