@@ -430,3 +430,39 @@ def test_a_phone_whole_view_holds_a_branch_too(browser, server):
         assert _st(pg)["depth"] == 0
     finally:
         pg.context.close()
+
+
+# ── Art, 2026-11-05: the Exit pill reads in every style (dark ink on the accent fill, 4.5:1) and Holographic's plates are square ──
+_EXIT_INK = """() => { var lum = m => { var a = m.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * a[0] + .7152 * a[1] + .0722 * a[2]; };
+  var rgb = c => c.match(/[\\d.]+/g).map(Number).slice(0, 3);
+  var cr = (f, b) => { var x = lum(f), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+  var ex = document.getElementById('af-exit'), cs = getComputedStyle(ex), bg = rgb(cs.backgroundColor), fg = rgb(cs.color), r = {label: cr(fg, bg), radius: cs.borderTopLeftRadius,
+    btn: getComputedStyle(document.getElementById('af-btn')).borderTopLeftRadius};
+  ['.af-who', '.af-esc'].forEach(q => { var o = +getComputedStyle(ex.querySelector(q)).opacity; r[q] = cr(fg.map((v, i) => v * o + bg[i] * (1 - o)), bg); });
+  return r; }"""
+
+
+@pytest.mark.parametrize("page", ["outline", "lanes"])
+@pytest.mark.parametrize("style,dark", [("classic", False), ("classic", True), ("retro", False), ("holo", False), ("holo", True)])
+def test_the_exit_pill_reads_in_every_style(browser, server, page, style, dark):
+    pg = _open(browser, server, page)
+    try:
+        if style != "classic":
+            pg.evaluate(f"window._altoStyle.set('{style}')")
+            pg.wait_for_timeout(900)
+        if style != "retro":
+            pg.evaluate(f"document.documentElement.classList.toggle('dark', {str(dark).lower()})")
+            pg.wait_for_timeout(300)
+        nid = "formation" if page == "outline" else pg.evaluate("document.querySelector('#world .node').id.slice(5)")
+        _hold(pg, nid)
+        r = pg.evaluate(_EXIT_INK)
+        assert r["label"] >= 4.5, r
+        assert r[".af-who"] >= 4.5 and r[".af-esc"] >= 4.5, r
+        if style == "holo":
+            assert r["radius"] == "0px" and r["btn"] == "0px", r
+        elif style == "retro":
+            assert r["radius"] == "0px" and r["btn"] == "0px", r
+        else:
+            assert r["radius"] != "0px" and r["btn"] != "0px", r
+    finally:
+        pg.context.close()

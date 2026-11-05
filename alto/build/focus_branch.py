@@ -45,8 +45,8 @@ CSS = r"""
 html.af-on #af-exit{display:flex;}
 #af-exit:hover,#af-exit:focus-visible{filter:brightness(1.12);outline:2px solid #fff;outline-offset:2px;}
 #af-exit svg{width:14px;height:14px;flex:none;}
-#af-exit .af-who{font-weight:500;opacity:.72;max-width:30vw;overflow:hidden;text-overflow:ellipsis;}
-#af-exit .af-esc{font-size:10.5px;font-weight:600;opacity:.6;border:1px solid currentColor;border-radius:4px;padding:1px 4px;}
+#af-exit .af-who{font-weight:500;opacity:.9;max-width:30vw;overflow:hidden;text-overflow:ellipsis;}
+#af-exit .af-esc{font-size:10.5px;font-weight:600;opacity:.9;border:1px solid currentColor;border-radius:4px;padding:1px 4px;}
 html.detail-open #af-btn,html.detail-open #af-exit,html.printing #af-btn,html.printing #af-exit{display:none !important;}
 html.alto-lanes #af-exit{bottom:76px;}
 html.mobile #af-exit,html.phone-whole #af-exit{bottom:calc(70px + env(safe-area-inset-bottom,0px));}
@@ -59,6 +59,11 @@ html.af-on:not(.mobile) #canvas :is(.phase-label,.phase-label-float,.unit-bar){o
 html.af-on:not(.mobile) #canvas .phase-numeral{opacity:1 !important;}
 html.af-on #river-svg [data-af-out]{opacity:.12 !important;transition:opacity .3s;}
 html.alto-retro :is(#af-btn,#af-exit),html.sk-retro :is(#af-btn,#af-exit){border-radius:0;}
+/* the Exit pill's ink is dark on the accent fill: Retro gold and Holographic cyan here (Classic's is set in JS from the accent's brightness, so these win over it) */
+html.alto-retro #af-exit,html.sk-retro #af-exit{color:#000 !important;}
+html.alto-holo #af-exit{color:var(--ho-bg) !important;}
+html.alto-holo #af-exit :is(.af-who,.af-esc){opacity:1;}
+html.alto-holo :is(#af-btn,#af-exit){border-radius:0;}
 @media (prefers-reduced-motion:reduce){#af-btn{transition:none;}}
 """
 
@@ -105,6 +110,15 @@ JS = r"""(function(){
     });
   }
   var mo=null;
+  // Classic: the Exit pill's ink follows the accent fill (whichever of dark ink and white reads better on it); Retro / Holographic set theirs in CSS
+  function inkExit(ex){
+    try{
+      var m=(getComputedStyle(ex).backgroundColor||'').match(/[\d.]+/g); if(!m||m.length<3) return;
+      var c=m.slice(0,3).map(function(v){ v=+v/255; return v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055,2.4); });
+      var L=.2126*c[0]+.7152*c[1]+.0722*c[2];
+      ex.style.color = L>.196 ? '#14122b' : '#fff';   // .196 = where the dark ink and white give the same ratio
+    }catch(e){}
+  }
   function apply(){
     de.classList.toggle('af-on', active());
     CV.classList.toggle('af-on', active());
@@ -115,7 +129,7 @@ JS = r"""(function(){
     }
     if(!active() && mo){ mo.disconnect(); mo=null; }
     var ex=$('af-exit');
-    if(ex){ var w=ex.querySelector('.af-who'); if(w) w.textContent=active()?title(root()):''; ex.setAttribute('aria-label','Exit focus'+(stack.length>1?' (back one level)':'')); }
+    if(ex){ inkExit(ex); var w=ex.querySelector('.af-who'); if(w) w.textContent=active()?title(root()):''; ex.setAttribute('aria-label','Exit focus'+(stack.length>1?' (back one level)':'')); }
     // a phone: the card's neighbours (the bar's previous / next names) are asked again under the new order
     if(mobile() && window._featuredNodeId && typeof window.featureNode==='function'){ try{ window.featureNode(window._featuredNodeId,false); }catch(e){} }
     sync(true);
