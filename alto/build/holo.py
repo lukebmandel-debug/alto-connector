@@ -256,8 +256,8 @@ FORMAT_CSS = r"""
   X:not(.mobile) #title-bar #title-text:not(#_):not(#__){background:linear-gradient(var(--ho-ac),var(--ho-ac)) 0 100%/9px 2px no-repeat,linear-gradient(var(--ho-ac),var(--ho-ac)) 100% 100%/9px 2px no-repeat,var(--ho-bg) !important;
     color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.8) !important;border-top:0 !important;border-radius:0 !important;box-shadow:var(--ho-glow) !important;
     font-weight:500 !important;font-size:14px;letter-spacing:.2em;text-transform:uppercase;clip-path:none;translate:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X:not(.mobile) #title-bar #title-text:not(#_):not(#__)::after{background-image:var(--tt-syh) !important;}
-  X.dark:not(.mobile) #title-bar #title-text:not(#_):not(#__)::after{background-image:var(--tt-syk) !important;}
+  X:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syh) !important;}
+  X.dark:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syk) !important;}
   }
   /* the New timeline and Start new project tiles: a lit glass pane that shows the grid through it (Luke, 2026-11-05, "2, A": no dashed outline); the Import tile in the Scene panel the same */
   X.alto-home .course-tile.new-tile:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;

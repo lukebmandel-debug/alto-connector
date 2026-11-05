@@ -84,10 +84,9 @@ CHROME_CSS = r"""
   /* the name: a gold plate hung from the top edge, its feet cut at 45deg, the format symbol in black beside it (Luke, 2026-11-05, "1, B"; title_tab.py).
      Shown where the name shows: the homepage, a detail page, a narrow window (the crown on the board carries it otherwise) */
   @media (min-width:641px){
-  X:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:8px;background:#d9ae55 !important;color:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;
-    font-family:var(--rt-f) !important;font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
+  X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:8px;--tt-i:var(--tt-syr) !important;background:#d9ae55 !important;color:#000 !important;border:0 !important;border-radius:0 !important;
+    font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
     clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px));}
-  X:not(.mobile) #title-bar #title-text:not(#_)::after{background-image:var(--tt-syr) !important;}
   }
   X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
     background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */
@@ -110,8 +109,8 @@ CHROME_CSS = r"""
   X #search-results,X #info-content,X #bg-panel,X #ef-panel,X #notes-panel,X #summary-wrap,X .key-pop,X #share-dialog>*{background:rgba(3,4,7,.97) !important;color:#efe6cf !important;
     border:1px solid rgba(217,174,85,.45) !important;border-radius:0 !important;box-shadow:0 0 0 4px #000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* the Scene panel's Import tile: the same double gold frame as the New tiles, in place of the dashed outline (Luke, 2026-11-05, "2, A") */
-  X #bg-panel .bg-tile.bg-add:not(#_){background:#000 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;box-shadow:inset 0 0 0 4px #000,inset 0 0 0 5px rgba(217,174,85,.7) !important;}
-  X #bg-panel .bg-tile.bg-add:hover:not(#_),X #bg-panel .bg-tile.bg-add:focus-visible:not(#_){border-color:#f0c15e !important;box-shadow:inset 0 0 0 4px #000,inset 0 0 0 5px #f0c15e !important;}
+  X #bg-panel .bg-tile.bg-add:not(#_){background:#000 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;box-shadow:inset 0 0 0 4px #000,inset 0 0 0 5px var(--f,rgba(217,174,85,.7)) !important;}
+  X #bg-panel .bg-tile.bg-add:is(:hover,:focus-visible):not(#_){--f:#f0c15e;border-color:#f0c15e !important;}
   X :is(#bg-panel,#ef-panel,#notes-panel,#summary-wrap) :is(h1,h2,h3,.bg-t,.bg-h,.ef-h){color:#d9ae55 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.22em;font-weight:400 !important;}
   /* a detail page: the poster's black, gold rules and headings, cream text */
   X #detail-page:not(#_){background:#000 !important;color:#efe6cf !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
@@ -182,10 +181,9 @@ CHROME_CSS = r"""
   X .hl-color-swatch:not(#_){border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.35) !important;}
   X .hl-color-swatch.active:not(#_){transform:none !important;box-shadow:0 0 0 2px #000,0 0 0 3px #d9ae55 !important;}
   /* a phone's search: a square field with the gold rim, no soft shadow */
-  X #m-search:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X :is(#m-search,#sol-tour):not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X .wrap-pill:not(#_){background:#000 !important;color:#efe6cf !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-family:var(--rt-f) !important;}
   /* the System's tour bar (Next / Back, solar_*.py): a square bar of square buttons, Next in gold */
-  X #sol-tour:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #sol-tour button:not(#_){border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
   X #sol-tour .tb-next:not(#_){background:#d9ae55 !important;color:#000 !important;}
   X #sol-tour button:not(.tb-next):not(#_):hover{box-shadow:inset 0 0 0 1px rgba(217,174,85,.7) !important;color:#d9ae55 !important;}

@@ -19,8 +19,8 @@ from .backgrounds import _lean
 # the tab's room, shared by every style (the hover line is laid at the same place)
 AFTER_CSS = r"""
 html:not(.mobile) #title-bar #title-text:not(#_)::after{content:"";position:absolute;left:var(--tt-px);top:calc(50% - 1.5px);translate:0 -50%;
-  width:var(--tt-w,0);height:var(--tt-w,0);background:var(--tt-sym) center/contain no-repeat;}
-html.dark:not(.mobile) #title-bar #title-text:not(#_)::after{background-image:var(--tt-syd);}
+  width:var(--tt-w,0);height:var(--tt-w,0);background:var(--tt-i,var(--tt-sym)) center/contain no-repeat;}
+html.dark:not(.mobile) #title-bar #title-text:not(#_){--tt-i:var(--tt-syd);}
 """
 BASE_CSS = r"""
 html:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:7px;position:relative;align-self:start;box-sizing:border-box;display:block;white-space:nowrap;

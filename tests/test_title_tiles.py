@@ -75,7 +75,7 @@ def test_retro_and_holo_carry_the_tab_and_the_frame_tiles_and_a_phone_keeps_its_
     r, h = retro.css(), holo.css()
     for c in (r, h):
         assert "new-tile" in c and "bg-add" in c and "dashed" not in c.split("new-tile")[1][:600]
-    assert "#title-bar #title-text:not(#_){--tt-px:20px" in r and "clip-path:polygon" in r
+    assert "#title-bar #title-text:not(#_){--tt-pt:8px" in r and "clip-path:polygon" in r
     assert "@media (max-width:640px){ html.alto-retro.alto-home #title-bar #title-text".replace("{ ", "{") in r.replace("{ ", "{") or "@media (max-width:640px)" in r
     assert "clip-path:none;translate:none" in h
 
