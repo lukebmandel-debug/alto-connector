@@ -22,14 +22,30 @@ import json as _json
 
 from .palace_assets import loader as _loader
 
+def _ring() -> str:
+    """The label halo as text-shadows: a solid ring of copies round the letters (12 round at 2.1 px, 6 at 1.05 px, so no gap is left in a thin
+    stroke), then a soft glow past it. One colour, var(--w-halo)."""
+    import math
+    out = []
+    for r, n, ph in ((2.1, 12, 0), (1.05, 6, 15)):
+        for i in range(n):
+            t = math.radians(ph + i * 360 / n)
+            out.append("%.2fpx %.2fpx 0 var(--w-halo)" % (r * math.cos(t), r * math.sin(t)))
+    return ",".join(out + ["0 0 2px var(--w-halo)", "0 0 3px var(--w-halo)", "0 0 6px var(--w-halo)"])
+
+
 WORLD_CSS = r"""
 #wpal-root{--w-sea1:#eef2fb;--w-sea2:#dde6f6;--w-land:rgba(255,255,255,.93);--w-edge:rgba(110,125,165,.30);--w-grat:rgba(110,130,180,.11);
   --w-text:var(--text,#1d2433);--w-sub:var(--text-dim,#5b6478);--w-panel:rgba(255,255,255,.78);--w-panel-b:rgba(255,255,255,.95);
-  --w-card:rgba(255,255,255,.9);--w-shadow:0 10px 30px rgba(40,55,95,.16);--w-font:inherit;--w-mix:#fff;--w-used:30%;--w-pin:#fff;
+  --w-card:rgba(255,255,255,.9);--w-shadow:0 10px 30px rgba(40,55,95,.16);--w-font:inherit;--w-mix:#fff;--w-used:30%;--w-pin:#fff;--w-halo:#fff;
   position:fixed;left:0;right:0;bottom:0;top:0;z-index:30;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
   background:radial-gradient(120% 90% at 50% 42%,var(--w-sea1),var(--w-sea2));color:var(--w-text);font-family:var(--w-font);}
 html.dark #wpal-root{--w-sea1:#16203a;--w-sea2:#0b1122;--w-land:rgba(36,44,66,.95);--w-edge:rgba(170,185,225,.22);--w-grat:rgba(170,190,240,.07);
-  --w-panel:rgba(20,26,42,.86);--w-panel-b:rgba(255,255,255,.12);--w-card:rgba(22,28,46,.94);--w-shadow:0 12px 32px rgba(0,0,0,.45);--w-mix:#1a2238;--w-used:42%;--w-pin:#121a2e;}
+  --w-panel:rgba(20,26,42,.86);--w-panel-b:rgba(255,255,255,.12);--w-card:rgba(22,28,46,.94);--w-shadow:0 12px 32px rgba(0,0,0,.45);--w-mix:#1a2238;--w-used:42%;--w-pin:#121a2e;--w-halo:#0b1122;}
+/* a map label is read over ANY land or sea colour (Luke 2026-11-01; Art's method: a solid outline in the plate's own colour, --w-halo, round the letters, then a soft
+   glow past it) so the letters are always set against the halo, never against the map; each style sets only --w-halo */
+#wpal-root{--w-ring:__RING__;}
+/* (the rules that use it are the ATLAS CONTRAST block further down; phones and desktops alike) */
 #wpal-root[hidden]{display:none;}
 html.wpal-open #world{visibility:hidden !important;}
 #wpal-root svg.wp-svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
@@ -40,7 +56,7 @@ html.wpal-open #world{visibility:hidden !important;}
 #wpal-root .wp-land{filter:drop-shadow(0 3px 5px rgba(40,55,95,.13));}
 html.dark #wpal-root .wp-land{filter:none;}
 #wpal-root .wp-c.wp-u{fill:color-mix(in srgb,var(--u) var(--w-used),var(--w-mix));stroke:color-mix(in srgb,var(--u) 80%,transparent);stroke-width:1.2px;cursor:pointer;}
-#wpal-root .wp-c.wp-on{fill:color-mix(in srgb,var(--u) 52%,var(--w-mix));stroke-width:2.2px;}
+#wpal-root .wp-c.wp-u.wp-on{fill:color-mix(in srgb,var(--u) 52%,var(--w-mix));stroke-width:2.2px;}
 #wpal-root.wp-focus .wp-c.wp-u:not(.wp-on){opacity:.55;}
 #wpal-root.wp-one .wp-c:not(.wp-u){opacity:.45;}
 #wpal-root .wp-a1{fill:none;stroke:var(--w-edge);stroke-width:.8px;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;}
@@ -200,11 +216,56 @@ html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit
 #wpal-root .wp-where{display:flex;align-items:center;gap:5px;margin:7px auto 0;width:max-content;max-width:100%;box-sizing:border-box;padding:3px 10px 3px 8px;border-radius:999px;
   background:var(--w-card);border:1px solid var(--w-panel-b);box-shadow:var(--w-shadow);font-size:10.5px;font-weight:600;line-height:1.3;letter-spacing:.12em;text-transform:uppercase;
   color:var(--w-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
-#wpal-root .wp-where svg,#detail-page .wp-where-d svg{width:9px;height:11px;flex:none;}
-#wpal-root .wp-where path,#detail-page .wp-where-d path{fill:var(--u,currentColor);}
+#wpal-root .wp-where > svg,#detail-page .wp-where-d svg{width:9px;height:11px;flex:none;}
+#wpal-root .wp-where > svg path,#detail-page .wp-where-d path{fill:var(--u,currentColor);}
 #detail-page .wp-where-d{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#5b6478);}
 html.alto-retro #wpal-root .wp-where:not(#_){border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--rt-f);font-weight:400;letter-spacing:.2em;color:#d9ae55;border-color:rgba(217,174,85,.55);background:#0b0d12;}
 html.alto-retro #detail-page .wp-where-d:not(#_){color:#d9ae55;font-family:var(--rt-f);letter-spacing:.3em;}
+/* the country's flag beside where an enlarged card stands (Luke 2026-11-04: "please have country flags pop up with nodes. In holo style, it should be
+   animated like the file-type glyphs"): Classic a plain still flag, Retro a square one in a gold hairline, Holographic the same three-layer turn on Y as
+   the format symbols (transform only, 10 s linear, perspective; still at 28deg under reduced motion, paused while the tab is hidden). No flag
+   (Antarctica, a disputed area, a file the site lacks): a neutral outline pennant. The flag is a hosted SVG fetched when a card opens (world_flags.py). */
+#wpal-root .wp-flag{position:relative;flex:none;display:block;width:24px;height:18px;margin:-2px 1px -2px -3px;perspective:240px;}
+#wpal-root .wp-flag .fl-spin{position:absolute;inset:0;display:block;transform-style:preserve-3d;}
+#wpal-root .wp-flag img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;border-radius:3px;box-shadow:0 0 0 1px color-mix(in srgb,var(--w-text) 22%,transparent);}
+#wpal-root .wp-flag .fl-b,#wpal-root .wp-flag .fl-s{display:none;}
+#wpal-root .wp-flag.none svg{display:block;width:100%;height:100%;fill:none;stroke:var(--w-sub);stroke-width:1.4px;stroke-linecap:round;stroke-linejoin:round;}
+html.alto-retro #wpal-root .wp-flag img:not(#_){border-radius:0;box-shadow:0 0 0 1px #d9ae55;}
+html.alto-retro #wpal-root .wp-flag.none svg:not(#_){stroke:#d9ae55;}
+html.alto-holo #wpal-root .wp-flag{--fg:var(--ho-ac,#2ee6ff);}
+html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:wp-flag-spin 10s linear infinite;will-change:transform;}
+html.alto-holo #wpal-root .wp-flag img:not(#_){border-radius:0;box-shadow:0 0 0 1px var(--fg),0 0 7px color-mix(in srgb,var(--fg) 55%,transparent);}
+html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:block;opacity:.45;transform:translateZ(-4px);box-shadow:none;filter:grayscale(1) sepia(1) hue-rotate(255deg) saturate(5);}
+html.alto-holo #wpal-root .wp-flag .fl-s:not(#_){display:block;position:absolute;inset:0;transform:translateZ(1px);pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(var(--ho-rgb,46,230,255),.22) 0 1px,transparent 1px 3px);}
+html.alto-holo #wpal-root .wp-flag.none svg:not(#_){stroke:var(--fg);}
+html.alto-holo #wpal-root.wp-hid .wp-flag .fl-spin:not(#_){animation-play-state:paused;}
+@keyframes wp-flag-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+@media (prefers-reduced-motion:reduce){html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:none;transform:rotateY(28deg);will-change:auto;}
+  html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:none;}}
+
+/* the Tour's flag fill (Luke 2026-11-05, item 9: "the background of the country be its flag when zoomed in on the tour within that country"; Art's sheets tour-flag-fill
+   B + C and holo-flag-anim C): while the Tour stands in a country, its own flag is laid over the country's unit colour at about a third, clipped to the country and
+   sized to its main landmass (the card's own hosted flag file, so nothing more is fetched). Plain while the camera flies; it fades in ~300 ms after the camera settles
+   and out when the Tour leaves the country (no fade under reduced motion). Holographic: the fill holds still under a 7 s scan line, and a magenta ghost layer drifts in step
+   with the card flag's turn (script: ffPhase); transform and opacity only, computers only, still on a phone or under reduced motion. The globe lays the same flag on its own canvas. */
+#wpal-root .wp-ff{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility 0s .25s;}
+#wpal-root .wp-ff.on{opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s;}
+#wpal-root .wp-ff .ff-a{opacity:.34;}
+#wpal-root .wp-ff .ff-g,#wpal-root .wp-ff .ff-s{display:none;}
+#wpal-root #wpff-s stop{stop-color:var(--ho-ac,#2ee6ff);}
+#wpal-root canvas.wp-gflag{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s .25s;}
+#wpal-root canvas.wp-gflag.on{opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s;}
+html.alto-holo #wpal-root .wp-ff .ff-a:not(#_){opacity:.3;}
+@media (min-width:701px) and (prefers-reduced-motion:no-preference){
+  html.alto-holo:not(.mobile) #wpal-root .wp-ff .ff-g:not(#_){display:inline;opacity:.2;transform-box:fill-box;animation:wp-ff-drift 10s linear infinite;}
+  html.alto-holo:not(.mobile) #wpal-root .wp-ff .ff-s:not(#_){display:inline;opacity:.55;transform-box:fill-box;animation:wp-ff-scan 7s linear infinite;}
+  html.alto-holo:not(.mobile) #wpal-root.wp-hid .wp-ff :is(.ff-g,.ff-s):not(#_){animation-play-state:paused;}
+}
+@keyframes wp-ff-scan{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+@keyframes wp-ff-drift{0%{transform:translateX(0);animation-timing-function:cubic-bezier(.25,.46,.45,.94)}25%{transform:translateX(-1.4%);animation-timing-function:cubic-bezier(.55,.06,.68,.19)}
+  50%{transform:translateX(0);animation-timing-function:cubic-bezier(.25,.46,.45,.94)}75%{transform:translateX(1.4%);animation-timing-function:cubic-bezier(.55,.06,.68,.19)}100%{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){#wpal-root .wp-ff,#wpal-root .wp-ff.on,#wpal-root canvas.wp-gflag,#wpal-root canvas.wp-gflag.on{transition:none;}}
 html.alto-retro #wpal-root .wp-sw,html.alto-retro #wpal-root .wp-sw::after{border-radius:0;}
 html.alto-retro #wpal-root .wp-tt[aria-pressed="true"] .wp-sw{background:#d9ae55;}
 #wpal-root .wp-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--w-sub);font-size:13px;}
@@ -232,6 +293,17 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-pin.wp-hint:not(.n):not(.wp-on){width:16px;height:16px;}
 #wpal-root .wp-lbl.wp-hint{font-size:12.5px;}#wpal-root .wp-lbl.wp-hint b{text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--u) 60%,transparent);text-underline-offset:3px;}
 #wpal-root .wp-card.wp-hint,#wpal-root .wp-enl.wp-hint{outline:0;}
+/* ATLAS CONTRAST (Luke 2026-11-01: "some text here isn't that visible with similar colors to the background"). On a phone too (Luke 2026-11-04: "phone version too"); `html:root` only keeps each rule's specificity as it was.
+   A map label is read over ANY land or sea colour, in every style: the letters get a solid halo (--w-halo, set by each style) and sit nearer the full text colour
+   (the grey second line was the worst); the numbers on pins, tags and cards are set mostly in the text colour with the unit's hue in the ring, not in the hue itself
+   (a pale yellow unit made a pale yellow number on white). Held by tests/test_atlas_label_contrast.py: WCAG 4.5:1 at 3 zooms in every style. */
+html:root #wpal-root .wp-lbl{color:var(--w-text);text-shadow:var(--w-ring);}
+html:root #wpal-root .wp-lbl i{color:color-mix(in srgb,var(--w-sub) 30%,var(--w-text));}
+html:root #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:root #wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:root #wpal-root .wp-card .n,html:root #wpal-root .wp-list button b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
+html:root #wpal-root .wp-hk{background:var(--w-pin);border:1.5px solid var(--u);color:var(--w-text);line-height:12px;}
+html:is(.alto-retro,.alto-holo):root #wpal-root .wp-lbl:not(#_){text-shadow:var(--w-ring);}
 #wpal-root .wp-mm{position:absolute;right:16px;bottom:66px;padding:5px;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;cursor:pointer;touch-action:none;}
 #wpal-root .wp-mm.on{opacity:1;visibility:visible;transition:opacity .28s ease;}
 #wpal-root .wp-mm svg{display:block;width:calc(var(--mh,86px)*2.05);height:var(--mh,86px);}
@@ -269,7 +341,7 @@ html.alto-retro #wpal-root .wp-mm rect{fill:#d9ae55;stroke:#d9ae55;}
   html.alto-retro:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r:not(#_){border:0;}
   html.alto-retro:not(.mobile) #wpal-root .wp-row > .wp-seg .wp-btn.r[aria-pressed="true"]:not(#_){color:#000;}
   html:not(.mobile) #wpal-root .wp-row > .wp-seg::before{content:'';position:absolute;left:-7px;top:5px;bottom:5px;width:1px;background:var(--w-edge);}
-  html:not(.mobile) #wpal-root .wp-row .wp-tt{order:1;font-size:0 !important;gap:0;background:var(--accent,#5b6cff);border-color:transparent;color:#fff;padding:5px 12px 5px 10px;}
+  html:not(.mobile) #wpal-root .wp-row .wp-tt{order:1;font-size:0 !important;gap:0;background:var(--accent,#5b6cff);border-color:transparent;color:#14122b;padding:5px 12px 5px 10px;}
   html:not(.mobile) #wpal-root .wp-row .wp-tt:hover{background:var(--accent,#5b6cff);filter:brightness(1.1);}
   html:not(.mobile) #wpal-root .wp-row .wp-tt::before{content:'\25B6  Start Tour';font-size:12.5px;font-weight:650;white-space:pre;}
   html:not(.mobile) #wpal-root .wp-row .wp-tt .wp-sw{display:none;}
@@ -297,6 +369,7 @@ html.alto-retro #wpal-root .wp-mm rect{fill:#d9ae55;stroke:#d9ae55;}
   #wpal-root .wp-list{left:12px;right:12px;width:auto;top:auto;bottom:120px;max-height:40%;}
   #wpal-root .wp-enl > .node{zoom:1;max-width:calc(100vw - 28px);}}
 """
+WORLD_CSS = WORLD_CSS.replace("__RING__", _ring())
 
 WORLD_JS = r"""
 var NS='http://www.w3.org/2000/svg', A=window.AltoWorld={}, ev={};
@@ -312,6 +385,7 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function mj(t){ return t*t*t*(10-15*t+6*t*t); }            // minimum jerk: Alto's one motion curve
 function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(x){ return false; } }
 function phone(){ return S.vw<700; }
+function lbo(){ return 2; }          // a name sits 2 px clearer of its pin's glow (phones too)
 
 // ── geometry: integer delta rings → smooth closed curves (centripetal Catmull-Rom) ──
 function decode(flat,q){ var x=flat[0],y=flat[1],o=[[x/q,y/q]]; for(var i=2;i<flat.length;i+=2){ x+=flat[i]; y+=flat[i+1]; o.push([x/q,y/q]); } return o; }
@@ -377,7 +451,7 @@ function fly(cx,cy,k,done,early){
   })(t0);
 }
 var settleT=0; function settleSoon(){ clearTimeout(settleT); settleT=setTimeout(settle,140); }
-function settle(){ detail(); labels(); }
+function settle(){ detail(); labels(); ffSync(); }
 
 // ── page data ──
 function D(){ return A.data||{}; }
@@ -455,7 +529,7 @@ function place(){
   for(var id in S.pins){ var P=S.pins[id], n=N(id), s=scr(n.x,n.y), f=big?1.6:1, x=s[0]+P.off[0]*f, y=s[1]+P.off[1]*f;
     if(s[2]===false){ x=-9999; y=-9999; } P.el.style.visibility=s[2]===false?'hidden':'';
     P.x=x; P.y=y; P.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
-    P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)).toFixed(1)+'px)'; }
+    P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)+lbo()).toFixed(1)+'px)'; }
   S.tags.forEach(function(T){ if(T.pos&&T.d){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
   var ov=S.ovChev; while(ov.firstChild) ov.removeChild(ov.firstChild);
   if(S.globe) gArcs(); else if(S.ovg&&S.ovg.firstChild) S.ovg.textContent='';
@@ -489,7 +563,7 @@ function labels(){                                  // decided once a gesture se
     var L=P.lbl, show=!S.out[id]&&!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
     if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
     L.querySelector('i').style.display=tight?'none':'';
-    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
     P.on=show; off(L,show); });
   for(var k in S.pins) delete S.pins[k]._done;
   // the unit tags (world view only): beside their unit's pins where nothing else is; a tag keeps its side while that is free
@@ -508,25 +582,75 @@ function labels(){                                  // decided once a gesture se
 function fetchJSON(url){ return fetch(url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
 function visBox(){ var a=wld(0,0), b=wld(S.vw,S.vh); return [a[0],a[1],b[0],b[1]]; }
 function meets(a,b){ return a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1]; }
-function detail(){ if(S.globe) return;
-  var want=S.k>=S.kW*2.4, vb=visBox();
+// (the globe asks for the same tiers once its sharp land is drawn, F2: what is on the screen, as the world boxes of a grid of its points)
+function wantD(){ return S.globe?gOn():S.k>=S.kW*2.4; }
+function gVis(){ var R=S.k*GR, b=[1e9,1e9,-1e9,-1e9], N=6;
+  for(var i=0;i<=N;i++) for(var j=0;j<=N;j++){ var dx=(i/N-.5)*S.vw/R, dy=(j/N-.5)*S.vh/R, r=Math.sqrt(dx*dx+dy*dy), f=r>.99?.99/r:1, w=gWld(S.vw/2+dx*f*R,S.vh/2+dy*f*R);
+    if(w){ b[0]=Math.min(b[0],w[0]); b[1]=Math.min(b[1],w[1]); b[2]=Math.max(b[2],w[0]); b[3]=Math.max(b[3],w[1]); } }
+  return [b,[b[0]-2000,b[1],b[2]-2000,b[3]],[b[0]+2000,b[1],b[2]+2000,b[3]]]; }
+function seen(a,V){ return V.some(function(v){ return meets(a,v); }); }
+function detail(){ var want=wantD(), vb=S.globe?gVis():[visBox()];
   Object.keys(GEO.cont).forEach(function(cs){
-    if(want&&meets(CBOX[cs]||[-1e9,-1e9,1e9,1e9],vb)){
-      if(!S.cont[cs]){ S.cont[cs]='loading'; fetchJSON(GEO.cont[cs]).then(function(G){ S.cont[cs]=G; if(S.k>=S.kW*2.4) swapIn(cs); }).catch(function(){ S.cont[cs]=null; }); }
+    if(want&&seen(CBOX[cs]||[-1e9,-1e9,1e9,1e9],vb)){
+      if(!S.cont[cs]){ S.cont[cs]='loading'; fetchJSON(GEO.cont[cs]).then(function(G){ S.cont[cs]=G; if(wantD()) swapIn(cs); }).catch(function(){ S.cont[cs]=null; }); }
       else if(S.cont[cs]!=='loading') swapIn(cs);
     } else if(S.detOn[cs]) swapOut(cs);
   });
-  if(want) (D().multi||[]).forEach(function(cid){ if(S.a1[cid]||!GEO.a1[cid]||!S.bb[cid]||!meets(S.bb[cid],vb)) return; S.a1[cid]='loading';
-    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); }).catch(function(){}); });
+  if(want) (D().multi||[]).forEach(function(cid){ if(S.a1[cid]||!GEO.a1[cid]||!S.bb[cid]||!seen(S.bb[cid],vb)) return; S.a1[cid]='loading';
+    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); gAgain(); }).catch(function(){ S.a1[cid]=null; }); });
   S.gA1.style.display=want?'':'none';
 }
+// ── the Tour's flag fill (CSS: .wp-ff) ──
+// Wanted only while the Tour is on and stands in a country with a flag and a unit colour; the camera must be at rest ~160 ms (plain while flying), a hop
+// inside the same country keeps it, a hop out fades it, a manual zoom out ends it. Flat map: an SVG group over the country's land (under the state lines
+// and routes), the country's own path as the clip, the flag as an <image> sized to its main landmass; Holographic adds a magenta ghost (an SVG filter) and a
+// scan rect. The globe: S.gf, a canvas over the sharp land, the same flag clipped to the country's rings (gFlag).
+function ffInit(){ if(S.ffG) return; var d=el('defs',null,S.svg);
+  S.ffPath=el('path',{'clip-rule':'evenodd'},el('clipPath',{id:'wpff-c'},d));
+  el('feColorMatrix',{type:'matrix',values:'.3 .59 .11 0 0 .11 .22 .04 0 0 .25 .48 .09 0 0 0 0 0 1 0'},el('filter',{id:'wpff-m',x:0,y:0,width:1,height:1,'color-interpolation-filters':'sRGB'},d));
+  var gr=el('linearGradient',{id:'wpff-s',x1:0,y1:0,x2:0,y2:1},d);
+  S.ffStops=[0,0,.6,.1].map(function(o){ return el('stop',{offset:0,'stop-opacity':o},gr); });
+  S.ffG=el('g',{'class':'wp-ff','clip-path':'url(#wpff-c)'}); S.g.insertBefore(S.ffG,S.gA1);
+  var im=function(c,f){ return el('image',{'class':c,preserveAspectRatio:'xMidYMid slice',filter:f||'none'},S.ffG); };
+  im('ff-g','url(#wpff-m)'); im('ff-a'); el('rect',{'class':'ff-s',fill:'url(#wpff-s)'},S.ffG); }
+function ffWant(){ if(!S.tour||!S.sel||!S.cur||S.ua!=null||!S.ready) return null; var n=N(S.sel), cid=n&&n.c;
+  if(!cid||!(GEO.flag||{})[cid]||!S.paths[cid]||!S.bb[cid]||!S.paths[cid].classList.contains('wp-u')||S.k<S.kW*1.6) return null; return cid; }
+// the scan line is ~14 px of screen at any zoom (Art 2026-11-05: a fixed share of the box was a 45 px slab on France), refitted when the camera settles
+function ffBand(){ if(!S.ffC||!S.ffStops) return; var bb=S.bb[S.ffC], f=Math.min(.25,14/Math.max((bb[3]-bb[1])*S.k,1)), o=[0,1-f,1-f*.15,1];
+  S.ffStops.forEach(function(t,i){ t.setAttribute('offset',o[i].toFixed(4)); }); }
+function ffClip(){ if(S.ffC&&S.ffPath) S.ffPath.setAttribute('d',S.paths[S.ffC].getAttribute('d')); }
+function ffShow(cid){ var url=GEO.flag[cid], bb=S.bb[cid]; ffInit(); S.ffC=cid; ffClip(); ffBand();
+  [].forEach.call(S.ffG.children,function(c){ c.setAttribute('x',bb[0].toFixed(2)); c.setAttribute('y',bb[1].toFixed(2)); c.setAttribute('width',(bb[2]-bb[0]).toFixed(2)); c.setAttribute('height',(bb[3]-bb[1]).toFixed(2));
+    if(c.tagName==='image') c.setAttribute('href',url); });
+  S.ffG.classList.add('on'); requestAnimationFrame(ffPhase);
+  if(!S.gf.fi||S.gf.fi.getAttribute('data-c')!==cid){ var i=S.gf.fi=new Image(); i.setAttribute('data-c',cid); i.onload=function(){ if(S.gf.fi===i) gAgain(); }; i.src=url; }
+  clearTimeout(S.gfT); S.gf.classList.add('on'); gAgain(); }
+function ffHide(){ if(!S.ffC) return; S.ffC=null; if(S.ffG) S.ffG.classList.remove('on'); S.gf.classList.remove('on');
+  clearTimeout(S.gfT); S.gfT=setTimeout(function(){ if(!S.ffC){ var x=S.gf.getContext('2d'); x.setTransform(1,0,0,1,0,0); x.clearRect(0,0,S.gf.width,S.gf.height); } },400); }
+function ffSync(){ if(!S.root||!S.gf) return; ffBand(); var want=ffWant();
+  if(S.ffC&&S.ffC!==want) ffHide();
+  if(!want||S.ffC===want||S.anim||S.plane){ if(S.ffT&&(!want||S.ffC===want)){ clearTimeout(S.ffT); S.ffT=0; } return; }
+  if(!S.ffT) S.ffT=setTimeout(function(){ S.ffT=0; if(ffWant()===want&&!S.anim&&!S.plane&&S.ffC!==want) ffShow(want); },160); }
+// the ghost drifts with the card flag's turn: its animation is given the card flag's own start time (the card's flag is made after the fill may be)
+function ffPhase(){ if(!S.ffC||!S.ffG||!S.ffG.getAnimations) return; var sp=S.root.querySelector('.wp-enl .fl-spin'), g=S.ffG.querySelector('.ff-g'); if(!sp||!g) return;
+  var f=function(e,n){ return e.getAnimations().filter(function(a){ return a.animationName===n; })[0]; }, a=f(sp,'wp-flag-spin'), b=f(g,'wp-ff-drift');
+  if(a&&b&&a.startTime!=null) b.startTime=a.startTime; }
+// the globe: the flag as a flat decal on the screen box of the country's main landmass, clipped to the country's rings as the globe now draws them
+function gFlag(todo){ var cv=S.gf, i=cv.fi, t=S.ffC&&todo.filter(function(q){ return q[0]._cid===S.ffC; })[0];
+  if(!S.ffC) return; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
+  var x=cv.getContext('2d'), d=S.G.d||1; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,S.vw,S.vh); cv.style.display=t&&i&&i.complete?'':'none'; if(!t||!i||!i.complete) return;
+  var b=t[4]; if(!b){ cv.style.display='none'; return; } var x0=b.b[0], y0=b.b[1], x1=b.b[2], y1=b.b[3];                  // (the screen box of the country's main landmass: its largest ring, as the globe draws it)
+  var w=x1-x0, hh=y1-y0, s=Math.max(w/640,hh/480), dw=640*s, dh=480*s;                    // (slice: the flag covers the box)
+  x.globalAlpha=document.documentElement.classList.contains('alto-holo')?.3:.34;
+  [t[1],t[2]].forEach(function(P){ x.save(); x.clip(P,'evenodd'); x.drawImage(i,(x0+x1)/2-dw/2,(y0+y1)/2-dh/2,dw,dh); x.restore(); }); x.globalAlpha=1; }
 function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
   Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid];
     if(cid==='ATA'&&used[cid]==null) return;
     if(!p){ p=el('path',{'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._cid=cid; p._extra=1; S.paths[cid]=p; }
     if(!p._det){ var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
-    p.setAttribute('d',p._det); p.style.display=''; }); }
-function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); }
+    p.setAttribute('d',p._det); p.style.display=''; }); gAgain(); }
+function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); gAgain(); }
+function gAgain(){ ffClip(); if(S.globe&&S.G&&S.gM) gVector(S.k*GR); }
 
 // ── a place and its cluster ──
 function placeView(id){
@@ -592,6 +716,7 @@ function focus(a,cid,id){
   Object.keys(S.paths).forEach(function(c){ S.paths[c].classList.toggle('wp-on',c===cid); });
   [].forEach.call(S.gArcs.children,function(g){ g.classList.toggle('wp-on',+g.getAttribute('data-u')===a); });
   for(var k in S.pins){ S.pins[k].el.classList.toggle('wp-in',N(k).a===a); S.pins[k].el.classList.toggle('wp-on',k===id); }
+  ffSync();
 }
 function unfocus(){ closeCluster(true); S.sel=null; S.cur=null; S.ua=null; S.rel=[]; focus(null,null,null); tourBar(); place(); }
 // the timeline's own card, borrowed from the board while it is enlarged and given back after (the board keeps its order)
@@ -600,9 +725,21 @@ function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.class
 function enlarge(id,kid){
   var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
   giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
-  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); whereLine(id,'wp-where',w);
+  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); flagIn(id,whereLine(id,'wp-where',w));
   return w;
 }
+// the flag of the country a card sits in, first in its place line: a hosted SVG fetched now, only this one (GEO.flag, world_flags.py); Holographic turns
+// it (CSS), a country without a flag, or a file the site lacks, gets the neutral pennant
+function pennant(w){ while(w.firstChild) w.removeChild(w.firstChild); w.classList.add('none'); w.setAttribute('aria-label','No flag shown'); w.title='No flag shown';
+  var s=el('svg',{viewBox:'0 0 24 18','aria-hidden':'true'},w); el('path',{d:'M5 2.5v14M5 3.5h14l-3.5 4.5 3.5 4.5H5'},s); }
+function flagIn(id,line){ if(!line) return null; var p=placeOf(id), n=p&&N(p), cid=n&&n.c, url=cid&&(GEO.flag||{})[cid], nm=cid?dec((D().names||{})[cid]||''):'';
+  if(!cid) return null;
+  var w=h('span',{'class':'wp-flag',role:'img','aria-label':nm?'Flag of '+nm:'Flag','data-c':cid}); line.insertBefore(w,line.firstChild);
+  if(!url){ pennant(w); return w; }
+  var sp=h('span',{'class':'fl-spin'},w);
+  ['fl-b','fl-a'].forEach(function(k){ var i=h('img',{'class':k,alt:'',decoding:'async',draggable:'false'},sp); i.addEventListener('error',function(){ pennant(w); }); i.src=url; });
+  h('span',{'class':'fl-s','aria-hidden':'true'},sp); requestAnimationFrame(ffPhase);
+  return w; }
 // where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
 function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
   var n=N(p), cn=dec((D().names||{})[n.c]||''), pl=dec(n.pl||''); if(n.k==='country'||!pl) return cn||pl; return pl+(cn&&pl!==cn?', '+cn:''); }
@@ -716,7 +853,7 @@ A.world=function(){ unfocus(); var v=homeView(); fly(v.cx,v.cy,v.k); };
 function one(){ var c=D().scope; return c&&S.bb[c]?c:null; }
 function homeView(){ var c=one(); if(!c) return worldView(); var b=S.bb[c], v=fitBox(b,phone()?14:40); return v; }
 function homeName(){ var c=D().scope; return c?dec((D().names||{})[c]||c):'Whole world'; }
-A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
+A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW,g:S.gN}; };
 function tourBar(){ navSync();
   var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.tour&&s.length>0; B.hidden=!on; if(!on) return;      // (the Tour on: its bar is there before the first stop)
   var nm=function(id){ var n=N(id), a=hubUnit(id); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var q=N(placeOf(id)||id); return dec((n.n||'')+' '+(n.pl||(q&&q.pl)||'')); };
@@ -795,7 +932,7 @@ function gSize(){ if(!S.G) return; var d=Math.min(window.devicePixelRatio||1,2),
 function rgba(c){ var x=document.createElement('canvas').getContext('2d'); x.fillStyle='#000'; x.fillStyle=c; x.fillRect(0,0,1,1); var d=x.getImageData(0,0,1,1).data; return [d[0]/255,d[1]/255,d[2]/255,d[3]/255]; }
 // the surface: the sea, a dotted graticule, every country in its own colours (a used one in its unit's tint), coasts and borders one weight
 function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(S.root), v=function(n){ return cs.getPropertyValue(n).trim(); };
-  var sea=v('--w-sea1')||'#eef2fb', edge=v('--w-edge'), grat=v('--w-grat'), key=[sea,edge,v('--w-land'),document.documentElement.className].join('|'); if(key===S.G.key) return; S.G.key=key;
+  var sea=v('--w-sea1')||'#eef2fb', edge=v('--w-edge'), grat=v('--w-grat'), key=[sea,edge,v('--w-land'),document.documentElement.className].join('|'); if(key===S.G.key) return; S.G.key=key; S.G.sea=sea;
   S.gRings=[]; GC={}; var W=2048, H=1024, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d'), q=S.base.q;
   x.fillStyle=sea; x.fillRect(0,0,W,H); x.lineCap='round'; x.lineJoin='round';
   x.strokeStyle=grat; x.lineWidth=2; x.setLineDash([1,7]); x.beginPath();
@@ -803,7 +940,7 @@ function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(
   Object.keys(S.base.c).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
     x.fillStyle='rgba(255,255,255,.9)'; x.fillStyle=st.fill; x.strokeStyle=edge; x.strokeStyle=st.stroke; x.lineWidth=pth.classList.contains('wp-u')?2.2:1.3;
     x.beginPath(); S.base.c[cid].forEach(function(fl){ var P=decode(fl,q), last=null, pts=[], vv=new Float32Array(P.length*3);
-      P.forEach(function(w,i){ var g=gVec(w[0],w[1]); vv[3*i]=g[0]; vv[3*i+1]=g[1]; vv[3*i+2]=g[2]; }); S.gRings.push({c:cid,v:vv});
+      P.forEach(function(w,i){ var g=gVec(w[0],w[1]); vv[3*i]=g[0]; vv[3*i+1]=g[1]; vv[3*i+2]=g[2]; }); S.gRings.push(gR(cid,vv));
       P.forEach(function(w){ var l=eeI(w[0],w[1]); if(last!=null){ while(l[0]-last>180) l[0]-=360; while(l[0]-last<-180) l[0]+=360; } last=l[0]; pts.push([(l[0]+180)/360*W,(90-l[1])/180*H]); });
       [-W,0,W].forEach(function(o){ pts.forEach(function(p,i){ if(i) x.lineTo(p[0]+o,p[1]); else x.moveTo(p[0]+o,p[1]); }); x.closePath(); }); });
     x.fill('evenodd'); x.stroke(); });
@@ -814,19 +951,70 @@ function gDraw(){ var G=S.G; if(!G) return; S.gM=gRot(); var gl=G.gl, M=S.gM, d=
   gl.uniform1i(G.u.T,0); gl.uniform2f(G.u.C,S.vw/2*d,S.vh/2*d); gl.uniform1f(G.u.R,R); gl.uniform1f(G.u.E,1.4*d/R);
   gl.uniformMatrix3fv(G.u.M,false,new Float32Array(M));                        // (column-major: M as given is Mᵀ, the view-to-world turn)
   gl.uniform4fv(G.u.K,G.K||[.5,.55,.7,.6]); gl.uniform4fv(G.u.B,G.B||[1,1,1,0]); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); gVector(R/d); }
-// zoomed in, the land is drawn sharp over the surface, from the same rings and in their live colours (a picked or hidden country shows),
-// each ring only while it is wholly on the near side (a ring that runs round the back stays on the surface)
-function gVector(R){ var cv=S.gv, on=R>Math.max(S.vw,S.vh)*.55&&S.gRings; cv.style.display=on?'':'none'; if(!on) return;
+// zoomed in, the land is drawn sharp over the surface, from the map's own rings and in their live colours (a picked or hidden country shows).
+// F2 (Luke, 2026-11-04: "clearly higher quality geography/borders in flat map"): zoomed in as far as the flat map swaps in a continent at
+// 1:50m and a country's state lines, so does the globe (the same hosted tiers, fetched by detail()); a ring that runs round the back is cut
+// at the limb (filled to the chord, stroked only where it is seen) instead of falling back to the blurry surface; the coasts are drawn as the
+// flat map draws them (centripetal Catmull-Rom); rings off the screen or behind it are skipped by their bounding cap, points under .6 px apart are dropped.
+function gOn(){ return S.k*GR>Math.max(S.vw,S.vh)*.55; }
+function gVecs(flat,q){ var n=flat.length>>1, v=new Float32Array(3*n), x=flat[0], y=flat[1];
+  for(var i=0;i<n;i++){ if(i){ x+=flat[2*i]; y+=flat[2*i+1]; } var l=eeI(x/q,y/q), la=l[1]*D2R, lo=l[0]*D2R, c=Math.cos(la); v[3*i]=c*Math.sin(lo); v[3*i+1]=Math.sin(la); v[3*i+2]=c*Math.cos(lo); }
+  return v; }
+function gR(c,v){ var n=v.length/3, a=0, b=0, d=0, r=Math.PI, i; for(i=0;i<n;i++){ a+=v[3*i]; b+=v[3*i+1]; d+=v[3*i+2]; }
+  var s=Math.sqrt(a*a+b*b+d*d); if(s>.3*n){ a/=s; b/=s; d/=s; r=0; for(i=0;i<n;i++) r=Math.max(r,Math.acos(clamp(a*v[3*i]+b*v[3*i+1]+d*v[3*i+2],-1,1))); } else { a=0; b=0; d=1; }
+  return {c:c,v:v,k:[a,b,d,r]}; }
+function gSkip(k,R){ var M=S.gM, a=k[0], b=k[1], c=k[2], r=k[3];
+  if(r<1.5&&M[6]*a+M[7]*b+M[8]*c<-Math.sin(r)) return true;                      // (wholly behind)
+  var rr=2*R*Math.sin(Math.min(r,Math.PI)/2)+2, px=S.vw/2+R*(M[0]*a+M[1]*b+M[2]*c), py=S.vh/2-R*(M[3]*a+M[4]*b+M[5]*c);
+  return px+rr<0||px-rr>S.vw||py+rr<0||py-rr>S.vh; }
+// a ring's seen stretches, in screen px (flat x,y lists); a stretch that leaves the near side ends on the limb
+function gRuns(v,R,closed){ var M=S.gM, cx=S.vw/2, cy=S.vh/2, n=v.length/3, m=closed?n+1:n, runs=[], cur=null, pv=false, pX=0, pY=0, pZ=0, hid=false, v0=false;
+  for(var j=0;j<m;j++){ var i=j%n, a=v[3*i], b=v[3*i+1], c=v[3*i+2], X=M[0]*a+M[1]*b+M[2]*c, Y=M[3]*a+M[4]*b+M[5]*c, Z=M[6]*a+M[7]*b+M[8]*c, vis=Z>0;
+    if(!j) v0=vis; if(!vis) hid=true;
+    if(j&&vis!==pv){ var t=pZ/(pZ-Z), X0=pX+(X-pX)*t, Y0=pY+(Y-pY)*t, s=Math.sqrt(X0*X0+Y0*Y0)||1, lx=cx+R*X0/s, ly=cy-R*Y0/s;
+      if(vis){ cur=[lx,ly]; runs.push(cur); } else { cur.push(lx,ly); cur=null; } }
+    if(vis){ var sx=cx+R*X, sy=cy-R*Y; if(!cur){ cur=[]; runs.push(cur); } var L=cur.length;
+      if(!(L>=2&&j<m-1&&(sx-cur[L-2])*(sx-cur[L-2])+(sy-cur[L-1])*(sy-cur[L-1])<.36)) cur.push(sx,sy); }
+    pv=vis; pX=X; pY=Y; pZ=Z; }
+  if(closed&&runs.length){ if(!hid) runs[0].length-=2; else if(v0&&runs.length>1){ var e=runs.pop(); e.length-=2; runs[0]=e.concat(runs[0]); } }      // (the closing point is the first again)
+  return {runs:runs,whole:!hid}; }
+function gCurve(p,P,closed){ var n=P.length>>1; if(!n) return; p.moveTo(P[0],P[1]);
+  if(n<4){ for(var j=1;j<n;j++) p.lineTo(P[2*j],P[2*j+1]); if(closed) p.closePath(); return; }
+  var ix=function(i){ return 2*(closed?(i+n)%n:i<0?0:i>n-1?n-1:i); }, m=closed?n:n-1, e=1e-9;
+  for(var i=0;i<m;i++){ var i0=ix(i-1), i1=ix(i), i2=ix(i+1), i3=ix(i+2), x0=P[i0], y0=P[i0+1], x1=P[i1], y1=P[i1+1], x2=P[i2], y2=P[i2+1], x3=P[i3], y3=P[i3+1],
+      l01=Math.sqrt(Math.sqrt((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0))), l12=Math.sqrt(Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))), l23=Math.sqrt(Math.sqrt((x3-x2)*(x3-x2)+(y3-y2)*(y3-y2))), ax=x1, ay=y1, bx=x2, by=y2;
+    if(l01>e){ var a=2*l01*l01+3*l01*l12+l12*l12, nn=3*l01*(l01+l12); ax=(x1*a-x0*l12*l12+x2*l01*l01)/nn; ay=(y1*a-y0*l12*l12+y2*l01*l01)/nn; }
+    if(l23>e){ var b=2*l23*l23+3*l23*l12+l12*l12, mm=3*l23*(l23+l12); bx=(x2*b+x1*l23*l23-x3*l12*l12)/mm; by=(y2*b+y1*l23*l23-y3*l12*l12)/mm; }
+    p.bezierCurveTo(ax,ay,bx,by,x2,y2); }
+  if(closed) p.closePath(); }
+// a country's colours as the map has them now (read again only when its classes, the page's or the theme change)
+function gSt(pth){ var k=pth.getAttribute('class')+'|'+S.root.className+'|'+S.G.key; if(pth._gk!==k){ var st=getComputedStyle(pth); pth._gk=k; pth._gs={f:st.fill,s:st.stroke,w:parseFloat(st.strokeWidth)||1,o:+st.opacity||1}; } return pth._gs; }
+function gTile(G,key,f){ if(!G[key]){ G[key]={}; f(G[key]); } return G[key]; }
+function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'none'; if(!on){ S.gN=null; S.gf.style.display='none'; return; }
   var d=S.G.d||1; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
-  var x=cv.getContext('2d'), M=S.gM, cx=S.vw/2, cy=S.vh/2, W=S.vw, H=S.vh; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
-  var by={}; S.gRings.forEach(function(r){ var v=r.v, n=v.length/3, pts=new Array(n), inn=false;
-    for(var i=0;i<n;i++){ var a=v[3*i],b=v[3*i+1],c=v[3*i+2], z=M[6]*a+M[7]*b+M[8]*c; if(z<=0) return;
-      var px=cx+R*(M[0]*a+M[1]*b+M[2]*c), py=cy-R*(M[3]*a+M[4]*b+M[5]*c); pts[i]=[px,py]; if(px>-50&&px<W+50&&py>-50&&py<H+50) inn=true; }
-    if(inn) (by[r.c]=by[r.c]||[]).push(pts); });
-  Object.keys(by).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
-    x.globalAlpha=+st.opacity||1; x.fillStyle=st.fill; x.strokeStyle=st.stroke; x.lineWidth=parseFloat(st.strokeWidth)||1; x.beginPath();
-    by[cid].forEach(function(P){ P.forEach(function(p,i){ if(i) x.lineTo(p[0],p[1]); else x.moveTo(p[0],p[1]); }); x.closePath(); }); x.fill('evenodd'); x.stroke(); });
-  x.globalAlpha=1; }
+  var x=cv.getContext('2d'), W=S.vw, H=S.vh, used=D().used||{}; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
+  var nR=0, nP=0, todo=[], src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
+  Object.keys(S.detOn).forEach(function(cs){ var G=S.cont[cs]; if(!S.detOn[cs]||!G||!G.c) return;                 // (a country in a continent that is in: its 1:50m rings instead)
+    var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=G.c[cid].map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
+    Object.keys(g).forEach(function(cid){ if(!(cid==='ATA'&&used[cid]==null)) src[cid]=g[cid]; }); });
+  Object.keys(src).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var W0=new Path2D(), PF=new Path2D(), PS=new Path2D(), any=false, fb=null;
+    src[cid].forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; any=true; nR++; q.runs.forEach(function(P){ nP+=P.length>>1; });
+      if(cid===S.ffC&&(!fb||r.k[3]>fb.r)){ fb={r:r.k[3],b:[1e9,1e9,-1e9,-1e9]}; q.runs.forEach(function(P){ for(var i=0;i<P.length;i+=2){ fb.b[0]=Math.min(fb.b[0],P[i]); fb.b[1]=Math.min(fb.b[1],P[i+1]); fb.b[2]=Math.max(fb.b[2],P[i]); fb.b[3]=Math.max(fb.b[3],P[i+1]); } }); }
+      if(q.whole) gCurve(W0,q.runs[0],true);
+      else q.runs.forEach(function(P){ gCurve(PS,P,false); if(r.k[3]<1.5){ PF.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) PF.lineTo(P[i],P[i+1]); PF.closePath(); } }); });
+    if(any) todo.push([pth,W0,PF,PS,fb]); });
+  // the surface's own coast line, magnified, is a soft band round every coast: laid over with the sea first, then the land
+  x.strokeStyle=S.G.sea; x.lineWidth=R*Math.PI/1024*2.6+2; todo.forEach(function(t){ x.stroke(t[1]); x.stroke(t[3]); });
+  todo.forEach(function(t){ var st=gSt(t[0]); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w;
+    x.fill(t[1],'evenodd'); x.fill(t[2],'evenodd'); x.stroke(t[1]); x.stroke(t[3]); });
+  x.globalAlpha=1; gFlag(todo);
+  var a1=S.gA1.querySelector('path');                                                                                // (the state lines, dashed as the flat map has them)
+  if(a1&&S.gA1.style.display!=='none'){ var as=gSt(a1), P1=new Path2D();
+    Object.keys(S.a1).forEach(function(cid){ var G=S.a1[cid]; if(!G||!G.l) return;
+      gTile(G,'_g',function(o){ o.r=G.l.map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }).r.forEach(function(r){ if(gSkip(r.k,R)) return;
+        gRuns(r.v,R,false).runs.forEach(function(P){ P1.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) P1.lineTo(P[i],P[i+1]); }); }); });
+    x.strokeStyle=as.s; x.lineWidth=as.w; x.setLineDash([3,3]); x.stroke(P1); x.setLineDash([]); }
+  S.gN=[nR,nP]; }
 // the route on the globe: great circles, the near side only
 function gArcs(){ var g=S.ovg; g.textContent=''; var fu=S.sel!=null?unitOf(S.sel):S.ua;
   (S.tubes||[]).forEach(function(T){ var a=gVec(T.a[0],T.a[1]), b=gVec(T.b[0],T.b[1]), d='', pen=false;
@@ -836,9 +1024,9 @@ A.globe=function(on){ if(on==null) return !!S.globe; on=!!on&&!phone()&&!documen
   if(on===!!S.globe) return S.globe; if(on&&!gInit()) return false; stop(); planeStop();
   var atWorld=!S.cur&&S.ua==null&&Math.abs(Math.log(S.k/(S.globe?worldView().k:S.kW)))<.35;
   if(on){ S.globe=1; S.root.classList.add('wp-g'); gSize(); gPaint(); }
-  else { S.gv.style.display='none'; var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]); S.globe=0; S.cx=f[0]; S.cy=f[1]; S.root.classList.remove('wp-g'); }
+  else { S.gv.style.display='none'; S.gf.style.display='none'; var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]); S.globe=0; S.cx=f[0]; S.cy=f[1]; S.root.classList.remove('wp-g'); }
   try{ localStorage.setItem('alto-world-globe',S.globe?'1':'0'); }catch(x){}
-  apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); return S.globe; };
+  apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); settleSoon(); return S.globe; };
 
 
 // ── adding and removing countries by hand (edit mode; Luke 2026-10-29: "Make sure user can manually add countries", no Claude, no MCP) ──
@@ -1124,12 +1312,13 @@ A.mount=function(data){
   var root=S.root=h('div',{id:'wpal-root','aria-label':data.scope?'Map':'World map','class':data.scope?'wp-one':''},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
-  S.gl=h('canvas',{'class':'wp-globe','aria-hidden':'true'},root); S.gv=h('canvas',{'class':'wp-globe v','aria-hidden':'true'},root);
+  S.gl=h('canvas',{'class':'wp-globe','aria-hidden':'true'},root); S.gv=h('canvas',{'class':'wp-globe v','aria-hidden':'true'},root); S.gf=h('canvas',{'class':'wp-gflag','aria-hidden':'true'},root);
   S.ov=el('svg',{'class':'wp-ov'},root); S.ovg=el('g',{'class':'wp-ovg'},S.ov); S.ovRel=el('g',null,S.ov);
   S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov); S.ovPlane=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail(); watchPage();
+  document.addEventListener('visibilitychange',function(){ if(S.root) S.root.classList.toggle('wp-hid',document.hidden); });
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
     msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); if(one()){ var hv=homeView(); S.cx=hv.cx; S.cy=hv.cy; S.k=hv.k; apply(); } settle(); watchBoard(); dim(); navSync();
     new MutationObserver(function(){ if(S.globe&&S.G) setTimeout(function(){ gPaint(); gDraw(); },60); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
@@ -1166,8 +1355,9 @@ def _countries() -> dict:
 
 def _asset() -> str:
     from .world_geo import REGIONS, manifest, continent_boxes
+    from .world_flags import manifest as flag_manifest
     from .key_toggle import KEY_CSS, KEY_JS
-    return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
+    return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps({**manifest(), "flag": flag_manifest()}, sort_keys=True)
             + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\nvar CTRY=" + _json.dumps(_countries(), sort_keys=True, separators=(",", ":"))
             + ";\nvar REG=" + _json.dumps([r for r, _ in REGIONS]) + ";\n" + WORLD_JS + "\n})();\n")
 

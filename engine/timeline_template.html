@@ -6278,6 +6278,17 @@ html:not(.mobile).dark #desktop-banner-row > .dbr-era   { background:#3a2d7a; }
 html:not(.mobile).dark #desktop-banner-row > .dbr-weight{ background:#0c5f56; }
 /* Back-to-overview keeps its id for v9 JS hooks; styling comes from .dbr-back. */
 html:not(.mobile) #back-to-overview-bar *{ color:#fff !important; }
+/* Back strip = quiet glass, no colour of its own (Luke 2026-11-05, "6 B"): the panel glass and the page's ink in a hairline rim, so it sits on any
+   style or ground. (Era/weight keep their filter colours; a phone held wide, html.phone-whole, keeps the old look.) Arrow = one SVG on the label's centre line. */
+html:not(.mobile):not(.phone-whole) #desktop-banner-row{ border:1px solid var(--border); }
+html:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev){
+  background:var(--panel-glass-bg); color:var(--text);
+  -webkit-backdrop-filter:blur(16px) saturate(170%); backdrop-filter:blur(16px) saturate(170%); }
+html:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev) *{ color:inherit !important; }
+html:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):hover{ filter:none; color:var(--accent); }
+html:not(.mobile):not(.phone-whole) #desktop-banner-row > :is(.dbr-back,.dbr-prev):not([hidden]) ~ :is(.dbr-back,.dbr-prev):not([hidden]){ border-left:1px solid var(--border); }
+#desktop-banner-row .dbr-arr{ display:block; flex:none; width:14px; height:14px; position:relative; top:-.5px; }
+#desktop-banner-row .dbr-lab{ line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* ── v4.16 NOTES polish ─────────────────────────────────────────────────── */
 /* Vertically center the × delete button on every note item (freeform + highlight, both surfaces). */
 .note-item { position:relative; }
@@ -8014,11 +8025,11 @@ html:not(.mobile) .note-dialog-btn {
         bb.id = 'back-to-overview-bar';
         bb.className = 'dbr-seg dbr-back';
         bb.setAttribute('hidden','');
-        bb.innerHTML = '\u2190 Back to Overview';
         row.appendChild(bb);
       } else {
         bb.classList.add('dbr-seg','dbr-back');
       }
+      if(!bb._arr){ bb._arr = 1; bb.innerHTML = '<svg class="dbr-arr" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7.5 3.5L3 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="dbr-lab">Back to Overview</span>'; }
       var era = row.querySelector('.dbr-era');
       if(!era){
         era = document.createElement('button');

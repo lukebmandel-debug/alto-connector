@@ -40,3 +40,7 @@ Distributed .mcpb bundles additionally contain:
     MIT License
 
 Each retains its own license; see the license files inside those distributions.
+
+  flag-icons, country flags of the Memory Atlas (alto/assets/flags/)
+    https://github.com/lipis/flag-icons  (version 7.2.3, the 4x3 SVG set)
+    MIT License, Copyright (c) 2013 Panayiotis Lipiridis (text in alto/assets/flags/LICENSE)

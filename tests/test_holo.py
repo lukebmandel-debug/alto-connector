@@ -248,6 +248,44 @@ def test_the_bars_follow_the_top_bar_rule(browser, site):
     ctx.close()
 
 
+def test_a_detail_page_is_a_readout_column_on_a_computer_and_unchanged_on_a_phone(browser, site):
+    """Luke, 2026-11-05 (item 3, option A): no boxes, one centred column, a lit line beside each section and a lit diamond for the symbol, on an
+    outline page and a case page, text still at AA; a phone keeps the layout it has."""
+    for w, h in ((1400, 900), (390, 844)):
+        phone = w < 500
+        ctx = browser.new_context(viewport={"width": w, "height": h}, has_touch=phone, is_mobile=phone)
+        pg = ctx.new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto(site + "/t.html")
+        pg.wait_for_timeout(400)
+        pg.evaluate("localStorage.clear(); window._altoStyle.set('holo')")
+        pg.wait_for_timeout(400)
+        for typ, ident in (("node", "offer"), ("env", "lucy-v-zehmer")):
+            pg.evaluate("showDetail(%r, %r)" % (typ, ident))
+            pg.wait_for_timeout(500)
+            q = lambda sel, prop, i=0: pg.evaluate("getComputedStyle(document.querySelectorAll(%r)[%d]).%s" % (sel, i, prop))
+            assert pg.evaluate("document.querySelectorAll('#detail-content .detail-section').length") >= 3
+            if phone:
+                assert q("#detail-content .detail-header", "flexDirection") == "row"
+                assert q("#detail-content .detail-section", "borderLeftWidth") == "0px"
+                assert float(q("#detail-content .detail-symbol", "width")[:-2]) < 100
+            else:
+                assert q("#detail-content .detail-header", "flexDirection") == "column"
+                assert q("#detail-content .detail-header", "textAlign") == "center"
+                assert 0.9 < float(q("#detail-content .detail-section", "borderLeftWidth")[:-2]) < 1.5
+                assert q("#detail-content .detail-section", "backgroundColor") in ("rgba(0, 0, 0, 0)", "transparent")   # no box
+                assert q("#detail-content .detail-section", "boxShadow") == "none"
+                assert float(q("#detail-content .detail-symbol", "width")[:-2]) > 100
+                col = pg.evaluate("(function(){ var r=document.getElementById('detail-content').getBoundingClientRect(); return [r.width, r.left+r.width/2]; })()")
+                assert col[0] <= 900 and abs(col[1] - w / 2) < 3     # one centred column
+            res = pg.evaluate(AUDIT_JS)
+            assert res["seen"] > 8, res
+            assert not [b for b in res["bad"] if "detail" in b["el"] or b["el"].startswith(("h3", "p", "span.ol", "div.ol", "div.detail"))], res["bad"][:12]
+        assert not errors, errors
+        ctx.close()
+
+
 def test_a_system_keeps_its_planets_round(browser, site):
     """Luke, 2026-10-30: "we don't want square planets": Holographic squares the cards, never a System's bodies."""
     ctx = browser.new_context(viewport={"width": 1400, "height": 900})

@@ -15,7 +15,7 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
   phone   the whole view on a phone (phone.py): the desktop page made for a finger, fetched only by a phone set to see the page whole;
           and the phone at rest (phone_minimal.py): FIND and MENU in the bottom corners, the rest in MENU, fetched by every phone
   world   the Memory Atlas (palace_view "world"): its renderer (palace_world.py) and the map it fetches (world_geo.py: base-<hash>.json the whole
-          world at 1:110m, cont-<continent>-<hash>.json a continent at 1:50m, a1-<ISO3>-<hash>.json a country's state lines), all published always
+          world at 1:110m, cont-<continent>-<hash>.json a continent at 1:50m, a1-<ISO3>-<hash>.json a country's state lines, flag-<ISO3>-<hash>.svg a country's flag: world_flags.py), all published always
   fleet   the toy weapons: the battleship, destroyers, carriers, submarines and military bases of any city, with their sound, the crowd that
           runs from a collapse and the construction rebuild (palace_fleet_asset.py; loaded only by a city that has a vessel or a base)
 
@@ -62,6 +62,8 @@ def assets(building_plans=None, cmap_refs=None) -> list:
     out += [("bldg", name, text) for name, text in sorted((building_plans or {}).items())]
     from . import world_geo                                  # the Memory Atlas's map: every tier, always (small; any page may zoom anywhere)
     out += [(world_geo.FOLDER, name, text) for name, text in world_geo.hosted()]
+    from . import world_flags                                # ... and the country flags (flag-<ISO3>-<hash>.svg, world_flags.py), fetched one at a time
+    out += [(world_geo.FOLDER, name, text) for name, text in world_flags.hosted()]
     from . import palace_tiles
     out += [(palace_tiles.FOLDER, name, text) for name, text in palace_tiles.blobs(referenced=cmap_refs or ())]
     return out
@@ -76,7 +78,8 @@ def find(path: str, building_plans=None):
         return hit
     for folder, name, text in assets(building_plans=building_plans):
         if p == "/" + folder + "/" + name:
-            return ("application/json; charset=utf-8" if name.endswith(".json") else "text/javascript; charset=utf-8"), text
+            return ("application/json; charset=utf-8" if name.endswith(".json") else "image/svg+xml; charset=utf-8" if name.endswith(".svg")
+                    else "text/javascript; charset=utf-8"), text
     return None
 
 

@@ -437,9 +437,10 @@ PROV_CSS = ("\n  .sec-prov{margin-left:8px;padding:1px 6px;border:1px solid var(
 # mobile: a floating pill. Must be the outermost showDetail wrapper, so it is
 # emitted after every other one (end of body).
 BACK_PREV = """<style id="alto-back-prev-css">
-html:not(.mobile) #desktop-banner-row > .dbr-prev{ background:#2f5d3a; max-width:46vw; }
-html:not(.mobile).dark #desktop-banner-row > .dbr-prev{ background:#1f3e2a; }
-html:not(.mobile) #desktop-banner-row > .dbr-back:not([hidden]) + .dbr-prev{ border-left:1px solid rgba(255,255,255,.28); }
+html:not(.mobile) #desktop-banner-row > .dbr-prev{ max-width:46vw; }
+html:not(.mobile).phone-whole #desktop-banner-row > .dbr-prev{ background:#2f5d3a; }
+html:not(.mobile).phone-whole.dark #desktop-banner-row > .dbr-prev{ background:#1f3e2a; }
+html:not(.mobile).phone-whole #desktop-banner-row > .dbr-back:not([hidden]) + .dbr-prev{ border-left:1px solid rgba(255,255,255,.28); }
 #alto-back-prev .bp-t{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 html.mobile #alto-back-prev{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(16px + env(safe-area-inset-bottom,0px));
   z-index:300; max-width:calc(100vw - 110px); display:flex; align-items:center; gap:6px; padding:10px 16px; border:0; border-radius:20px;
@@ -474,7 +475,7 @@ html.printing #alto-back-prev{ display:none !important; }
     var b=btn(), top=stack[stack.length-1], dp=document.getElementById('detail-page');
     var open=dp && dp.classList.contains('visible');
     if(top && open){
-      b.innerHTML='<span>&larr;</span><span class="bp-t">Back to '+top.title.replace(/[<&]/g,function(c){return c==='<'?'&lt;':'&amp;';})+'</span>';
+      b.innerHTML=(root.classList.contains('mobile')?'<span>&larr;</span>':'<svg class="dbr-arr" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7.5 3.5L3 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>')+'<span class="bp-t dbr-lab">Back to '+top.title.replace(/[<&]/g,function(c){return c==='<'?'&lt;':'&amp;';})+'</span>';
       b.title='Back to '+top.title;
       b.removeAttribute('hidden');
     } else { b.setAttribute('hidden',''); if(!open) stack=[]; }
