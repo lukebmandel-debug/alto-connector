@@ -337,9 +337,11 @@ HEAD_JS = r"""(function(){
     var ret=function(on){ if(on && web()) __LOAD__ var R=window._altoRetro; if(R) R[on ? 'on' : 'off'](); };
     var hol=function(on){ if(on && web()) __LOADH__ var H=window._altoHolo; if(H) H[on ? 'on' : 'off'](); };
     var put=function(v){ try{ localStorage.setItem(SK, v); }catch(e){} };
-    if(!OWN){ window._altoStyle={get:sty, list:LST, set:function(v){ v=LST.indexOf(v)>0 ? v : 'classic'; put(v); ret(v==='retro'); hol(v==='holo'); return sty(); }};
+    var SO={get:sty, list:LST, set:function(v){ v=LST.indexOf(v)>0 ? v : 'classic'; put(v); ret(v==='retro'); hol(v==='holo'); return sty(); }};
+    if(!OWN){ window._altoStyle=SO;
       if(sty()==='retro') ret(1); }
-    else window._altoHoloLayer={get:function(){ return sty()==='holo'; }, set:function(on){ put(on ? 'holo' : 'classic'); hol(on); return sty()==='holo'; }};
+    else { window._altoStyleC=SO;    /* a System's Style C (solar_draw.py, behind its flag): the same switch under another name, so the picker's own row is not drawn for it */
+      window._altoHoloLayer={get:function(){ return sty()==='holo'; }, set:function(on){ put(on ? 'holo' : 'classic'); hol(on); return sty()==='holo'; }}; }
     if(sty()==='holo') hol(1); }
   window.addEventListener('alto-bg', function(){ apply(); });
   window.addEventListener('storage', function(e){ if(e && (e.key===KEY || e.key===LK || e.key===SK)) apply(); });
@@ -366,8 +368,8 @@ def head_block(key: str, palace: bool = False, retro: bool = False, own: bool = 
           .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE))
           .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else ""))
           .replace("__LIBKEY__", json.dumps(LIB_KEY)).replace("__LIBPATH__", json.dumps(LIB_PATH))
-          .replace("__LST__", json.dumps(["classic", "retro", "holo"] if retro else ["classic", "holo"])).replace("__OWN__", "1" if own else "0").replace("__AUTO__", "1" if auto else "0")
-          .replace("__LOAD__", loader(_rt.PATH, _rt.GUARD) if retro else ";")
+          .replace("__LST__", json.dumps(["classic", "retro", "holo"] if retro or own else ["classic", "holo"])).replace("__OWN__", "1" if own else "0").replace("__AUTO__", "1" if auto else "0")
+          .replace("__LOAD__", loader(_rt.PATH, _rt.GUARD) if retro or own else ";")
           .replace("__LOADH__", loader(_ho.PATH, _ho.GUARD)))
     return '<script id="alto-bg-head">' + _lean(js) + "</script>"
 

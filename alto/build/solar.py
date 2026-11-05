@@ -651,6 +651,11 @@ def compact(plan, key=None):
     return plan
 
 
+# Style C (the star-chart-retire sheet, option C; Luke 2026-11-05): the bar keeps System | Star chart (the 3D one), Retro and Holographic are the page's Style
+# in the Scene panel. OFF here until it is released on purpose; a viewer can try it with localStorage alto-style-c=1 (solar_draw.py).
+STYLE_C = False
+
+
 def page_plans(brief, nodes) -> dict:
     """What a System page carries (window._ALTO_SOLAR): the one plan both
     looks draw, compacted, with the look a viewer sees first (brief.hub_look,
@@ -658,6 +663,8 @@ def page_plans(brief, nodes) -> dict:
     out = {**compact(solar_plan(brief, nodes)), "look": getattr(brief, "hub_look", "stars") or "stars"}
     if getattr(brief, "wallpaper_top", False):
         out["wp_top"] = 1
+    if STYLE_C:
+        out["stylec"] = 1
     return out
 
 

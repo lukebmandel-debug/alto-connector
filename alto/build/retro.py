@@ -411,6 +411,19 @@ FORMAT_CSS = r"""
   X :where(#canvas .node-card){outline-color:rgba(217,174,85,.5);}
   X :where(#canvas .node:hover .node-card){outline-color:#d9ae55;}
   X :is(.aed-flags,.aed-chips,.aed-add):not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.5) !important;}
+  /* the System (solar_draw.py), in either look (Style C: Retro is the page's style, the frame, labels and bars; the bodies keep their own light): the bottom row of
+     switches, the 3D scene's labels and pills, and the line labels in the poster's lettering */
+  X #sol-ctl :is(.sol-seg,#sol-motion,.sol-opt),X #sk3d-reset{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border:0 !important;border-radius:0 !important;}
+  X #sol-ctl>*{border-radius:0 !important;}
+  X #sol-ctl button,X #sk3d-reset,X #nvo-where{color:#efe6cf !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}
+  X #sol-ctl :is(.sol-seg button.on,#sol-motion.on,.sol-opt.on){color:#000 !important;background:#d9ae55 !important;}
+  X #sk3d-l b{font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:#efe6cf;}
+  X #sk3d-l b.u{background:#000;border-color:#d9ae55;border-radius:0;color:#d9ae55;letter-spacing:.3em;font-weight:500;}
+  X .nv-at b{color:#efe6cf !important;}
+  X #sk3d-l i{background:#000;border-color:#d9ae55;border-radius:0;color:#d9ae55;font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.1em;}
+  X #sk3d-l i kbd{border-radius:0;background:#d9ae55;color:#000;}
+  X.alto-stars.sk-real:not(.sk-3d) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card:not(#_):not(#__){border-radius:50% !important;background:transparent !important;border-color:transparent !important;box-shadow:none !important;}   /* (no WebGL: the flat scene's globes keep their round bodies, no square plate) */
+  X.alto-solar .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;}
 """
 
 # ── the homepage (home_look.py; Art's spec, Luke 2026-10-28 "8A": the homepage follows Classic | Retro): square plates, gold caps, solid dialogs ──

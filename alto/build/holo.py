@@ -244,6 +244,12 @@ FORMAT_CSS = r"""
    /* an outline page's rows: a hairline between them */
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section .ol-row:not(#_):not(#__){border-top:1px solid rgba(var(--ho-rgb),.28);padding:12px 0 10px;}
   }
+  /* the System's Star chart (Style C: Holographic is the page's style, the bars and labels; the bodies and the space keep their own light): the sky stays space whatever the theme */
+  X.alto-stars.sk-real :is(#canvas,#page-bg,#app):not(#_):not(#__){background:var(--sk-sky,linear-gradient(180deg,#05070f,#0a0b1d 50%,#06050f)) !important;}
+  /* the 3D scene's labels stand on space, which is dark in both themes: they keep the dark theme's light ink */
+  X.sk-3d #sk3d-l b{color:#c9fffa;text-shadow:0 0 3px #010a0e,0 0 2px #010a0e;}
+  X.sk-3d #sk3d-l b.u{background:rgba(1,10,14,.9);color:#4ff0e0;border-color:#4ff0e0;text-shadow:none;}
+  X.sk-3d #sk3d-l i{background:rgba(1,10,14,.92);color:#c9fffa;border-color:#4ff0e0;}
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))

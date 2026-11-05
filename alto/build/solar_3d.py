@@ -63,7 +63,7 @@ SOLAR3D_CSS = r"""
   html.sk-3d:not(.mobile) #world>*:not(.node),html.sk-3d:not(.mobile) #world>.node:not(.focused):not(.sol-closing){visibility:hidden !important;}
   html.sk-3d:not(.mobile) #world>.node:is(.focused,.sol-closing){pointer-events:auto;}
   html.sk-3d:not(.mobile) #world>.node:is(.focused,.sol-closing)>:is(.sol-lbl,.sol-nh,.sol-dot){visibility:hidden !important;}
-  html.sk-3d .sol-unit,html.sk-3d #sk-mark,html.sk-3d #sk-frame{display:none !important;}
+  html.sk-3d .sol-unit,html.sk-3d:not(.alto-retro) #sk-mark,html.sk-3d:not(.alto-retro) #sk-frame{display:none !important;}   /* (Style C: Retro as the page's style draws its frame and name round the 3D scene) */
   #sk3d-l b{position:absolute;left:0;top:0;white-space:nowrap;font:600 11.5px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;
     text-shadow:0 0 3px #000,0 0 2px #000;transform:translate(-50%,0);letter-spacing:.02em;}
   #sk3d-l b.u{font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;transform:translate(-50%,-100%);padding:3px 9px;border-radius:999px;
