@@ -207,6 +207,43 @@ FORMAT_CSS = r"""
   /* the Atlas's Start Tour pill (Art, 2026-11-05: white on the cyan plate was 1.41:1 and read as a blank block): the page's dark ink on the light, square like the rest */
   X:not(.mobile) #wpal-root .wp-row .wp-tt:not(#_):not(#__){color:var(--ho-bg) !important;border-radius:0;}
   X #wpal-root .wp-tag:not(#_):not(#__){letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
+  /* the detail page, "readout column" (Luke 2026-11-05, option A of the holographic-detail-pages sheet): no boxes, one centred column, a lit line
+     running down beside each section with a square light at its head, a lit diamond for the symbol. A computer's page only (a phone keeps the
+     layout it has: it is one column already); a palace's door pages keep their own header and the elevator's gutter */
+  @media (min-width:641px){
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content:not(#_):not(#__){box-sizing:border-box;max-width:856px;padding-left:48px;padding-right:48px;margin-left:auto;margin-right:auto;position:relative;isolation:isolate;}
+   /* on one of the style's own backgrounds the column has no plate to read on: a feathered scrim of the page's colour stands behind it, edgeless (no box) */
+   X.alto-bg-h:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content::before{content:"";position:absolute;z-index:-1;inset:-48px 0 -80px;pointer-events:none;
+     background:linear-gradient(90deg,transparent,rgba(var(--ho-bgrgb),.9) 56px,rgba(var(--ho-bgrgb),.9) calc(100% - 56px),transparent);}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr):not(#_):not(#__){position:relative;flex-direction:column;align-items:center;gap:6px;
+     text-align:center;border-bottom:0 !important;margin-bottom:44px;padding-bottom:40px;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+     background:linear-gradient(90deg,transparent,rgba(var(--ho-rgb),.85) 18%,rgba(var(--ho-rgb),.85) 82%,transparent);box-shadow:0 0 8px rgba(var(--ho-rgb),.45);}
+   /* the symbol: the glyph stands lit in the middle of two nested diamonds */
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol:not(#_):not(#__){position:relative;display:grid;place-items:center;
+     width:124px;height:124px;font-size:34px;color:var(--ho-ac2) !important;text-shadow:0 0 12px rgba(var(--ho-rgb),.7);}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::before,
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::after{content:"";position:absolute;transform:rotate(45deg);pointer-events:none;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::before{inset:18px;border:1px solid rgba(var(--ho-rgb),.75);
+     box-shadow:var(--ho-glow),inset 0 0 14px rgba(var(--ho-rgb),.18);}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::after{inset:29px;border:1px solid var(--ho-ac);}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol > *{position:relative;z-index:1;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-name:not(#_):not(#__){font-size:38px;line-height:1.2;letter-spacing:.2em;
+     margin-top:4px;text-shadow:0 0 14px rgba(var(--ho-rgb),.5);}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-role:not(#_):not(#__){letter-spacing:.2em;color:var(--ho-mu) !important;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-badge:not(#_):not(#__){background:transparent !important;border:1px solid rgba(var(--ho-rgb),.6) !important;
+     border-radius:0 !important;border-top-color:transparent !important;color:var(--ho-ac2) !important;}
+   /* a section: its lit line beside it, a square light at its head; nothing boxed */
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section:not(#_):not(#__){position:relative;background:transparent !important;border:0 !important;
+     border-left:1px solid rgba(var(--ho-rgb),.5) !important;box-shadow:none !important;padding:0 0 4px 30px;margin-bottom:34px;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section::before{content:"";position:absolute;left:-4px;top:2px;width:7px;height:7px;background:var(--ho-ac);
+     box-shadow:var(--ho-glow);}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section > h3:not(#_):not(#__){letter-spacing:.3em;color:var(--ho-ac2) !important;margin:0 0 14px;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section p:not(#_):not(#__){font-size:19px;line-height:1.7;}
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section .alto-lead-num:not(#_):not(#__){opacity:1;color:var(--ho-mu);}
+   /* an outline page's rows: a hairline between them */
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section .ol-row:not(#_):not(#__){border-top:1px solid rgba(var(--ho-rgb),.28);padding:12px 0 10px;}
+  }
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
