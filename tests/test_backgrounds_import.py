@@ -25,6 +25,9 @@ from alto.build import backgrounds_import as bi                # noqa: E402
 from alto.build.builder import build_timeline, load_brief      # noqa: E402
 from alto.build.private_shell import stored_bytes              # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from terms_fixture import terms_doc                            # noqa: E402
+
 OUTLINE = ROOT / "samples" / "outline_brief.json"
 CLOUD = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
 
@@ -210,7 +213,7 @@ def _page(ctx, base, docs=None, signed_out=False):
              lambda r: r.fulfill(status=200, content_type="text/javascript",
                                  body=_STUBS[r.request.url.rsplit("/", 1)[1]]))
     pg.add_init_script("window.__fs={docs:%s,writes:[],deletes:[]};%s"
-                       % (json.dumps(docs or {}), "window.__signedOut=true;" if signed_out else ""))
+                       % (json.dumps({**terms_doc("u1"), **(docs or {})}), "window.__signedOut=true;" if signed_out else ""))
     pg.goto(base + "/t.html")
     pg.wait_for_function("window.AltoCloud && window.AltoCloud.known", timeout=15000)
     pg.wait_for_timeout(400)
@@ -345,8 +348,10 @@ def test_errors_say_what_happened_and_what_to_do(browser, site, tmp_path):
     pg = _page(ctx, base, signed_out=True)
     _open_import(pg)
     assert "Sign in to keep your own backgrounds" in pg.inner_text("#bg-panel .bg-err")
+    # every sign-in goes through cloud.signIn, which stops while the account menu's Beta Terms box is unticked: tick it as a person would
+    pg.evaluate("(() => { const b = document.getElementById('acct-terms-box'); if (b) { b.checked = true; b.dispatchEvent(new Event('change', {bubbles: true})); } })()")
     pg.click("#bg-panel .bg-err .bg-go")
-    assert pg.evaluate("window.__signIns") == 1
+    pg.wait_for_function("window.__signIns === 1", timeout=5000)
     ctx.close()
 
 

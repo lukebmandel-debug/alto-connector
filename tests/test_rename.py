@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from alto.build.builder import build_timeline, load_brief   # noqa: E402
 from alto.build.pages import build_home                      # noqa: E402
+from terms_fixture import terms_doc                         # noqa: E402
 
 try:
     import playwright.sync_api as pw
@@ -75,6 +76,7 @@ def _docs():
         "users/u1/alto_projects/p-law": {"data": json.dumps({"project_id": "p-law", "name": "Law"})},
         "users/u1/alto_projects/p-crime": {"data": json.dumps({"project_id": "p-crime", "name": "Crime"})},
         "users/u1": {"pagemetaV": 1},
+        **terms_doc("u1"),                     # the signed-in user has accepted the current terms: no dialog over the page
     }
 
 
@@ -307,7 +309,7 @@ def test_clicking_the_name_in_edit_mode_renames_the_timeline(browser, timeline_s
     pg.keyboard.press("Meta+a" if pg.evaluate("navigator.platform").startswith("Mac") else "Control+a")
     pg.keyboard.type("Contract Law"); pg.keyboard.press("Enter"); pg.wait_for_timeout(900)
     assert pg.inner_text("#title-text") == "Contract Law"
-    assert pg.title() == "Contract Law — Alto Timeline"
+    assert pg.title() == "Contract Law — Alto"      # (manual_edit sets the tab title to "<name> — Alto")
     ops = pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(k=>k.indexOf('alto-ed-')===0)[0])).ops")
     assert ops["bt|title"]["v"] == "Contract Law" and ops["bt|title"]["b"] == old
     assert pg.evaluate("window.__heads") == [["abc", "Contract Law"]]                 # the listing hears of it

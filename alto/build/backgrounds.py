@@ -157,6 +157,7 @@ def catalog_json(palace: bool = False) -> str:
 #   custom      — "c:rrggbb": a colour of the user's own, drawn like the presets (pale in light, deep in dark).
 HEAD_JS = r"""(function(){
   var C=__CATALOG__, KEY=__KEY__, BASE=__BASE__, DEF=__DEFAULT__, LK=__LIBKEY__, LP=__LIBPATH__, r=document.documentElement;
+  var SK=/-bg$/.test(KEY) ? KEY.replace(/-bg$/,'-style') : KEY+'-style', LST=__LST__, OWN=__OWN__, AUTO=__AUTO__;
   var VARS=['--alto-bg','--alto-top','--alto-q','--alto-veil','--alto-bright','--alto-blur','--alto-t','--alto-mask'];
   var cur='', sig='', touched=false, PV=[];
   var HEX=/^c:([0-9a-f]{6})$/;
@@ -167,6 +168,17 @@ HEAD_JS = r"""(function(){
   // what was chosen; with no choice recorded, the page's own default (a Memory Palace's first map ground, else none).
   // A recorded choice of '' is the Alto wallpaper, chosen.
   function read(){ try{ var s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s && typeof s.v==='string') return s.v; }catch(e){} return DEF; }
+  // What is DRAWN is not always what was chosen (Luke, 2026-11-04). Retro is plain black on every page of every format; a page that makes its own
+  // background (AUTO: a Memory Atlas, a Blueprint, a city map, a System) draws it, and takes a chosen one only behind a detail page or the overview.
+  // The choice itself is kept as it was and comes back in Classic and Holographic.
+  function retroNow(){ if(r.classList.contains('alto-retro') || r.classList.contains('sk-retro')) return true;
+    try{ return LST.indexOf('retro')>0 && localStorage.getItem(SK)==='retro'; }catch(e){ return false; } }
+  function paged(){ return r.classList.contains('detail-open') || r.classList.contains('summary-open'); }
+  function only(){ return retroNow() || (AUTO && !paged()); }
+  var ov; // an id asked for by name (apply(id)); else what was chosen
+  function want(){ return retroNow() ? '' : AUTO && !paged() ? DEF : ov===undefined ? read() : ov; }
+  var lw=null;
+  function retarget(){ var w=want(); if(w===lw) return; lw=w; cur=get(w) ? w : ''; sig=''; }
   // the opaque key in a private or shared page's address: what a gate knows about this page before it has it
   function gate(){ var p=location.pathname.split('/').filter(Boolean); return (p[0]==='pv' || p[0]==='s') && p[1] ? p[0]+'/'+p[1] : ''; }
   function h2n(h){ return parseInt(h.slice(1),16); }
@@ -315,14 +327,13 @@ HEAD_JS = r"""(function(){
     st.setProperty('--alto-bright',bright); st.setProperty('--alto-blur',blur); st.setProperty('--alto-t',T+'px'); st.setProperty('--alto-mask',mask);
     r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
   }
-  function apply(id){ LB=null; cur=get(id) ? id : ''; sig=''; paint(); }
-  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
-    choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(id); }};
+  function apply(id){ LB=null; ov=id; var w=want(); lw=w; cur=get(w) ? w : ''; sig=''; paint(); }
+  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, only:only, auto:AUTO, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
+    choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(); }};
   window._altoBgId='';
-  apply(read());
+  apply();
   // the style, Classic, Retro (retro.py) or Holographic (holo.py), kept per timeline; the two looks are hosted scripts, fetched only when chosen
-  { var SK=/-bg$/.test(KEY) ? KEY.replace(/-bg$/,'-style') : KEY+'-style', LST=__LST__, OWN=__OWN__;
-    var sty=function(){ try{ var v=localStorage.getItem(SK); return LST.indexOf(v)>0 ? v : 'classic'; }catch(e){ return 'classic'; } };
+  { var sty=function(){ try{ var v=localStorage.getItem(SK); return LST.indexOf(v)>0 ? v : 'classic'; }catch(e){ return 'classic'; } };
     var ret=function(on){ if(on && web()) __LOAD__ var R=window._altoRetro; if(R) R[on ? 'on' : 'off'](); };
     var hol=function(on){ if(on && web()) __LOADH__ var H=window._altoHolo; if(H) H[on ? 'on' : 'off'](); };
     var put=function(v){ try{ localStorage.setItem(SK, v); }catch(e){} };
@@ -330,11 +341,11 @@ HEAD_JS = r"""(function(){
       if(sty()==='retro') ret(1); }
     else window._altoHoloLayer={get:function(){ return sty()==='holo'; }, set:function(on){ put(on ? 'holo' : 'classic'); hol(on); return sty()==='holo'; }};
     if(sty()==='holo') hol(1); }
-  window.addEventListener('alto-bg', function(){ apply(read()); });
-  window.addEventListener('storage', function(e){ if(e && (e.key===KEY || e.key===LK)) apply(read()); });
+  window.addEventListener('alto-bg', function(){ apply(); });
+  window.addEventListener('storage', function(e){ if(e && (e.key===KEY || e.key===LK || e.key===SK)) apply(); });
   // The engine sets the bar colour itself when the page loads and when the theme flips; ours goes last. A
   // theme flip, or the page zoom changing (a style on <html>), draws the picture again.
-  new MutationObserver(function(){ bar(); paint(); }).observe(r,{attributes:true,attributeFilter:['class','style']});
+  new MutationObserver(function(){ retarget(); bar(); paint(); }).observe(r,{attributes:true,attributeFilter:['class','style']});
   var raf=0; function soon(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; paint(); }); }
   document.addEventListener('DOMContentLoaded', function(){ bar(); sig=''; paint(); });
   window.addEventListener('load', function(){ bar(); soon(); });
@@ -343,18 +354,19 @@ HEAD_JS = r"""(function(){
 })();"""
 
 
-def head_block(key: str, palace: bool = False, retro: bool = False, own: bool = False) -> str:
+def head_block(key: str, palace: bool = False, retro: bool = False, own: bool = False, auto: bool = False) -> str:
     """The <script> for <head>. `key` is the localStorage key of this page's choice; a Memory Palace
     page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it.
     `retro`: the page offers Classic | Retro | Holographic (retro.py, holo.py; a timeline page or the homepage), else Classic | Holographic (the reports);
-    `own`: a System, whose own switch (solar_draw.py) carries Holographic through window._altoHoloLayer."""
+    `own`: a System, whose own switch (solar_draw.py) carries Holographic through window._altoHoloLayer;
+    `auto`: the page makes its own background (a Memory Atlas, a Blueprint, a city map, a System): a chosen one shows only behind a detail page."""
     from . import holo as _ho, retro as _rt
     from .palace_assets import loader
     js = (HEAD_JS.replace("__CATALOG__", catalog_json(palace))
           .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE))
           .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else ""))
           .replace("__LIBKEY__", json.dumps(LIB_KEY)).replace("__LIBPATH__", json.dumps(LIB_PATH))
-          .replace("__LST__", json.dumps(["classic", "retro", "holo"] if retro else ["classic", "holo"])).replace("__OWN__", "1" if own else "0")
+          .replace("__LST__", json.dumps(["classic", "retro", "holo"] if retro else ["classic", "holo"])).replace("__OWN__", "1" if own else "0").replace("__AUTO__", "1" if auto else "0")
           .replace("__LOAD__", loader(_rt.PATH, _rt.GUARD) if retro else ";")
           .replace("__LOADH__", loader(_ho.PATH, _ho.GUARD)))
     return '<script id="alto-bg-head">' + _lean(js) + "</script>"
@@ -423,13 +435,16 @@ html.mobile #bg-panel .bg-head{ position:sticky; top:0; z-index:1; margin:0 0 12
 #bg-close{ display:none; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:14px; align-items:center;
   justify-content:center; color:var(--text); letter-spacing:0; background:var(--card-glass-bg); border:1px solid var(--card-glass-border); }
 html.mobile #bg-close{ display:flex; }
-#bg-panel .bg-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#bg-panel .bg-body{ flex:1 1 auto; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+/* the picker's body clips at its own edge: on a computer a few pixels of air inside it keep the last column's ring and the style switch's last border from being clipped (Retro and Holographic draw them in a line that shows) */
+@media (min-width:641px){ html:not(.mobile) #bg-panel .bg-body{ padding:3px 3px 1px; } }
 #bg-panel .bg-head, #bg-panel .bg-foot{ flex:none; }
 #bg-panel .bg-sec{ margin:0 0 12px; }
 html.mobile #bg-panel .bg-sec{ padding:0 16px; margin-bottom:18px; }
 #bg-panel .bg-h{ font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:2px 2px 7px; }
 html.mobile #bg-panel .bg-h{ font-size:11px; margin-bottom:9px; }
-#bg-panel .bg-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+#bg-panel .bg-grid{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; min-width:0; }
+#bg-panel .bg-sec{ min-width:0; }
 .bg-tile{ position:relative; display:block; width:100%; aspect-ratio:16 / 10; padding:0; margin:0; overflow:hidden; cursor:pointer;
   border-radius:10px; border:2px solid transparent; background:var(--surface); font:inherit; color:#fff;
   box-shadow:0 0 0 1px var(--border); -webkit-tap-highlight-color:transparent; }
@@ -450,6 +465,20 @@ html.mobile #bg-panel .bg-h{ font-size:11px; margin-bottom:9px; }
 #bg-panel .bg-foot{ font-size:11px; line-height:1.5; color:var(--muted); margin:6px 2px 2px; min-height:1.5em; }
 html.mobile #bg-panel .bg-foot{ padding:8px 16px 0; margin:0; border-top:1px solid var(--header-hairline, var(--border)); }
 #bg-panel .bg-foot a{ color:inherit; text-decoration:underline; }
+/* A page that makes its own background, and Retro (plain black everywhere), offer the style picker and nothing else (Luke, 2026-11-04) */
+#bg-panel .bg-auto{ display:none; }
+#bg-panel.bg-only .bg-sec:not(#bg-style):not(.bg-auto), #bg-panel.bg-only .bg-foot{ display:none; }
+#bg-panel.bg-only .bg-auto{ display:block; font-size:11px; line-height:1.5; color:var(--muted); margin:2px 2px 10px; }
+#bg-panel .bg-solar-seg{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); width:100%; min-width:0; box-sizing:border-box; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+#bg-panel .bg-solar-seg .bg-segb{ min-width:0; padding:0 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:inherit; font-size:12px; height:30px; border:0;
+  border-top:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; }
+#bg-panel .bg-solar-seg .bg-segb.on{ background:var(--accent,#6d5bd0); color:#fff; font-weight:600; }
+html.sk-retro #bg-panel .bg-solar-seg{ border-radius:0; border-color:rgba(217,174,85,.6); } html.sk-retro #bg-panel .bg-solar-seg .bg-segb{ text-transform:uppercase; letter-spacing:.14em; font-size:11px; }
+html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#000; }
+#bg-panel .bg-solar-seg .bg-segb:last-child:nth-child(odd){ grid-column:1 / -1; border-left:0; }
+#bg-panel .bg-solar-seg .bg-segb:nth-child(-n+2){ border-top:0; }
+#bg-panel .bg-solar-seg .bg-segb:nth-child(odd){ border-left:0; }
+#bg-panel .bg-solar-seg .bg-segb:nth-child(even){ border-left:1px solid var(--border); }
 html.printing #bg-toggle, html.printing #bg-panel{ display:none !important; }
 /* on a phone the sheet runs under the bottom bar too (the runway, 140px): lift its last rows and its credit line above it */
 html.rw #bg-panel:not(#_), html.mobile.rw #bg-panel:not(#_){ padding-bottom:calc(154px + env(safe-area-inset-bottom, 0px)) !important; }
@@ -461,15 +490,16 @@ UI_JS = r"""(function(){
   function mobile(){ return root.classList.contains('mobile'); }
   function mk(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
   var ICON='<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.4"/><circle cx="7" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M3 14.5l4.2-4.2 3.3 3.3 2.2-2.2 4.3 4.3"/></svg>';
-  var tab, panel, body, foot, tiles=[], drawn=false, customTile=null, customInput=null, lastDark=null;
+  var tab, panel, body, foot, note, tiles=[], drawn=false, customTile=null, customInput=null, lastDark=null;
   function dark(){ return root.classList.contains('dark'); }
   function variant(c){ return c.k==='p' ? (dark() ? c.d : c.l) : null; }
   function credit(){
     var id=B.read(), c=B.get(id); foot.textContent='';
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
-    if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map, for the light and the dark theme.'; return; }
-    if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background, for the light and the dark theme.'; return; }
-    if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+' — for the light and the dark theme.'; return; }
+    var both=root.classList.contains('alto-holo') ? '' : ', for the light and the dark theme';     // (Holographic is dark-only: it never says light)
+    if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map'+both+'.'; return; }
+    if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background.'; return; }
+    if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+(both ? ' —'+both.slice(1) : '')+'.'; return; }
     // one of the account's own pictures: its name, rename and remove (the hosted library script)
     if(c.u){ foot.textContent=c.n; B.need(function(L){ L.credit(id, foot); }); return; }
     var v=variant(c);
@@ -481,7 +511,7 @@ UI_JS = r"""(function(){
     tiles.forEach(function(t){ var id=t.getAttribute('data-bg')||'', on=id===cur || (id==='c:' && custom);
       t.classList.toggle('active',on); t.setAttribute('aria-pressed',on?'true':'false'); });
     if(customTile){ var h=custom ? '#'+cur.slice(2) : ''; customTile.classList.toggle('set', !!h); if(h) customTile.style.setProperty('--bg-custom', h); else customTile.style.removeProperty('--bg-custom'); if(customInput && h) customInput.value=h; }
-    if(tab) tab.classList.toggle('active', !!cur && cur!==B.def);
+    if(tab) tab.classList.toggle('active', !!cur && cur!==B.def && !(B.only && B.only()));
     if(foot) credit();
   }
   // the tiles take the theme in use: a photograph's light or dark picture, a colour's or pattern's own
@@ -534,9 +564,31 @@ UI_JS = r"""(function(){
     order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
+  // A page that makes its own background, and Retro, hold the style picker and nothing else; the System's own style switch is mirrored here (its row is drawn in this file, not by the hosted library)
+  var SS={system:'System', chart:'Star chart', retro:'Retro', '3d':'3D Star chart', holo:'Holographic'};
+  function solarMark(){
+    var S=window._altoSolarStyles, row=document.getElementById('bg-style'); if(!S || !row || !row.getAttribute('data-solar')) return;
+    var c=S.get(); [].forEach.call(row.querySelectorAll('.bg-segb'), function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  }
+  function solarRow(){
+    var S=window._altoSolarStyles; if(!S || !body || document.getElementById('bg-style')) return solarMark();
+    var row=mk('div','bg-sec'), seg=mk('div','bg-solar-seg'); row.id='bg-style'; row.setAttribute('data-solar','1'); seg.setAttribute('role','group'); seg.setAttribute('aria-label','Style');
+    S.list().forEach(function(id){ var b=mk('button','bg-segb',SS[id]||id); b.type='button'; b.setAttribute('data-sty',id);
+      b.addEventListener('click', function(e){ e.stopPropagation(); S.set(id); solarMark(); }); seg.appendChild(b); });
+    row.appendChild(mk('div','bg-h','Style')); row.appendChild(seg); body.insertBefore(row, body.firstChild); solarMark();
+  }
+  function lim(){
+    if(!panel) return;
+    var on=!!(B.only && B.only());
+    panel.classList.toggle('bg-only', on);
+    if(on){ if(drawn) solarRow(); var plain=root.classList.contains('alto-retro') || root.classList.contains('sk-retro');
+      note.textContent=plain ? 'Retro is plain black, so there is no background to choose. Switch to Classic or Holographic to pick one.' : 'This format draws its own background. Open anything in it to choose a background for its detail page.'; }
+    else solarMark();
+  }
   function open(v){
     if(!panel) return;
     if(v) draw();
+    if(v) lim();
     panel.classList.toggle('open', v); if(tab) tab.setAttribute('aria-expanded', v?'true':'false');
   }
   function build(){
@@ -548,7 +600,7 @@ UI_JS = r"""(function(){
     var act=mk('span','bg-act'); act.style.display='flex'; act.style.alignItems='center'; act.style.gap='10px';
     act.appendChild(mk('span','bg-sub',LABEL)); act.appendChild(cls);
     head.appendChild(mk('span','bg-t','Background')); head.appendChild(act); panel.appendChild(head);
-    body=mk('div','bg-body'); foot=mk('div','bg-foot'); panel.appendChild(body); panel.appendChild(foot);
+    body=mk('div','bg-body'); foot=mk('div','bg-foot'); note=mk('div','bg-sec bg-auto'); body.appendChild(note); panel.appendChild(body); panel.appendChild(foot);
     document.body.appendChild(panel);
     // A phone timeline: no tile, a Scene item in the MENU directly under Dark / Light. The engine moves Dark / Light up
     // under Overview once the drawer is built, so Scene follows it there (and again if the drawer is redrawn). The tap
@@ -590,6 +642,7 @@ UI_JS = r"""(function(){
     new MutationObserver(function(){
       if(root.classList.contains('detail-open') || root.classList.contains('summary-open')) open(false);
       if(lastDark!==dark()){ lastDark=dark(); if(drawn) tiles.forEach(dress); credit(); }
+      lim(); if(foot && drawn) credit();
     }).observe(root,{attributes:true,attributeFilter:['class']});
     window.addEventListener('alto-bg', mark);
     window.addEventListener('storage', function(e){ if(e && e.key===B.key) mark(); });

@@ -135,7 +135,7 @@ def test_retro_stays_black_over_a_saved_background(tmp_path, engine):
     finally:
         srv.shutdown()
     for width, r in out.items():
-        assert r["retro"] and r["bg"], (width, r)                      # the case under test is really on
+        assert r["retro"] and not r["bg"], (width, r)                  # Retro is on and the saved picture is kept but not drawn (backgrounds.py: Retro is plain black)
         assert r["page"] == "rgb(0, 0, 0)" and r["html"] == "rgb(0, 0, 0)", (width, r)
 
 

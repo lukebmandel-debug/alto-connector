@@ -142,6 +142,10 @@ HOLO_CSS = r"""
    X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half:not(#_):not(#__){box-shadow:none !important;}
    X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half + .aep-half:not(#_):not(#__){box-shadow:inset 1px 0 0 rgba(47,167,157,.45) !important;}
   }
+  /* focus on a branch (focus_branch.py): square, the Exit pill's ink dark on the cyan fill, its keys at full strength; the rules live here, not in the page */
+  X :is(#af-btn,#af-exit){border-radius:0;}
+  X #af-exit{color:var(--ho-bg) !important;}
+  X #af-exit :is(.af-who,.af-esc){opacity:1;}
   /* the palace has no nav items: its empty band is not painted, so the Tour / World / zoom row clears it (Art fix 2) */
   X.wpal-open #nav:not(#_):not(#__){background:transparent !important;border:0 !important;box-shadow:none !important;}
   @media print{ X :is(#title-bar,#nav,#node-nav-bar){box-shadow:none !important;} }

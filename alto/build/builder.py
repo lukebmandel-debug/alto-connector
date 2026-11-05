@@ -8,7 +8,7 @@ from pathlib import Path
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, migrate_brief, building_view, world_view
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
-from . import backgrounds, clear_top, hover_lines
+from . import backgrounds, clear_top, focus_branch, hover_lines, select_guard
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
@@ -278,7 +278,8 @@ def _add_background_head(html: str, brief: Brief) -> str:
     retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
     from .phone import head_block as phone_head
     from .phone_minimal import head_block as phone_min_head
-    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro, own=not retro) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
+    auto = brief.mode == "palace" or solar_style(brief) == "orbit"     # an Atlas, a Blueprint, a city map and a System make their own background
+    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro, own=not retro, auto=auto) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
                         + "\n" + anchor, 1)
 
 
@@ -324,7 +325,9 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + tree_block(trees or {}) + study_block_for(brief, study or {})
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
+            + (focus_branch.block() if brief.mode != "palace" and not solar_style(brief) else "")   # focus on a branch: timelines, outlines, the horizontal timeline
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief))
+            + select_guard.block()
             + card_block(phone_mode(brief)) + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
     at = html.rfind("</body>")
     if at < 0:

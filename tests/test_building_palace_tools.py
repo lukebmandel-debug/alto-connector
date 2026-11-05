@@ -115,9 +115,11 @@ def test_the_page_carries_a_loader_and_the_placements_not_the_plan():
 
 def test_the_page_grows_by_a_few_kilobytes_only():
     """The private page is at its size cap: a Memory Blueprint costs a loader and the placements, and is far lighter than the city."""
+    from alto.build import focus_branch
     plain, _ = built(mode="linear", palace_view="city", building={})
     html, _ = built()
-    assert abs(len(html) - len(plain)) < 12_000, len(html) - len(plain)       # (a few KB either way: the plain page carries its own timeline code)
+    plain_n = len(plain) - len(focus_branch.block())                            # (the plain timeline page carries the focus-on-a-branch block, a palace page never does)
+    assert abs(len(html) - plain_n) < 12_000, len(html) - plain_n       # (a few KB either way: the plain page carries its own timeline code)
     assert len(html) < len(built(palace_view="city", building={})[0])
 
 

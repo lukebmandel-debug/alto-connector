@@ -310,13 +310,16 @@ TIMELINE_SEARCH_JS = r"""
   function search(q){
     var Q=M.query(q); if(!Q.toks.length || Q.raw.length<2) return [];
     var idx=build(), out=[];
+    var fb=window._altoFocusBranch, inb=function(r){ return !fb || !fb.active() || ((r.target==='node' || r.type==='node') && fb.has(r.id)); };   /* a focus on a branch: its cards and their pages only (focus_branch.py) */
     idx.forEach(function(r){
+      if(!inb(r)) return;
       var s=M.score(Q,r); if(!s) return;
       out.push({r:r, s:s, rank:s.score});
     });
     /* nothing has every word: offer what has all but one of them */
     if(!out.length && Q.toks.length>=2){
       idx.forEach(function(r){
+        if(!inb(r)) return;
         var s=M.score(Q,r,{allow:1}); if(!s) return;
         out.push({r:r, s:s, rank:s.score});
       });

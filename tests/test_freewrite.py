@@ -20,7 +20,9 @@ from alto.cloud import SOURCE
 ROOT = Path(__file__).resolve().parent.parent
 TID = "contracts-outline"
 KEY = f"alto-hl-{TID}"
-JS = SOURCE.read_text(encoding="utf-8")
+from terms_fixture import real_cloud_js, terms_doc  # noqa: E402
+
+JS = real_cloud_js(SOURCE.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -416,7 +418,7 @@ export const onSnapshot = (ref, cb) => {
 
 class Cloud:
     def __init__(self):
-        self.docs, self.lock = {}, threading.Lock()
+        self.docs, self.lock = terms_doc("U1"), threading.Lock()
 
     def op(self, source, a):
         with self.lock:

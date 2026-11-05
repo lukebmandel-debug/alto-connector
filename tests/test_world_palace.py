@@ -222,9 +222,11 @@ def test_the_page_carries_a_loader_and_the_places_not_the_map():
 
 
 def test_the_page_grows_by_a_few_kilobytes_only():
+    from alto.build import focus_branch
     plain, _ = built(mode="linear", palace_view="city")
     html, _ = built()
-    assert 0 < len(html) - len(plain) < 14_000, len(html) - len(plain)
+    plain_n = len(plain) - len(focus_branch.block())        # (the plain timeline page carries the focus-on-a-branch block, a palace page never does)
+    assert 0 < len(html) - plain_n < 14_000, len(html) - plain_n
     assert len(html) < len(built(palace_view="city")[0])
 
 
