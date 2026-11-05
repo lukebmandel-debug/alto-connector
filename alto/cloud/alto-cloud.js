@@ -1319,16 +1319,15 @@
     // Re-identify BEFORE writing. A share that kept the master's identity
     // would write a recipient's highlights into the owner's own records.
     const html = _reidentify(master, shareKey);
+    let wasRefs = [];
+    if (existing) { try { const was = await _getShare(existing); wasRefs = _picRefsOf(was && was.html); } catch (e) {} }
     // the owner's claim to the link comes first (the pictures' rules check it)
     await _putShare(shareKey, { html, title: title || page.title || '' });
     let pictures = 0;
     try {
       pictures = await _sharePics(shareKey, html);
-      if (existing) {                       // what the link no longer names stops being readable
-        const keep = new Set(_picRefsOf(html));
-        const was = await _getShare(existing);
-        await _unsharePics(shareKey, _picRefsOf(was && was.html).filter(r => !keep.has(r)));
-      }
+      const keep = new Set(_picRefsOf(html));       // what the link no longer names stops being readable
+      await _unsharePics(shareKey, wasRefs.filter(r => !keep.has(r)));
     } catch (e) { console.warn('[AltoCloud] share pictures', e); }
     if (!existing) {
       await setDoc(ref, { shareKey }, { merge: true });

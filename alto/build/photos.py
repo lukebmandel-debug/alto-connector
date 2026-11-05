@@ -166,6 +166,11 @@ def from_compact(v: dict) -> dict:
     return out
 
 
+def has_pictures(n) -> bool:
+    """A card carries pictures of its own, or one of its page's sections is a Photos section (the Filter's "Has pictures")."""
+    return bool(getattr(n, "photos", None) or any(getattr(s, "photos", None) for s in n.sections or []))
+
+
 def prepare(b, nodes) -> tuple:
     """After sanitize: give every Photos section a slot at the end of its text (its captions inside, hidden, so search finds them) and
     return the data the renderer reads, ({section key: compact}, {card id: [compact items]}). A section's key is its place, as for trees."""
@@ -232,7 +237,7 @@ html.alto-editing .aph .aph-add{display:flex;}
 .aph .aph-err{width:100%;font-size:12.5px;color:#dc2626;}
 .aph-ph .aph-ph-h{font-size:12.5px;color:var(--muted);}
 @media (max-width:760px){.aph .aph-fig,.aph .aph-add,.aph.aph-few .aph-fig{flex-basis:calc(50% - 6px);}}
-html.mobile .aph .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few .aph-fig,html.mobile .aph.aph-one .aph-fig{flex-basis:100%;}
+html.mobile .aph .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few .aph-fig,html.mobile .aph.aph-one .aph-fig,html.mobile .aph.aph-top .aph-fig{flex-basis:100%;max-width:none;}
 html.mobile .aph .aph-img{aspect-ratio:auto;max-height:70vh;}
 html.mobile .aph .aph-img img{position:static;height:auto;max-height:70vh;object-fit:contain;}
 /* the viewer */
@@ -276,6 +281,15 @@ html.alto-editing .node-card.aph-has .aph-cardadd{display:none !important;}
 .aph-cf{margin:6px auto 4px;max-width:100%;}
 .aph-cf .aph-img{aspect-ratio:auto;max-height:150px;}
 .aph-cf .aph-img img{position:static;width:auto;max-width:100%;height:auto;max-height:150px;margin:0 auto;object-fit:contain;}
+/* a picture in the study editor (a question or a card side) */
+#aed-study .as-pic{display:flex;align-items:center;gap:8px;margin:6px 0 4px;flex-wrap:wrap;}
+#aed-study .as-picadd,#aed-study .as-picx{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:9px;border:1.5px dashed var(--border);background:none;color:var(--muted);cursor:pointer;}
+#aed-study .as-picadd:hover,#aed-study .as-picx:hover{color:var(--text);border-color:var(--muted);}
+#aed-study .as-pict{flex:none;width:56px;height:42px;border-radius:6px;overflow:hidden;border:1px solid var(--border);position:relative;background:color-mix(in srgb,var(--text) 8%,transparent);}
+#aed-study .as-pict img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+#aed-study .as-picf{flex:1;display:flex;flex-direction:column;gap:4px;min-width:160px;}
+#aed-study .as-picf input{width:100%;box-sizing:border-box;padding:5px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;font-size:12px;}
+#aed-study .as-picerr{font-size:12px;color:#dc2626;}
 /* print: the strip prints with its captions; the ink-saver sheet leaves the pictures out and prints the captions */
 @media print{
   .aph .aph-ed,.aph .aph-tools,.aph .aph-add,.aph-thumb,.aph-tray,.aph-cardadd,#aph-lb{display:none !important;}
@@ -322,8 +336,9 @@ html.alto-holo #aph-lb .lb-cap{color:var(--ho-tx);}
 @media (prefers-reduced-motion:no-preference){html.alto-holo .aph .aph-img{transition:box-shadow .25s;} html.alto-holo .aph .aph-img:hover{box-shadow:0 0 14px rgba(var(--ho-rgb),.6);}}
 """
 
-# the System's rising panel (solar_pics.py appends its own rules)
-CSS = BASE_CSS + RETRO_CSS + HOLO_CSS
+from . import solar_pics as _sp   # noqa: E402  (the System's rising panel: its rules and its script, added to this one)
+
+CSS = BASE_CSS + RETRO_CSS + HOLO_CSS + _sp.CSS
 
 PICS_JS = r"""(function(){
   if(window.__GUARD__) return;
@@ -420,7 +435,7 @@ PICS_JS = r"""(function(){
     else if(e.key==='ArrowLeft' && lbItems.length>1){ e.preventDefault(); e.stopImmediatePropagation(); lbAt=(lbAt+lbItems.length-1)%lbItems.length; lbDraw(); }
     else if(e.key==='ArrowRight' && lbItems.length>1){ e.preventDefault(); e.stopImmediatePropagation(); lbAt=(lbAt+1)%lbItems.length; lbDraw(); }
   }
-  function lbClose(){ if(lb && lb.parentNode) lb.parentNode.removeChild(lb); lb=null; window.removeEventListener('keydown', lbKey, true); if(lbBack && lbBack.focus){ try{ lbBack.focus(); }catch(e){} } }
+  function lbClose(){ if(lb && lb.parentNode) lb.parentNode.removeChild(lb); lb=null; window.removeEventListener('keydown', lbKey, true); if(window._unifiedEscape) window.addEventListener('keydown', window._unifiedEscape, true); if(lbBack && lbBack.focus){ try{ lbBack.focus(); }catch(e){} } }
   function lightbox(items, at){
     lbItems=items; lbAt=at||0; lbBack=document.activeElement;
     if(lb) lbClose();
@@ -434,7 +449,7 @@ PICS_JS = r"""(function(){
       else if(!e.target.closest('img')) lbClose();
     });
     lb.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-    document.body.appendChild(lb); window.addEventListener('keydown', lbKey, true); lbDraw();
+    document.body.appendChild(lb); if(window._unifiedEscape) window.removeEventListener('keydown', window._unifiedEscape, true); window.addEventListener('keydown', lbKey, true); lbDraw();   // (Escape closes the viewer, not the page behind it)
     var x=lb.querySelector('.lb-x'); if(x) x.focus();
   }
   API.lightbox=lightbox;
@@ -505,6 +520,25 @@ PICS_JS = r"""(function(){
     f.addEventListener('change', function(){ var fs=[].slice.call(f.files||[]); if(f.parentNode) f.parentNode.removeChild(f); if(fs.length) cb(fs); });
     f.click();
   }
+  /* a picture on a question or a card side, in the study editor: {r, c?, a?} kept on holder[k]; the editor's Save keeps it */
+  API.picRow=function(holder, k, label){
+    var r=el('div','as-pic'); r.setAttribute('data-pk', k);
+    function draw(){
+      r.innerHTML=''; var P=holder[k];
+      if(!P){
+        var b=el('button','as-picadd','＋ Add '+label); b.type='button'; r.appendChild(b); var er=el('span','as-picerr'); er.setAttribute('role','alert'); r.appendChild(er);
+        b.onclick=function(){ chooser(false, function(fs){ b.disabled=true; b.textContent='Adding…'; addFiles(fs,1,function(items, errs){ if(items.length){ holder[k]={r:items[0].r}; draw(); } else { b.disabled=false; b.textContent='＋ Add '+label; er.textContent=errs.join(' '); } }); }); };
+        return;
+      }
+      var t=el('span','as-pict'), im=el('img'); im.alt=''; t.appendChild(im); paint(im,null,P.r,'th'); r.appendChild(t);
+      var c=el('input'); c.type='text'; c.maxLength=200; c.placeholder='Caption'; c.value=P.c||''; c.setAttribute('aria-label','Caption');
+      var a=el('input'); a.type='text'; a.maxLength=300; a.placeholder='Alt text (what it shows)'; a.value=P.a||''; a.setAttribute('aria-label','Alt text');
+      c.oninput=function(){ if(c.value.trim()) P.c=c.value.trim(); else delete P.c; }; a.oninput=function(){ if(a.value.trim()) P.a=a.value.trim(); else delete P.a; };
+      var x=el('button','as-picx','✕ Remove'); x.type='button'; x.onclick=function(){ delete holder[k]; draw(); };
+      var col=el('span','as-picf'); col.appendChild(c); col.appendChild(a); r.appendChild(col); r.appendChild(x);
+    }
+    draw(); return r;
+  };
   API.pick=function(multi, max, cb){          // choose files; cb(items, errors)
     chooser(multi, function(fs){ addFiles(fs, max, cb); });
   };
@@ -523,6 +557,7 @@ PICS_JS = r"""(function(){
   function strip(key, data, top, side){
     var n=data.n||[], all=n, box=el('div','aph aph-'+(n.length===1?'one':n.length===2||n.length===3?'few':'many')+(top?' aph-top':'')+(side?' aph-side':''));
     box.setAttribute('data-aph-key', key); box.setAttribute('role','group'); box.setAttribute('aria-label', data.lab || 'Pictures');
+    box.setAttribute('data-refs', n.map(function(x){ return x.i+x.r; }).join(','));
     if(data.lab) box.appendChild(el('div','aph-lab',data.lab));
     var row=el('div','aph-row'); box.appendChild(row);
     function edit(fn){ var a=acc(key); if(!a) return; var l=a.get().map(function(x){ return Object.assign({}, x); }); if(fn(l, a)!==false) a.set(l); }
@@ -583,12 +618,23 @@ PICS_JS = r"""(function(){
     } else slot.parentNode.replaceChild(box, slot);
   }
   function scan(){ var s=document.querySelectorAll('.aph-slot[data-aph]'); for(var i=0;i<s.length;i++){ try{ place(s[i]); }catch(e){ if(window.console) console.warn('alto pics', e); } } }
+  /* only captions or alt text changed: the words are patched where they stand (the input being typed in keeps its focus) */
+  function patch(box, data){
+    if(box.getAttribute('data-refs')!==(data.n||[]).map(function(x){ return x.i+x.r; }).join(',')) return false;
+    (data.n||[]).forEach(function(it){
+      var f=box.querySelector('.aph-fig[data-i="'+it.i+'"]'); if(!f) return;
+      var cap=f.querySelector('.aph-cap'); if(it.c){ if(!cap){ cap=el('figcaption','aph-cap'); f.insertBefore(cap, f.querySelector('.aph-ed')); } if(cap.textContent!==it.c) cap.textContent=it.c; } else if(cap) cap.parentNode.removeChild(cap);
+      var b=f.querySelector('.aph-img'), im=b && b.querySelector('img'); if(b) b.setAttribute('aria-label',(it.a||it.c||'Picture')+' — open large'); if(im) im.alt=it.a||it.c||'';
+    });
+    return true;
+  }
   /* a section changed in edit mode: its row again, in place */
   API.sync=function(key){
     var old=document.querySelectorAll('.aph[data-aph-key="'+key+'"]');
     [].forEach.call(old, function(b){
       var D=S(key); if(!D){ return; }
       if(!D.n.length && !editing()){ var sl=el('span','aph-slot'); sl.setAttribute('data-aph',key); sl.hidden=true; b.parentNode.replaceChild(sl,b); return; }
+      if(patch(b, D)) return;
       b.parentNode.replaceChild(strip(key, D, b.classList.contains('aph-top')), b);
     });
     if(!old.length) scan();
@@ -635,7 +681,20 @@ PICS_JS = r"""(function(){
       });
     });
   }
+  /* the Filter's "Has pictures" (blocks.py makes it for a page that is built with pictures; edit mode can add the first or take the last) */
+  var fsig='';
+  function filt(){
+    var secs=window.FILTER_SECTIONS, F=window.FILTER_NODES; if(!secs || !F) return;
+    var s={}; Object.keys(C()).forEach(function(k){ if((C()[k]||[]).length) s[k]=1; });
+    Object.keys(window._ALTO_PH||{}).forEach(function(k){ var m=/^n-(.+)-(?:\d+|new-[a-z0-9]+)$/.exec(k); if(m && ((window._ALTO_PH[k]||{}).n||[]).length) s[m[1]]=1; });
+    var L=Object.keys(s).sort(), sig=L.join(','); if(sig===fsig) return; fsig=sig;
+    var i=-1; secs.forEach(function(x, j){ if(x.key==='pics') i=j; });
+    if(!L.length){ if(i>=0){ secs.splice(i,1); delete F.pics; } }
+    else { var sec={key:'pics', kind:'chips', label:'Pictures', items:[{id:'has', name:'Has pictures', color:'var(--accent)', count:L.length}]}; if(i>=0) secs[i]=sec; else secs.push(sec); F.pics={has:L}; }
+    try{ if(window._altoFilterRedraw) window._altoFilterRedraw(); }catch(e){}
+  }
   API.cards=function(){
+    try{ filt(); }catch(e){}
     var all={}; Object.keys(C()).forEach(function(k){ all[k]=1; });
     [].forEach.call(document.querySelectorAll('.node-card.aph-has'), function(c){ var n=c.closest('.node'); if(n) all[(n.id||'').replace(/^node-/,'')]=1; });
     if(editing()) [].forEach.call(document.querySelectorAll('.node'), function(n){ all[(n.id||'').replace(/^node-/,'')]=1; });
@@ -671,8 +730,9 @@ PICS_JS = r"""(function(){
     if(!nm || (!pics.length && !editing())){ if(cur) cur.parentNode.removeChild(cur); return; }
     var side=!editing() && !root.classList.contains('mobile'), key='pc|'+P.id, sig=key+JSON.stringify(pics)+(editing()?'e':'')+(side?'s':'');
     if(cur && cur.getAttribute('data-sig')===sig) return;
+    if(cur && cur.getAttribute('data-mode')===(editing()?'e':'')+(side?'s':'')+key && patch(cur, {n:pics})){ cur.setAttribute('data-sig', sig); return; }
     if(cur) cur.parentNode.removeChild(cur);
-    var box=strip(key, {lab:'', n:pics}, true, side); box.setAttribute('data-sig', sig);
+    var box=strip(key, {lab:'', n:pics}, true, side); box.setAttribute('data-mode', (editing()?'e':'')+(side?'s':'')+key); box.setAttribute('data-sig', sig);
     var h=nm.closest('.detail-header') || nm.parentNode;
     if(side) h.appendChild(box); else h.parentNode.insertBefore(box, h.nextSibling);
   }
@@ -698,6 +758,7 @@ PICS_JS = r"""(function(){
   /* ── forgetting this browser's copies when the account signs out is alto-cloud.js's job ── */
   window.__GUARD__=API;
   window.addEventListener('alto-auth', function(){ soon(); });
+__SOLAR_JS__
 })();
 """
 
@@ -710,27 +771,27 @@ EDIT_FIELD = r"""    if((kind === 'ph' || kind === 'pc') && p.length === 3 && p[
       if(kind === 'pc'){
         if(!srcNode(id)) return null;
         return {kind:'list', get:function(){ return PCD[id] ? JSON.parse(JSON.stringify(PCD[id])) : []; },
-          set:function(v){ if(v && v.length) PCD[id] = JSON.parse(JSON.stringify(v)); else delete PCD[id]; }};
+          set:function(v){ if(v && v.length){ PCD[id] = JSON.parse(JSON.stringify(v)); if(window._altoPicsLoad) window._altoPicsLoad(); } else delete PCD[id]; }};
       }
       if(NEWT.test(id)){
         if(!PHD[id] && !newTreeSec(id)) return null;
         return {kind:'struct', sig:function(){ return 'new'; },
           get:function(){ return PHD[id] ? JSON.parse(JSON.stringify(PHD[id])) : null; },
           set:function(v){ var q = newTreeSec(id);
-            if(v){ PHD[id] = JSON.parse(JSON.stringify(v)); if(q) setSlot(q.s, id, true, 'aph'); }
+            if(v){ PHD[id] = JSON.parse(JSON.stringify(v)); if(q) setSlot(q.s, id, true, 'aph'); if(window._altoPicsLoad) window._altoPicsLoad(); }
             else { delete PHD[id]; if(q) setSlot(q.s, id, false, 'aph'); } }};
       }
       if(!PHD[id]) return null;
       return {kind:'struct', sig:function(){ return PRIS['ph|' + id]; },
         get:function(){ return JSON.parse(JSON.stringify(PHD[id])); },
-        set:function(v){ PHD[id] = JSON.parse(JSON.stringify(v)); }};
+        set:function(v){ PHD[id] = JSON.parse(JSON.stringify(v)); if(window._altoPicsLoad) window._altoPicsLoad(); }};
     }
 """
 
 EDIT_REFRESH = r"""    if(kind === 'ph' || kind === 'pc'){
       if(window._altoPicsLoad) window._altoPicsLoad();
       var PA = window._altoPics;
-      if(kind === 'ph' && NEWT.test(p[1] || '')){ if(P){ rerenderPage(P); repaint(); } return; }
+      if(kind === 'ph' && NEWT.test(p[1] || '') && !(PA && document.querySelector('.aph[data-aph-key="' + p[1] + '"]'))){ if(P){ rerenderPage(P); repaint(); } return; }
       if(PA){ if(kind === 'ph') PA.sync(p[1]); else { PA.cards(); PA.top(); if(PA.tray) PA.tray(); } }
       return;
     }
@@ -745,7 +806,7 @@ MAX_BIG = 900_000                    # the large size, bytes (one Firestore docu
 def _asset() -> str:
     js = (PICS_JS.replace("__GUARD__", GUARD).replace("__MAXB__", str(MAX_BIG)).replace("__MAXF__", str(MAX_FILE))
           .replace("__MAXI__", str(MAX_ITEMS)).replace("__MAXC__", str(MAX_CARD))
-          .replace("__CSS__", json.dumps(CSS)))
+          .replace("__SOLAR_JS__", _sp.JS).replace("__CSS__", json.dumps(CSS)))
     return js
 
 

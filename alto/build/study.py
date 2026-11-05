@@ -40,9 +40,9 @@ MAX_CARDS = 300
 MAX_QUESTIONS = 100
 MIN_CHOICES, MAX_CHOICES = 2, 8
 CARDS_KEYS = {"cards", "shuffle", "label"}
-CARD_KEYS = {"id", "front", "back"}
+CARD_KEYS = {"id", "front", "back", "front_pic", "back_pic"}
 QUIZ_KEYS = {"questions", "label"}
-Q_KEYS = {"id", "q", "choices", "answer", "explain"}
+Q_KEYS = {"id", "q", "choices", "answer", "explain", "pic"}
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 _LIM = {"front": 800, "back": 3000, "q": 1200, "choice": 500, "explain": 3000, "label": 120}
 
@@ -67,6 +67,22 @@ def _ids(items, what, kind):
         if nid in seen:
             raise _err(f"{what} {kind} {i + 1}: id {nid!r} is used twice")
         seen.add(nid)
+
+
+def _check_pic(p, w):
+    """A picture on a question or a card side (photos.py): {ref, caption?, alt?}."""
+    from .photos import check_items
+    if not isinstance(p, dict):
+        raise _err(f"{w}: a picture must be an object {{ref, caption?, alt?}}")
+    check_items([p], w, 1)
+
+
+def _clean_pic(p):
+    from .photos import sanitize_items
+    got = sanitize_items([p]) if isinstance(p, dict) else []
+    if not got:
+        return None
+    return {k: v for k, v in got[0].items() if k != "id" and v}
 
 
 def check_cards(cards, what: str) -> None:
@@ -94,7 +110,10 @@ def check_cards(cards, what: str) -> None:
             raise _err(f"{w}: must be an object {{front, back}}")
         bad = sorted(set(c) - CARD_KEYS)
         if bad:
-            raise _err(f"{w}: unknown key(s) {', '.join(bad)} — allowed: front, back, id")
+            raise _err(f"{w}: unknown key(s) {', '.join(bad)} — allowed: front, back, id, front_pic, back_pic")
+        for k in ("front_pic", "back_pic"):
+            if c.get(k) is not None:
+                _check_pic(c[k], f"{w} {k}")
         for k in ("front", "back"):
             v = c.get(k)
             if not isinstance(v, str) or not v.strip():
@@ -128,7 +147,9 @@ def check_quiz(quiz, what: str) -> None:
             raise _err(f"{w}: must be an object {{q, choices, answer, explain?}}")
         bad = sorted(set(q) - Q_KEYS)
         if bad:
-            raise _err(f"{w}: unknown key(s) {', '.join(bad)} — allowed: q, choices, answer, explain, id")
+            raise _err(f"{w}: unknown key(s) {', '.join(bad)} — allowed: q, choices, answer, explain, id, pic")
+        if q.get("pic") is not None:
+            _check_pic(q["pic"], f"{w} pic")
         if not isinstance(q.get("q"), str) or not q["q"].strip():
             raise _err(f"{w}: needs `q`, the question")
         if len(q["q"]) > _LIM["q"]:
@@ -183,6 +204,13 @@ def sanitize_study(sec) -> None:
         for x in c["cards"]:
             x["front"] = plain_text(x["front"]).strip()
             x["back"] = plain_text(x["back"]).strip()
+            for k in ("front_pic", "back_pic"):
+                if k in x:
+                    pc = _clean_pic(x[k])
+                    if pc:
+                        x[k] = pc
+                    else:
+                        del x[k]
         _fill_ids(c["cards"], "c")
     if sec.quiz:
         z = sec.quiz
@@ -197,6 +225,12 @@ def sanitize_study(sec) -> None:
                 x["explain"] = e
             else:
                 x.pop("explain", None)
+            if "pic" in x:
+                pc = _clean_pic(x["pic"])
+                if pc:
+                    x["pic"] = pc
+                else:
+                    del x["pic"]
         _fill_ids(z["questions"], "q")
 
 
@@ -229,19 +263,41 @@ def prepare(b, nodes) -> dict:
     return reg
 
 
+def _pc(p) -> dict:
+    """A picture on a question or a card side as the page keeps it: {r, c?, a?}."""
+    o = {"r": p["ref"]}
+    if p.get("caption"):
+        o["c"] = p["caption"]
+    if p.get("alt"):
+        o["a"] = p["alt"]
+    return o
+
+
+def _unpc(p):
+    from .sanitize import plain_text
+    if not isinstance(p, dict) or not p.get("r"):
+        return None
+    o = {"ref": p["r"], "caption": plain_text(_text(p.get("c"))).strip(), "alt": plain_text(_text(p.get("a"))).strip()}
+    return {k: v for k, v in o.items() if v}
+
+
 def compact(sec) -> dict | None:
     """The form the page keeps (and edit mode changes whole): {k: 'c'|'q', lab,
     …, n: [...]} — see from_compact for the way back."""
     if getattr(sec, "cards", None) and sec.cards.get("cards"):
         c = sec.cards
         return {"k": "c", "lab": c.get("label") or "", "sh": bool(c.get("shuffle")),
-                "n": [{"i": x["id"], "f": x["front"], "b": x["back"]} for x in c["cards"]]}
+                "n": [{"i": x["id"], "f": x["front"], "b": x["back"]}
+                      | ({"fp": _pc(x["front_pic"])} if x.get("front_pic") else {})
+                      | ({"bp": _pc(x["back_pic"])} if x.get("back_pic") else {}) for x in c["cards"]]}
     if getattr(sec, "quiz", None) and sec.quiz.get("questions"):
         n = []
         for x in sec.quiz["questions"]:
             o = {"i": x["id"], "q": x["q"], "c": list(x["choices"]), "a": x["answer"]}
             if x.get("explain"):
                 o["x"] = x["explain"]
+            if x.get("pic"):
+                o["p"] = _pc(x["pic"])
             n.append(o)
         return {"k": "q", "lab": sec.quiz.get("label") or "", "n": n}
     return None
@@ -256,7 +312,11 @@ def from_compact(v: dict) -> tuple[str, dict]:
     if v["k"] == "c":
         out = {"cards": [{"id": x.get("i") or "", "front": plain_text(x.get("f") or "").strip(),
                           "back": plain_text(x.get("b") or "").strip()} for x in v["n"]]}
-        for c in out["cards"]:
+        for c, x in zip(out["cards"], v["n"]):
+            for k, kk in (("front_pic", "fp"), ("back_pic", "bp")):
+                pc = _unpc(x.get(kk))
+                if pc:
+                    c[k] = pc
             if not c["id"]:
                 del c["id"]
         if v.get("lab"):
@@ -273,6 +333,9 @@ def from_compact(v: dict) -> tuple[str, dict]:
             del q["id"]
         if x.get("x"):
             q["explain"] = plain_text(x["x"]).strip()
+        pc = _unpc(x.get("p"))
+        if pc:
+            q["pic"] = pc
         qs.append(q)
     out = {"questions": qs}
     if v.get("lab"):
@@ -415,6 +478,7 @@ STUDY_JS = r"""<script id="alto-st">
   var D = window._ALTO_ST || {}, KEY = '__ALTO_HL_KEY__-st', LET = 'ABCDEFGH', FAIL = __ALTO_FAIL__;
   function el(tag, cls, txt){ var e = document.createElement(tag); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
   function btn(cls, txt, fn){ var b = el('button', 'ast-btn ' + cls, txt); b.type = 'button'; if(fn) b.onclick = fn; return b; }
+  function pic(p, cls){ if(!p) return null; if(window._altoPicsLoad) window._altoPicsLoad(); return window._altoPics ? window._altoPics.figure(p, cls) : null; }   // a picture (photos.py)
   function shuf(a){ a = a.slice(); for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function pct(s, n){ return n ? Math.round(100 * s / n) : 0; }
 
@@ -477,6 +541,8 @@ STUDY_JS = r"""<script id="alto-st">
       var c = byId[L[pos]], was = card.classList.contains('flip');
       card.classList.add('nt'); card.classList.remove('flip');
       frT.textContent = c.f; bkT.textContent = c.b;
+      [fr, bk].forEach(function(f){ var o = f.querySelector('.aph-cf'); if(o) o.remove(); });
+      var pf = pic(c.fp, 'aph-cf'), pb = pic(c.bp, 'aph-cf'); if(pf) frT.parentNode.insertBefore(pf, frT.nextSibling); if(pb) bkT.parentNode.insertBefore(pb, bkT.nextSibling);
       var ms = st(c.i); [fr, bk].forEach(function(f){ var m = f.querySelector('.asc-mark'); if(m) m.remove(); });
       if(ms){ var mm = el('span', 'asc-mark ' + (ms === 1 ? 'k' : 'l'), ms === 1 ? '✓ Known' : 'Still learning'); bk.appendChild(mm); }
       void card.offsetWidth; card.classList.remove('nt');
@@ -569,6 +635,7 @@ STUDY_JS = r"""<script id="alto-st">
         var lg = el('legend', 'asq-qh'); lg.appendChild(el('span', 'asq-n', String(qi + 1))); lg.appendChild(el('span', 'asq-qt', q.q));
         if(graded) lg.appendChild(el('span', 'asq-flag', graded.res[q.i] ? '✓ Right' : '✗ Wrong'));
         f.appendChild(lg);
+        var pq = pic(q.p, 'aph-q'); if(pq) f.appendChild(pq);
         if(multi(q)) f.appendChild(el('div', 'asq-multi', 'Select all that apply'));
         q.c.forEach(function(c, ci){
           var on = (picks[q.i] || []).indexOf(ci) >= 0, isA = ans(q).indexOf(ci) >= 0;
