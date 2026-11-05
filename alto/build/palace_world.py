@@ -243,6 +243,29 @@ html.alto-holo #wpal-root.wp-hid .wp-flag .fl-spin:not(#_){animation-play-state:
 @keyframes wp-flag-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
 @media (prefers-reduced-motion:reduce){html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:none;transform:rotateY(28deg);will-change:auto;}
   html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:none;}}
+
+/* the Tour's flag fill (Luke 2026-11-05, item 9: "the background of the country be its flag when zoomed in on the tour within that country"; Art's sheets tour-flag-fill
+   B + C and holo-flag-anim C): while the Tour stands in a country, its own flag is laid over the country's unit colour at about a third, clipped to the country and
+   sized to its main landmass (the card's own hosted flag file, so nothing more is fetched). Plain while the camera flies; it fades in ~300 ms after the camera settles
+   and out when the Tour leaves the country (no fade under reduced motion). Holographic: the fill holds still under a 7 s scan line, and a magenta ghost layer drifts in step
+   with the card flag's turn (script: ffPhase); transform and opacity only, computers only, still on a phone or under reduced motion. The globe lays the same flag on its own canvas. */
+#wpal-root .wp-ff{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility 0s .25s;}
+#wpal-root .wp-ff.on{opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s;}
+#wpal-root .wp-ff .ff-a{opacity:.34;}
+#wpal-root .wp-ff .ff-g,#wpal-root .wp-ff .ff-s{display:none;}
+#wpal-root #wpff-s stop{stop-color:var(--ho-ac,#2ee6ff);}
+#wpal-root canvas.wp-gflag{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s .25s;}
+#wpal-root canvas.wp-gflag.on{opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s;}
+html.alto-holo #wpal-root .wp-ff .ff-a:not(#_){opacity:.3;}
+@media (min-width:701px) and (prefers-reduced-motion:no-preference){
+  html.alto-holo:not(.mobile) #wpal-root .wp-ff .ff-g:not(#_){display:inline;opacity:.2;transform-box:fill-box;animation:wp-ff-drift 10s linear infinite;}
+  html.alto-holo:not(.mobile) #wpal-root .wp-ff .ff-s:not(#_){display:inline;opacity:.55;transform-box:fill-box;animation:wp-ff-scan 7s linear infinite;}
+  html.alto-holo:not(.mobile) #wpal-root.wp-hid .wp-ff :is(.ff-g,.ff-s):not(#_){animation-play-state:paused;}
+}
+@keyframes wp-ff-scan{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+@keyframes wp-ff-drift{0%{transform:translateX(0);animation-timing-function:cubic-bezier(.25,.46,.45,.94)}25%{transform:translateX(-1.4%);animation-timing-function:cubic-bezier(.55,.06,.68,.19)}
+  50%{transform:translateX(0);animation-timing-function:cubic-bezier(.25,.46,.45,.94)}75%{transform:translateX(1.4%);animation-timing-function:cubic-bezier(.55,.06,.68,.19)}100%{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){#wpal-root .wp-ff,#wpal-root .wp-ff.on,#wpal-root canvas.wp-gflag,#wpal-root canvas.wp-gflag.on{transition:none;}}
 html.alto-retro #wpal-root .wp-sw,html.alto-retro #wpal-root .wp-sw::after{border-radius:0;}
 html.alto-retro #wpal-root .wp-tt[aria-pressed="true"] .wp-sw{background:#d9ae55;}
 #wpal-root .wp-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--w-sub);font-size:13px;}
@@ -428,7 +451,7 @@ function fly(cx,cy,k,done,early){
   })(t0);
 }
 var settleT=0; function settleSoon(){ clearTimeout(settleT); settleT=setTimeout(settle,140); }
-function settle(){ detail(); labels(); }
+function settle(){ detail(); labels(); ffSync(); }
 
 // ── page data ──
 function D(){ return A.data||{}; }
@@ -577,6 +600,46 @@ function detail(){ var want=wantD(), vb=S.globe?gVis():[visBox()];
     fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); gAgain(); }).catch(function(){ S.a1[cid]=null; }); });
   S.gA1.style.display=want?'':'none';
 }
+// ── the Tour's flag fill (CSS: .wp-ff) ──
+// Wanted only while the Tour is on and stands in a country with a flag and a unit colour; the camera must be at rest ~160 ms (plain while flying), a hop
+// inside the same country keeps it, a hop out fades it, a manual zoom out ends it. Flat map: an SVG group over the country's land (under the state lines
+// and routes), the country's own path as the clip, the flag as an <image> sized to its main landmass; Holographic adds a magenta ghost (an SVG filter) and a
+// scan rect. The globe: S.gf, a canvas over the sharp land, the same flag clipped to the country's rings (gFlag).
+function ffInit(){ if(S.ffG) return; var d=el('defs',null,S.svg);
+  S.ffPath=el('path',{'clip-rule':'evenodd'},el('clipPath',{id:'wpff-c'},d));
+  el('feColorMatrix',{type:'matrix',values:'.3 .59 .11 0 0 .11 .22 .04 0 0 .25 .48 .09 0 0 0 0 0 1 0'},el('filter',{id:'wpff-m',x:0,y:0,width:1,height:1,'color-interpolation-filters':'sRGB'},d));
+  var gr=el('linearGradient',{id:'wpff-s',x1:0,y1:0,x2:0,y2:1},d);
+  [['0',0],['.93',0],['.985',.85],['1',.1]].forEach(function(t){ el('stop',{offset:t[0],'stop-opacity':t[1]},gr); });
+  S.ffG=el('g',{'class':'wp-ff','clip-path':'url(#wpff-c)'}); S.g.insertBefore(S.ffG,S.gA1);
+  var im=function(c,f){ return el('image',{'class':c,preserveAspectRatio:'xMidYMid slice',filter:f||'none'},S.ffG); };
+  im('ff-g','url(#wpff-m)'); im('ff-a'); el('rect',{'class':'ff-s',fill:'url(#wpff-s)'},S.ffG); }
+function ffWant(){ if(!S.tour||!S.sel||!S.cur||S.ua!=null||!S.ready) return null; var n=N(S.sel), cid=n&&n.c;
+  if(!cid||!(GEO.flag||{})[cid]||!S.paths[cid]||!S.bb[cid]||!S.paths[cid].classList.contains('wp-u')||S.k<S.kW*1.6) return null; return cid; }
+function ffClip(){ if(S.ffC&&S.ffPath) S.ffPath.setAttribute('d',S.paths[S.ffC].getAttribute('d')); }
+function ffShow(cid){ var url=GEO.flag[cid], bb=S.bb[cid]; ffInit(); S.ffC=cid; ffClip();
+  [].forEach.call(S.ffG.children,function(c){ c.setAttribute('x',bb[0].toFixed(2)); c.setAttribute('y',bb[1].toFixed(2)); c.setAttribute('width',(bb[2]-bb[0]).toFixed(2)); c.setAttribute('height',(bb[3]-bb[1]).toFixed(2));
+    if(c.tagName==='image') c.setAttribute('href',url); });
+  S.ffG.classList.add('on'); requestAnimationFrame(ffPhase);
+  if(!S.gf.fi||S.gf.fi.getAttribute('data-c')!==cid){ var i=S.gf.fi=new Image(); i.setAttribute('data-c',cid); i.onload=function(){ if(S.gf.fi===i) gAgain(); }; i.src=url; }
+  clearTimeout(S.gfT); S.gf.classList.add('on'); gAgain(); }
+function ffHide(){ if(!S.ffC) return; S.ffC=null; if(S.ffG) S.ffG.classList.remove('on'); S.gf.classList.remove('on');
+  clearTimeout(S.gfT); S.gfT=setTimeout(function(){ if(!S.ffC){ var x=S.gf.getContext('2d'); x.setTransform(1,0,0,1,0,0); x.clearRect(0,0,S.gf.width,S.gf.height); } },400); }
+function ffSync(){ if(!S.root||!S.gf) return; var want=ffWant();
+  if(S.ffC&&S.ffC!==want) ffHide();
+  if(!want||S.ffC===want||S.anim||S.plane){ if(S.ffT&&(!want||S.ffC===want)){ clearTimeout(S.ffT); S.ffT=0; } return; }
+  if(!S.ffT) S.ffT=setTimeout(function(){ S.ffT=0; if(ffWant()===want&&!S.anim&&!S.plane&&S.ffC!==want) ffShow(want); },160); }
+// the ghost drifts with the card flag's turn: its animation is given the card flag's own start time (the card's flag is made after the fill may be)
+function ffPhase(){ if(!S.ffC||!S.ffG||!S.ffG.getAnimations) return; var sp=S.root.querySelector('.wp-enl .fl-spin'), g=S.ffG.querySelector('.ff-g'); if(!sp||!g) return;
+  var f=function(e,n){ return e.getAnimations().filter(function(a){ return a.animationName===n; })[0]; }, a=f(sp,'wp-flag-spin'), b=f(g,'wp-ff-drift');
+  if(a&&b&&a.startTime!=null) b.startTime=a.startTime; }
+// the globe: the flag as a flat decal on the screen box of the country's main landmass, clipped to the country's rings as the globe now draws them
+function gFlag(todo){ var cv=S.gf, i=cv.fi, t=S.ffC&&todo.filter(function(q){ return q[0]._cid===S.ffC; })[0];
+  if(!S.ffC) return; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
+  var x=cv.getContext('2d'), d=S.G.d||1; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,S.vw,S.vh); cv.style.display=t&&i&&i.complete?'':'none'; if(!t||!i||!i.complete) return;
+  var b=t[4]; if(!b){ cv.style.display='none'; return; } var x0=b.b[0], y0=b.b[1], x1=b.b[2], y1=b.b[3];                  // (the screen box of the country's main landmass: its largest ring, as the globe draws it)
+  var w=x1-x0, hh=y1-y0, s=Math.max(w/640,hh/480), dw=640*s, dh=480*s;                    // (slice: the flag covers the box)
+  x.globalAlpha=document.documentElement.classList.contains('alto-holo')?.3:.34;
+  [t[1],t[2]].forEach(function(P){ x.save(); x.clip(P,'evenodd'); x.drawImage(i,(x0+x1)/2-dw/2,(y0+y1)/2-dh/2,dw,dh); x.restore(); }); x.globalAlpha=1; }
 function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
   Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid];
     if(cid==='ATA'&&used[cid]==null) return;
@@ -584,7 +647,7 @@ function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) retu
     if(!p._det){ var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
     p.setAttribute('d',p._det); p.style.display=''; }); gAgain(); }
 function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); gAgain(); }
-function gAgain(){ if(S.globe&&S.G&&S.gM) gVector(S.k*GR); }
+function gAgain(){ ffClip(); if(S.globe&&S.G&&S.gM) gVector(S.k*GR); }
 
 // ── a place and its cluster ──
 function placeView(id){
@@ -650,6 +713,7 @@ function focus(a,cid,id){
   Object.keys(S.paths).forEach(function(c){ S.paths[c].classList.toggle('wp-on',c===cid); });
   [].forEach.call(S.gArcs.children,function(g){ g.classList.toggle('wp-on',+g.getAttribute('data-u')===a); });
   for(var k in S.pins){ S.pins[k].el.classList.toggle('wp-in',N(k).a===a); S.pins[k].el.classList.toggle('wp-on',k===id); }
+  ffSync();
 }
 function unfocus(){ closeCluster(true); S.sel=null; S.cur=null; S.ua=null; S.rel=[]; focus(null,null,null); tourBar(); place(); }
 // the timeline's own card, borrowed from the board while it is enlarged and given back after (the board keeps its order)
@@ -671,7 +735,7 @@ function flagIn(id,line){ if(!line) return null; var p=placeOf(id), n=p&&N(p), c
   if(!url){ pennant(w); return w; }
   var sp=h('span',{'class':'fl-spin'},w);
   ['fl-b','fl-a'].forEach(function(k){ var i=h('img',{'class':k,alt:'',decoding:'async',draggable:'false'},sp); i.addEventListener('error',function(){ pennant(w); }); i.src=url; });
-  h('span',{'class':'fl-s','aria-hidden':'true'},sp);
+  h('span',{'class':'fl-s','aria-hidden':'true'},sp); requestAnimationFrame(ffPhase);
   return w; }
 // where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
 function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
@@ -923,23 +987,24 @@ function gCurve(p,P,closed){ var n=P.length>>1; if(!n) return; p.moveTo(P[0],P[1
 // a country's colours as the map has them now (read again only when its classes, the page's or the theme change)
 function gSt(pth){ var k=pth.getAttribute('class')+'|'+S.root.className+'|'+S.G.key; if(pth._gk!==k){ var st=getComputedStyle(pth); pth._gk=k; pth._gs={f:st.fill,s:st.stroke,w:parseFloat(st.strokeWidth)||1,o:+st.opacity||1}; } return pth._gs; }
 function gTile(G,key,f){ if(!G[key]){ G[key]={}; f(G[key]); } return G[key]; }
-function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'none'; if(!on){ S.gN=null; return; }
+function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'none'; if(!on){ S.gN=null; S.gf.style.display='none'; return; }
   var d=S.G.d||1; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
   var x=cv.getContext('2d'), W=S.vw, H=S.vh, used=D().used||{}; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
   var nR=0, nP=0, todo=[], src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
   Object.keys(S.detOn).forEach(function(cs){ var G=S.cont[cs]; if(!S.detOn[cs]||!G||!G.c) return;                 // (a country in a continent that is in: its 1:50m rings instead)
     var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=G.c[cid].map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
     Object.keys(g).forEach(function(cid){ if(!(cid==='ATA'&&used[cid]==null)) src[cid]=g[cid]; }); });
-  Object.keys(src).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var W0=new Path2D(), PF=new Path2D(), PS=new Path2D(), any=false;
+  Object.keys(src).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var W0=new Path2D(), PF=new Path2D(), PS=new Path2D(), any=false, fb=null;
     src[cid].forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; any=true; nR++; q.runs.forEach(function(P){ nP+=P.length>>1; });
+      if(cid===S.ffC&&(!fb||r.k[3]>fb.r)){ fb={r:r.k[3],b:[1e9,1e9,-1e9,-1e9]}; q.runs.forEach(function(P){ for(var i=0;i<P.length;i+=2){ fb.b[0]=Math.min(fb.b[0],P[i]); fb.b[1]=Math.min(fb.b[1],P[i+1]); fb.b[2]=Math.max(fb.b[2],P[i]); fb.b[3]=Math.max(fb.b[3],P[i+1]); } }); }
       if(q.whole) gCurve(W0,q.runs[0],true);
       else q.runs.forEach(function(P){ gCurve(PS,P,false); if(r.k[3]<1.5){ PF.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) PF.lineTo(P[i],P[i+1]); PF.closePath(); } }); });
-    if(any) todo.push([pth,W0,PF,PS]); });
+    if(any) todo.push([pth,W0,PF,PS,fb]); });
   // the surface's own coast line, magnified, is a soft band round every coast: laid over with the sea first, then the land
   x.strokeStyle=S.G.sea; x.lineWidth=R*Math.PI/1024*2.6+2; todo.forEach(function(t){ x.stroke(t[1]); x.stroke(t[3]); });
   todo.forEach(function(t){ var st=gSt(t[0]); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w;
     x.fill(t[1],'evenodd'); x.fill(t[2],'evenodd'); x.stroke(t[1]); x.stroke(t[3]); });
-  x.globalAlpha=1;
+  x.globalAlpha=1; gFlag(todo);
   var a1=S.gA1.querySelector('path');                                                                                // (the state lines, dashed as the flat map has them)
   if(a1&&S.gA1.style.display!=='none'){ var as=gSt(a1), P1=new Path2D();
     Object.keys(S.a1).forEach(function(cid){ var G=S.a1[cid]; if(!G||!G.l) return;
@@ -956,7 +1021,7 @@ A.globe=function(on){ if(on==null) return !!S.globe; on=!!on&&!phone()&&!documen
   if(on===!!S.globe) return S.globe; if(on&&!gInit()) return false; stop(); planeStop();
   var atWorld=!S.cur&&S.ua==null&&Math.abs(Math.log(S.k/(S.globe?worldView().k:S.kW)))<.35;
   if(on){ S.globe=1; S.root.classList.add('wp-g'); gSize(); gPaint(); }
-  else { S.gv.style.display='none'; var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]); S.globe=0; S.cx=f[0]; S.cy=f[1]; S.root.classList.remove('wp-g'); }
+  else { S.gv.style.display='none'; S.gf.style.display='none'; var c=eeI(S.cx,clamp(S.cy,-480,480)), f=eeF(((c[0]+180)%360+360)%360-180,c[1]); S.globe=0; S.cx=f[0]; S.cy=f[1]; S.root.classList.remove('wp-g'); }
   try{ localStorage.setItem('alto-world-globe',S.globe?'1':'0'); }catch(x){}
   apply(); labels(); if(atWorld){ var v=worldView(); fly(v.cx,v.cy,v.k); } else if(S.cl) layoutCluster(); navSync(); settleSoon(); return S.globe; };
 
@@ -1244,7 +1309,7 @@ A.mount=function(data){
   var root=S.root=h('div',{id:'wpal-root','aria-label':data.scope?'Map':'World map','class':data.scope?'wp-one':''},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
-  S.gl=h('canvas',{'class':'wp-globe','aria-hidden':'true'},root); S.gv=h('canvas',{'class':'wp-globe v','aria-hidden':'true'},root);
+  S.gl=h('canvas',{'class':'wp-globe','aria-hidden':'true'},root); S.gv=h('canvas',{'class':'wp-globe v','aria-hidden':'true'},root); S.gf=h('canvas',{'class':'wp-gflag','aria-hidden':'true'},root);
   S.ov=el('svg',{'class':'wp-ov'},root); S.ovg=el('g',{'class':'wp-ovg'},S.ov); S.ovRel=el('g',null,S.ov);
   S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov); S.ovPlane=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
