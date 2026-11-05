@@ -1120,6 +1120,9 @@ function layoutLanes(h){
   /* box tags (brief.box_tags): labelled boxes that are not events; one on the axis has a row of its own above the ruler */
   var BTG=boxTags(order, fbOf), hasBA=BTG.some(function(t){ return t.on==='axis'; }), AX=(nums||hasFl||hasBA)?54+(hasBA?36:0):0;
   var hIn=h, hh={}, cards=order.filter(function(id){ return !!document.querySelector('#node-'+id+' .node-card'); });
+  /* each card's date line goes in BEFORE the cards are measured: it adds a line to the card, so a first pass that measured without it
+     (draw() used to add it afterwards) fitted rows 13 px short, and which fit a board kept depended on whether a second pass came */
+  cards.forEach(function(id){ whenChip(document.querySelector('#node-'+id+' .node-card'), id); });
   function measure(compact){
     de.classList.toggle('ln-compact', !!compact); de.classList.remove('ln-cz');
     L.lines.forEach(function(l){ l.tagW=l.tagEl.offsetWidth||60; });
