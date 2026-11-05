@@ -18,7 +18,7 @@ Alto is a study tool that turns course notes into timelines, outlines and memory
 - **Tester list.** The email addresses of invited testers.
 
 ## What we do not do
-We do not show ads, sell your personal information, share it for advertising, or use tracking cookies or third-party analytics tools or trackers. We do not use software to look at, search or analyse the content of your pictures, and we do not use them for anything except showing them to you and to the people you share them with. I do not look at your pictures unless you ask me to in a support request or the law requires it.
+We do not show ads, sell your personal information, share it for advertising, or use tracking cookies or third-party analytics tools or trackers. We do not use software to look at, search or analyse the content of your pictures, and we do not use them for anything except showing them to you and to the people you share them with. We do not look at your pictures unless you ask us to in a support request or the law requires it.
 
 ## How we use it
 To run Alto, keep accounts secure, fix bugs, answer feedback, and prevent abuse, and, only if you opt in, to read Bass conversations to improve Bass. If you are in the EU or UK, our legal bases are providing the service you asked for and our legitimate interest in keeping it secure and working.

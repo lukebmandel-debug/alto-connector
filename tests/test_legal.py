@@ -290,7 +290,7 @@ def test_version_1_1_says_what_pictures_do_and_the_device_storage_lists_name_eve
                    "a copy of each picture (both sizes) is stored beside the link", "Turning the link off deletes the link's copies",   # 2.3
                    "It cannot see, add or change a picture file, so no picture is sent to Anthropic",                                  # 2.4
                    "We do not use software to look at, search or analyse the content of your pictures",                               # 2.5
-                   "I do not look at your pictures unless you ask me to in a support request or the law requires it.",
+                   "We do not look at your pictures unless you ask us to in a support request or the law requires it.",
                    "pictures you add, and backgrounds you import). Pictures kept in your browser are cleared when you sign out.",      # 2.6
                    "**Pictures.** Your pictures stay until you delete them or your account.", "deleting the card or section that holds it"):  # 2.7 (Version B)
         assert needle in priv, needle
