@@ -213,8 +213,8 @@ FORMAT_CSS = r"""
   @media (min-width:641px){
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content:not(#_):not(#__){box-sizing:border-box;max-width:856px;padding-left:48px;padding-right:48px;margin-left:auto;margin-right:auto;position:relative;isolation:isolate;}
    /* on one of the style's own backgrounds the column has no plate to read on: a feathered scrim of the page's colour stands behind it, edgeless (no box) */
-   X.alto-bg-h:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content::before{content:"";position:absolute;z-index:-1;inset:-48px 0 -80px;pointer-events:none;
-     background:linear-gradient(90deg,transparent,rgba(var(--ho-bgrgb),.9) 56px,rgba(var(--ho-bgrgb),.9) calc(100% - 56px),transparent);}
+   X.alto-bg-h:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content::before{content:"";position:absolute;z-index:-1;inset:-48px 0 -160px;pointer-events:none;
+     background:linear-gradient(90deg,transparent,rgba(var(--ho-bgrgb),.9) 56px,rgba(var(--ho-bgrgb),.9) calc(100% - 56px),transparent);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 48px,#000 calc(100% - 160px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 48px,#000 calc(100% - 160px),transparent);}
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr):not(#_):not(#__){position:relative;flex-direction:column;align-items:center;gap:6px;
      text-align:center;border-bottom:0 !important;margin-bottom:44px;padding-bottom:40px;}
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
