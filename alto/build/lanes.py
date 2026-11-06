@@ -869,6 +869,9 @@ LANES_CSS = KEY_CSS + """
   /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
   html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,#ln-view[aria-pressed=true]){color:#14122b;}
   html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,#ln-view){border-radius:0;}
+  /* the unpressed glyph carries the card rim in Retro (gold) and Holographic (cyan), 1px, same box (Art, 2026-11-05); pressed keeps its fill, which is the same colour */
+  html.alto-retro #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #d9ae55;}
+  html.alto-holo #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #4ff0e0;}
   #ln-view:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   html.mobile #ln-view,html.phone-whole #ln-view,html.detail-open #ln-view,html.printing #ln-view{display:none !important;}
   @media print{#ln-view,.node-card .ln-chip{display:none !important;}}
