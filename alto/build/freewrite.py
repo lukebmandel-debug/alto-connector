@@ -506,7 +506,7 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     new MutationObserver(function(){ saveUi(); layout(); flag(); if(panel.classList.contains('open') && MODE === 'fw'){ remote(); words(); } }).observe(panel, {attributes:true, attributeFilter:['class']});
     // the panel's width animates (the engine's glass rule transitions it), so coming back from Freewrite to Notes dock() read the old 460 and left the
     // right-edge tabs parked over the cards (Luke, 2026-11-05, his Holographic shot): follow the real width for as long as it moves
-    if(typeof ResizeObserver === 'function') new ResizeObserver(function(){ if(MODE !== 'fw') dock(); }).observe(panel);
+    if(typeof ResizeObserver === 'function') new ResizeObserver(function(){ requestAnimationFrame(function(){ if(MODE !== 'fw') dock(); }); }).observe(panel);
     load(); setMode(MODE, false);
     window.addEventListener('storage', function(ev){ if(ev && ev.key === FKEY) remote(); });
     window.addEventListener('alto-fw-sync', remote);

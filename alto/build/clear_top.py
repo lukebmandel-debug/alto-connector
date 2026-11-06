@@ -114,7 +114,7 @@ JS = r"""(function(){
       if(r.bottom>low) low=r.bottom; });
     de.style.setProperty('--np-top', Math.round(low/z+10)+'px'); }
   window._altoNpTop=npTop;
-  if(typeof ResizeObserver==='function'){ var rp=document.getElementById('notes-panel'); if(rp) new ResizeObserver(npTop).observe(rp); }
+  if(typeof ResizeObserver==='function'){ var rp=document.getElementById('notes-panel'); if(rp) new ResizeObserver(function(){ requestAnimationFrame(npTop); }).observe(rp); }
   window.addEventListener('resize', npTop); setTimeout(npTop, 300); setTimeout(npTop, 1200);
   sync();
   __SHEET__
