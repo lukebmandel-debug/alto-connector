@@ -27,7 +27,9 @@ html.ct-on #canvas{padding-top:var(--nav-bottom,0px);scroll-padding-top:var(--na
 /* (open only, and not on a phone held sideways, html.phone-whole: there the closed Overview is a shut accordion, not a panel
    parked off to the right, and sized to the window it would sit invisible over the board and take its touches) */
 html.ct-on:not(.phone-whole) #summary-wrap.open:not(#_){top:0 !important;bottom:0 !important;height:auto !important;max-height:none !important;
-  box-sizing:border-box;padding-top:var(--nav-bottom,0px);}
+  box-sizing:border-box;padding-top:var(--ov-top,var(--nav-bottom,0px));}
+/* (Luke, 2026-11-05, covering the Overview: "move it up higher so it looks normal"; the Overview is the same: its text column starts only below
+   whatever of the bars really stands over that column, --ov-top, measured by the script below; with no measure the full clearance stands) */
 /* the Notes panel is the exception (Luke, 2026-11-05: "I don't like how far down the content of the notes/freewrite panel starts"): its
    header starts only below whatever of the bars really stands over it (the wordmark, a chip that runs in under it), not below the whole
    bar area; --np-top is measured by the script below, and with no measure the old full-bar clearance stands */
@@ -105,14 +107,20 @@ JS = r"""(function(){
   if(typeof MutationObserver==='function'){ var c=document.getElementById('canvas');
     if(c) new MutationObserver(sync).observe(c, {attributes:true, attributeFilter:['style']});
     new MutationObserver(function(){ sync(); npTop(); setTimeout(function(){ try{ place(); }catch(e){} npTop(); }, 160); }).observe(de, {attributes:true, attributeFilter:['class']}); }   /* (edit mode adds a chip and re-centres the row: put the x clear of the first label again) */
-  /* where the Notes panel's header may start: just under the last control of the bars that stands over the panel's column (css px) */
-  function npTop(){ var p=document.getElementById('notes-panel'); if(!p) return;
-    if(!de.classList.contains('ct-on') || !p.offsetWidth){ de.style.removeProperty('--np-top'); return; }
-    var z=p.getBoundingClientRect().width/p.offsetWidth || 1, left=window.innerWidth-p.offsetWidth*z, low=0;
+  /* where the Notes panel's header and the Overview's text may start: just under the last control of the bars that stands over that
+     column (css px). The Notes panel is a column at the right edge; the Overview is the full window with its text in a centred column. */
+  function low(left, right, z){ var lw=0;
     [].forEach.call(document.querySelectorAll('#title-bar svg,#title-bar button,#title-bar #title-text,#nav button,#nav .nav-group-label'), function(e){
-      var r=e.getBoundingClientRect(); if(!r.width || r.right<=left+1 || getComputedStyle(e).visibility==='hidden' || (e.parentElement && e.parentElement.closest('#nav button, #title-bar button'))) return;
-      if(r.bottom>low) low=r.bottom; });
-    de.style.setProperty('--np-top', Math.round(low/z+10)+'px'); }
+      var r=e.getBoundingClientRect(); if(!r.width || r.right<=left+1 || r.left>=right-1 || getComputedStyle(e).visibility==='hidden' || (e.parentElement && e.parentElement.closest('#nav button, #title-bar button'))) return;
+      if(r.bottom>lw) lw=r.bottom; });
+    return Math.round(lw/z+10)+'px'; }
+  function npTop(){ var p=document.getElementById('notes-panel'), w=document.getElementById('summary-wrap'), i=document.getElementById('summary-inner');
+    if(!de.classList.contains('ct-on')){ de.style.removeProperty('--np-top'); de.style.removeProperty('--ov-top'); return; }
+    if(p && p.offsetWidth){ var z=p.getBoundingClientRect().width/p.offsetWidth || 1;
+      de.style.setProperty('--np-top', low(window.innerWidth-p.offsetWidth*z, 1e5, z)); } else de.style.removeProperty('--np-top');
+    if(w && i && i.offsetWidth){ var wr=w.getBoundingClientRect(), ir=i.getBoundingClientRect(), cs=getComputedStyle(i), z2=ir.width/i.offsetWidth || 1,
+        l=ir.left-wr.left+(parseFloat(cs.paddingLeft)||0)*z2, rt=ir.right-wr.left-(parseFloat(cs.paddingRight)||0)*z2;   /* (relative to the panel: it is parked off to the right while shut) */
+      de.style.setProperty('--ov-top', low(l, rt, z2)); } else de.style.removeProperty('--ov-top'); }
   window._altoNpTop=npTop;
   if(typeof ResizeObserver==='function'){ var rp=document.getElementById('notes-panel'); if(rp) new ResizeObserver(function(){ requestAnimationFrame(npTop); }).observe(rp); }
   window.addEventListener('resize', npTop); setTimeout(npTop, 300); setTimeout(npTop, 1200);

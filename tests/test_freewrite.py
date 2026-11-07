@@ -555,3 +555,21 @@ def test_the_notes_header_starts_just_under_the_wordmark_not_under_the_whole_bar
       return {hdr:h.top, word:w.bottom, nb:nb, on:document.documentElement.classList.contains('ct-on')}})()""")
     assert r["on"] and r["hdr"] >= r["word"] - 1, r          # clear of the wordmark
     assert r["hdr"] < r["nb"] - 20, r                        # and well above where the whole bar area ends
+
+
+def test_the_overview_starts_just_under_what_of_the_bars_stands_over_its_text(desk):
+    """Same gap as the Notes panel had: the Overview's text was padded down by every bar. With the chips wound in only the name is over its column;
+    with the chips out they are, and the text still clears them."""
+    pg = desk
+    m = """(()=>{const s=document.getElementById('summary-wrap'),i=document.getElementById('summary-inner'),c=i.firstElementChild.getBoundingClientRect(),
+      z=parseFloat(getComputedStyle(document.documentElement).zoom)||1,t=document.getElementById('title-text').getBoundingClientRect(),
+      nb=[].filter.call(document.querySelectorAll('#nav button'),b=>b.offsetWidth&&getComputedStyle(b).visibility!=='hidden').map(b=>b.getBoundingClientRect().bottom),
+      pad=parseFloat(getComputedStyle(s).paddingTop), bar=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-bottom'));
+      return {first:c.top, title:t.bottom, chips:nb.length?Math.max.apply(0,nb):0, pad:pad, bar:bar, z:z, on:document.documentElement.classList.contains('ct-on')}})()"""
+    pg.click("#overview-toggle"); pg.wait_for_timeout(900)
+    r = pg.evaluate(m)
+    assert r["on"] and r["first"] >= r["chips"] - 1, r                 # chips out: the text still clears them
+    pg.click("#ct-chips"); pg.wait_for_timeout(1200)                  # wind the chips in
+    r = pg.evaluate(m)
+    assert r["chips"] == 0 and r["first"] >= r["title"] - 1, r        # clear of the name
+    assert r["pad"] < r["bar"] - 20, r                                # and well above where the whole bar area ends
