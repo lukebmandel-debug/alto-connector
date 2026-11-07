@@ -23,7 +23,7 @@ try:
 except ImportError:
     pw = None
 
-HAND = {"pj": wp.resolve("France"), "pj1": wp.resolve("Texas")}
+HAND = {"pj": wp.resolve("France"), "pj1": wp.resolve("Texas"), "ms": wp.resolve("Libya")}
 
 
 def test_the_looks_live_in_the_hosted_script_not_the_page():
@@ -91,9 +91,9 @@ def browser(request):
 
 FILL = """() => { const g = document.querySelector('#wpal-root .wp-ff'); if (!g) return null; const cs = e => e ? getComputedStyle(e) : null, a = g.querySelector('.ff-a'),
   gh = g.querySelector('.ff-g'), sc = g.querySelector('.ff-s'), pth = document.querySelector('#wpff-c path');
-  return {on: g.classList.contains('on'), op: +cs(g).opacity, vis: cs(g).visibility, href: a.getAttribute('href'), aop: +cs(a).opacity, clip: pth ? pth.getAttribute('d').length : 0,
+  return {on: g.classList.contains('on'), op: +cs(g).opacity, vis: cs(g).visibility, href: a.getAttribute('href'), aop: +cs(g.querySelector('.ff-m')).opacity, clip: pth ? pth.getAttribute('d').length : 0,
     ghost: cs(gh).display, ganim: cs(gh).animationName, gdur: cs(gh).animationDuration, scan: cs(sc).display, sanim: cs(sc).animationName, sdur: cs(sc).animationDuration,
-    gstate: gh.getAnimations ? gh.getAnimations().map(x => x.animationName) : null, w: +a.getAttribute('width'), h: +a.getAttribute('height')}; }"""
+    gstate: gh.getAnimations ? gh.getAnimations().map(x => x.animationName) : null, w: +a.getAttribute('width'), h: +sc.getAttribute('height'), fh: +a.getAttribute('height'), fw: +a.getAttribute('width'), bw: +sc.getAttribute('width')}; }"""
 
 
 def _open(browser, base, style="classic", size=(1400, 900), reduced=False, globe=False):
@@ -199,3 +199,39 @@ def test_the_globe_lays_the_same_flag_on_its_own_canvas(browser, origin, style):
     px = page.evaluate("""() => { const c = document.querySelector('#wpal-root canvas.wp-gflag'), x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height).data; let n = 0, r = 0, b = 0;
       for (let i = 0; i < d.length; i += 4 * 97) if (d[i + 3] > 20) { n++; r += d[i]; b += d[i + 2]; } return {n, r, b, disp: getComputedStyle(c).display, op: +getComputedStyle(c).opacity}; }""")
     assert not errors and px["disp"] != "none" and px["n"] > 50 and px["op"] > .95
+
+
+# Luke 2026-11-05 (L-1105-184206): "When the country is taller than the flag, just extend the top/bottom colors to fill in the whole country. Vice versa if too wide."
+COVER = """() => { const g = document.querySelector('#wpal-root .wp-ff'), m = g.querySelector('.ff-m'), fl = m.querySelector('.ff-a'), pth = document.querySelector('#wpff-c path');
+  const box = e => [+e.getAttribute('x'), +e.getAttribute('y'), +e.getAttribute('x') + +e.getAttribute('width'), +e.getAttribute('y') + +e.getAttribute('height')];
+  const boxes = [...m.children].map(box), f = box(fl), bb = pth.getBBox(), svg = pth.ownerSVGElement; let inside = 0, miss = 0, outside = 0;
+  for (let i = 0; i <= 160; i++) for (let j = 0; j <= 160; j++) { const p = svg.createSVGPoint(); p.x = bb.x + bb.width * i / 160; p.y = bb.y + bb.height * j / 160;
+    if (!pth.isPointInFill(p)) continue; inside++; if (p.x < f[0] || p.x > f[2] || p.y < f[1] || p.y > f[3]) outside++;
+    if (!boxes.some(b => p.x >= b[0] && p.x <= b[2] && p.y >= b[1] && p.y <= b[3])) miss++; }
+  const r = fl.getAttribute('width') / fl.getAttribute('height');
+  return {inside, outside, miss, ratio: r, kids: m.children.length, strips: [...m.querySelectorAll('image:not(.ff-a)')].map(i => (i.getAttribute('href') || '').slice(0, 14)), par: fl.getAttribute('preserveAspectRatio')}; }"""
+
+
+@pytest.mark.parametrize("style", ["classic", "holo"])
+@pytest.mark.parametrize("stop", ["pj", "ms"])
+def test_the_flag_is_whole_and_unstretched_and_its_edges_fill_every_part_of_the_country(browser, origin, stop, style):
+    """France (a tall country, vertical stripes) and Libya (horizontal stripes): the flag is drawn at 4:3, not sliced; its four edges run out as strips and its four corners as
+    solid colours, so every point of the country is covered, and some of those points lie outside the flag's own box (the extension is really used)."""
+    base, log = origin
+    page, errors = _open(browser, base, style)
+    _stop(page, stop, True)
+    page.wait_for_function("(() => { var g = document.querySelector('#wpal-root .wp-ff'); return g && g.classList.contains('on') && g.querySelectorAll('.ff-m image:not(.ff-a)').length === 4; })()", timeout=10000)
+    c = page.evaluate(COVER)
+    assert not errors, errors
+    assert c["inside"] > 100 and c["miss"] == 0 and c["outside"] > 0, c
+    assert abs(c["ratio"] - 4 / 3) < 0.01 and c["par"] == "xMidYMid meet" and c["kids"] == 9 and all(s.startswith("data:image/png") for s in c["strips"]), c
+
+
+@pytest.mark.parametrize("style", ["classic", "holo"])
+def test_the_globe_fill_is_whole_with_its_edges_run_out(browser, origin, style):
+    page, errors = _open(browser, origin[0], style, globe=True)
+    _stop(page, "ms")
+    page.wait_for_function("(() => { var c = document.querySelector('#wpal-root canvas.wp-gflag'); return c && c.classList.contains('on'); })()", timeout=10000)
+    page.wait_for_timeout(1500)
+    assert not errors, errors
+    assert page.evaluate("(() => { var c = document.querySelector('#wpal-root canvas.wp-gflag'); return !!c.fe && c.fe.cv.length === 4 && c.fe.cn.length === 4; })()")
