@@ -964,7 +964,7 @@ function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(
   for(var lo=-180;lo<=180;lo+=30){ var px=(lo+180)/360*W; x.moveTo(px,0); x.lineTo(px,H); } for(var la=-60;la<=60;la+=30){ var py=(90-la)/180*H; x.moveTo(0,py); x.lineTo(W,py); } x.stroke(); x.setLineDash([]);
   Object.keys(S.base.c).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
     x.fillStyle='rgba(255,255,255,.9)'; x.fillStyle=st.fill; x.strokeStyle=edge; x.strokeStyle=st.stroke; x.lineWidth=pth.classList.contains('wp-u')?2.2:1.3;
-    x.beginPath(); S.base.c[cid].forEach(function(fl){ var P=decode(fl,q), last=null, pts=[], vv=new Float32Array(P.length*3);
+    x.beginPath(); gFls(cid,S.base.c[cid],q).forEach(function(fl){ var P=decode(fl,q), last=null, pts=[], vv=new Float32Array(P.length*3);
       P.forEach(function(w,i){ var g=gVec(w[0],w[1]); vv[3*i]=g[0]; vv[3*i+1]=g[1]; vv[3*i+2]=g[2]; }); S.gRings.push(gR(cid,vv));
       P.forEach(function(w){ var l=eeI(w[0],w[1]); if(last!=null){ while(l[0]-last>180) l[0]-=360; while(l[0]-last<-180) l[0]+=360; } last=l[0]; pts.push([(l[0]+180)/360*W,(90-l[1])/180*H]); });
       [-W,0,W].forEach(function(o){ pts.forEach(function(p,i){ if(i) x.lineTo(p[0]+o,p[1]); else x.moveTo(p[0]+o,p[1]); }); x.closePath(); }); });
@@ -981,6 +981,15 @@ function gDraw(){ var G=S.G; if(!G) return; S.gM=gRot(); var gl=G.gl, M=S.gM, d=
 // 1:50m and a country's state lines, so does the globe (the same hosted tiers, fetched by detail()); a ring that runs round the back is cut
 // at the limb (filled to the chord, stroked only where it is seen) instead of falling back to the blurry surface; the coasts are drawn as the
 // flat map draws them (centripetal Catmull-Rom); rings off the screen or behind it are skipped by their bounding cap, points under .6 px apart are dropped.
+// Antarctica on the globe: its two big rings are the continent cut at the antimeridian, each closed along the flat map's polar edge (and with inland spurs where the cut meets the ice
+// shelves), which is right flat and wrong on a sphere (a polar circle, a seam, spikes). The globe draws it as ONE ring: the continent is star-shaped about the pole, so its outline is
+// the northernmost coast point in each degree of longitude (the cut meridian's own points left out), in order, closed along the pole; the small shelf rings stay as they are.
+function gFls(cid,list,q){ if(cid!=='ATA') return list; var big=list.filter(function(f){ return f.length>80; }); if(big.length<2) return list;
+  var bin={}; big.forEach(function(f){ decode(f,q).forEach(function(w){ var l=eeI(w[0],w[1]), b=Math.round(l[0]); if(l[1]>-88&&Math.abs(l[0])<179&&(bin[b]===undefined||l[1]>bin[b][1])) bin[b]=l; }); });
+  var pts=Object.keys(bin).map(Number).sort(function(a,b){ return a-b; }).map(function(b){ return bin[b]; }), a=eeF(-180,-89.95), z=eeF(180,-89.95),
+    ring=[a].concat(pts.map(function(l){ return eeF(l[0],l[1]); }),[z]), out=[], px=0, py=0;
+  ring.forEach(function(w,i){ var X=Math.round(w[0]*q), Y=Math.round(w[1]*q); out.push(i?X-px:X, i?Y-py:Y); px=X; py=Y; });
+  return list.filter(function(f){ return f.length<=80; }).concat([out]); }
 function gOn(){ return S.k*GR>Math.max(S.vw,S.vh)*.55; }
 function gVecs(flat,q){ var n=flat.length>>1, v=new Float32Array(3*n), x=flat[0], y=flat[1];
   for(var i=0;i<n;i++){ if(i){ x+=flat[2*i]; y+=flat[2*i+1]; } var l=eeI(x/q,y/q), la=l[1]*D2R, lo=l[0]*D2R, c=Math.cos(la); v[3*i]=c*Math.sin(lo); v[3*i+1]=Math.sin(la); v[3*i+2]=c*Math.cos(lo); }
@@ -1020,7 +1029,7 @@ function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'no
   var x=cv.getContext('2d'), W=S.vw, H=S.vh, used=D().used||{}; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); x.lineJoin='round';
   var nR=0, nP=0, todo=[], src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
   Object.keys(S.detOn).forEach(function(cs){ var G=S.cont[cs]; if(!S.detOn[cs]||!G||!G.c) return;                 // (a country in a continent that is in: its 1:50m rings instead)
-    var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=G.c[cid].map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
+    var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=gFls(cid,G.c[cid],G.q).map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
     Object.keys(g).forEach(function(cid){ src[cid]=g[cid]; }); });
   Object.keys(src).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var W0=new Path2D(), PF=new Path2D(), PS=new Path2D(), any=false, fb=null;
     src[cid].forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; any=true; nR++; q.runs.forEach(function(P){ nP+=P.length>>1; });
