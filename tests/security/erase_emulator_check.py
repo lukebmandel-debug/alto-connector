@@ -88,8 +88,6 @@ OPTS = {"projectId": PROJECT, "storageBucket": BUCKET}
 seed_app = firebase_admin.initialize_app(options=OPTS, name="seed")
 db = firestore.Client(project=PROJECT)
 bucket = storage.bucket(app=seed_app)
-if not bucket.exists():
-    bucket.create()
 
 
 def put(path: str, data=None) -> None:
