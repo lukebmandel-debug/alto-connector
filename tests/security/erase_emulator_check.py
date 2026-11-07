@@ -90,6 +90,13 @@ db = firestore.Client(project=PROJECT)
 bucket = storage.bucket(app=seed_app)
 
 
+def fresh_default_app() -> None:                                            # the tool initialises the default app on every real run
+    try:
+        firebase_admin.delete_app(firebase_admin.get_app())
+    except ValueError:
+        pass
+
+
 def put(path: str, data=None) -> None:
     db.document(path).set(data or {"x": 1})
 
@@ -176,6 +183,7 @@ def main() -> int:
     assert len(all_paths()) == len(before_docs) and len(blobs()) == len(before_blobs) and GONE in auth_uids()
 
     builtins.input = lambda prompt="": GONE
+    fresh_default_app()
     try:
         assert erase_account.main(argv + ["--yes"]) == 0                    # the real erase: Firestore, Storage, then the Auth user
     finally:
@@ -199,6 +207,7 @@ def main() -> int:
     assert KEEP in auth_uids() and allow == [KEEP_EMAIL]
     # a second run is harmless
     builtins.input = lambda prompt="": GONE
+    fresh_default_app()
     try:
         assert erase_account.main(argv + ["--yes"]) == 0
     finally:
