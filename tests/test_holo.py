@@ -381,8 +381,8 @@ def test_the_holographic_picker_lists_only_the_holographic_backgrounds_and_keeps
     pg.wait_for_timeout(300)
     assert pg.evaluate("document.documentElement.classList.contains('alto-holo')")
     holo_list = pg.evaluate(PICKER_JS)
-    tiles = [t for _, ts in holo_list for t in ts]
-    assert [h for h, _ in holo_list if h] == ["Holographic"], holo_list
+    tiles = [t for h, ts in holo_list if h != "Yours" for t in ts]       # "Yours" is the Import tile's section, never removed (CEO ruling C-1107-0135)
+    assert [h for h, _ in holo_list if h] == ["Holographic", "Yours"], holo_list
     assert tiles and all(t == "" or t.startswith("h-") for t in tiles), tiles
     assert pg.evaluate("window._altoBg.read()") == "moraine-lake"        # not deleted
     pg.evaluate("window._altoStyle.set('classic')")
