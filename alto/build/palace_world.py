@@ -475,7 +475,6 @@ function drawBase(G){
   (G.grat||[]).forEach(function(fl){ el('path',{d:line2d(fl,q),'class':'wp-grat'},S.gGrat); });
   if(G.sphere) el('path',{d:curve(decode(G.sphere,q),1),'class':'wp-sphere'},S.gGrat);
   Object.keys(G.c).sort().forEach(function(cid){
-    if(cid==='ATA'&&used[cid]==null) return;
     var bb=[1e9,1e9,-1e9,-1e9], d=rings2d(G.c[cid],q,1,bb); S.bb[cid]=bb;
     var p=el('path',{d:d,'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._base=d; p._cid=cid; S.paths[cid]=p;
     p.addEventListener('click',function(){ if(S.dragged||(D().used||{})[cid]==null) return; var f=firstIn(cid); if(f) A.select(f); });
@@ -671,7 +670,6 @@ function gFlag(todo){ var cv=S.gf, i=cv.fi, t=S.ffC&&todo.filter(function(q){ re
   x.globalAlpha=al; x.setTransform(1,0,0,1,0,0); x.drawImage(tmp,0,0); x.setTransform(d,0,0,d,0,0); x.globalAlpha=1; }
 function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
   Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid];
-    if(cid==='ATA'&&used[cid]==null) return;
     if(!p){ p=el('path',{'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._cid=cid; p._extra=1; S.paths[cid]=p; }
     if(!p._det){ var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
     p.setAttribute('d',p._det); p.style.display=''; }); gAgain(); }
@@ -734,6 +732,7 @@ function planeLand(P){ if(S.plane!==P) return; S.plane=null; P.g.remove(); var t
 function planeSkip(){ var P=S.plane; if(!P) return; planeStop(); stop(); S.cx=P.v.cx; S.cy=P.v.cy; S.k=P.v.k; apply(); settleSoon(); P.land(); emit('land',S.sel); }
 function planeStop(){ var P=S.plane; if(!P) return; S.plane=null; cancelAnimationFrame(P.raf); P.g.remove(); P.tr.remove(); }
 A.plane=function(){ return !!S.plane; };
+A.rings=function(){ var o={}; (S.gRings||[]).forEach(function(r){ o[r.c]=1; }); return Object.keys(o); };            // (which countries the globe draws: a test hook)
 function rels(id){ S.rel=[]; if(typeof CONNECTIONS==='undefined') return; var seen={}, n=N(id);
   try{ CONNECTIONS.forEach(function(c){ var o=c[0]===id?c[1]:c[1]===id?c[0]:null, m=o&&N(o); if(!m||n.par===o||m.par===id) return;
     var p=placeOf(o); if(p&&!seen[p]){ seen[p]=1; S.rel.push(p); } }); }catch(x){} }
@@ -1022,7 +1021,7 @@ function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'no
   var nR=0, nP=0, todo=[], src={}; S.gRings.forEach(function(r){ (src[r.c]=src[r.c]||[]).push(r); });
   Object.keys(S.detOn).forEach(function(cs){ var G=S.cont[cs]; if(!S.detOn[cs]||!G||!G.c) return;                 // (a country in a continent that is in: its 1:50m rings instead)
     var g=gTile(G,'_g',function(o){ Object.keys(G.c).forEach(function(cid){ o[cid]=G.c[cid].map(function(fl){ return gR(cid,gVecs(fl,G.q)); }); }); });
-    Object.keys(g).forEach(function(cid){ if(!(cid==='ATA'&&used[cid]==null)) src[cid]=g[cid]; }); });
+    Object.keys(g).forEach(function(cid){ src[cid]=g[cid]; }); });
   Object.keys(src).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var W0=new Path2D(), PF=new Path2D(), PS=new Path2D(), any=false, fb=null;
     src[cid].forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; any=true; nR++; q.runs.forEach(function(P){ nP+=P.length>>1; });
       if(cid===S.ffC&&(!fb||r.k[3]>fb.r)){ fb={r:r.k[3],b:[1e9,1e9,-1e9,-1e9]}; q.runs.forEach(function(P){ for(var i=0;i<P.length;i+=2){ fb.b[0]=Math.min(fb.b[0],P[i]); fb.b[1]=Math.min(fb.b[1],P[i+1]); fb.b[2]=Math.max(fb.b[2],P[i]); fb.b[3]=Math.max(fb.b[3],P[i+1]); } }); }
