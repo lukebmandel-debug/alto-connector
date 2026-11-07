@@ -234,4 +234,6 @@ def test_the_import_tile_in_the_scene_panel_follows(browser, site, style):
     pg.wait_for_timeout(300)
     bs = pg.evaluate("getComputedStyle(document.querySelector('#bg-yours .bg-add')).borderTopStyle")
     assert bs == ("dashed" if style == "classic" else "solid")
+    # Holo's picker rule hides every section without a Holographic tile; #bg-yours (the Import tile) is never removed
+    assert pg.evaluate("document.querySelector('#bg-yours .bg-add').getBoundingClientRect().width") > 0
     pg.close()

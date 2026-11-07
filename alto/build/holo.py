@@ -70,7 +70,7 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) body:not(#_):not(#__){background:transparent !important;}
   /* the Background picker in Holographic lists the style's own backgrounds (and the Alto default tile) and nothing else; a photograph or colour chosen
      earlier stays stored and comes back with Classic. A phone's picker too; the palaces and the Star chart keep theirs. */
-  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(:has(.bg-tile[data-bg^="h-"],.bg-def)){display:none !important;}
+  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(:has(.bg-tile[data-bg^="h-"],.bg-def)){display:none !important;}
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
