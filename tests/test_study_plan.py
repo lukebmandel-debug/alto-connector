@@ -378,3 +378,18 @@ def test_the_phone_day_tag_is_inside_its_card_clear_of_the_number_and_square_in_
             assert style != "retro" or r["r"] == "0px", (style, r)               # Retro's tags are square (Holo's own look sets its own)
         assert not errs, errs
         b.close()
+
+
+@pytest.mark.parametrize("h", [390, 330])
+def test_a_phone_card_held_sideways_fits_the_visible_height_and_is_not_cut(site, h):
+    """Sim 1107c: held sideways the one-card view capped the card at 100dvh - 276px (114 px on a 390 px screen) and cut its body under the title. dvh follows Safari's bars: 330 is a
+    landscape page with a tab strip up. The card ends above the visible bottom and shows everything it holds (WebKit 844 wide)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site + "/o.html", w=844, h=h, mobile=True)
+        r = pg.evaluate("""()=>{const c=document.querySelector('.node.mobile-featured .node-card'),b=c.getBoundingClientRect();
+          return {vh:innerHeight,top:b.top,bottom:b.bottom,sh:c.scrollHeight,ch:c.clientHeight}}""")
+        assert r["bottom"] <= r["vh"] - 8 and r["top"] >= 90, r                            # (inside the visible height, clear of the top bar)
+        assert r["sh"] <= r["ch"] + 1, r                                                    # (nothing of the card cut)
+        assert not errs, errs
+        b.close()
