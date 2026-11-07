@@ -936,3 +936,31 @@ def test_art_look_fixes_are_in_the_css():
     src = (ROOT / "alto" / "build" / "study.py").read_text(encoding="utf-8")
     assert ".asc-face > *,.asc-face img{backface-visibility:hidden;-webkit-backface-visibility:hidden;}" in src
     assert ".asc-front{transform:rotateY(0deg);}" in src                                              # WebKit: the back's text no longer shows through
+
+
+def test_a_swipe_in_the_phone_viewer_turns_the_picture_and_leaves_the_card_behind_alone(browser, site):
+    """Sim 1107b: a horizontal swipe in the viewer did not change the picture and moved the card behind it. Touch events are sent by script (WebKit has
+    no touch-drag API): start, a few moves, end; the document-level swipe must not see any of it, and the viewer must stand on touch-action:none."""
+    pg = _open(browser, site, mobile=True)
+    pg.wait_for_timeout(600)
+    _loaded(pg, ".node .aph-thumb img")
+    pg.wait_for_timeout(1200)
+    pg.tap(".node.mobile-featured .aph-thumb, .node .aph-thumb >> nth=0")
+    pg.wait_for_selector("#aph-lb img[src^='blob:']", timeout=8000)
+    assert pg.evaluate("getComputedStyle(document.getElementById('aph-lb')).touchAction") == "none"
+    n0 = pg.inner_text("#aph-lb .lb-n")
+    assert n0.startswith("1 /"), n0
+    pg.evaluate("""() => { window.__doc = 0; window.__feat = window._featuredNodeId;
+      ['touchstart','touchmove','touchend'].forEach(t => document.addEventListener(t, () => { window.__doc++; })); }""")
+    SW = """(xs) => { const el = document.querySelector('#aph-lb img'), mk = (type, x) => { const e = new Event(type, {bubbles: true, cancelable: true});
+        const t = {clientX: x, clientY: 400, identifier: 1, target: el}; e.touches = type === 'touchend' ? [] : [t]; e.changedTouches = [t]; el.dispatchEvent(e); return e; };
+      mk('touchstart', xs[0]); const moves = xs.slice(1, -1).map(x => mk('touchmove', x)); mk('touchend', xs[xs.length - 1]); return moves.some(m => m.defaultPrevented); }"""
+    prevented = pg.evaluate(SW, [300, 260, 220, 180, 140, 100])
+    pg.wait_for_timeout(300)
+    assert prevented, "the horizontal drag was left to scroll"
+    assert pg.inner_text("#aph-lb .lb-n").startswith("2 /"), pg.inner_text("#aph-lb .lb-n")          # left swipe: the next picture
+    pg.evaluate(SW, [100, 140, 180, 220, 260, 300])
+    pg.wait_for_timeout(300)
+    assert pg.inner_text("#aph-lb .lb-n").startswith("1 /")                                            # right swipe: back
+    assert pg.evaluate("window.__doc") == 0 and pg.evaluate("window._featuredNodeId") == pg.evaluate("window.__feat")   # the card behind never heard it
+    pg.context.close()

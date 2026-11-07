@@ -250,7 +250,7 @@ html.mobile .aph.aph-top .aph-cap{display:none;}
 html.mobile .aph:not(.aph-top) .aph-img{aspect-ratio:auto;max-height:70vh;}
 html.mobile .aph:not(.aph-top) .aph-img img{position:static;height:auto;max-height:70vh;object-fit:contain;}
 /* the viewer */
-#aph-lb{position:fixed;inset:0;z-index:8600;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:3vh 3vw;background:rgba(6,7,12,.88);color:#eceef5;-webkit-tap-highlight-color:transparent;}
+#aph-lb{position:fixed;inset:0;z-index:8600;touch-action:none;overscroll-behavior:contain;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:3vh 3vw;background:rgba(6,7,12,.88);color:#eceef5;-webkit-tap-highlight-color:transparent;}
 #aph-lb img{max-width:94vw;max-height:78vh;object-fit:contain;border-radius:4px;background:#000;}
 #aph-lb .lb-cap{max-width:min(760px,92vw);text-align:center;font:14px/1.45 system-ui,-apple-system,sans-serif;}
 #aph-lb .lb-n{font:11px system-ui,sans-serif;letter-spacing:.12em;opacity:.7;}
@@ -452,10 +452,16 @@ PICS_JS = r"""(function(){
       else if(!e.target.closest('img')) lbClose();
     });
     lb.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-    var sx=null;       // a swipe turns to the next or the previous picture
-    lb.addEventListener('touchstart', function(e){ sx=e.touches.length===1 ? e.touches[0].clientX : null; }, {passive:true});
-    lb.addEventListener('touchend', function(e){ if(sx==null || lbItems.length<2) return; var dx=e.changedTouches[0].clientX-sx; sx=null;
-      if(Math.abs(dx)>50){ lbAt=(lbAt+(dx<0 ? 1 : lbItems.length-1))%lbItems.length; lbDraw(); } }, {passive:true});
+    var sx=null, sy=0;       // a swipe turns to the next or the previous picture; none of it reaches the card behind (the engine's document-level swipe)
+    function tpt(e){ var t=(e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]); return t || null; }
+    function lbGo(dx){ if(lbItems.length>1){ lbAt=(lbAt+(dx<0 ? 1 : lbItems.length-1))%lbItems.length; lbDraw(); } }
+    lb.addEventListener('touchstart', function(e){ e.stopPropagation(); var t=tpt(e); sx=(e.touches.length===1 && t) ? t.clientX : null; sy=t ? t.clientY : 0; }, {passive:true});
+    lb.addEventListener('touchmove', function(e){ e.stopPropagation(); var t=tpt(e); if(sx==null || !t) return; var dx=t.clientX-sx, dy=t.clientY-sy;
+      if(Math.abs(dx)>Math.abs(dy)){ if(e.cancelable) e.preventDefault(); if(Math.abs(dx)>60){ sx=null; lbGo(dx); } } }, {passive:false});   // (the picture turns as the finger passes 60 px: iOS can end a drag with a touchcancel, or none)
+    function lbEnd(e){ e.stopPropagation(); var t=tpt(e); if(sx==null || !t) return; var dx=t.clientX-sx, dy=t.clientY-sy; sx=null;
+      if(Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)*1.2){ if(e.cancelable) e.preventDefault(); lbGo(dx); } }
+    lb.addEventListener('touchend', lbEnd, {passive:false});
+    lb.addEventListener('touchcancel', lbEnd, {passive:false});
     document.body.appendChild(lb); if(window._unifiedEscape) window.removeEventListener('keydown', window._unifiedEscape, true); window.addEventListener('keydown', lbKey, true); lbDraw();   // (Escape closes the viewer, not the page behind it)
     // focus rests in a hidden field: the page's own arrow and Escape keys stand down for a text field (the Tour, an enlarged card's hops)
     var tr=el('input','lb-trap'); tr.readOnly=true; tr.tabIndex=-1; tr.setAttribute('aria-hidden','true'); lb.appendChild(tr); tr.focus();
