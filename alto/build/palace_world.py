@@ -755,13 +755,18 @@ function flagIn(id,line,enl){ var p=placeOf(id), n=p&&N(p), cid=n&&n.c, url=cid&
   im.decoding='async'; im.src=url; return b; }
 // the banner: the flag (61 x 46 css px) drawn into the canvas, then every row to its right is that row's own last flag pixel, written as exact bytes (nothing blended, so no
 // seam); a transparent edge row (Nepal) stays transparent over the banner's own tint. Sized in device pixels, so 1x and 2x screens both land on whole pixels.
+function banEdge(im){ if(im._e) return im._e; var c=document.createElement('canvas'), x; c.width=640; c.height=480; x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(im,-2,-2,644,484);
+  return im._e=x.getImageData(0,0,640,480).data; }          // (the flag at its natural size: its edge colours are read from this, never from the 61 px copy, where an emblem's tip lands in the last column)
+function med(a){ a.sort(function(p,q){ return p-q; }); return a[a.length>>1]; }
 function banPaint(b,cv,im){ var W=b.clientWidth, H=b.clientHeight; if(!W||!H) return; var d=Math.max(1,window.devicePixelRatio||1), pw=Math.round(W*d), ph=Math.round(H*d), fw=Math.min(pw,Math.round(61*d));
-  cv.width=pw; cv.height=ph; var x=cv.getContext('2d',{willReadFrequently:true}); x.clearRect(0,0,pw,ph); x.drawImage(im,0,-1,fw+2,ph+2); x.clearRect(fw,0,pw-fw,ph);     // (drawn 2 device px big and trimmed: the flag's own last column is then whole, never a half-covered edge pixel that would leave the tail see-through)
-  if(pw>fw){ var e=x.getImageData(fw-1,0,1,ph).data, tw=pw-fw, o=x.createImageData(tw,ph), q=o.data, r,i,j;
-    for(r=0;r<ph;r++) for(i=0;i<tw;i++){ j=(r*tw+i)*4; q[j]=e[r*4]; q[j+1]=e[r*4+1]; q[j+2]=e[r*4+2]; q[j+3]=e[r*4+3]; }
+  cv.width=pw; cv.height=ph; var x=cv.getContext('2d',{willReadFrequently:true}); x.clearRect(0,0,pw,ph); x.drawImage(im,0,-1,fw+2,ph+2); x.clearRect(fw,0,pw-fw,ph);     // (drawn 2 device px big and trimmed: no half-covered edge column)
+  if(pw>fw){ var n=banEdge(im), tw=pw-fw, o=x.createImageData(tw,ph), q=o.data, r,i,j,k,y,c,v=[[],[],[],[]];
+    var ch=(fw+2)*.75, tp=-1+((ph+2)-ch)/2;          // (where the flag really sits in the canvas, so a row reads the file rows it is drawn from)
+    for(r=0;r<ph;r++){ var y0=Math.max(0,Math.min(479,Math.floor((r-tp)/ch*480))), y1=Math.max(y0+1,Math.min(480,Math.ceil((r+1-tp)/ch*480))); v[0].length=v[1].length=v[2].length=v[3].length=0;        // (this row's share of the file's rows, median over the band 3..8 px in from its right edge)
+      for(y=y0;y<y1&&y<480;y++) for(c=632;c<638;c++) for(k=0;k<4;k++) v[k].push(n[(y*640+c)*4+k]);
+      var e0=med(v[0]),e1=med(v[1]),e2=med(v[2]),e3=med(v[3]); for(i=0;i<tw;i++){ j=(r*tw+i)*4; q[j]=e0; q[j+1]=e1; q[j+2]=e2; q[j+3]=e3; } }
     x.putImageData(o,fw,0); }
-  [].forEach.call(b.querySelectorAll('.ban-t rect'),function(r){ r.setAttribute('x',.5); r.setAttribute('y',.5); r.setAttribute('width',Math.max(1,W-1)); r.setAttribute('height',Math.max(1,H-1)); }); }
-// where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
+  [].forEach.call(b.querySelectorAll('.ban-t rect'),function(r){ r.setAttribute('x',.5); r.setAttribute('y',.5); r.setAttribute('width',Math.max(1,W-1)); r.setAttribute('height',Math.max(1,H-1)); }); }// where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
 function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
   var n=N(p), cn=dec((D().names||{})[n.c]||''), pl=dec(n.pl||''); if(n.k==='country'||!pl) return cn||pl; return pl+(cn&&pl!==cn?', '+cn:''); }
 function pinIcon(p){ var s=el('svg',{viewBox:'-8 -16 16 17','aria-hidden':'true'},p); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z'},s); return s; }

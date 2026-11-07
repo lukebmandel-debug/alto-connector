@@ -84,8 +84,8 @@ def test_the_script_loads_one_flag_at_a_time_and_the_page_carries_none():
 def _page():
     d = json.load(open(ROOT / "samples" / "outline_brief.json"))
     d["brief"].update({"mode": "palace", "palace_view": "world"})
-    ids = [n["id"] for n in d["nodes"] if n.get("parent")][:6]        # (a unit's top card is its hub: no country of its own)
-    d["brief"]["world"] = {"places": {ids[0]: wp.resolve("Mali"), ids[1]: wp.resolve("Antarctica"), ids[2]: wp.resolve("Peru"), ids[3]: wp.resolve("Brazil"), ids[4]: wp.resolve("Nepal"), ids[5]: wp.resolve("United States")}}
+    ids = [n["id"] for n in d["nodes"] if n.get("parent")][:9]        # (a unit's top card is its hub: no country of its own)
+    d["brief"]["world"] = {"places": {ids[0]: wp.resolve("Mali"), ids[1]: wp.resolve("Antarctica"), ids[2]: wp.resolve("Peru"), ids[3]: wp.resolve("Brazil"), ids[4]: wp.resolve("Nepal"), ids[5]: wp.resolve("United States"), ids[6]: wp.resolve("Japan"), ids[7]: wp.resolve("South Korea"), ids[8]: wp.resolve("Canada")}}
     _page.ids = ids
     return build_timeline(*load_brief(d))[0], ids
 
@@ -152,11 +152,13 @@ PROBE = """() => { const q = s => document.querySelector(s), cs = (e, ps) => e ?
 
 # the canvas pixels: every tail pixel equals the flag's last column pixel of its own row, byte for byte
 SEAM = """() => { const cv = document.querySelector('#wpal-root .wp-enl .wp-ban canvas'), x = cv.getContext('2d'), W = cv.width, H = cv.height, fw = Math.min(W, Math.round(61 * Math.max(1, devicePixelRatio)));
-  const d = x.getImageData(0, 0, W, H).data, bad = []; let n = 0;
-  for (let r = 0; r < H; r++) { const e = (r * W + fw - 1) * 4; for (let c = fw; c < W; c++) { const o = (r * W + c) * 4; n++;
+  const d = x.getImageData(0, 0, W, H).data, bad = [], tail = r => { const o = (r * W + fw + 4) * 4; return [d[o], d[o + 1], d[o + 2], d[o + 3]]; }; let n = 0;
+  for (let r = 0; r < H; r++) { const e = (r * W + fw) * 4; for (let c = fw; c < W; c++) { const o = (r * W + c) * 4; n++;       // (every tail pixel of a row is the same colour)
     if (Math.abs(d[o] - d[e]) > 1 || Math.abs(d[o + 1] - d[e + 1]) > 1 || Math.abs(d[o + 2] - d[e + 2]) > 1 || Math.abs(d[o + 3] - d[e + 3]) > 1) bad.push([r, c]); } }
-  let ink = 0, thin = 0; for (let r = 0; r < H; r++) { const al = d[(r * W + fw - 1) * 4 + 3]; ink += al > 0 ? 1 : 0; thin += al > 0 && al < 250 ? 1 : 0; }
-  return {W, H, fw, n, bad: bad.length, ink, thin, dpr: devicePixelRatio}; }"""
+  let ink = 0, thin = 0, off = 0, line = 0; const df = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+  for (let r = 0; r < H; r++) { const o = (r * W + fw - 1) * 4, al = d[o + 3], last = [d[o], d[o + 1], d[o + 2]]; ink += al > 0 ? 1 : 0; thin += al > 0 && al < 250 ? 1 : 0; if (df(last, tail(r)) > 8) off++;
+    if (r > 1 && r < H - 2) { const a = tail(r - 1), m = tail(r), b = tail(r + 1); if (df(m, a) > 40 && df(m, b) > 40 && df(a, b) < 14) line++; } }   // (a 1 px line across the tail: an emblem's tip read as the edge colour)
+  return {W, H, fw, n, bad: bad.length, ink, thin, off, line, dpr: devicePixelRatio}; }"""
 
 
 def _open(browser, base, style, idx, globe=False, size=(1400, 900), reduced=False, block=None, dpr=1):
@@ -180,7 +182,7 @@ def _open(browser, base, style, idx, globe=False, size=(1400, 900), reduced=Fals
     return page, errors
 
 
-MALI, ANTARCTICA, PERU, BRAZIL, NEPAL, USA = range(6)
+MALI, ANTARCTICA, PERU, BRAZIL, NEPAL, USA, JAPAN, KOREA, CANADA = range(9)
 
 
 @pytest.mark.parametrize("globe", [False, True])
@@ -253,7 +255,7 @@ def test_no_seam_between_the_flag_and_its_extension(browser, origin, idx, style,
     from PIL import Image
     page, errors = _open(browser, origin[0], style, idx, dpr=dpr)
     s = page.evaluate(SEAM)
-    assert not errors and s["bad"] == 0 and s["n"] > 1000 and s["H"] == 46 * dpr and s["fw"] == 61 * dpr, s
+    assert not errors and s["bad"] == 0 and s["n"] > 1000 and s["H"] == 46 * dpr and s["fw"] == 61 * dpr and s["line"] == 0, s
     if idx != NEPAL:
         assert s["ink"] == s["H"] and s["thin"] == 0, s        # (a rectangle flag: every row of its last column is wholly opaque, or the tail would be see-through)
     page.wait_for_timeout(400)
@@ -268,5 +270,18 @@ def test_no_seam_between_the_flag_and_its_extension(browser, origin, idx, style,
     if len(diffs) < 20:                                                     # (Chromium put the US card partly above the window: the canvas-byte check above stands for it)
         return
     if idx != NEPAL:
-        # a colour shift (a see-through or shaded tail) would show on EVERY row; only the rows where an emblem touches the edge (Brazil's diamond tip) may differ
-        assert diffs[len(diffs) // 2] <= 2 and sum(1 for d in diffs if d > 5) <= 0.25 * len(diffs), ("seam", idx, style, dpr, diffs[len(diffs) // 2], sum(1 for d in diffs if d > 5), len(diffs))
+        # a colour shift (a see-through or shaded tail, ~20 levels) would show on EVERY row; at 1x the 61 px flag's own stripe boundaries are antialiased where the tail's are crisp, so only a few rows may differ
+        assert diffs[len(diffs) // 2] <= 6 and sum(1 for d in diffs if d > 12) <= (0.4 if dpr == 1 else 0.25) * len(diffs), ("seam", idx, style, dpr, diffs[len(diffs) // 2], sum(1 for d in diffs if d > 12), len(diffs))
+
+
+@pytest.mark.parametrize("dpr", [1, 2])
+@pytest.mark.parametrize("idx", [BRAZIL, JAPAN, KOREA, CANADA])
+def test_an_emblem_near_the_edge_never_draws_a_line_across_the_tail(browser, origin, idx, dpr):
+    """Art 2026-11-07: Brazil at 1x had a 1 px yellow line from the diamond's tip across the whole tail (the edge was read from the 61 px copy). The edge is now read from the flag's
+    natural size, median over a band, so the tail carries the flag's own background on every row: no isolated line, and the tail agrees with the flag's last column on nearly every row."""
+    page, errors = _open(browser, origin[0], "classic", idx, dpr=dpr)
+    s = page.evaluate(SEAM)
+    assert not errors and s["line"] == 0 and s["bad"] == 0 and s["off"] <= 0.25 * s["H"], s
+    if idx == BRAZIL:
+        assert s["off"] <= 0.25 * s["H"] and page.evaluate("""() => { const cv = document.querySelector('#wpal-root .wp-enl .wp-ban canvas'), d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data,
+          o = (Math.floor(cv.height / 2) * cv.width + cv.width - 6) * 4; return d[o] < 80 && d[o + 1] > 120 && d[o + 2] < 110; }""")      # (mid-height tail is the flag's green, not the diamond's yellow)
