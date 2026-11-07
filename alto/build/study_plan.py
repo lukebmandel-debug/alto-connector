@@ -83,6 +83,7 @@ CSS = r"""<style id="alto-sp-css">
   html.mobile .node.sp-late .sp-tag{background:var(--sp-late);color:var(--bg);}
   html.mobile .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
   html.mobile .compass-mini-node .sp-tag{display:none;}
+  @media (orientation:landscape){ html.mobile .node .sp-tag{top:8px;bottom:auto;right:36px;} }   /* held sideways the card can be only its label strip tall: the tag moves up beside the card number instead of sitting on it (Sim 1107b) */
   html.mobile.sp-open #scroll-hint{display:none !important;}   /* the "Swipe to navigate" hint must not float over the sheet */
   /* the entry: a tab on the right rail under Overview, seen without opening the notes panel; its words say what a click does */
   #sp-chip{display:none;}

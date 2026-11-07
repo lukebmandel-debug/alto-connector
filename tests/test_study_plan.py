@@ -94,6 +94,32 @@ def site(tmp_path_factory):
     srv.shutdown()
 
 
+@pytest.fixture(scope="module")
+def site_hosted(tmp_path_factory):
+    """The plan page served with the hosted Retro / Holographic scripts beside it (the look lives there, not in the page)."""
+    if pw is None:
+        pytest.skip("Playwright is not installed")
+    from alto.build import backgrounds_import as bi, holo, retro
+    d = tmp_path_factory.mktemp("splanh")
+    (d / "o.html").write_text(_build("outline", plan=PLAN), encoding="utf-8")
+    (d / "holo").mkdir()
+    (d / "retro").mkdir()
+    n, t = holo.holo_asset()
+    (d / "holo" / n).write_text(t, encoding="utf-8")
+    n, t = retro.retro_asset()
+    (d / "retro" / n).write_text(t, encoding="utf-8")
+    lib, js = bi.site_file()
+    (d / lib).write_text(js, encoding="utf-8")
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(H, directory=str(d)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+
+
 @pytest.fixture(params=["chromium", "webkit"])
 def browser(request):
     if pw is None:
@@ -331,3 +357,24 @@ def test_the_homepage_card_shows_the_plan_state_on_a_computer_only(browser, tmp_
     assert pg.evaluate("[...document.querySelectorAll('.sp-card')].every(e=>getComputedStyle(e).display==='none')")
     ctx.close()
     srv.shutdown()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("w, h", [(390, 844), (844, 390)])
+def test_the_phone_day_tag_is_inside_its_card_clear_of_the_number_and_square_in_retro(site_hosted, style, w, h):
+    """Sim 1107b: Retro's tag was a round pill, and in Holo held sideways it sat on the card number. Each style, portrait and landscape (WebKit)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site_hosted + "/o.html", w=w, h=h, mobile=True)
+        pg.evaluate("localStorage.clear()"); pg.evaluate("window._altoStyle.set('%s')" % style); pg.wait_for_timeout(1200)
+        rows = pg.evaluate("""()=>[...document.querySelectorAll('.node[class*="sp-"]')].map(n=>{const t=n.querySelector('.sp-tag'),c=n.querySelector('.node-card'),o=n.querySelector('.node-order'),
+          T=t.getBoundingClientRect(),C=c.getBoundingClientRect(),O=o?o.getBoundingClientRect():null;
+          return {id:n.id,r:getComputedStyle(t).borderTopLeftRadius,inside:T.left>=C.left&&T.right<=C.right&&T.top>=C.top&&T.bottom<=C.bottom,
+            hit:!!O&&O.width>0&&!(O.right<=T.left||O.left>=T.right||O.bottom<=T.top||O.top>=T.bottom)}})""")
+        rows = [r for r in rows if r['id']]
+        assert len(rows) == 4, rows
+        for r in rows:
+            assert r["inside"] and not r["hit"], (style, w, h, r)
+            assert style != "retro" or r["r"] == "0px", (style, r)               # Retro's tags are square (Holo's own look sets its own)
+        assert not errs, errs
+        b.close()
