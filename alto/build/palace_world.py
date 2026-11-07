@@ -756,7 +756,7 @@ function flagIn(id,line,enl){ var p=placeOf(id), n=p&&N(p), cid=n&&n.c, url=cid&
 // the banner: the flag (61 x 46 css px) drawn into the canvas, then every row to its right is that row's own last flag pixel, written as exact bytes (nothing blended, so no
 // seam); a transparent edge row (Nepal) stays transparent over the banner's own tint. Sized in device pixels, so 1x and 2x screens both land on whole pixels.
 function banPaint(b,cv,im){ var W=b.clientWidth, H=b.clientHeight; if(!W||!H) return; var d=Math.max(1,window.devicePixelRatio||1), pw=Math.round(W*d), ph=Math.round(H*d), fw=Math.min(pw,Math.round(61*d));
-  cv.width=pw; cv.height=ph; var x=cv.getContext('2d',{willReadFrequently:true}); x.clearRect(0,0,pw,ph); x.drawImage(im,0,0,fw,ph);
+  cv.width=pw; cv.height=ph; var x=cv.getContext('2d',{willReadFrequently:true}); x.clearRect(0,0,pw,ph); x.drawImage(im,0,-1,fw+2,ph+2); x.clearRect(fw,0,pw-fw,ph);     // (drawn 2 device px big and trimmed: the flag's own last column is then whole, never a half-covered edge pixel that would leave the tail see-through)
   if(pw>fw){ var e=x.getImageData(fw-1,0,1,ph).data, tw=pw-fw, o=x.createImageData(tw,ph), q=o.data, r,i,j;
     for(r=0;r<ph;r++) for(i=0;i<tw;i++){ j=(r*tw+i)*4; q[j]=e[r*4]; q[j+1]=e[r*4+1]; q[j+2]=e[r*4+2]; q[j+3]=e[r*4+3]; }
     x.putImageData(o,fw,0); }
