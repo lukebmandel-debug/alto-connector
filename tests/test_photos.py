@@ -964,3 +964,56 @@ def test_a_swipe_in_the_phone_viewer_turns_the_picture_and_leaves_the_card_behin
     assert pg.inner_text("#aph-lb .lb-n").startswith("1 /")                                            # right swipe: back
     assert pg.evaluate("window.__doc") == 0 and pg.evaluate("window._featuredNodeId") == pg.evaluate("window.__feat")   # the card behind never heard it
     pg.context.close()
+
+
+_SWIPE_JS = """([sel, xs, y, kind]) => { const el = document.querySelector(sel);
+  const mk = (type, x) => { let e;
+    if (kind === 'pointer') e = new PointerEvent(type, {bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 7, pointerType: 'touch', isPrimary: true});
+    else { e = new Event(type, {bubbles: true, cancelable: true}); const t = {clientX: x, clientY: y, identifier: 1, target: el};
+      e.touches = type === 'touchend' ? [] : [t]; e.changedTouches = [t]; }
+    el.dispatchEvent(e); return e; };
+  const n = kind === 'pointer' ? ['pointerdown', 'pointermove', 'pointerup'] : ['touchstart', 'touchmove', 'touchend'];
+  mk(n[0], xs[0]); xs.slice(1, -1).forEach(x => mk(n[1], x)); mk(n[2], xs[xs.length - 1]); }"""
+_LEFT, _RIGHT = [300, 260, 220, 180, 140, 100], [100, 140, 180, 220, 260, 300]
+
+
+def test_a_swipe_that_starts_in_the_viewer_or_a_photo_strip_never_steps_the_card(browser, site):
+    """Sim 1107c: the engine's document-CAPTURE swipe (it runs before anything under it can stop an event) saw the viewer's swipe and stepped the
+    card behind it, and a swipe on the detail page's Photos strip stepped the detail page. Both now stand down for #aph-lb and .aph-row. Script-sent
+    touch and pointer events, with a window-level capture listener like the engine's present."""
+    pg = _open(browser, site, mobile=True)
+    pg.wait_for_timeout(600)
+    _loaded(pg, ".node .aph-thumb img")
+    pg.evaluate("""() => { window.__cap = 0; ['touchstart','touchmove','touchend','pointerdown','pointerup'].forEach(t => window.addEventListener(t, () => { window.__cap++; }, true));
+      window.__ids = []; const f = window.featureNode; window.featureNode = function(){ window.__ids.push([].slice.call(arguments)[0]); return f.apply(this, arguments); }; }""")
+    pg.wait_for_timeout(1200)
+    cur = pg.evaluate("window._featuredNodeId")
+    pg.tap(".node.mobile-featured .aph-thumb, .node .aph-thumb >> nth=0")
+    pg.wait_for_selector("#aph-lb img[src^='blob:']", timeout=8000)
+    pg.evaluate("window.__ids = []")
+    for kind in ("touch", "pointer"):
+        pg.evaluate(_SWIPE_JS, ["#aph-lb img", _LEFT, 400, kind])
+        pg.evaluate(_SWIPE_JS, ["#aph-lb img", _RIGHT, 400, kind])
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("window.__cap") > 0                                                             # the window-level capture listener did see them
+    assert pg.evaluate("window.__ids") == [] and pg.evaluate("window._featuredNodeId") == cur, pg.evaluate("window.__ids")
+    pg.evaluate(_SWIPE_JS, ["#aph-lb img", _LEFT, 400, "touch"])                                        # and the picture still turns
+    pg.wait_for_timeout(300)
+    assert pg.inner_text("#aph-lb .lb-n").startswith("2 /")
+    assert pg.evaluate("window.__ids") == [] and pg.evaluate("window._featuredNodeId") == cur
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(300)
+    # the detail page's Photos strip scrolls the strip, not the page
+    _detail(pg)
+    _loaded(pg, ".aph:not(.aph-top) .aph-img img")
+    pg.evaluate("window.__ids = []")
+    before = pg.evaluate("document.getElementById('detail-page').innerText.slice(0, 80)")
+    assert "pan-x" in pg.evaluate("getComputedStyle(document.querySelector('#detail-page .aph:not(.aph-top) .aph-row')).touchAction")
+    for kind in ("touch", "pointer"):
+        pg.evaluate(_SWIPE_JS, ["#detail-page .aph:not(.aph-top) .aph-img", _LEFT, 400, kind])
+        pg.evaluate(_SWIPE_JS, ["#detail-page .aph:not(.aph-top) .aph-img", _RIGHT, 400, kind])
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window.__ids") == [], pg.evaluate("window.__ids")
+    assert pg.evaluate("document.getElementById('detail-page').innerText.slice(0, 80)") == before
+    assert pg.evaluate("document.getElementById('detail-page').style.transform") in ("", "none")
+    pg.context.close()

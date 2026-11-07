@@ -238,11 +238,11 @@ html.alto-editing .aph .aph-add{display:flex;}
 .aph-ph .aph-ph-h{font-size:12.5px;color:var(--muted);}
 @media (max-width:760px){.aph .aph-fig,.aph .aph-add,.aph.aph-few .aph-fig{flex-basis:calc(50% - 6px);}}
 /* a Photos section on a phone: a swipe strip, each picture 78% wide so the next one peeks in at the edge */
-html.mobile .aph:not(.aph-top) .aph-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;gap:10px;padding-bottom:4px;}
+html.mobile .aph:not(.aph-top) .aph-row{flex-wrap:nowrap;overflow-x:auto;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;gap:10px;padding-bottom:4px;}
 html.mobile .aph:not(.aph-top) .aph-fig,html.mobile .aph .aph-add,html.mobile .aph.aph-few:not(.aph-top) .aph-fig,html.mobile .aph.aph-one:not(.aph-top) .aph-fig{flex:0 0 78%;max-width:none;scroll-snap-align:start;}
 /* a card's own pictures on a phone's detail page: a row of small squares under the title, side to side, each opens large */
 html.mobile .aph.aph-top{margin:8px 0 16px;}
-html.mobile .aph.aph-top .aph-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:8px;padding-bottom:4px;}
+html.mobile .aph.aph-top .aph-row{flex-wrap:nowrap;overflow-x:auto;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;gap:8px;padding-bottom:4px;}
 html.mobile .aph.aph-top .aph-fig{flex:0 0 112px;max-width:112px;}
 html.mobile .aph.aph-top .aph-img{aspect-ratio:1;max-height:none;}
 html.mobile .aph.aph-top .aph-img img{position:absolute;height:100%;max-height:none;object-fit:cover;}

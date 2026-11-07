@@ -3797,7 +3797,7 @@ html.mobile #detail-page { padding-top: 48px !important; }
     var _swipeStart = null;
 
     document.addEventListener('touchstart', function(e){
-      if(e.target.closest('.era-badge,.weight-badge,#nav-drawer,#minimap-wrap,#summary-wrap,#tutorial-wrap,#notes-panel,#detail-page,#hl-palette,button,a,input,textarea,select')) return;
+      if(e.target.closest('#aph-lb,.aph-row,.era-badge,.weight-badge,#nav-drawer,#minimap-wrap,#summary-wrap,#tutorial-wrap,#notes-panel,#detail-page,#hl-palette,button,a,input,textarea,select')) return;
       var nd2=document.getElementById('nav-drawer'), sw2=document.getElementById('summary-wrap'),
           mw2=document.getElementById('minimap-wrap'), tw2=document.getElementById('tutorial-wrap');
       if((nd2&&nd2.classList.contains('open'))||(sw2&&sw2.classList.contains('open'))||
@@ -4073,7 +4073,7 @@ html.mobile #detail-page { padding-top: 48px !important; }
     }
 
     detailPage.addEventListener('touchstart', function(e){
-      if(e.target.closest('button,a,input,textarea,select')) return;
+      if(e.target.closest('.aph-row,button,a,input,textarea,select')) return;
       if(window._hlMode && e.target.closest('mark')) return;
       if(_detCommitTimer){ clearTimeout(_detCommitTimer); _detCommitTimer = null; }
       _removeDetPeeks();
@@ -5532,7 +5532,7 @@ document.addEventListener('click', function(e){
   (function(){
     var _ss = null;
     document.addEventListener('touchstart', function(e){
-      if(e.target.closest('.era-badge,.weight-badge,#nav-drawer,#minimap-wrap,#summary-wrap,#tutorial-wrap,#notes-panel,#detail-page,#hl-palette,button,a,input,textarea,select')) return;
+      if(e.target.closest('#aph-lb,.aph-row,.era-badge,.weight-badge,#nav-drawer,#minimap-wrap,#summary-wrap,#tutorial-wrap,#notes-panel,#detail-page,#hl-palette,button,a,input,textarea,select')) return;
       var nd2=document.getElementById('nav-drawer'), sw2=document.getElementById('summary-wrap'),
           mw2=document.getElementById('minimap-wrap'), tw2=document.getElementById('tutorial-wrap');
       if((nd2&&nd2.classList.contains('open'))||(sw2&&sw2.classList.contains('open'))||
