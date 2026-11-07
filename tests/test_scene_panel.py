@@ -329,7 +329,11 @@ def test_classic_and_holographic_keep_their_options_where_the_page_takes_them(br
     assert d["bgOn"] and d["id"] == PHOTO and d["holo"] == (style == "holo"), (page, style, d)
     _open_panel(pg)
     d = _drawn(pg)
-    assert not d["only"] and "bg-style" in d["sections"] and len(d["sections"]) > 4, (page, style, d)
+    assert not d["only"] and "bg-style" in d["sections"], (page, style, d)
+    if style == "holo":     # Holographic lists only its own backgrounds (Art PASS, Luke L-1105-155249): the style picker, the Holographic tiles and the Import tile (#bg-yours, never removed)
+        assert len(d["sections"]) > 3 and "Holographic" in d["sections"] and "bg-yours" in d["sections"], (page, style, d)
+    else:
+        assert len(d["sections"]) > 4, (page, style, d)
     assert not _real(errors), errors
     ctx.close()
 
