@@ -251,12 +251,13 @@ html.alto-holo #wpal-root.wp-hid .wp-flag .fl-spin:not(#_){animation-play-state:
    with the card flag's turn (script: ffPhase); transform and opacity only, computers only, still on a phone or under reduced motion. The globe lays the same flag on its own canvas. */
 #wpal-root .wp-ff{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility 0s .25s;}
 #wpal-root .wp-ff.on{opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s;}
-#wpal-root .wp-ff .ff-a{opacity:.34;}
+#wpal-root .wp-ff .ff-m{opacity:.34;}
+#wpal-root .wp-ff .ff-m image:not(.ff-a){image-rendering:pixelated;image-rendering:crisp-edges;}
 #wpal-root .wp-ff .ff-g,#wpal-root .wp-ff .ff-s{display:none;}
 #wpal-root #wpff-s stop{stop-color:var(--ho-ac,#2ee6ff);}
 #wpal-root canvas.wp-gflag{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s .25s;}
 #wpal-root canvas.wp-gflag.on{opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s;}
-html.alto-holo #wpal-root .wp-ff .ff-a:not(#_){opacity:.3;}
+html.alto-holo #wpal-root .wp-ff .ff-m:not(#_){opacity:.3;}
 @media (min-width:701px) and (prefers-reduced-motion:no-preference){
   html.alto-holo:not(.mobile) #wpal-root .wp-ff .ff-g:not(#_){display:inline;opacity:.2;transform-box:fill-box;animation:wp-ff-drift 10s linear infinite;}
   html.alto-holo:not(.mobile) #wpal-root .wp-ff .ff-s:not(#_){display:inline;opacity:.55;transform-box:fill-box;animation:wp-ff-scan 7s linear infinite;}
@@ -611,8 +612,26 @@ function ffInit(){ if(S.ffG) return; var d=el('defs',null,S.svg);
   var gr=el('linearGradient',{id:'wpff-s',x1:0,y1:0,x2:0,y2:1},d);
   S.ffStops=[0,0,.6,.1].map(function(o){ return el('stop',{offset:0,'stop-opacity':o},gr); });
   S.ffG=el('g',{'class':'wp-ff','clip-path':'url(#wpff-c)'}); S.g.insertBefore(S.ffG,S.gA1);
-  var im=function(c,f){ return el('image',{'class':c,preserveAspectRatio:'xMidYMid slice',filter:f||'none'},S.ffG); };
-  im('ff-g','url(#wpff-m)'); im('ff-a'); el('rect',{'class':'ff-s',fill:'url(#wpff-s)'},S.ffG); }
+  var im=function(c,f,p){ return el('image',{'class':c,preserveAspectRatio:'xMidYMid meet',filter:f||'none'},p||S.ffG); };
+  im('ff-g','url(#wpff-m)'); S.ffM=el('g',{'class':'ff-m'},S.ffG); im('ff-a',null,S.ffM); el('rect',{'class':'ff-s',fill:'url(#wpff-s)'},S.ffG); }
+// Luke 2026-11-05/06: "when the country is taller than the flag, just extend the top/bottom colors to fill in the whole country; vice versa if too wide": the flag is
+// drawn whole, unstretched, centred on the main landmass (meet), and each of its four edges runs out, per pixel, over everything round it (the clip trims it to the country);
+// an emblem is never stretched. The edge strips are one pixel of the flag's own file (a canvas, same origin), kept per file; the whole is one group, tinted once, so no seam.
+function ffEdge(url,cb){ var E=S.ffE||(S.ffE={}), e=E[url]; if(e){ if(e.r!==undefined) cb(e.r); else e.q.push(cb); return; }
+  e=E[url]={q:[cb]}; var i=new Image(), done=function(r){ e.r=r; e.q.forEach(function(f){ f(r); }); e.q=[]; };
+  i.onload=function(){ try{ var W=1280,H=960,c=document.createElement('canvas'), q; c.width=W; c.height=H; var x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(i,-2,-2,W+4,H+4);
+      var st=function(sx,sy,w,h){ var d=document.createElement('canvas'); d.width=w; d.height=h; d.getContext('2d').drawImage(c,sx,sy,w,h,0,0,w,h); return d; },
+        px=function(a,b){ var p=x.getImageData(a,b,1,1).data; return 'rgba('+p[0]+','+p[1]+','+p[2]+','+(p[3]/255)+')'; };
+      var r={cv:[st(0,0,W,1),st(0,H-1,W,1),st(0,0,1,H),st(W-1,0,1,H)],cn:[px(0,0),px(W-1,0),px(0,H-1),px(W-1,H-1)]}; r.u=r.cv.map(function(d){ return d.toDataURL(); }); done(r); }catch(x){ done(null); } };
+  i.onerror=function(){ done(null); }; i.src=url; }
+function ffFit(cid){ var bb=S.bb[cid], cx=(bb[0]+bb[2])/2, cy=(bb[1]+bb[3])/2, s=Math.min((bb[2]-bb[0])/640,(bb[3]-bb[1])/480); return {x:cx-320*s,y:cy-240*s,w:640*s,h:480*s}; }
+function ffLay(cid,r){ if(S.ffC!==cid||!S.ffM) return; var f=ffFit(cid), B=3000, u=1.5, M=S.ffM, a=M.querySelector('.ff-a'); [].slice.call(M.children).forEach(function(c){ if(c!==a) c.remove(); });
+  var im=function(h,x,y,w,hh){ el('image',{href:h,x:x,y:y,width:w,height:hh,preserveAspectRatio:'none'},M); M.insertBefore(M.lastChild,a); },
+      rc=function(c,x,y,w,hh){ el('rect',{x:x,y:y,width:w,height:hh,fill:c},M); M.insertBefore(M.lastChild,a); };
+  a.setAttribute('x',f.x.toFixed(2)); a.setAttribute('y',f.y.toFixed(2)); a.setAttribute('width',f.w.toFixed(2)); a.setAttribute('height',f.h.toFixed(2)); if(!r) return;
+  var x0=f.x, y0=f.y, x1=f.x+f.w, y1=f.y+f.h;                                                           // (the strips tuck 1.5 units under the flag: one group, no hairline)
+  im(r.u[0],x0,y0-B,f.w,B+u); im(r.u[1],x0,y1-u,f.w,B+u); im(r.u[2],x0-B,y0,B+u,f.h); im(r.u[3],x1-u,y0,B+u,f.h);
+  rc(r.cn[0],x0-B,y0-B,B+u,B+u); rc(r.cn[1],x1-u,y0-B,B+u,B+u); rc(r.cn[2],x0-B,y1-u,B+u,B+u); rc(r.cn[3],x1-u,y1-u,B+u,B+u); }
 function ffWant(){ if(!S.tour||!S.sel||!S.cur||S.ua!=null||!S.ready) return null; var n=N(S.sel), cid=n&&n.c;
   if(!cid||!(GEO.flag||{})[cid]||!S.paths[cid]||!S.bb[cid]||!S.paths[cid].classList.contains('wp-u')||S.k<S.kW*1.6) return null; return cid; }
 // the scan line is ~14 px of screen at any zoom (Art 2026-11-05: a fixed share of the box was a 45 px slab on France), refitted when the camera settles
@@ -620,8 +639,8 @@ function ffBand(){ if(!S.ffC||!S.ffStops) return; var bb=S.bb[S.ffC], f=Math.min
   S.ffStops.forEach(function(t,i){ t.setAttribute('offset',o[i].toFixed(4)); }); }
 function ffClip(){ if(S.ffC&&S.ffPath) S.ffPath.setAttribute('d',S.paths[S.ffC].getAttribute('d')); }
 function ffShow(cid){ var url=GEO.flag[cid], bb=S.bb[cid]; ffInit(); S.ffC=cid; ffClip(); ffBand();
-  [].forEach.call(S.ffG.children,function(c){ c.setAttribute('x',bb[0].toFixed(2)); c.setAttribute('y',bb[1].toFixed(2)); c.setAttribute('width',(bb[2]-bb[0]).toFixed(2)); c.setAttribute('height',(bb[3]-bb[1]).toFixed(2));
-    if(c.tagName==='image') c.setAttribute('href',url); });
+  [].forEach.call(S.ffG.querySelectorAll('.ff-g,.ff-s'),function(c){ c.setAttribute('x',bb[0].toFixed(2)); c.setAttribute('y',bb[1].toFixed(2)); c.setAttribute('width',(bb[2]-bb[0]).toFixed(2)); c.setAttribute('height',(bb[3]-bb[1]).toFixed(2)); });
+  S.ffG.querySelector('.ff-g').setAttribute('href',url); S.ffM.querySelector('.ff-a').setAttribute('href',url); ffLay(cid,null); ffEdge(url,function(r){ ffLay(cid,r); });
   S.ffG.classList.add('on'); requestAnimationFrame(ffPhase);
   if(!S.gf.fi||S.gf.fi.getAttribute('data-c')!==cid){ var i=S.gf.fi=new Image(); i.setAttribute('data-c',cid); i.onload=function(){ if(S.gf.fi===i) gAgain(); }; i.src=url; }
   clearTimeout(S.gfT); S.gf.classList.add('on'); gAgain(); }
@@ -640,9 +659,16 @@ function gFlag(todo){ var cv=S.gf, i=cv.fi, t=S.ffC&&todo.filter(function(q){ re
   if(!S.ffC) return; if(cv.width!==S.gl.width||cv.height!==S.gl.height){ cv.width=S.gl.width; cv.height=S.gl.height; }
   var x=cv.getContext('2d'), d=S.G.d||1; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,S.vw,S.vh); cv.style.display=t&&i&&i.complete?'':'none'; if(!t||!i||!i.complete) return;
   var b=t[4]; if(!b){ cv.style.display='none'; return; } var x0=b.b[0], y0=b.b[1], x1=b.b[2], y1=b.b[3];                  // (the screen box of the country's main landmass: its largest ring, as the globe draws it)
-  var w=x1-x0, hh=y1-y0, s=Math.max(w/640,hh/480), dw=640*s, dh=480*s;                    // (slice: the flag covers the box)
-  x.globalAlpha=document.documentElement.classList.contains('alto-holo')?.3:.34;
-  [t[1],t[2]].forEach(function(P){ x.save(); x.clip(P,'evenodd'); x.drawImage(i,(x0+x1)/2-dw/2,(y0+y1)/2-dh/2,dw,dh); x.restore(); }); x.globalAlpha=1; }
+  var w=x1-x0, hh=y1-y0, s=Math.min(w/640,hh/480), dw=640*s, dh=480*s, fx=(x0+x1)/2-dw/2, fy=(y0+y1)/2-dh/2, R=cv.fe, B=Math.max(S.vw,S.vh)*3, u=1;       // (meet: the whole flag, unstretched; its edges run out over the rest)
+  if(R===undefined){ R=cv.fe=null; ffEdge(cv.fi.src,function(r){ cv.fe=r; if(S.ffC) gAgain(); }); }
+  var al=document.documentElement.classList.contains('alto-holo')?.3:.34, tmp=cv.tmp||(cv.tmp=document.createElement('canvas'));      // (drawn whole at full strength on a scratch canvas, then tinted once: no seam)
+  if(tmp.width!==cv.width||tmp.height!==cv.height){ tmp.width=cv.width; tmp.height=cv.height; }
+  var y=tmp.getContext('2d'); y.setTransform(d,0,0,d,0,0); y.clearRect(0,0,S.vw,S.vh);
+  [t[1],t[2]].forEach(function(P){ y.save(); y.clip(P,'evenodd');
+    if(R){ y.drawImage(R.cv[0],fx,fy-B,dw,B+u); y.drawImage(R.cv[1],fx,fy+dh-u,dw,B+u); y.drawImage(R.cv[2],fx-B,fy,B+u,dh); y.drawImage(R.cv[3],fx+dw-u,fy,B+u,dh);
+      [[fx-B,fy-B],[fx+dw-u,fy-B],[fx-B,fy+dh-u],[fx+dw-u,fy+dh-u]].forEach(function(q,k){ y.fillStyle=R.cn[k]; y.fillRect(q[0],q[1],B+u,B+u); }); }
+    y.drawImage(i,fx,fy,dw,dh); y.restore(); });
+  x.globalAlpha=al; x.setTransform(1,0,0,1,0,0); x.drawImage(tmp,0,0); x.setTransform(d,0,0,d,0,0); x.globalAlpha=1; }
 function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
   Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid];
     if(cid==='ATA'&&used[cid]==null) return;
