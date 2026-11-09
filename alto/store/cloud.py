@@ -81,8 +81,11 @@ class CloudStore(Store):
             msg = err.get("message") if isinstance(err, dict) else str(err)
             if status == 429 or (isinstance(err, dict) and err.get("status") == "RESOURCE_EXHAUSTED"):
                 raise CloudError(
-                    "Alto has reached today's free Firestore limit. It resets "
-                    "at midnight Pacific time; nothing is charged.")
+                    "Firestore refused the request as over a quota or rate limit "
+                    f"({status} {err.get('status') if isinstance(err, dict) else ''}): "
+                    f"{msg or 'no detail'}. On the free (Spark) plan the daily "
+                    "quota resets at midnight Pacific; on a paid or trial plan "
+                    "this is a rate limit, so retrying shortly usually works.")
             raise CloudError(f"Firestore {method} failed ({status}): {msg or 'no detail'}")
         return js
 
