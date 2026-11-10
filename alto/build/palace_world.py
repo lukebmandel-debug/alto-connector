@@ -221,28 +221,39 @@ html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit
 #detail-page .wp-where-d{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#5b6478);}
 html.alto-retro #wpal-root .wp-where:not(#_){border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--rt-f);font-weight:400;letter-spacing:.2em;color:#d9ae55;border-color:rgba(217,174,85,.55);background:#0b0d12;}
 html.alto-retro #detail-page .wp-where-d:not(#_){color:#d9ae55;font-family:var(--rt-f);letter-spacing:.3em;}
-/* the country's flag beside where an enlarged card stands (Luke 2026-11-04: "please have country flags pop up with nodes. In holo style, it should be
-   animated like the file-type glyphs"): Classic a plain still flag, Retro a square one in a gold hairline, Holographic the same three-layer turn on Y as
-   the format symbols (transform only, 10 s linear, perspective; still at 28deg under reduced motion, paused while the tab is hidden). No flag
-   (Antarctica, a disputed area, a file the site lacks): a neutral outline pennant. The flag is a hosted SVG fetched when a card opens (world_flags.py). */
-#wpal-root .wp-flag{position:relative;flex:none;display:block;width:24px;height:18px;margin:-2px 1px -2px -3px;perspective:240px;}
-#wpal-root .wp-flag .fl-spin{position:absolute;inset:0;display:block;transform-style:preserve-3d;}
-#wpal-root .wp-flag img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;border-radius:3px;box-shadow:0 0 0 1px color-mix(in srgb,var(--w-text) 22%,transparent);}
-#wpal-root .wp-flag .fl-b,#wpal-root .wp-flag .fl-s{display:none;}
+/* the country's flag on an enlarged card (Luke 2026-11-04, then 2026-11-05 "i agree A2, but make sure there isn't a noticable break between the flag and the extension"):
+   a banner 46 px tall on the card's top edge, the flag at its true shape at the left (61 x 46) and its own right-edge colours running out across the rest, the country's
+   name on that tail. The flag and its tail are ONE canvas (script: banPaint): the flag is drawn into it, then each row to its right is that row's own last flag pixel, so
+   there is no gap, frame line, shadow or shift between them; a flag with no rectangle edge (Nepal) leaves its tail the banner's plain tint. Holographic: a cyan frame, a faint
+   scan and a 7 s bead of light round the banner's edges with a magenta ghost behind it; the flag never turns; still under reduced motion. A country without a flag
+   (Antarctica, a disputed area, a file the site lacks) gets the neutral outline pennant beside where the card stands, as before. */
+#wpal-root .wp-ban{position:relative;display:block;height:46px;margin:0 0 -1px;border-radius:16px 16px 0 0;overflow:hidden;background:var(--w-card);pointer-events:none;}
+#wpal-root .wp-ban canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;}
+#wpal-root .wp-ban::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--w-text) 14%,transparent);pointer-events:none;}
+#wpal-root .wp-ban .ban-n{position:absolute;left:73px;top:50%;transform:translateY(-50%);max-width:calc(100% - 85px);padding:4px 11px;border-radius:7px;background:rgba(10,14,20,.62);color:#fff;
+  font-size:13px;font-weight:700;letter-spacing:.2em;line-height:1.2;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#wpal-root .wp-ban .ban-t{display:none;position:absolute;inset:0;width:100%;height:100%;overflow:visible;fill:none;}
+#wpal-root .wp-flag{position:relative;flex:none;display:block;width:24px;height:18px;margin:-2px 1px -2px -3px;}
 #wpal-root .wp-flag.none svg{display:block;width:100%;height:100%;fill:none;stroke:var(--w-sub);stroke-width:1.4px;stroke-linecap:round;stroke-linejoin:round;}
-html.alto-retro #wpal-root .wp-flag img:not(#_){border-radius:0;box-shadow:0 0 0 1px #d9ae55;}
+html.alto-retro #wpal-root .wp-ban:not(#_){border-radius:0;}
+html.alto-retro #wpal-root .wp-ban:not(#_)::after{box-shadow:inset 0 0 0 1px #d9ae55;}
+html.alto-retro #wpal-root .wp-ban .ban-n:not(#_){border-radius:0;font-family:var(--rt-f);font-weight:400;letter-spacing:.24em;color:#d9ae55;background:#0b0d12;box-shadow:inset 0 0 0 1px rgba(217,174,85,.55);}
 html.alto-retro #wpal-root .wp-flag.none svg:not(#_){stroke:#d9ae55;}
 html.alto-holo #wpal-root .wp-flag{--fg:var(--ho-ac,#2ee6ff);}
-html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:wp-flag-spin 10s linear infinite;will-change:transform;}
-html.alto-holo #wpal-root .wp-flag img:not(#_){border-radius:0;box-shadow:0 0 0 1px var(--fg),0 0 7px color-mix(in srgb,var(--fg) 55%,transparent);}
-html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:block;opacity:.45;transform:translateZ(-4px);box-shadow:none;filter:grayscale(1) sepia(1) hue-rotate(255deg) saturate(5);}
-html.alto-holo #wpal-root .wp-flag .fl-s:not(#_){display:block;position:absolute;inset:0;transform:translateZ(1px);pointer-events:none;
+html.alto-holo #wpal-root .wp-ban{--fg:var(--ho-ac,#2ee6ff);}
+html.alto-holo #wpal-root .wp-ban:not(#_){border-radius:0;overflow:visible;box-shadow:0 0 7px color-mix(in srgb,var(--fg) 55%,transparent);}
+html.alto-holo #wpal-root .wp-ban canvas:not(#_){border-radius:0;}
+html.alto-holo #wpal-root .wp-ban:not(#_)::after{box-shadow:inset 0 0 0 1px var(--fg);
   background:repeating-linear-gradient(to bottom,rgba(var(--ho-rgb,46,230,255),.22) 0 1px,transparent 1px 3px);}
+html.alto-holo #wpal-root .wp-ban .ban-n:not(#_){border-radius:0;font-family:var(--ho-f,inherit);color:#e8ffff;background:rgba(2,16,20,.78);box-shadow:inset 0 0 0 1px var(--fg);}
 html.alto-holo #wpal-root .wp-flag.none svg:not(#_){stroke:var(--fg);}
-html.alto-holo #wpal-root.wp-hid .wp-flag .fl-spin:not(#_){animation-play-state:paused;}
-@keyframes wp-flag-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
-@media (prefers-reduced-motion:reduce){html.alto-holo #wpal-root .wp-flag .fl-spin:not(#_){animation:none;transform:rotateY(28deg);will-change:auto;}
-  html.alto-holo #wpal-root .wp-flag .fl-b:not(#_){display:none;}}
+@media (prefers-reduced-motion:no-preference){
+  html.alto-holo #wpal-root .wp-ban .ban-t:not(#_){display:block;}
+  html.alto-holo #wpal-root .wp-ban .ban-t rect{stroke-width:2;stroke-dasharray:7 93;animation:wp-ban-bead 7s linear infinite;}
+  html.alto-holo #wpal-root .wp-ban .ban-t .b1{stroke:#eaffff;filter:drop-shadow(0 0 3px var(--fg));}
+  html.alto-holo #wpal-root .wp-ban .ban-t .b2{stroke:#ff3df0;opacity:.6;animation-delay:-.45s;}
+  html.alto-holo #wpal-root.wp-hid .wp-ban .ban-t rect:not(#_){animation-play-state:paused;}}
+@keyframes wp-ban-bead{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}
 
 /* the Tour's flag fill (Luke 2026-11-05, item 9: "the background of the country be its flag when zoomed in on the tour within that country"; Art's sheets tour-flag-fill
    B + C and holo-flag-anim C): while the Tour stands in a country, its own flag is laid over the country's unit colour at about a third, clipped to the country and
@@ -751,22 +762,37 @@ function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.class
 function enlarge(id,kid){
   var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
   giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
-  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); flagIn(id,whereLine(id,'wp-where',w));
+  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); flagIn(id,whereLine(id,'wp-where',w),w);
   return w;
 }
 // the flag of the country a card sits in, first in its place line: a hosted SVG fetched now, only this one (GEO.flag, world_flags.py); Holographic turns
 // it (CSS), a country without a flag, or a file the site lacks, gets the neutral pennant
 function pennant(w){ while(w.firstChild) w.removeChild(w.firstChild); w.classList.add('none'); w.setAttribute('aria-label','No flag shown'); w.title='No flag shown';
   var s=el('svg',{viewBox:'0 0 24 18','aria-hidden':'true'},w); el('path',{d:'M5 2.5v14M5 3.5h14l-3.5 4.5 3.5 4.5H5'},s); }
-function flagIn(id,line){ if(!line) return null; var p=placeOf(id), n=p&&N(p), cid=n&&n.c, url=cid&&(GEO.flag||{})[cid], nm=cid?dec((D().names||{})[cid]||''):'';
+function flagIn(id,line,enl){ var p=placeOf(id), n=p&&N(p), cid=n&&n.c, url=cid&&(GEO.flag||{})[cid], nm=cid?dec((D().names||{})[cid]||''):'';
   if(!cid) return null;
-  var w=h('span',{'class':'wp-flag',role:'img','aria-label':nm?'Flag of '+nm:'Flag','data-c':cid}); line.insertBefore(w,line.firstChild);
-  if(!url){ pennant(w); return w; }
-  var sp=h('span',{'class':'fl-spin'},w);
-  ['fl-b','fl-a'].forEach(function(k){ var i=h('img',{'class':k,alt:'',decoding:'async',draggable:'false'},sp); i.addEventListener('error',function(){ pennant(w); }); i.src=url; });
-  h('span',{'class':'fl-s','aria-hidden':'true'},sp); requestAnimationFrame(ffPhase);
-  return w; }
-// where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
+  var pen=function(){ if(!line||line.querySelector('.wp-flag')) return; var w=h('span',{'class':'wp-flag',role:'img','aria-label':nm?'Flag of '+nm:'Flag','data-c':cid}); line.insertBefore(w,line.firstChild); pennant(w); };
+  if(!url||!enl){ pen(); return null; }
+  var b=h('div',{'class':'wp-ban',role:'img','aria-label':nm?'Flag of '+nm:'Flag','data-c':cid}), cv=h('canvas',{'aria-hidden':'true'},b), im=new Image(), ok=0;
+  enl.insertBefore(b,enl.firstChild); if(nm) h('span',{'class':'ban-n'},b,nm);
+  var t=el('svg',{'class':'ban-t','aria-hidden':'true'},b); ['b1','b2'].forEach(function(k){ el('rect',{'class':k,pathLength:100},t); });
+  var draw=function(){ if(ok) banPaint(b,cv,im); };
+  im.onload=function(){ ok=1; draw(); if(window.ResizeObserver) new ResizeObserver(draw).observe(b); }; im.onerror=function(){ b.remove(); pen(); };
+  im.decoding='async'; im.src=url; return b; }
+// the banner: the flag (61 x 46 css px) drawn into the canvas, then every row to its right is that row's own last flag pixel, written as exact bytes (nothing blended, so no
+// seam); a transparent edge row (Nepal) stays transparent over the banner's own tint. Sized in device pixels, so 1x and 2x screens both land on whole pixels.
+function banEdge(im){ if(im._e) return im._e; var c=document.createElement('canvas'), x; c.width=640; c.height=480; x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(im,-2,-2,644,484);
+  return im._e=x.getImageData(0,0,640,480).data; }          // (the flag at its natural size: its edge colours are read from this, never from the 61 px copy, where an emblem's tip lands in the last column)
+function med(a){ a.sort(function(p,q){ return p-q; }); return a[a.length>>1]; }
+function banPaint(b,cv,im){ var W=b.clientWidth, H=b.clientHeight; if(!W||!H) return; var d=Math.max(1,window.devicePixelRatio||1), pw=Math.round(W*d), ph=Math.round(H*d), fw=Math.min(pw,Math.round(61*d));
+  cv.width=pw; cv.height=ph; var x=cv.getContext('2d',{willReadFrequently:true}); x.clearRect(0,0,pw,ph); x.drawImage(im,0,-1,fw+2,ph+2); x.clearRect(fw,0,pw-fw,ph);     // (drawn 2 device px big and trimmed: no half-covered edge column)
+  if(pw>fw){ var n=banEdge(im), tw=pw-fw, o=x.createImageData(tw,ph), q=o.data, r,i,j,k,y,c,v=[[],[],[],[]];
+    var ch=(fw+2)*.75, tp=-1+((ph+2)-ch)/2;          // (where the flag really sits in the canvas, so a row reads the file rows it is drawn from)
+    for(r=0;r<ph;r++){ var y0=Math.max(0,Math.min(479,Math.floor((r-tp)/ch*480))), y1=Math.max(y0+1,Math.min(480,Math.ceil((r+1-tp)/ch*480))); v[0].length=v[1].length=v[2].length=v[3].length=0;        // (this row's share of the file's rows, median over the band 3..8 px in from its right edge)
+      for(y=y0;y<y1&&y<480;y++) for(c=632;c<638;c++) for(k=0;k<4;k++) v[k].push(n[(y*640+c)*4+k]);
+      var e0=med(v[0]),e1=med(v[1]),e2=med(v[2]),e3=med(v[3]); for(i=0;i<tw;i++){ j=(r*tw+i)*4; q[j]=e0; q[j+1]=e1; q[j+2]=e2; q[j+3]=e3; } }
+    x.putImageData(o,fw,0); }
+  [].forEach.call(b.querySelectorAll('.ban-t rect'),function(r){ r.setAttribute('x',.5); r.setAttribute('y',.5); r.setAttribute('width',Math.max(1,W-1)); r.setAttribute('height',Math.max(1,H-1)); }); }// where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
 function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
   var n=N(p), cn=dec((D().names||{})[n.c]||''), pl=dec(n.pl||''); if(n.k==='country'||!pl) return cn||pl; return pl+(cn&&pl!==cn?', '+cn:''); }
 function pinIcon(p){ var s=el('svg',{viewBox:'-8 -16 16 17','aria-hidden':'true'},p); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z'},s); return s; }

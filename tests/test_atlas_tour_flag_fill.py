@@ -139,7 +139,7 @@ def test_plain_while_flying_then_fades_in_after_it_settles_then_out_on_leaving(b
         k = page.evaluate("+/scale\\(([\\d.]+)\\)/.exec(document.querySelector('#wpal-root svg.wp-svg > g').getAttribute('transform'))[1]")
         assert offs[0] == 0 and offs[1] < offs[2] < offs[3] == 1 and abs((1 - offs[1]) * r["h"] * k - 14) < .5
         assert r["ghost"] == "inline" and r["ganim"] == "wp-ff-drift" and r["gdur"] == "10s" and r["scan"] == "inline" and r["sanim"] == "wp-ff-scan" and r["sdur"] == "7s"
-        assert page.evaluate("document.querySelector('#wpal-root .wp-enl .fl-spin').getAnimations()[0].startTime") == page.evaluate("document.querySelector('#wpal-root .wp-ff .ff-g').getAnimations()[0].startTime")
+        assert page.evaluate("document.querySelectorAll('#wpal-root .wp-enl .fl-spin').length") == 0 and page.evaluate("document.querySelector('#wpal-root .wp-ff .ff-g').getAnimations()[0].playState") == 'running'      # (the card's flag no longer turns: the ghost drifts on its own)
     else:
         assert r["ghost"] == "none" and r["scan"] == "none" and r["ganim"] == "none"
     page.evaluate("AltoWorld.tourMode(false)")                                   # leaving: fades out
