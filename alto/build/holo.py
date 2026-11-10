@@ -68,9 +68,9 @@ HOLO_CSS = r"""
     background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
     background-size:auto,48px 48px,48px 48px !important;}
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) body:not(#_):not(#__){background:transparent !important;}
-  /* the Background picker in Holographic lists the style's own backgrounds (and the Alto default tile) and nothing else; a photograph or colour chosen
+  /* the Background picker in Holographic lists the style's own backgrounds and nothing else (Luke, 2026-11-10: "Only the holo backgrounds should be available"; the Import tile stays); a photograph or colour chosen
      earlier stays stored and comes back with Classic. A phone's picker too; the palaces and the Star chart keep theirs. */
-  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(:has(.bg-tile[data-bg^="h-"],.bg-def)){display:none !important;}
+  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(:has(.bg-tile[data-bg^="h-"])){display:none !important;}
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
@@ -345,7 +345,8 @@ HOMEB
 var PN={timeline:'Timeline',lanes:'Timeline · Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Memory Blueprint',world:'Memory Atlas'}, MAXT=40, pmo=null, praf=0, pio=null, rz=0;
 function pel(c,t){ var e=document.createElement(t||'div'); if(c) e.className=c; return e; }
 function desk(){ return !r.classList.contains('mobile') && window.innerWidth>640; }   // (the home page's phone layout is the media query's, 640 and under)
-function plive(){ return r.classList.contains('alto-holo') && r.classList.contains('alto-home') && desk(); }
+function phone(){ return Math.min(screen.width,screen.height)<=500; }   // (a phone, either way up: its own light/dark button, no moving projector)
+function plive(){ return r.classList.contains('alto-holo') && r.classList.contains('alto-home') && desk() && !phone(); }
 function pun(t){
   var em=t.querySelector('.tile-emblem');
   [].slice.call(t.querySelectorAll('.hp-scan')).forEach(function(n){ n.remove(); });
@@ -394,10 +395,12 @@ function hdark(on){
 }
 function hsync(){
   if(!r.classList.contains('alto-holo')) return;
-  hdark(desk());
+  hdark(desk() && !phone());   // (turning a phone must not flip its theme: dark in landscape, light in portrait, was Luke's "loses the dark theme and the background" after a rotation)
   var H=window._altoRetroHome;
-  if(plive()){ if(H) H.on(); pwatch(); proj(); }
-  else { punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); if(H && !r.classList.contains('alto-retro')) H.off(); }
+  if(r.classList.contains('alto-home')){ if(H) H.on(); }   // (the plate's markup on a phone too: the skin's padding and grid are written for it)
+  else if(H && !r.classList.contains('alto-retro')) H.off();
+  if(plive()){ pwatch(); proj(); }
+  else { punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); }
 }
 function hoff(){
   hdark(0); punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); r.classList.remove('hp-hid');

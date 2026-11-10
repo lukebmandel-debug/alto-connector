@@ -560,7 +560,8 @@ def test_the_homepage_projector_reduced_motion_and_phone(browser, psite):
     pg.goto(psite + "/h7.html")
     pg.wait_for_timeout(1200)
     assert pg.evaluate("document.documentElement.classList.contains('alto-holo')")
-    assert pg.evaluate("document.querySelectorAll('.hp-stage,.hp-tip,.hp-scan,.t-main').length") == 0       # a phone's page: nothing added
+    assert pg.evaluate("document.querySelectorAll('.hp-stage,.hp-tip,.hp-scan').length") == 0       # a phone's page: no moving projector
+    assert pg.evaluate("document.querySelectorAll('.t-main').length") == 7       # ... but the plate itself, as in Retro (the skin's padding and grid are written for it: Sim 1110b, the title sat on the card's edge)
     ph.close()
 
 

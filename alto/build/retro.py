@@ -440,6 +440,9 @@ FORMAT_CSS = r"""
 HOME_CSS = r"""
   X.alto-home,X.alto-home body{background:#000 !important;}
   X.alto-home #page-glass{display:none !important;}
+  /* the top rows on solid ground (Sim 1110b: tiles showed through behind HOME and the wordmark, and under the chip row): a phone's portrait page, header + chip row; a phone held sideways, the header row alone */
+  @media (max-width:640px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:calc(108px + env(safe-area-inset-top,0px));background:linear-gradient(#000 calc(100% - 12px),transparent);z-index:101;pointer-events:none;} }
+  @media (min-width:641px) and (max-height:500px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:60px;background:linear-gradient(#000 calc(100% - 10px),transparent);z-index:101;pointer-events:none;} }
   X.alto-home #sk-frame b{display:none !important;}   /* (the crown's diamond would sit on the Home chip) */
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   /* the top row: the Home pill a square chip in gold capitals */
@@ -572,6 +575,7 @@ function decorate(){
       var no=t.querySelector('.t-no');
       if(no){ var nt='Nº '+two(i+1); if(no.textContent!==nt) no.textContent=nt; return; }   /* already decorated: only the number can change (a re-sort) */
       var st=t.querySelector('.unit-strip'), em=t.querySelector('.tile-emblem'), body=t.querySelector('.tile-body'), sub=t.querySelector('.tile-sub');
+      if(!em && st && body){ em=(typeof window.tileEmblem==='function' && window.tileEmblem('timeline',[])) || el('div','tile-emblem'); em.setAttribute('aria-hidden','true'); em._rhMade=true; }   /* (a card the page drew without its format symbol, such as a static course: the plate still gets its medallion, the skin's padding is written for it) */
       var btns=['tile-download','tile-share','tile-reports','tile-more'].map(function(n){return t.querySelector('.'+n);}).filter(Boolean);
       if(!st||!em||!body) return;
       t._rhOrder=Array.prototype.slice.call(t.children);   /* the card's own child order, to put back exactly */
@@ -595,6 +599,7 @@ function undo(){
     var main=t.querySelector('.t-main'); if(!main) return;
     var body=main.querySelector('.tile-body'), em=t.querySelector('.tile-emblem'), sub=em&&em.querySelector('.tile-sub');
     if(sub&&body) body.appendChild(sub);
+    if(em&&em._rhMade){ em.remove(); em=null; }
     (t._rhOrder||[]).forEach(function(n){ t.appendChild(n); });
     main.remove(); var a=t.querySelector('.t-actions'); if(a) a.remove();
     t._rhOrder=null;

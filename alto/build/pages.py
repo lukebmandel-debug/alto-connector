@@ -226,6 +226,11 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
   html.rw #title-bar:not(#_)::before{ content:''; position:absolute; left:0; right:0; top:-80px; bottom:0;
     z-index:-1; pointer-events:none; background:var(--header-glass-bg);
     -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  /* the chip row (profile, search, picker, info, theme) floats 11px under the bar: a frosted veil carries the bar's glass on under it, so a card's title is dimmed and blurred behind a chip
+     and not printed through it (Sim 1110b). Retro and Holographic paint their own ground there (retro.py HOME_CSS). */
+  html.rw:not(.alto-retro):not(.alto-holo) body:not(#_)::after{ content:''; position:fixed; left:0; right:0; top:calc(52px + env(safe-area-inset-top,0px)); height:58px; z-index:101; pointer-events:none;
+    background:linear-gradient(rgba(246,248,253,.8) 60%,rgba(246,248,253,0)); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  html.rw.dark:not(.alto-retro):not(.alto-holo) body:not(#_)::after{ background:linear-gradient(rgba(12,14,22,.8) 60%,rgba(12,14,22,0)); }
 }
 </style>"""
 
