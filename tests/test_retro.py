@@ -58,7 +58,7 @@ def test_every_format_has_its_rules(anchor):
 def test_the_system_keeps_its_own_styles_and_shares_the_frame():
     page = _build("outline", layout="solar")
     head = re.search(r'<script id="alto-bg-head">(.*?)</script>', page, re.S).group(1)
-    assert retro.PATH not in head and "OWN=1" in head
+    assert "OWN=1" in head and json.dumps(retro.PATH) in head   # (Style C, behind its flag, loads the hosted Retro layer for a System: tests/test_star_chart_c.py; flag off, nothing fetches it)
     from alto.build.solar_stars import STARS_CSS
     frame = retro.FRAME_CSS.strip().split("\n")[2].strip().replace("X ", "html.alto-stars.sk-retro:not(.mobile) ")
     assert frame in STARS_CSS

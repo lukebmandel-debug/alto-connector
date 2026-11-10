@@ -350,6 +350,11 @@ class Node:
     # says it (lanes.GAPS: moments / hours / day / days / weeks / months / years) —
     # a fast stretch of the story is drawn close together. Left out = an ordinary step.
     gap: str = ""
+    # Lanes mode: the event this one is NESTED under (lanes.py "child nodes"): same moment,
+    # clearly derived from it, on the same line, so it hangs beyond its parent on the parent's
+    # own side of the line. Only ever set on the user's yes (Edit mode "Nest under…", or a
+    # request to Claude / Bass); nothing nests by itself and a child is only ever the user's own entry.
+    nest: str = ""
     # Brief.source_docs ids this node was built from. In outline mode a node
     # with none inherits its nearest ancestor's (ALTO-011).
     sources: list[str] = field(default_factory=list)

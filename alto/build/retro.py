@@ -81,6 +81,13 @@ CHROME_CSS = r"""
   /* the bars: the name in poster letters, the chips cut square and rimmed in gold */
   X #title-text:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  /* the name: a gold plate hung from the top edge, its feet cut at 45deg, the format symbol in black beside it (Luke, 2026-11-05, "1, B"; title_tab.py).
+     Shown where the name shows: the homepage, a detail page, a narrow window (the crown on the board carries it otherwise) */
+  @media (min-width:641px){
+  X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:8px;--tt-i:var(--tt-syr) !important;background:#d9ae55 !important;color:#000 !important;border:0 !important;border-radius:0 !important;
+    font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
+    clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px));}
+  }
   X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
     background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */
   X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border-color:transparent !important;}
@@ -171,10 +178,9 @@ CHROME_CSS = r"""
   X .hl-color-swatch:not(#_){border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.35) !important;}
   X .hl-color-swatch.active:not(#_){transform:none !important;box-shadow:0 0 0 2px #000,0 0 0 3px #d9ae55 !important;}
   /* a phone's search: a square field with the gold rim, no soft shadow */
-  X #m-search:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X :is(#m-search,#sol-tour):not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X .wrap-pill:not(#_){background:#000 !important;color:#efe6cf !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-family:var(--rt-f) !important;}
   /* the System's tour bar (Next / Back, solar_*.py): a square bar of square buttons, Next in gold */
-  X #sol-tour:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #sol-tour button:not(#_){border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
   X #sol-tour .tb-next:not(#_){background:#d9ae55 !important;color:#000 !important;}
   X #sol-tour button:not(.tb-next):not(#_):hover{box-shadow:inset 0 0 0 1px rgba(217,174,85,.7) !important;color:#d9ae55 !important;}
@@ -411,17 +417,37 @@ FORMAT_CSS = r"""
   X :where(#canvas .node-card){outline-color:rgba(217,174,85,.5);}
   X :where(#canvas .node:hover .node-card){outline-color:#d9ae55;}
   X :is(.aed-flags,.aed-chips,.aed-add):not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.5) !important;}
+  /* the System (solar_draw.py), in either look (Style C: Retro is the page's style, the frame, labels and bars; the bodies keep their own light): the bottom row of
+     switches, the 3D scene's labels and pills, and the line labels in the poster's lettering */
+  X #sol-ctl :is(.sol-seg,#sol-motion,.sol-opt),X #sk3d-reset{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border:0 !important;border-radius:0 !important;}
+  X #sol-ctl>*{border-radius:0 !important;}
+  X #sol-ctl button,X #sk3d-reset,X #nvo-where{color:#efe6cf !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}
+  X #sol-ctl :is(.sol-seg button.on,#sol-motion.on,.sol-opt.on){color:#000 !important;background:#d9ae55 !important;}
+  X #sk3d-l b{font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:#efe6cf;}
+  X #sk3d-l b.u{background:#000;border-color:#d9ae55;border-radius:0;color:#d9ae55;letter-spacing:.3em;font-weight:500;}
+  X .nv-at b{color:#efe6cf !important;}
+  X #sk3d-l i{background:#000;border-color:#d9ae55;border-radius:0;color:#d9ae55;font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.1em;}
+  X #sk3d-l i kbd{border-radius:0;background:#d9ae55;color:#000;}
+  X.alto-stars.sk-real:not(.sk-3d) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card:not(#_):not(#__){border-radius:50% !important;background:transparent !important;border-color:transparent !important;box-shadow:none !important;}   /* (no WebGL: the flat scene's globes keep their round bodies, no square plate) */
+  X.alto-solar .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;}
+  /* the ship and craft popups wear the page's style (the tour bar already does, above); Style C is frame-only: the Retro chart's own ship art, flames, fly path and flight clock stay on sk-retro): a black plate, a gold rim, square corners, Avenir capitals */
+  X :is(#sol-craft-pop,.nvo,#nvo-map){background:#000 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;color:#efe6cf !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X :is(#sol-craft-pop,.nvo) :is(h1,h2,h3,b,.cr-n,.cr-h,.cr-g,.cr-t span){font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.12em;}
+  X #sol-craft-pop .cr-t{border-radius:0;} X #sol-craft-pop .cr-t.on{border-color:#d9ae55;background:rgba(217,174,85,.14);box-shadow:0 0 0 1px #d9ae55 inset;border-radius:0;}
 """
 
 # ── the homepage (home_look.py; Art's spec, Luke 2026-10-28 "8A": the homepage follows Classic | Retro): square plates, gold caps, solid dialogs ──
 HOME_CSS = r"""
   X.alto-home,X.alto-home body{background:#000 !important;}
   X.alto-home #page-glass{display:none !important;}
+  /* the top rows on solid ground (Sim 1110b: tiles showed through behind HOME and the wordmark, and under the chip row): a phone's portrait page, header + chip row; a phone held sideways, the header row alone */
+  @media (max-width:640px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:calc(108px + env(safe-area-inset-top,0px));background:linear-gradient(#000 calc(100% - 12px),transparent);z-index:101;pointer-events:none;} }
+  @media (min-width:641px) and (max-height:500px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:60px;background:linear-gradient(#000 calc(100% - 10px),transparent);z-index:101;pointer-events:none;} }
   X.alto-home #sk-frame b{display:none !important;}   /* (the crown's diamond would sit on the Home chip) */
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   /* the top row: the Home pill a square chip in gold capitals */
   X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
-  X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;}   /* (500, not the engine title's 300 hairline: HOME reads as heavy as PRIVATE and SORT; computer and phone) */
+  @media (max-width:640px){ X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
   /* projects: no glass, a fine gold rim, the name in gold capitals */
   X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}
@@ -444,7 +470,14 @@ HOME_CSS = r"""
   X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):not(#_){width:28px;height:28px;border-radius:0;background:#000;border:1px solid rgba(217,174,85,.7);color:#d9ae55;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;}
   X.alto-home :is(.tile-more,.tile-reports,.tile-share,.tile-download):hover{color:#f0c15e;border-color:#d9ae55;}
   X.alto-home .tile-more{width:32px;height:24px;}
-  X.alto-home .course-tile.new-tile:not(#_),X.alto-home .project-slab.new-project-slab:not(#_){background:transparent !important;border:1px dashed #d9ae55 !important;border-radius:0 !important;color:#d9ae55;text-transform:uppercase;letter-spacing:.14em;font-family:var(--rt-f);}
+  /* the New timeline and Start new project tiles: an open slot in a double gold frame, like a poster border (Luke, 2026-11-05, "2, A" of the new-tiles sheet; no dashed outline).
+     The plus and the words are one group, centred in the frame (line-height 1 and no padding, so no line box tips it low) */
+  X.alto-home .course-tile.new-tile:not(#_),X.alto-home .project-slab.new-project-slab:not(#_){background:#000 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;
+    box-shadow:inset 0 0 0 5px #000,inset 0 0 0 6px rgba(217,174,85,.7) !important;color:#d9ae55;text-transform:uppercase;letter-spacing:.14em;font-family:var(--rt-f);padding:0 !important;gap:10px;}
+  X.alto-home .course-tile.new-tile:hover:not(#_),X.alto-home .project-slab.new-project-slab:hover:not(#_){border-color:#f0c15e !important;color:#f0c15e;
+    box-shadow:inset 0 0 0 5px #000,inset 0 0 0 6px #f0c15e !important;}
+  X.alto-home :is(.new-tile .nt-plus,.new-project-slab .nps-plus,.nt-label,.nps-label){line-height:1 !important;margin:0 !important;}
+  X.alto-home .project-slab.new-project-slab{min-height:84px;gap:14px;}
   X.alto-home .new-project-note{color:#b9b2a0;}
   X.alto-home .bin-group .bin-toggle:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
   X.alto-home .bin-row:not(#_){background:#070a0f;border:1px solid rgba(217,174,85,.5);border-radius:0;}
@@ -542,6 +575,7 @@ function decorate(){
       var no=t.querySelector('.t-no');
       if(no){ var nt='Nº '+two(i+1); if(no.textContent!==nt) no.textContent=nt; return; }   /* already decorated: only the number can change (a re-sort) */
       var st=t.querySelector('.unit-strip'), em=t.querySelector('.tile-emblem'), body=t.querySelector('.tile-body'), sub=t.querySelector('.tile-sub');
+      if(!em && st && body){ em=(typeof window.tileEmblem==='function' && window.tileEmblem('timeline',[])) || el('div','tile-emblem'); em.setAttribute('aria-hidden','true'); em._rhMade=true; }   /* (a card the page drew without its format symbol, such as a static course: the plate still gets its medallion, the skin's padding is written for it) */
       var btns=['tile-download','tile-share','tile-reports','tile-more'].map(function(n){return t.querySelector('.'+n);}).filter(Boolean);
       if(!st||!em||!body) return;
       t._rhOrder=Array.prototype.slice.call(t.children);   /* the card's own child order, to put back exactly */
@@ -565,6 +599,7 @@ function undo(){
     var main=t.querySelector('.t-main'); if(!main) return;
     var body=main.querySelector('.tile-body'), em=t.querySelector('.tile-emblem'), sub=em&&em.querySelector('.tile-sub');
     if(sub&&body) body.appendChild(sub);
+    if(em&&em._rhMade){ em.remove(); em=null; }
     (t._rhOrder||[]).forEach(function(n){ t.appendChild(n); });
     main.remove(); var a=t.querySelector('.t-actions'); if(a) a.remove();
     t._rhOrder=null;

@@ -460,6 +460,17 @@ its floors, reached by an elevator inside the building.
 - Ask: **"Who is on the page in each scene, and where does the story jump back
   in time?"** Give a person/thread a line only where the material follows
   them; everything told on the page is the main line.
+- **Child nodes (`nest`)** are an offer, never a default. An event can be nested
+  under another (`nest: <parent id>`): it is tucked behind its parent ("n inside")
+  and drawn outline-style beyond it in the Expanded view. There is no timeline
+  setting for it. Offer it ONLY when an event has the same date as another, is
+  clearly derived from it, and the user's own notes link them (a heading under
+  it, a "part of" line, the same passage), and say which events: "These two
+  sit inside 'The Reunion Evening' at the same moment. Nest them?" Set `nest`
+  only on the user's yes; on a no, leave them as events of their own and do not
+  ask again. A child is the user's own entry (never written for the purpose), is
+  on its parent's line, and carries no `present` / `flash`. The user can also
+  nest and un-nest by hand in Edit mode ("Nest under…").
 - Lines and flashbacks go in the `create_timeline` brief; change them later
   with `set_lines` (declare a flashback there before marking events with it).
 - Older horizontal timelines carry a line's `from` / `to` (the event it
@@ -467,7 +478,7 @@ its floors, reached by an elevator inside the building.
   the page — new ones use `present`.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
-  flashback (or a new one) or take it out, add or rename lines, and add,
+  flashback (or a new one) or take it out, nest it under another event of the same line (or take it out of one), add or rename lines, and add,
   move, rename or remove time flags and box tags (the ⚑ and ▭ buttons while editing).
 
 ### §D-Solar. System (`mode: 'outline'`, `layout: 'solar'`)
@@ -523,18 +534,20 @@ Palace.
 - A phone keeps the usual single-column card view; a System is a computer
   view.
 
-**Four styles, switched in the page.** Every System page carries all four
-styles of the same layout, and the reader flips between them with the one
-style switch on the page (**System | Star chart | Retro | 3D Star chart**),
-instantly, any time — nothing to rebuild, nothing for you to do:
-- **Star chart** (the style it opens in): the orbit rings with realistic
+**Two views and two looks, switched in the page.** Every System page carries both
+views of the same layout, and the reader flips between them with the one switch
+on the page (**System | Star chart**), instantly, any time — nothing to rebuild,
+nothing for you to do:
+- **Star chart** (the view it opens in): the orbit rings with lit, turning 3D
   planets, moons, satellites and a sun, and travel between bodies along
-  spaceflight-style routes (a ship the reader picks).
+  spaceflight-style routes (a ship the reader picks). Without WebGL it draws the
+  flat chart instead.
 - **System**: the same concentric rings, spokes and circles (number and
   title) in Alto's usual glass look, no space graphics.
-- **Retro**: the Star chart as a vintage space poster, black and gold.
-- **3D Star chart**: lit, turning 3D globes with depth.
-In all of them, the planets, moons and satellites orbit, each on its own ring; an
+
+In Scene > Style, either view can also be dressed as **Retro** (a vintage space
+poster, black and gold) or **Holographic**; this is a look, not another view.
+In both, the planets, moons and satellites orbit, each on its own ring; an
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.

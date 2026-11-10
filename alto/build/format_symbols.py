@@ -77,3 +77,13 @@ def badge(key: str, size: int = 20) -> str:
     """The symbol with its name as the tooltip and the accessible name."""
     return (f'<span class="fmt-sym" title="{name(key)}" role="img" aria-label="{name(key)}">'
             f'{svg(key, size)}</span>')
+
+
+def ink_uri(key: str, ink: str) -> str:
+    """The symbol as a CSS url() for `background-image`, drawn in one flat ink (the title tab's, title_tab.py; a style's own ink is baked in, no mask).
+    Quotes, brackets and the hash are escaped so it sits in a style rule on any page."""
+    g = SYMBOLS[key][2]
+    body = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" fill="none" stroke="%s" stroke-width="%s" '
+            'stroke-linecap="round" stroke-linejoin="round">%s</svg>' % (g, g, ink, g / 16, SYMBOLS[key][1].replace("currentColor", ink)))
+    body = body.replace('"', "'").replace("<", "%3C").replace(">", "%3E").replace("#", "%23")
+    return 'url("data:image/svg+xml,%s")' % body

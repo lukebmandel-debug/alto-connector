@@ -257,7 +257,7 @@ def _detail(pg, page, on=True):
 
 def _style_of(pg, page, style):
     """Put a page in a style (a System through its own switch)."""
-    if page == "system":
+    if page == "system" and not pg.evaluate("!!window._altoStyleC && !!window._altoSolarBar"):      # (Style C, the default: the page style is the Scene panel's, like every format's)
         pg.evaluate("s=>window._altoSolarStyles.set(s)", {"classic": "system", "retro": "retro", "holo": "holo"}[style])
         pg.wait_for_timeout(1500)
     else:
@@ -329,7 +329,11 @@ def test_classic_and_holographic_keep_their_options_where_the_page_takes_them(br
     assert d["bgOn"] and d["id"] == PHOTO and d["holo"] == (style == "holo"), (page, style, d)
     _open_panel(pg)
     d = _drawn(pg)
-    assert not d["only"] and "bg-style" in d["sections"] and len(d["sections"]) > 4, (page, style, d)
+    assert not d["only"] and "bg-style" in d["sections"], (page, style, d)
+    if style == "holo":     # Holographic lists only its own backgrounds (Art PASS, Luke L-1105-155249): the style picker, the Holographic tiles and the Import tile (#bg-yours, never removed)
+        assert d["sections"] == ["bg-style", "Holographic", "bg-yours"], (page, style, d)      # (Luke, 2026-11-10: "Only the holo backgrounds should be available": the Alto wallpaper section is gone too)
+    else:
+        assert len(d["sections"]) > 4, (page, style, d)
     assert not _real(errors), errors
     ctx.close()
 

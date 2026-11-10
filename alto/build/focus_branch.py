@@ -32,11 +32,14 @@ CSS = r"""
 #af-btn,#af-exit{position:fixed;display:none;z-index:310;-webkit-tap-highlight-color:transparent;font-family:inherit;color:var(--text);cursor:pointer;
   background:var(--card-glass-bg,rgba(255,255,255,.7));border:1px solid var(--card-glass-border,rgba(127,127,127,.35));
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 2px 10px rgba(0,0,0,.16);}
-#af-btn{width:34px;height:34px;padding:0;border-radius:50%;align-items:center;justify-content:center;opacity:0;transition:opacity .22s,transform .15s;}
+#af-btn{width:34px;height:34px;padding:0;border-radius:50%;align-items:center;justify-content:center;opacity:0;transition:opacity .22s;}
 #af-btn.on{display:flex;}
 #af-btn.on.in{opacity:1;}
-#af-btn:hover,#af-btn:focus-visible{transform:scale(1.08);border-color:var(--accent,#6d5bd0);color:var(--accent,#6d5bd0);outline:none;}
-#af-btn svg{width:19px;height:19px;display:block;}
+/* The grow-on-hover is on the glyph, never on the button: place() reads the button's own getBoundingClientRect (zoomK) to undo the page
+   zoom, and a scaled button skewed that every 110ms tick, so the button slid away from a pointer resting on its edge and back. */
+#af-btn:hover,#af-btn:focus-visible{border-color:var(--accent,#6d5bd0);color:var(--accent,#6d5bd0);outline:none;}
+#af-btn svg{width:19px;height:19px;display:block;transition:transform .15s;}
+#af-btn:hover svg,#af-btn:focus-visible svg{transform:scale(1.18);}
 #af-btn::after{content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 7px);transform:translateX(-50%);white-space:nowrap;pointer-events:none;
   font:500 11.5px/1 -apple-system,system-ui,sans-serif;letter-spacing:.01em;padding:6px 9px;border-radius:7px;background:var(--text);color:var(--surface,#fff);opacity:0;transition:opacity .15s;}
 #af-btn:hover::after,#af-btn:focus-visible::after{opacity:1;}
@@ -58,7 +61,7 @@ html.af-on:not(.mobile) #canvas.focus-mode .node:not(.focused):not(.af-out) .nod
 html.af-on:not(.mobile) #canvas :is(.phase-label,.phase-label-float,.unit-bar){opacity:.22 !important;transition:opacity .3s;}
 html.af-on:not(.mobile) #canvas .phase-numeral{opacity:1 !important;}
 html.af-on #river-svg [data-af-out]{opacity:.12 !important;transition:opacity .3s;}
-@media (prefers-reduced-motion:reduce){#af-btn{transition:none;}}
+@media (prefers-reduced-motion:reduce){#af-btn,#af-btn svg{transition:none;}}
 """
 
 # The glyph: a viewfinder (four corners round a dot). The Exit mark: a cross.

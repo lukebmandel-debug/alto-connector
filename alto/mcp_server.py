@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.219"
+__version__ = "1.9.220"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1050,10 +1050,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
      hub_look?: 'stars'|'hub' (System only; default 'stars'): the look a
-      viewer sees FIRST. Every System page carries all its styles of the same
+      viewer sees FIRST. Every System page carries both views of the same
       content and the same orbit layout, and one switch in the page (System |
-      Star chart | Retro | 3D Star chart) flips them instantly, with no rebuild (the viewer's choice is
-      remembered for that timeline): HUB = System (concentric orbit rings,
+      Star chart) flips them instantly, with no rebuild (the viewer's choice is
+      remembered for that timeline; Retro and Holographic are looks in Scene > Style): HUB = System (concentric orbit rings,
       spokes, circles with number and title in Alto's usual glass look) and
       STARS = the Star chart (the same rings with realistic space graphics and
       spaceflight-style travel between bodies). In both the planets, moons and
@@ -1426,7 +1426,14 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
      the material does not say. Main-line events only: `present`: [line ids] — who is on
      the page in this scene; `flash`: a flashback id (declared in the brief,
      or with set_lines) when the story tells this event out of time — a
-     flashback's events must be consecutive on the main line)}.
+     flashback's events must be consecutive on the main line). `nest`
+     (mode 'lanes'): the id of the event this one is NESTED under — a child
+     drawn tucked behind its parent ("n inside"), and outline-style beyond it
+     in the Expanded view. ONLY when the user said yes to it: you may OFFER
+     it when an event has the same date as another, is clearly derived from
+     it and the user's own notes link them, but you never nest by yourself,
+     never write a child the notes do not hold, and the child is on its
+     parent's line (a child never crosses the line); omit it otherwise)}.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
     head a section "Text" unless it is a quote — head it for what it is.

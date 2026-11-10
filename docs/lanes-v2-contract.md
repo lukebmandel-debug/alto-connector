@@ -36,6 +36,7 @@ material's own connections between events).
 | `when` | string | when it happened, in the material's words ("1842-03", "Day 3"). For flashback events it is **story time** (the past); surrounding present events keep theirs. |
 | `present` | `[line id]` | NEW, main-line events only. The characters on the page at this event. Each must be a known line id, no duplicates, never `main`. |
 | `flash` | string | NEW, main-line events only. A `brief.flashbacks` id: this event is inside that flashback. |
+| `nest` | string | CHILD NODES (E3). The id of the event this one is nested under: same line (a child never crosses the line), no `present` / `flash` of its own, no loops. Set ONLY on the user's yes (Edit mode "Nest under…", or a request to Claude / Bass, which may offer it, never by itself). Page data: `ev[id].p`. A child is never an event of the line (no dot, no stem, no step of the ← → path): Compact tucks it behind its parent ("▾ n inside"; the chip or Down opens it, Up returns), Expanded shows it outline-style beyond the parent. |
 
 ### Validation (`lanes.check_lines` / `lanes.check_nodes`)
 
@@ -47,6 +48,7 @@ Errors (`BriefError`):
   only for main-line events…"); unknown line id in `present`; `main` in
   `present`; `present` not a list of strings.
 - node `flash` on a non-main event; `flash` not a declared flashback id.
+- node `nest` on itself, under an event of another line, with `present` / `flash`, in a loop, or not a string; a `nest` that is not an event (yet) is a warning and the node draws as an event of its own.
 - **consecutive rule**: the main-line events carrying one flash id must be
   consecutive among main-line events in page order (character-line events in
   between do not break a run). A second, separate run of the same id is an

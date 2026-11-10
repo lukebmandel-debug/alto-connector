@@ -1874,9 +1874,14 @@ window._altoSolarLock={get:function(){ return false; }, set:function(){ return f
 window._altoSolarNavApi={ok:tourOK, home:home, num:function(id){ var b=B[id], f=b && b.c && b.c.querySelector('.sol-face>b'); return f ? f.textContent.trim() : ''; }, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
   ov:function(){ return !!(OV && TOV); }, show:function(id){ tShow(id || null); }, geo:function(){ var g=window._altoSolarGeo(); return g.bodies || g; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
-function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
+/* Style C (the star-chart-retire sheet, option C; behind a flag, nothing deleted): the bar keeps two looks, System | Star chart (the old 3D Star chart under the
+   plainer name), and Retro and Holographic are the page's Style in the Scene panel (the hosted retro.py / holo.py layers, as on every other format): the frame,
+   labels and bars change, the 3D bodies keep their own light. On: the plan's "stylec" (solar.STYLE_C) or localStorage alto-style-c=1 (0 turns it off). */
+var FC=(function(){ var f=null; try{ f=localStorage.getItem('alto-style-c'); }catch(e){} return f==='1' || (f!=='0' && !!R.stylec); })();
+function styOf(v){ return FC ? 'real' : v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
-function stySync(){ var st=LOOK==='stars'; RETRO=STY==='retro' && st; de.classList.toggle('sk-retro', RETRO); de.classList.toggle('sk-real', st && STY==='real');
+function stySync(){ if(FC){ de.classList.remove('sk-retro'); de.classList.toggle('sk-real', LOOK==='stars' && desk()); return; }   /* (a phone draws the engine's cards: unchanged) */
+  var st=LOOK==='stars'; RETRO=STY==='retro' && st; de.classList.toggle('sk-retro', RETRO); de.classList.toggle('sk-real', st && STY==='real');
   window._altoRetroDark(RETRO && desk());   /* Retro wears the dark theme, whatever the toggle says (retro.DARK_JS) */
   var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
   var fr=document.getElementById('sk-frame');
@@ -1890,15 +1895,17 @@ window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
 /* one switch of four styles (Luke, 2026-10-22: "make system another style along with the classic, the retro, and the 3D"):
    System = the look 'hub'; Star chart = 'stars' + 'classic'; Retro = 'stars' + 'retro'; 3D Star chart = 'stars' + 'real'.
    The kept choices (alto-solar-look / alto-solar-style) read the same way, so nothing older needs migrating. */
-var STYLES=[['system', 'System', 'System: the orbits in Alto\u2019s own glass look'],
+var STYLES=FC ? [['system', 'System', 'System: the orbits in Alto\u2019s own glass look'],
+  ['3d', 'Star chart', 'Star chart: turning globes lit by their suns, in depth']] : [['system', 'System', 'System: the orbits in Alto\u2019s own glass look'],
   ['chart', 'Star chart', 'Star chart: the orbits as a painted space scene, with flights between bodies'],
   ['retro', 'Retro', 'Retro: a vintage space poster in black and gold'],
   ['3d', '3D Star chart', '3D Star chart: turning globes lit by their suns, in depth'],
   ['holo', 'Holographic', 'Holographic: the System in one cyan light, square wireframe chrome, a faint grid (holo.py)']];
 /* Holographic (holo.py) is the System's look with the hosted Holographic layer on (the page's head script, window._altoHoloLayer) */
 function holoOn(){ var H=window._altoHoloLayer; return !!(H && H.get()); }
-function styleOf(){ return holoOn() ? 'holo' : LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
+function styleOf(){ if(FC) return LOOK==='hub' ? 'system' : '3d'; return holoOn() ? 'holo' : LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
 function setStyle(v){
+  if(FC){ if(v==='system') setLook('hub'); else if(v==='3d' || v==='chart'){ STY='real'; keep('style', 'real'); setLook('stars'); } return styleOf(); }
   var H=window._altoHoloLayer;
   if(v==='holo'){ if(H){ H.set(true); setLook('hub'); if(ready) ctl(); } return styleOf(); }
   if(H && H.get()){ H.set(false); if(ready) ctl(); }
@@ -1908,8 +1915,17 @@ function setStyle(v){
   else { STY=t; keep('style', t); chips.forEach(function(c){ c._wh=null; }); setLook('stars'); }
   return styleOf(); }
 window._altoSolarStyles={get:styleOf, set:setStyle, list:function(){ return STYLES.map(function(x){ return x[0]; }); }};
+/* Style C: the Scene panel's Style row is the page's style, Classic | Retro | Holographic, drawn by the hosted picker library exactly as on every other format
+   (it reads window._altoStyle, the head script's switch, here carried as window._altoStyleC), so the System's own mirror row (backgrounds.py) is not drawn;
+   a saved flat Star chart becomes the Star chart, a saved Retro chart System in Retro, a saved Holographic stays (the page's own style key) */
+if(FC){ var SX=window._altoStyleC, sv0=pref('style');
+  delete window._altoSolarStyles; window._altoSolarBar={get:styleOf, set:setStyle, list:function(){ return STYLES.map(function(x){ return x[0]; }); }};
+  if(SX){ window._altoStyle=SX; var _ss=SX.set; SX.set=function(v){ var r=_ss(v); if(ready) ctl(); return r; }; }
+  if(sv0==='retro' && LOOK==='stars' && SX){ SX.set('retro'); setLook('hub'); }
+  if(sv0!=='real') keep('style', 'real');
+  if(SX && SX.get()==='retro') SX.set('retro'); }
 stySync();
-if(holoOn() && LOOK!=='hub') setLook('hub');   /* (a page kept in Holographic opens on the System look) */
+if(!FC && holoOn() && LOOK!=='hub') setLook('hub');   /* (a page kept in Holographic opens on the System look) */
 /* normal mode: a scroll pans, an enlarged card or not (Luke's one way of moving: the engine's focus mode would step to a
    neighbour instead); the card goes home and the scroll pans */
 window.addEventListener('wheel', function(e){

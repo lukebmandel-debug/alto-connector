@@ -47,6 +47,8 @@ theme). window._altoSkinStats exposes tick timings and texture hashes for tests.
 """
 from __future__ import annotations
 
+import re
+
 from .solar_draw import _slim
 from .retro import BRAND_CSS, CHROME_CSS, FRAME_CSS, WORDMARK_CSS, scoped, _slim as _rt_slim   # shared with every format's Retro (retro.py)
 
@@ -715,6 +717,44 @@ RETRO_CSS = (r"""
 RETRO_CSS += "@media screen{\n" + _rt_slim(scoped(CHROME_CSS, _X)) + "\n}\n"
 STARS_CSS += RETRO_CSS
 
-STARS_JS = _slim(STARS_JS)
+
+def _tight(js: str) -> str:
+    """The script with the blank after a comma or a semicolon left out wherever it is code (a string, a template, a regular expression and
+    a line comment are copied as they stand): the skin rides in every System page, and those blanks were ~0.2 KB of its gzip."""
+    out, i, n, last = [], 0, len(js), ""
+    while i < n:
+        c = js[i]
+        if c in "'\"`":
+            j = i + 1
+            while j < n and js[j] != c:
+                j += 2 if js[j] == "\\" else 1
+            out.append(js[i:j + 1]); i, last = j + 1, c
+        elif c == "/" and js[i + 1:i + 2] == "/":
+            j = js.find("\n", i)
+            j = n if j < 0 else j
+            out.append(js[i:j]); i = j
+        elif c == "/" and js[i + 1:i + 2] == "*":
+            j = js.find("*/", i) + 2
+            out.append(js[i:j]); i = j
+        elif c == "/" and (not last or last in "(,=:[!&|?{};+-*%<>~^" or re.search(r"(?:return|typeof)$", "".join(out[-6:]))):
+            j, cls = i + 1, False
+            while j < n and (cls or js[j] != "/"):
+                if js[j] == "\\":
+                    j += 1
+                elif js[j] == "[":
+                    cls = True
+                elif js[j] == "]":
+                    cls = False
+                j += 1
+            out.append(js[i:j + 1]); i, last = j + 1, "/"
+        elif c in ",;" and js[i + 1:i + 2] == " ":
+            out.append(c); i, last = i + 2, c
+        else:
+            out.append(c); i += 1
+            if not c.isspace():
+                last = c
+    return "".join(out)
+
+STARS_JS = _tight(_slim(STARS_JS))
 STARS_CSS = _slim(STARS_CSS)
 
