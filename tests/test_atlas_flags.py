@@ -27,7 +27,7 @@ try:
 except ImportError:
     pw = None
 
-PAGE_BYTES_BEFORE = 1471357  # the same sample page built without flags (re-measured 2026-11-07 on the 1.9.219 rel tree; atlas+tour add 0 bytes over it)
+PAGE_BYTES_BEFORE = 1475530  # the same sample page built without flags (re-measured 2026-11-10 on the 1.9.221 candidate: photos adds ~4.2 KB to every timeline page; atlas+tour add 0 bytes over it)
 
 
 # ── the data ──────────────────────────────────────────────────────────────────────────────────────────────────────────
