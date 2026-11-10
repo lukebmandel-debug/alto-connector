@@ -19,6 +19,7 @@ rules_version = '2';
 //   users/{uid}/pagemeta/{key}          { title, heading, shareKey, ... }
 //   users/{uid}/shared/{key}            { key, title, savedAt }  shares kept
 //   users/{uid}/bglib/{id}, bgimg/{id}  imported backgrounds
+//   users/{uid}/pics/{ref}, picbig/{ref}  pictures of the owner's own (photos.py)
 //   users/{uid}/edits/{tid}             manual edits
 //   users/{uid}/alto_projects/{pid}, alto_snapshots/{key}
 //   users/{uid}/alto_timelines/{tid}[/nodes/{id} | /meta/{id}]
@@ -54,7 +55,7 @@ service cloud.firestore {
 
     // ── an account's own data: its owner only ───────────────────────────────
     function ownCollection(coll) {
-      return coll in ['tl', 'pages', 'pagemeta', 'shared', 'bglib', 'bgimg',
+      return coll in ['tl', 'pages', 'pagemeta', 'shared', 'bglib', 'bgimg', 'pics', 'picbig',
                       'edits', 'alto_projects', 'alto_snapshots', 'alto_timelines'];
     }
 
@@ -138,6 +139,19 @@ service cloud.firestore {
                             && ownsShareAfter(key);
       // Revoking: always open to the owner, allowlisted or not.
       allow delete: if ownsShareAfter(key);
+
+      // The pictures a share's page names, copied beside it when it is made or updated: readable (by `get`) with the key, written
+      // and removed by the share's owner, each one document (Bytes), never listable.
+      match /{coll}/{ref} {
+        // exists(): a stopped link's copies are unreadable even if one of them could not be deleted
+        allow get: if validKey(key) && exists(sharePath(key)) && coll in ['pics', 'picbig'] && ref.matches('^pic-[a-z0-9]{8,16}$');
+        allow list: if false;
+        allow create, update: if validKey(key) && coll in ['pics', 'picbig'] && ref.matches('^pic-[a-z0-9]{8,16}$')
+                              && allowlisted() && ownsShareAfter(key)
+                              && request.resource.data.keys().hasOnly(['d', 'type', 't', 'w', 'h'])
+                              && request.resource.data.d is bytes && request.resource.data.d.size() <= 960000;
+        allow delete: if coll in ['pics', 'picbig'] && ownsShareAfter(key);
+      }
 
       match /private/{doc} {
         allow get: if doc == 'owner' && signedIn()

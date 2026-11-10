@@ -71,6 +71,8 @@ STUDY_EDIT_JS = r"""  /* ── flash cards and quizzes: the editor (study_edit.
     var f = field('sd|' + key + '|study'); if(!f) return;
     var W = f.get(); if(!W) return;
     var isQ = W.k === 'q', noun = isQ ? 'quiz' : 'flash cards';
+    if(window._altoPicsLoad) window._altoPicsLoad();
+    function PR(it, k, lbl){ var A = window._altoPics; return A && A.picRow ? A.picRow(it, k, lbl) : document.createComment(''); }
     var w = document.getElementById('aed-study');
     if(w) w.parentNode.removeChild(w);
     w = document.createElement('div'); w.id = 'aed-study'; document.body.appendChild(w);
@@ -125,6 +127,7 @@ STUDY_EDIT_JS = r"""  /* ── flash cards and quizzes: the editor (study_edit.
         row.appendChild(ih);
         if(isQ){
           row.appendChild(ta('as-q', it.q, 'The question', 2, function(v){ it.q = v; }));
+          row.appendChild(PR(it, 'p', 'a picture for this question'));
           var multi = Array.isArray(it.a), mb = E('label', 'as-opt'), mc = E('input'); mc.type = 'checkbox'; mc.checked = multi;
           mc.onchange = function(){ if(mc.checked) it.a = typeof it.a === 'number' ? [it.a] : it.a; else it.a = Array.isArray(it.a) ? (it.a[0] != null ? it.a[0] : 0) : it.a; draw(); };
           mb.appendChild(mc); mb.appendChild(document.createTextNode(' More than one choice is right (“select all that apply”)')); row.appendChild(mb);
@@ -146,8 +149,10 @@ STUDY_EDIT_JS = r"""  /* ── flash cards and quizzes: the editor (study_edit.
         } else {
           row.appendChild(E('div', 'as-cl', 'Front'));
           row.appendChild(ta('as-q', it.f, 'A question or a term', 2, function(v){ it.f = v; }));
+          row.appendChild(PR(it, 'fp', 'a picture on the front'));
           row.appendChild(E('div', 'as-cl', 'Back'));
           row.appendChild(ta('as-x', it.b, 'Its answer, from your notes', 3, function(v){ it.b = v; }));
+          row.appendChild(PR(it, 'bp', 'a picture on the back'));
         }
         list.appendChild(row);
       });
@@ -183,12 +188,14 @@ STUDY_EDIT_JS = r"""  /* ── flash cards and quizzes: the editor (study_edit.
           if(want.length === keep.length){ bad = [ni, 'Question ' + (ni + 1) + ': every choice is marked right — leave at least one wrong.']; return; }
           var o = {i: it.i, q: q, c: keep.map(function(ci){ return String(it.c[ci]).trim(); }), a: multi ? want.sort() : want[0]};
           var x = String(it.x || '').trim(); if(x) o.x = x;
+          if(it.p && it.p.r) o.p = it.p;
           out.push(o);
         } else {
           var fr = String(it.f || '').trim(), bk = String(it.b || '').trim();
           if(!fr && !bk) return;
           if(!fr || !bk){ bad = [ni, 'Card ' + (ni + 1) + ' needs both a front and a back.']; return; }
-          out.push({i: it.i, f: fr, b: bk});
+          var co = {i: it.i, f: fr, b: bk}; if(it.fp && it.fp.r) co.fp = it.fp; if(it.bp && it.bp.r) co.bp = it.bp;
+          out.push(co);
         }
       });
       if(bad) return {bad: bad};

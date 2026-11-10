@@ -64,11 +64,11 @@ def test_the_markdown_is_escaped_and_small():
     assert "<a" not in legal._inline("[x](javascript:alert(1))")
 
 
-def test_the_final_text_is_version_1_0_with_no_draft_marks():
-    assert legal.version() == "1.0"
+def test_the_final_text_is_version_1_1_with_no_draft_marks():
+    assert legal.version() == "1.1"
     for name in ("privacy-policy.md", "beta-terms.md"):
         md = (ROOT / "alto" / "legal" / name).read_text(encoding="utf-8")
-        assert "DRAFT" not in md and "Research" not in md and "Version 1.0." in md
+        assert "DRAFT" not in md and "Research" not in md and "Version 1.1." in md
         assert not re.search(r"\[(?![^\]]*\]\()", md)                                   # no bracketed placeholder: a [ only opens a link
     priv = (ROOT / "alto" / "legal" / "privacy-policy.md").read_text(encoding="utf-8")
     assert "Google records the name, email address and profile photo" in priv and "stored in our database under your account" in priv
@@ -279,3 +279,39 @@ def test_a_refused_save_says_so_and_keeps_asking_and_an_unreadable_record_is_nev
         assert errors == []
     finally:
         pg.close()
+
+
+def test_version_1_1_says_what_pictures_do_and_the_device_storage_lists_name_every_store():
+    d = ROOT / "alto" / "legal"
+    priv = (d / "privacy-policy.md").read_text(encoding="utf-8")
+    terms = (d / "beta-terms.md").read_text(encoding="utf-8")
+    for needle in ("pictures you add, backgrounds you import and settings",           # 2.1
+                   "**Pictures you add (optional).**", "where it was taken, are not kept",   # 2.2
+                   "a copy of each picture (both sizes) is stored beside the link", "Turning the link off deletes the link's copies",   # 2.3
+                   "It cannot see, add or change a picture file, so no picture is sent to Anthropic",                                  # 2.4
+                   "We do not use software to look at, search or analyse the content of your pictures",                               # 2.5
+                   "We do not look at your pictures unless you ask us to in a support request or the law requires it.",
+                   "pictures you add, and backgrounds you import). Pictures kept in your browser are cleared when you sign out.",      # 2.6
+                   "**Pictures.** Your pictures stay until you delete them or your account.", "deleting the card or section that holds it"):  # 2.7 (Version B)
+        assert needle in priv, needle
+    assert "Add only pictures you took or have the right to use" in terms and "Do not use Alto to store or share unlawful content." in terms
+    assert "Taking a picture off a page removes it from the page" not in priv                # Version A is not the text
+
+
+def test_every_browser_store_the_site_opens_is_in_the_policys_device_list_and_the_ones_that_hold_a_persons_files_leave_at_sign_out():
+    """The policy's "Storage on your device" paragraph and ORG's storage notice must name each IndexedDB database the pages open.
+    A new database fails here until it is added to both and to this map."""
+    import re
+    names = set()
+    for p in list((ROOT / "alto").rglob("*.py")) + list((ROOT / "alto" / "cloud").glob("*.js")):
+        t = p.read_text(encoding="utf-8", errors="ignore")
+        names |= set(re.findall(r"indexedDB\.open\(\s*'(alto-[a-z-]+)'", t))
+        names |= set(re.findall(r"(?:DBN|DB)\s*=\s*'(alto-[a-z-]+)'", t))
+    in_policy = {"alto-pv-cache": "your page list and pages", "alto-files": "files you attach while editing",
+                 "alto-bg-lib": "backgrounds you import", "alto-pics": "pictures you add"}
+    assert names == set(in_policy), names ^ set(in_policy)
+    priv = (ROOT / "alto" / "legal" / "privacy-policy.md").read_text(encoding="utf-8").split("## Storage on your device")[1].split("##")[0]
+    for words in in_policy.values():
+        assert words in priv, words
+    js = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
+    assert "indexedDB.deleteDatabase('alto-bg-lib'); indexedDB.deleteDatabase('alto-pics');" in js            # signing out takes both
