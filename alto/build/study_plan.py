@@ -112,7 +112,7 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-li input:checked{background:var(--sp-acc);} #sp-sheet .sp-li input:checked::after{content:"\2713";color:var(--bg);font-size:14px;line-height:1;}
   #sp-sheet .sp-li input:focus-visible{outline:2px solid var(--sp-acc);outline-offset:2px;}
   #sp-sheet .sp-go{display:block;padding:0;border:0;background:transparent;color:var(--text);font:inherit;font-size:15px;font-weight:700;text-align:left;cursor:pointer;}
-  #sp-sheet .sp-go:hover{text-decoration:underline;}
+  @media (hover:hover){ #sp-sheet .sp-go:hover{text-decoration:underline;} }   /* (a finger leaves no sticky hover underline behind) */
   #sp-sheet .sp-w{display:block;font-style:normal;color:var(--muted);font-size:13px;margin-top:2px;}
   #sp-sheet .sp-li.done .sp-go{color:var(--muted);}
   #sp-sheet .sp-pill{padding:5px 8px;border-radius:6px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;background:var(--sp-acc);color:var(--bg);}
@@ -219,7 +219,11 @@ JS = r"""<script id="alto-sp">
   function item(x){
     var d = el('div', 'sp-li' + (x.st === 'done' ? ' done' : '')), cb = el('input'); cb.type = 'checkbox'; cb.checked = x.st === 'done'; cb.setAttribute('aria-label', 'Done: ' + title(x.it.node));
     cb.onchange = function(){ tick(x.it.node, x.it.day, cb.checked); paint(); };
-    var t = el('div'), g = el('button', 'sp-go', title(x.it.node)); g.type = 'button'; g.onclick = function(){ if(mob()) toggle(false); fly(x.it.node); };
+    var t = el('div'), g = el('button', 'sp-go', title(x.it.node)); g.type = 'button'; function go(){ if(mob()) toggle(false); fly(x.it.node); }
+    g.onclick = go;
+    /* a finger: act on the lift itself (as the engine's own tiles do), so a tap is not at the mercy of the click the browser may delay or drop while the page is busy (Sim 1107d D4, Holo) */
+    var t0 = null; g.addEventListener('touchstart', function(e){ var q = e.touches[0]; t0 = {x: q.clientX, y: q.clientY, t: Date.now()}; }, {passive: true});
+    g.addEventListener('touchend', function(e){ var q = e.changedTouches[0]; if(!t0 || Math.abs(q.clientX - t0.x) > 10 || Math.abs(q.clientY - t0.y) > 10 || Date.now() - t0.t > 600){ t0 = null; return; } t0 = null; e.preventDefault(); go(); });
     t.appendChild(g); t.appendChild(el('i', 'sp-w', x.it.why));
     var pl = el('span', 'sp-pill ' + x.st, word(x)); d.appendChild(cb); d.appendChild(t); d.appendChild(pl); return d;
   }
@@ -258,6 +262,8 @@ JS = r"""<script id="alto-sp">
     sheet.appendChild(el('div', 'sp-body'));
     var bt = el('div', 'sp-btns'), mk = el('button', 'sp-btn', 'Make or change my plan'), cl = el('button', 'sp-btn o', 'Close'); mk.type = cl.type = 'button';
     mk.onclick = function(){ make(sheet); }; cl.onclick = function(){ toggle(false); }; bt.appendChild(mk); bt.appendChild(cl); sheet.appendChild(bt);
+    /* the page re-centres its featured card on every touch that is not a swipe: a touch inside the sheet is not a touch on the page */
+    ['touchstart', 'touchend'].forEach(function(n){ sheet.addEventListener(n, function(e){ e.stopPropagation(); }, {passive: n === 'touchstart'}); });
     sheet.addEventListener('keydown', function(e){ if(e.key === 'Escape') toggle(false); });
     document.body.appendChild(sheet);
     chip = el('button'); chip.id = 'sp-chip'; chip.type = 'button'; chip.onclick = function(){ toggle(); }; document.body.appendChild(chip);

@@ -448,3 +448,30 @@ def test_the_phone_menu_shows_no_unlabelled_tile_under_todays_plan(site_hosted, 
         assert pg.evaluate("getComputedStyle(document.getElementById('drawer-timeline-btn')).display") != "none"
         assert not errs, errs
         b.close()
+
+
+@pytest.mark.parametrize("style", ["holo", "classic"])
+def test_a_tap_on_a_name_in_the_phone_sheet_closes_it_and_does_not_recentre_the_old_card(site_hosted, style):
+    """Sim 1107d D4 (Holo): tapping a name left the sheet open and the card not centred. A real finger sequence (touchstart + touchend): the sheet closes at once, that node's card is
+    featured, and the page's own 'any touch that is not a swipe re-centres the current card' handler is not run for touches inside the sheet (WebKit, dark, after a tick)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site_hosted + "/o.html", w=390, h=844, mobile=True)
+        pg.evaluate("localStorage.clear()"); pg.evaluate("window._altoStyle.set('%s')" % style); pg.evaluate("localStorage.setItem('alto-theme-v1','dark')")
+        pg.reload(); pg.wait_for_timeout(1500)
+        pg.evaluate("window.__fn = []; (function(){ var f = window.featureNode; window.featureNode = function(id, a){ window.__fn.push([id, a]); return f.apply(this, arguments); }; })()")
+        pg.evaluate("window.openNavDrawer()"); pg.wait_for_timeout(300)
+        pg.click("#sp-today-row"); pg.wait_for_timeout(600)
+
+        def tap(sel, i):
+            bb = pg.evaluate("(()=>{const r=document.querySelectorAll('%s')[%d].getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()" % (sel, i))
+            pg.touchscreen.tap(bb[0], bb[1])
+        pg.evaluate("window.__fn.length = 0")
+        tap("#sp-sheet .sp-li input", 2); pg.wait_for_timeout(500)                           # a tick
+        assert pg.evaluate("window.__fn") == [], pg.evaluate("window.__fn")                  # (a touch in the sheet does not re-centre the page's card)
+        tap("#sp-sheet .sp-go", 0); pg.wait_for_timeout(500)
+        assert not pg.evaluate("document.getElementById('sp-sheet').classList.contains('open')")
+        assert pg.evaluate("window.__fn.filter(x=>x[1]===true).map(x=>x[0])") == ["acceptance"], pg.evaluate("window.__fn")
+        assert pg.evaluate("document.querySelector('.node.mobile-featured').id") == "node-acceptance"
+        assert not errs, errs
+        b.close()
