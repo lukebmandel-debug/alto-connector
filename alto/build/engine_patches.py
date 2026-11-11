@@ -2426,10 +2426,8 @@ _LS_OLD = "  max-height: calc(100dvh - 276px) !important;\n  overflow: hidden !i
 _LS_NEW = _LS_OLD + "@media (orientation:landscape){ html.mobile.focus-mode .node.mobile-featured .node-card{max-height:calc(100dvh - 166px) !important;} }\n"
 # Sim 1107d (study plan D1): with Safari's tab strip up the visible height is ~290 px, the card is capped at ~125 px and its last row (the citation chip) was cut 10-14 px. Short and
 # sideways the card tightens its padding and gaps so the whole card fits, and if a very small screen still cannot hold it the card scrolls inside itself rather than cutting a row off.
-_LS_NEW += ("@media (orientation:landscape) and (max-height:340px){ html.mobile.focus-mode .node.mobile-featured .node-card{padding:8px 15px 8px !important;overflow-y:auto !important;overscroll-behavior:contain;}"
-            " html.mobile.focus-mode .node.mobile-featured .node-card .node-title{font-size:18px !important;line-height:22px !important;margin-bottom:3px !important;}"
-            " html.mobile.focus-mode .node.mobile-featured .node-card .node-unit{margin-bottom:2px !important;}"
-            " html.mobile.focus-mode .node.mobile-featured .node-card .node-tag{margin-bottom:2px !important;}"
+_LS_NEW += ("@media (orientation:landscape) and (max-height:340px){ html.mobile.focus-mode .node.mobile-featured .node-card{padding:7px 15px 6px !important;overflow-y:auto !important;}"
+            " html.mobile.focus-mode .node.mobile-featured .node-card .node-title{font-size:18px !important;line-height:21px !important;margin-bottom:2px !important;}"
             " html.mobile.focus-mode .node.mobile-featured .node-card .node-footer{margin-top:4px !important;} }\n")
 PATCHES += [
     {"name": "one-card-landscape-height", "old": _LS_OLD, "new": _LS_NEW, "count": 1},

@@ -906,14 +906,14 @@ UNIT_GLUE = """
     if(!(fn && fn._altoUnits)) setTimeout(hook, 250);
   })();
   window.addEventListener('resize', function(){ setTimeout(clear, 200); });
-  /* the Dark / Light toggle clears and re-renders every card (sweeping the labels) long after the init window above has ended: put them back after each render */
+  /* labels back after each re-render (Dark/Light) */
   (function hookR(){
-    var fn = window.renderTimeline;
-    if(typeof fn === 'function' && !fn._altoUnits){
-      var w = function(){ var r = fn.apply(this, arguments); try{ inject(); setTimeout(function(){ inject(); clear(); }, 60); }catch(_){} return r; };
-      w._altoUnits = true; window.renderTimeline = w; return;
+    var f = window.renderTimeline;
+    if(typeof f === 'function' && !f._altoUnits){
+      var w = function(){ var r = f.apply(this, arguments); try{ inject(); setTimeout(function(){ inject(); clear(); }, 60); }catch(_){} return r; };
+      w._altoUnits = 1; window.renderTimeline = w; return;
     }
-    if(!(fn && fn._altoUnits)) setTimeout(hookR, 250);
+    if(!(f && f._altoUnits)) setTimeout(hookR, 250);
   })();
 })();"""
 
