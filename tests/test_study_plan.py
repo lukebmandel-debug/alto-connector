@@ -393,3 +393,19 @@ def test_a_phone_card_held_sideways_fits_the_visible_height_and_is_not_cut(site,
         assert r["sh"] <= r["ch"] + 1, r                                                    # (nothing of the card cut)
         assert not errs, errs
         b.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("h", [312, 292, 280])
+def test_a_phone_card_with_the_tab_strip_up_sideways_shows_its_last_row(site_hosted, style, h):
+    """Sim 1107d D1: with Safari's tab strip up the visible height is ~290 px, the card was capped at ~125 px and its last row (the citation chip) was cut 10-14 px
+    (and 3 px at 312). Short and sideways the card tightens so everything it holds fits, in all three looks (WebKit)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site_hosted + "/o.html", w=874, h=h, mobile=True)
+        pg.evaluate("localStorage.clear()"); pg.evaluate("window._altoStyle.set('%s')" % style); pg.wait_for_timeout(1000)
+        r = pg.evaluate("""()=>{const c=document.querySelector('.node.mobile-featured .node-card'),f=c.querySelector('.node-footer'),cb=c.getBoundingClientRect();
+          return {sh:c.scrollHeight,ch:c.clientHeight,foot:f.getBoundingClientRect().bottom,bottom:cb.bottom,vh:innerHeight}}""")
+        assert r["sh"] <= r["ch"] + 1 and r["foot"] <= r["bottom"] and r["bottom"] <= r["vh"] - 8, (style, h, r)
+        assert not errs, errs
+        b.close()
