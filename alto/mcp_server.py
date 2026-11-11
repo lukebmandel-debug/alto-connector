@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.221"
+__version__ = "1.9.222"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1155,6 +1155,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
         warnings = validate_brief(b)
     except (BriefError, TypeError) as e:
         return {"error": "invalid_brief", "message": str(e)}
+    from .entitlements import format_of_brief
+    err = _format_gate(format_of_brief(brief))
+    if err:
+        return err
     st.put_timeline(uid(), tid, {
         "timeline_id": tid, "project_id": project_id, "brief": brief,
         "consent": {"granted": False}, "status": "draft",
@@ -1762,6 +1766,81 @@ def get_nodes(timeline_id: str, ids: list[str] | None = None,
             **({"missing": missing} if missing else {})}
 
 
+def _feature_gate(feature: str):
+    """An error dict when this account may not use `feature` (alto/entitlements.py; always open in the beta), else None."""
+    from . import entitlements
+    a = entitlements.allowed(uid(), feature)
+    if a["ok"]:
+        return None
+    return {"error": "needs_plan", "feature": feature, "plan": a["needs_plan"], "message": a["message"]}
+
+
+@mcp.tool(title="Study signals", annotations=RO)
+@accounted
+def get_study_signals(timeline_id: str) -> dict:
+    """What a study plan can be built from, in this timeline: its nodes (id, title, act, parent, flags, whether a page has flash
+    cards or a quiz) and the plan it already has. Card marks ("Still learning") and quiz scores are the student's own study state
+    in their browser and account, not held here: ASK the student which topics they are weak on, when their exam is and how much
+    time they have. A plan names only these nodes and quotes only what the student said or marked (§0)."""
+    err = _feature_gate("study_plan")
+    if err:
+        return err
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    nodes = get_store().list_nodes(uid(), timeline_id)
+
+    def has(n, k):
+        return any(isinstance(s, dict) and s.get(k) for s in (n.get("sections") or []))
+    return {
+        "timeline_id": timeline_id,
+        "nodes": [{"id": n["id"], "title": n.get("title", ""), "act": n.get("act", ""), "parent": n.get("parent", ""),
+                   "flags": list(n.get("flags") or []), "cards": has(n, "cards"), "quiz": has(n, "quiz")} for n in nodes],
+        "plan": (doc.get("brief") or {}).get("study_plan") or None,
+        "signals": ["marks", "quiz", "exam", "told", "syllabus"],
+    }
+
+
+@mcp.tool(title="Set study plan", annotations=RW)
+@accounted
+def set_study_plan(timeline_id: str, items: list[dict], exam_date: str = "", days_per_week: int | None = None,
+                   minutes_per_day: int | None = None, replace: bool = True) -> dict:
+    """Store the student's study plan on this timeline: which nodes to study on which days. The student decides; ASK them (exam
+    date, time per day, what they know they are weak on) and propose only nodes of THIS timeline, each with why quoting the
+    student's own signal. items: [{node, day: 'YYYY-MM-DD', why (<= 200 characters, the student's words), signal: 'marks' |
+    'quiz' | 'exam' | 'told' | 'syllabus'}], at most 120. replace=True (default) swaps the whole plan; False adds these items to
+    it. The plan is refused whole, with every problem named, when a node is not in the timeline, a day is not a date or is over a
+    year away, a node is planned twice for one day, or a why is missing or long. Then build_timeline to put it on the page."""
+    err = _feature_gate("study_plan")
+    if err:
+        return err
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    if not _consent_ok(doc):
+        return CONSENT_ERROR
+    import datetime as _dtm
+    from .build.plan_check import check_plan
+    st = get_store()
+    brief = dict(doc["brief"])
+    old = brief.get("study_plan") or {}
+    merged = {"v": 1, "exam_date": exam_date or (old.get("exam_date") if not replace else ""),
+              "days_per_week": days_per_week if (days_per_week is not None or replace) else old.get("days_per_week"),
+              "minutes_per_day": minutes_per_day if (minutes_per_day is not None or replace) else old.get("minutes_per_day"),
+              "items": list(items or []) + ([] if replace else list(old.get("items") or []))}
+    try:
+        plan = check_plan(st.list_nodes(uid(), timeline_id), merged, today=_dtm.date.today())
+    except BriefError as e:
+        return {"error": "invalid_plan", "message": str(e)}
+    brief["study_plan"] = plan
+    doc["brief"] = brief
+    st.put_timeline(uid(), timeline_id, doc)
+    days = sorted({i["day"] for i in plan["items"]})
+    return {"ok": True, "items": len(plan["items"]), "days": len(days), "first_day": days[0] if days else "",
+            "last_day": days[-1] if days else "", "exam_date": plan["exam_date"],
+            "next": "build_timeline to put the plan on the page"}
+
+
 def _own_palaces(exclude_tid: str, place: str) -> list:
     """The user's other Memory Palaces, as airport destinations: [{city, code, timeline, url}] (url relative, a private link)."""
     from .build.palace_airport import code_for
@@ -1996,6 +2075,9 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     or instead of its `lot`: run again, the city keeps it (the footprint moves
     with the real place under it, like a saved lot).
     The map data is © OpenStreetMap contributors; the page credits it."""
+    err = _format_gate("palace")
+    if err:
+        return err
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2283,6 +2365,9 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
     yourself from public plans and photographs and pass it as `plan`; where the
     building is private, thin or gappy, the user supplies material, says where
     to look, or describes it (they do nothing else)."""
+    err = _format_gate("building")
+    if err:
+        return err
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2378,6 +2463,9 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     'deep' is the default's old name. ('' keeps the stored one.)
     clear: node ids whose place should go back to the route.
     The reply lists every unit's region and every stop's place."""
+    err = _format_gate("world")
+    if err:
+        return err
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2604,6 +2692,15 @@ def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "", palace
     if palace_view:
         brief["palace_view"] = palace_view
     return {**doc, "brief": brief}
+
+
+def _format_gate(fmt: str):
+    """An error dict when this account may not make `fmt` (alto/entitlements.py; always open in the beta), else None."""
+    from . import entitlements
+    a = entitlements.allowed(uid(), fmt)
+    if a["ok"]:
+        return None
+    return {"error": "needs_plan", "format": fmt, "plan": a["needs_plan"], "message": a["message"]}
 
 
 def _tree_boxes(b, nodes, conns, ids=None) -> dict:
@@ -2846,7 +2943,13 @@ def build_timeline(timeline_id: str, layout: str = "",
     err = _layout_error(doc, layout, hub_look, palace_view)
     if err:
         return err
+    from .entitlements import format_of_brief
+    before = format_of_brief(doc["brief"])
     doc = _layout_choice(doc, layout, tree_lines, hub_look, palace_view)
+    if format_of_brief(doc["brief"]) != before:             # turning it into another format is making that format
+        err = _format_gate(format_of_brief(doc["brief"]))
+        if err:
+            return err
     try:
         doc = _refresh_portal_destinations(doc, timeline_id)        # a palace made since the airport's board was
     except Exception:                                   # noqa: BLE001 — a board that cannot be refreshed is built as stored

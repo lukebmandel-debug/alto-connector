@@ -906,6 +906,15 @@ UNIT_GLUE = """
     if(!(fn && fn._altoUnits)) setTimeout(hook, 250);
   })();
   window.addEventListener('resize', function(){ setTimeout(clear, 200); });
+  /* labels back after each re-render (Dark/Light) */
+  (function hookR(){
+    var f = window.renderTimeline;
+    if(typeof f === 'function' && !f._altoUnits){
+      var w = function(){ var r = f.apply(this, arguments); try{ inject(); setTimeout(function(){ inject(); clear(); }, 60); }catch(_){} return r; };
+      w._altoUnits = 1; window.renderTimeline = w; return;
+    }
+    if(!(f && f._altoUnits)) setTimeout(hookR, 250);
+  })();
 })();"""
 
 

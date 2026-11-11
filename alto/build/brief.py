@@ -484,6 +484,9 @@ class Brief:
     # get_timeline hands it back so the conversation that picks the timeline up
     # again speaks as it. Its prompt must restate the closed-system rule.
     persona: dict = field(default_factory=dict)
+    # The student's study plan (plan_check.py): {v, exam_date, days_per_week, minutes_per_day, items: [{node, day, why, signal}]}.
+    # Written by the connector's set_study_plan or by Bass; empty = no plan, and the page is built exactly as it was.
+    study_plan: dict = field(default_factory=dict)
     # Filters the owner took out of the Filter panel (manual edit mode): a
     # whole section by its key ("entity", "axis1", "axis2", "flags", "lines",
     # "filter:<filter id>") or one chip in it ("<section key>:<chip id>").
@@ -685,6 +688,9 @@ def validate_brief(b: Brief) -> list[str]:
     _check_len(b.node_noun, "node_noun", "node_noun")
     _check_len(b.owner_name, "owner", "owner_name")
     _check_len(b.owner_email, "owner", "owner_email")
+    if b.study_plan:
+        from .plan_check import check_plan
+        check_plan(None, b.study_plan)                       # fields, dates, the why's size and the signal; nodes are checked where the nodes are
     _check_persona(b.persona, warnings)
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as

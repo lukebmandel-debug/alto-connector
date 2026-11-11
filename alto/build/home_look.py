@@ -222,3 +222,41 @@ html.dark #bin-panel{ background:rgba(18,20,30,.95); }
 """
 
 CSS = '<style id="alto-home-look">' + _CLASSIC + BIN_CSS + "</style>"
+
+
+# ── the homepage file card's study-plan line (Luke 2026-11-01: "make it easy for a user to realize this is a feature"): a small line under the title,
+# "+ Make a study plan" when the file has none, "Study plan [Today 3] [2 late]" (words in small tags, Art's page 2 (c)) when it has one. A computer's page only (hidden at 640 and under). The state
+# comes from the card's own record (pg.plan = {days: [YYYY-MM-DD, ...], exam}, written when the page is published); with none it is the invitation. ──
+SP_CARD_JS = r"""
+window._spCard = function(el, rec){
+  if(!el || el.querySelector('.sp-card')) return;
+  if(!document.getElementById('sp-card-css')){ var st = document.createElement('style'); st.id = 'sp-card-css';
+    st.textContent = '.sp-card{--spa:#5b3fc4;--spl:#b42318;--spi:#fff;display:none;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:24px;font:600 13px/1.2 system-ui,-apple-system,sans-serif;color:var(--spa);}'
+      + 'html.dark .sp-card{--spa:#b7a6ff;--spl:#ff8a7a;--spi:#13111f;}html.alto-retro .sp-card{--spa:#d9ae55;--spl:#ff8a7a;--spi:#000;border-radius:0;}html.alto-retro .sp-card b{border-radius:0;}'
+      + '.sp-card.has{color:inherit;}.sp-card b{background:var(--spa);color:var(--spi);border-radius:6px;padding:4px 7px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;}.sp-card b.l{background:var(--spl);}'
+      + '.sp-card i{font-style:normal;font-weight:400;opacity:.75;}@media (min-width:641px){.sp-card{display:flex;}}@media print{.sp-card{display:none !important;}}';
+    document.head.appendChild(st); }
+  var days = rec && rec.plan && rec.plan.days, line = document.createElement('div'); line.className = 'sp-card';
+  if(days && days.length){
+    var d = window._altoSpNow ? new Date(window._altoSpNow) : new Date(), z = function(n){ return n < 10 ? '0' + n : '' + n; }, t = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+    var today = days.filter(function(x){ return x === t; }).length, late = days.filter(function(x){ return x < t; }).length;
+    line.className += ' has'; line.appendChild(document.createTextNode('Study plan '));
+    var add = function(cls, w){ var b = document.createElement('b'); if(cls) b.className = cls; b.textContent = w; line.appendChild(b); line.appendChild(document.createTextNode(' ')); };
+    if(today) add('', 'Today ' + today);
+    if(late) add('l', late + ' late');
+    if(!today && !late){ var n = document.createElement('i'); n.textContent = 'nothing today'; line.appendChild(n); }
+  } else line.textContent = '+ Make a study plan';
+  var ti = el.querySelector('.tile-title'), host = el.querySelector('.tile-body') || el;   // (under the title, so a plate's undo that puts the lock glyph back last leaves the order as it was)
+  if(ti && ti.parentNode) ti.parentNode.insertBefore(line, ti.nextSibling); else host.appendChild(line);
+};
+"""
+
+
+def swap_plan(template: str) -> str:
+    """Own cards (pg) get the study-plan line; shared-with-me cards (it) do not. Run after swap_fmt."""
+    old = "function fmtBadge(k){"
+    assert template.count(old) == 1, old
+    template = template.replace(old, SP_CARD_JS + old)
+    old = "el.setAttribute('data-fmt', pg.fmt || ''); const em = tileEmblem(pg.fmt, pg.units);"
+    assert template.count(old) == 1, old
+    return template.replace(old, "el.setAttribute('data-fmt', pg.fmt || ''); queueMicrotask(() => window._spCard(el, pg)); const em = tileEmblem(pg.fmt, pg.units);")

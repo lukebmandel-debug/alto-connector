@@ -651,6 +651,9 @@ def sanitize_brief(b, nodes=None) -> list:
             from .photos import sanitize_items
             n.photos = sanitize_items(n.photos)
 
+    if getattr(b, "study_plan", None) and nodes is not None:
+        from .plan_check import sanitize_in_place
+        sanitize_in_place(b, nodes)                         # plain text; an item whose node has gone is dropped, the rest stands
     setattr(b, _FLAG, True)
     warnings = ov_warnings + sec_warnings
     setattr(b, "_alto_sanitize_warnings", warnings)
