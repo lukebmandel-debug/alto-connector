@@ -409,3 +409,22 @@ def test_a_phone_card_with_the_tab_strip_up_sideways_shows_its_last_row(site_hos
         assert r["sh"] <= r["ch"] + 1 and r["foot"] <= r["bottom"] and r["bottom"] <= r["vh"] - 8, (style, h, r)
         assert not errs, errs
         b.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_the_dark_toggle_keeps_the_day_tag_and_the_unit_label_even_after_the_pages_first_seconds(site_hosted, style):
+    """Sim 1107d D2: the in-page Dark / Light toggle re-renders every card; the DONE / day tag (and, once the engine's 20 s label loop had ended, the unit label) stayed gone until a reload.
+    On the phone, from the MENU, 22 s after load (WebKit)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site_hosted + "/o.html", w=390, h=844, mobile=True)
+        pg.evaluate("localStorage.clear()"); pg.evaluate("window._altoStyle.set('%s')" % style); pg.wait_for_timeout(22000)
+        st = "()=>{const n=document.querySelector('.node.mobile-featured');return [(n.querySelector('.sp-tag')||{}).textContent,(n.querySelector('.node-unit')||{}).textContent]}"
+        before = pg.evaluate(st)
+        assert before[0] == "Today" and before[1], before
+        for _ in range(2):                                                                   # dark, then light again
+            pg.evaluate("window.openNavDrawer()"); pg.wait_for_timeout(300)
+            pg.click("#drawer-mode-btn"); pg.wait_for_timeout(1500)
+            assert pg.evaluate(st) == before, (style, pg.evaluate(st))
+        assert not errs, errs
+        b.close()

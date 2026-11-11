@@ -270,7 +270,10 @@ JS = r"""<script id="alto-sp">
     timer = setTimeout(function(){ paint(); midnight(); }, Math.min(Math.max(nx - n, 1000), 2147483000));
   }
   /* the cards are drawn after this script runs (the page lays itself out on load; the System draws its discs a little later): paint again then */
-  function start(){ build(); paint(); midnight(); window.addEventListener('load', paint); [300, 1200, 3000].forEach(function(ms){ setTimeout(paint, ms); }); }
+  /* a re-draw of the cards (the Dark / Light toggle clears and re-renders every node) wipes the tags: paint again after each one, and a few times while the engine settles (Sim 1107d D2) */
+  function again(){ try{ paint(); }catch(e){} [60, 300, 900].forEach(function(ms){ setTimeout(paint, ms); }); }
+  function follow(name){ var f = window[name]; if(typeof f === 'function' && !f._sp){ window[name] = function(){ var r = f.apply(this, arguments); again(); return r; }; window[name]._sp = 1; } }
+  function start(){ build(); paint(); midnight(); follow('renderTimeline'); follow('toggleMode'); window.addEventListener('load', paint); [300, 1200, 3000].forEach(function(ms){ setTimeout(paint, ms); }); }
   window._altoStudyPlan = {paint: paint, states: states};
   window.addEventListener('alto-study-sync', paint); window.addEventListener('storage', function(e){ if(e.key === KEY) paint(); });
   document.addEventListener('visibilitychange', function(){ if(!document.hidden){ paint(); midnight(); } });
