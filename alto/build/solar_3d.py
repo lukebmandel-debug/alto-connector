@@ -768,6 +768,7 @@ function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ ovWatch(); if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600); ovWatch();
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, eye:function(){ return EYE; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
+  screen:function(id){ var G=geo(), g=G&&G.bodies[id], o=BOD[id], q=g&&VPm&&proj(W(g)); return q?{x:q.x,y:q.y,r:g.d/2*q.s,fa:o?o.fa:1}:null; },
   pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, cla:SH.cla, e:SH.e, nose:SH.nose, vis:SH.fx ? SH.fx.vis : 1, warp:SH.fx ? SH.fx.warp : 0}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
@@ -775,3 +776,27 @@ window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam
 from .solar_draw import _slim  # noqa: E402  (comments and indents out, as the other System scripts)
 
 SOLAR3D_JS = _slim(SOLAR3D_JS)
+
+
+def _tight(js):
+    """The space after each `;` out of the code (never inside a '...', "..." or `...` string): ~80 B of gzip, none of the behaviour.
+    (`screen:` above is where a body is on screen, for the pictures' hologram panel: photos.py / solar_pics.py.)"""
+    out, q, i, n = [], None, 0, len(js)
+    while i < n:
+        c = js[i]
+        out.append(c)
+        if q:
+            if c == "\\" and i + 1 < n:
+                i += 1
+                out.append(js[i])
+            elif c == q:
+                q = None
+        elif c in "'\"`":
+            q = c
+        elif c == ";" and i + 1 < n and js[i + 1] == " ":
+            i += 1
+        i += 1
+    return "".join(out)
+
+
+SOLAR3D_JS = _tight(SOLAR3D_JS)

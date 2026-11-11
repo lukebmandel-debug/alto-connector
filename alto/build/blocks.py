@@ -1221,6 +1221,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             filter_sections.append({"key": "flags", "kind": "chips",
                                     "label": "Flags", "items": _fitems})
             filter_nodes["flags"] = _fmap
+    # Cards that carry pictures (photos.py): one chip, "Has pictures"; cards without any dim like any other non-match
+    from .photos import has_pictures
+    _pt = sorted(n.id for n in nodes if has_pictures(n))
+    if _pt:
+        filter_sections.append({"key": "pics", "kind": "chips", "label": "Pictures",
+                                "items": [{"id": "has", "name": "Has pictures", "color": "var(--accent)", "count": len(_pt)}]})
+        filter_nodes["pics"] = {"has": _pt}
     for rf in resolved_filters:
         filter_sections.append({
             "key": "slot-" + rf["slot"], "kind": "slot", "slot": rf["slot"],

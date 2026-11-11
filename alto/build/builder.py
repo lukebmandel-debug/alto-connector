@@ -193,6 +193,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     trees = _prepare_trees(brief, nodes)
     from .study import prepare as _prepare_study
     study = _prepare_study(brief, nodes)
+    from .photos import prepare as _prepare_photos
+    photos = _prepare_photos(brief, nodes)
     connections, _cw = sanitize_connections(brief, nodes, connections)
     warnings += _cw
 
@@ -233,7 +235,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
-    html = _add_tail(html, brief, nodes, warnings, trees, study)
+    html = _add_tail(html, brief, nodes, warnings, trees, study, photos)
     html = _add_background_head(html, brief)
     if phone_mode(brief) != "phone":
         from .phone import phone_scripts
@@ -296,7 +298,7 @@ def phone_mode(brief: Brief) -> str:
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
-              trees: dict = None, study: dict = None) -> str:
+              trees: dict = None, study: dict = None, photos: tuple = None) -> str:
     """Detail-page extras that must wrap showDetail last (back-to-previous,
     banner clearance, auto-linking), placed just before the page's closing
     body tag. Every page gets them: they were gated to outline and index
@@ -309,6 +311,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .subtree import tree_block
     from .study import study_block_for
     from .study_plan import study_plan_block
+    from .photos import block as photos_block
     from .manual_edit import manual_edit
     from .print_views import print_views
     from .history_nav import history_nav
@@ -323,7 +326,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.FOCUS_SETTLE + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
-            + tree_block(trees or {}) + study_block_for(brief, study or {})
+            + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {})))
             + study_plan_block(brief, nodes)
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()

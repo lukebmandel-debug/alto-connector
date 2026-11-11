@@ -49,3 +49,15 @@ jobs:
       - name: Emulator and browser suite
         working-directory: tests/security
         run: npm test
+      - name: Account erase against the Auth, Firestore and Storage emulators
+        # tools/erase_account.py (dry run, wrong confirmation, the real erase) on a seeded account with photos (Storage objects and
+        # Firestore picture documents); asserts nothing of it is left in Auth, Firestore or Storage and a second account is intact.
+        # Emulators only (demo- project, local hosts; the script refuses anything else); never the luke-alto cloud env.
+        working-directory: tests/security
+        env:
+          PYTHONUTF8: "1"
+          GCLOUD_PROJECT: demo-alto-security
+        run: |
+          python -m pip install --quiet "firebase-admin>=6,<7" google-cloud-firestore google-cloud-storage
+          npm run prep
+          npx firebase emulators:exec --only firestore,storage,auth --project demo-alto-security "python erase_emulator_check.py"

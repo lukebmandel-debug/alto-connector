@@ -1578,6 +1578,13 @@ function altoShareMenu(pg, btn){
   const status = sc.querySelector('.sm-status');
   const close = () => sc.remove();
   sc.addEventListener('click', e => { if(e.target === sc) close(); });
+  // pictures of the owner's own (photos.py) go with the link: say how many before anything is sent
+  try{
+    if(c.pics && c.pics.countOf) c.pics.countOf(pg.key).then(n => {
+      const note = sc.querySelector('.sm-note');
+      if(n && note && sc.isConnected) note.textContent += ' ' + (has ? 'Updating it sends ' : 'Creating it sends ') + n + (n === 1 ? ' picture' : ' pictures') + ' from this timeline with the link.';
+    }, () => {});
+  }catch(e){}
 
   function busy(msg){
     status.textContent = msg;
