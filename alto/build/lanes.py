@@ -262,8 +262,8 @@ def check_nodes(b, nodes, warnings: list) -> None:
     after the branch."""
     if b.mode != "lanes":
         for n in nodes:
-            if n.line or n.when or n.present or n.flash or n.gap:
-                raise BriefError(f"node {n.id}: line / when / present / flash / gap need mode 'lanes'")
+            if n.line or n.when or n.present or n.flash or n.gap or n.nest:
+                raise BriefError(f"node {n.id}: line / when / present / flash / gap / nest need mode 'lanes'")
         return
     by = {n.id: n for n in nodes}
     lids = {ln["id"] for ln in b.lines}
@@ -321,6 +321,7 @@ def check_nodes(b, nodes, warnings: list) -> None:
             if n.flash not in fids:
                 raise BriefError(f"node {n.id}: flash {n.flash!r} is not one of the brief's flashbacks "
                                  f"({', '.join(sorted(fids)) or 'none yet — add it with flashbacks'})")
+    check_nests(nodes, by, warnings)
     # a flashback is one consecutive run of main-line events, set before the present it returns to
     mains = [n for n in page_order(b, nodes) if (n.line or MAIN) == MAIN]
     runs = {}
@@ -374,6 +375,41 @@ def check_nodes(b, nodes, warnings: list) -> None:
                         + ("…" if len(undated) > 8 else ""))
 
 
+def check_nests(nodes, by, warnings: list) -> None:
+    """Child nodes (node.nest = the event it is nested under). A child hangs beyond its parent on the
+    parent's own side of the line, so it is on the SAME line (a child never crosses the line); it is
+    one with its parent's moment, so it carries no `present` / `flash` of its own; and a chain of
+    parents never loops. A parent that is not an event (yet) is a warning, like an outline's: an
+    upsert may bring the child first."""
+    for n in nodes:
+        if not n.nest:
+            continue
+        if not isinstance(n.nest, str):
+            raise BriefError(f"node {n.id}: nest must be the id of the event it is nested under")
+        if n.nest == n.id:
+            raise BriefError(f"node {n.id}: nest is itself")
+        p = by.get(n.nest)
+        if p is None:
+            warnings.append(f"node {n.id}: nest {n.nest!r} is not an event yet — add it before building "
+                            "(until then it is drawn as an event of its own)")
+            continue
+        if (p.line or MAIN) != (n.line or MAIN):
+            raise BriefError(f"node {n.id}: nested under {n.nest!r}, which is on a different line "
+                             f"({p.line or MAIN!r} / {n.line or MAIN!r}). A child hangs beyond its parent on the "
+                             "same side of the line — it is on its parent's line")
+        if n.present or n.flash:
+            raise BriefError(f"node {n.id}: a nested event shares its parent's moment — it has no `present` "
+                             "or `flash` of its own (those belong to the parent)")
+    for n in nodes:
+        seen, cur = {n.id}, n
+        while cur.nest and cur.nest in by:
+            if cur.nest in seen:
+                raise BriefError(f"node {n.id}: nest chain loops back on itself — an event cannot be "
+                                 "nested under one of its own children")
+            seen.add(cur.nest)
+            cur = by[cur.nest]
+
+
 def tidy(brief: dict, nodes: list) -> list:
     """Manual edit mode's fold (alto/edits.py), after the page's edits are in:
     what no longer means anything is dropped rather than refusing every edit —
@@ -415,6 +451,23 @@ def tidy(brief: dict, nodes: list) -> list:
         brief["box_tags"] = keepb
     else:
         brief.pop("box_tags", None)
+    byid = {n.get("id"): n for n in nodes}
+    for n in nodes:
+        par = n.get("nest")
+        if par is None:
+            continue
+        p = byid.get(par)
+        bad = (not par) or p is None or par == n.get("id") or (p.get("line") or MAIN) != (n.get("line") or MAIN)
+        seen, cur = {n.get("id")}, p
+        while not bad and cur is not None and cur.get("nest"):      # a loop (a card moved under one of its own children)
+            if cur.get("nest") in seen:
+                bad = True
+                break
+            seen.add(cur.get("id"))
+            cur = byid.get(cur.get("nest"))
+        if bad:
+            n.pop("nest")
+            changed.add(n["id"])
     for n in nodes:
         main = (n.get("line") or MAIN) == MAIN
         pr = n.get("present")
@@ -426,6 +479,10 @@ def tidy(brief: dict, nodes: list) -> list:
                 else:
                     n.pop("present")
                 changed.add(n["id"])
+        if n.get("nest") and (n.get("present") or n.get("flash")):      # a child shares its parent's moment
+            n.pop("present", None)
+            n.pop("flash", None)
+            changed.add(n["id"])
         if "flash" in n and (not n["flash"] or not main or n["flash"] not in fids):
             n.pop("flash")
             changed.add(n["id"])
@@ -556,10 +613,25 @@ def chip_lines(b, nodes) -> "tuple[list, dict]":
     return lines, of
 
 
+def _nest_of(n, by) -> str:
+    """The id of the event `n` is nested under, or "" (not nested, or the parent is not an event of this
+    timeline, or on another line, or it would loop: then it is drawn as an event of its own)."""
+    p, seen = by.get(n.nest or ""), {n.id}
+    if p is None or (p.line or MAIN) != (n.line or MAIN):
+        return ""
+    while p is not None:
+        if p.id in seen:
+            return ""
+        seen.add(p.id)
+        p = by.get(p.nest or "")
+    return n.nest
+
+
 def lanes_payload(b, nodes) -> dict:
     """The page's data (docs/lanes-v2-contract.md), as a dict."""
     lines, of = chip_lines(b, nodes)
     ev = {}
+    by = {n.id: n for n in nodes}
     for n in nodes:
         main = (n.line or MAIN) == MAIN
         chips = [] if not main else [of[e] for e in (n.entity_ids or []) if e in of and of[e] != n.line]
@@ -567,6 +639,8 @@ def lanes_payload(b, nodes) -> dict:
                     "present": [str(x) for x in (n.present or [])], "flash": n.flash or "",
                     "ent": list(dict.fromkeys(chips)),
                     "g": GAPS.get(n.gap or "", 0), "gap": n.gap or ""}
+        if _nest_of(n, by):                 # (only a child carries it: a timeline with none sends no new key)
+            ev[n.id]["p"] = n.nest
     L = {"v": 2, "main": b.main_line or "",
          "order": [n.id for n in page_order(b, nodes)],
          "lines": lines,
@@ -743,6 +817,64 @@ LANES_CSS = KEY_CSS + """
   html.alto-editing .lanes-tag{cursor:context-menu;}
   .node-card .lanes-when{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--muted);
     margin:-2px 0 4px;font-variant-numeric:tabular-nums;}
+  /* child nodes (node.nest): tucked behind the parent in the Compact view, outline-style beyond it in the Expanded */
+  html.alto-lanes:not(.mobile) #world .node.ln-kid-shut{display:none !important;}
+  html.alto-lanes:not(.mobile) #world .node.ln-kid{z-index:7;}
+  html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused){width:220px !important;min-width:0 !important;max-width:220px !important;height:60px !important;
+    box-sizing:border-box;padding:8px 12px !important;overflow:hidden;}
+  html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) :is(.node-desc,.node-footer,.node-summary,.lanes-when,.lanes-fchips){display:none !important;}
+  html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) .node-tag{font-size:10px;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) .node-title{font-size:13px;line-height:1.2;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;}
+  #lanes-svg .ln-kidline{stroke:color-mix(in srgb,var(--accent) 78%,var(--text));stroke-width:2;fill:none;stroke-opacity:.9;stroke-linecap:round;}
+  #lanes-svg .ln-kiddot{fill:var(--accent);fill-opacity:.9;}
+  .node-card .ln-chip{position:absolute;right:8px;bottom:8px;z-index:3;font:700 10.5px/1 inherit;font-family:inherit;letter-spacing:.02em;padding:4px 9px;border-radius:999px;border:0;
+    background:var(--accent);color:var(--surface,#fff);cursor:pointer;pointer-events:auto;white-space:nowrap;}
+  .node-card .ln-chip:hover{filter:brightness(1.12);}
+  .node-card .ln-chip:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
+  html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open){isolation:isolate;}
+  html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open):not(.focused)::before,
+  html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open):not(.focused)::after{content:'';position:absolute;z-index:-1;height:12px;background:var(--surface);
+    border:1px solid var(--border);pointer-events:none;}
+  html.alto-lanes:not(.mobile) #world .node.ln-sd1.ln-has-kids::before{left:9px;right:9px;bottom:-7px;border-radius:0 0 12px 12px;}
+  html.alto-lanes:not(.mobile) #world .node.ln-sd1.ln-has-kids::after{left:18px;right:18px;bottom:-13px;border-radius:0 0 12px 12px;opacity:.6;}
+  html.alto-lanes:not(.mobile) #world .node.ln-sd-1.ln-has-kids::before{left:9px;right:9px;top:-7px;border-radius:12px 12px 0 0;}
+  html.alto-lanes:not(.mobile) #world .node.ln-sd-1.ln-has-kids::after{left:18px;right:18px;top:-13px;border-radius:12px 12px 0 0;opacity:.6;}
+  .node-card.ln-kid-dim{background:var(--surface) !important;border-top-color:var(--border) !important;}
+  .node-card.ln-kid-dim > *{opacity:0.15;}
+  html.alto-lanes:not(.mobile) #world .node.ln-kc:not(.focused) .node-card{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 70%,transparent), 0 10px 26px var(--node-rest-shadow) !important;}
+  #ln-view{position:fixed;right:16px;bottom:102px;z-index:8100;width:38px;height:38px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:var(--card-glass-bg, var(--surface));border:1px solid var(--card-glass-border, var(--border));color:var(--text);cursor:pointer;
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
+  /* a vanishing toggle (Luke, 2026-11-05): invisible until the pointer is over its corner or the board, fades in, and fades out again
+     a moment after the pointer leaves; always there for the keyboard (Tab brings it into view) and while Alto's one-time offer is up */
+  #ln-view{opacity:0;transition:opacity .28s ease;}
+  #ln-view.ln-show,#ln-view:hover,#ln-view:focus-visible{opacity:1;}
+  #ln-view:hover{border-color:var(--accent);color:var(--accent);}
+  #ln-offer{position:fixed;right:16px;bottom:150px;z-index:8100;box-sizing:border-box;width:min(300px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;
+    background:var(--surface,#fff);border:1px solid var(--card-glass-border, var(--border));color:var(--text);font-size:13px;line-height:1.4;
+    box-shadow:0 10px 26px var(--node-rest-shadow, rgba(0,0,0,.25));opacity:0;transition:opacity .28s ease;}
+  html.alto-holo #ln-offer{background:#05070b;}
+  #ln-offer.ln-on{opacity:1;}
+  #ln-offer p{margin:0 0 10px;}
+  #ln-offer .ln-offer-b{display:flex;gap:8px;justify-content:flex-end;}
+  #ln-offer button{font:inherit;font-weight:600;padding:5px 11px;border-radius:8px;border:1px solid var(--card-glass-border, var(--border));background:transparent;color:var(--text);cursor:pointer;}
+  #ln-offer button:first-child{background:var(--accent);border-color:var(--accent);color:var(--surface,#fff);}
+  #ln-offer button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  html:not(.dark):not(.alto-retro):not(.alto-holo) #ln-offer button:first-child{color:#14122b;}
+  html:is(.alto-retro,.alto-holo) #ln-offer,html:is(.alto-retro,.alto-holo) #ln-offer button{border-radius:0;}
+  @media (prefers-reduced-motion:reduce){#ln-view,#ln-offer{transition:none;}}
+  html.mobile #ln-offer,html.phone-whole #ln-offer,html.detail-open #ln-offer,html.printing #ln-offer{display:none !important;}
+  @media print{#ln-offer{display:none !important;}}
+  #ln-view[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
+  /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
+  html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,#ln-view[aria-pressed=true]){color:#14122b;}
+  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,#ln-view){border-radius:0;}
+  /* the unpressed glyph carries the card rim in Retro (gold) and Holographic (cyan), 1px, same box (Art, 2026-11-05); pressed keeps its fill, which is the same colour */
+  html.alto-retro #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #d9ae55;}
+  html.alto-holo #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #4ff0e0;}
+  #ln-view:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  html.mobile #ln-view,html.phone-whole #ln-view,html.detail-open #ln-view,html.printing #ln-view{display:none !important;}
+  @media print{#ln-view,.node-card .ln-chip{display:none !important;}}
   /* lines picked to show only them (LANES_JS setPick): the rest leave the board */
   html.alto-lanes:not(.mobile) #world .node.ln-hid{display:none !important;}
   #lanes-key .lk-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px;padding:0 4px;font-size:11px;color:var(--muted);}
@@ -782,6 +914,22 @@ var BAND0=92, TRACK=60, PAST=84, RAMP_MIN=56, RAMP_MAX=130, SPREAD=22, HUG0=17, 
    label, its events (FB_STEP apart at the median), the S back up, lead-out */
 var DLEAD=70, DRAMP=130, DOUT=70, FB_STEP=240;
 window._altoLanesGeo=null;
+/* ── child nodes (node.nest, lanes.py): an event nested under another of its line. In the Compact view it is tucked behind
+   its parent ("▾ n inside"; the chip, or Down, opens it); in the Expanded view it is always shown, outline-style from the
+   parent on the far side of the line. It is never an event of the line (no dot, no stem, no step of the ← → path). ── */
+var KIDW=220, KIDH=60, KIDLY=70, KIDGAP=14, KIDIND=26;
+var OPEN={}, EXPD=false, PRINTX=false, KG=null, KC='', KSHOW=false;
+var VK='alto-lanes-view-'+String(window._ALTO_LANES_PICK||'').replace(/^alto-lanes-pick-/,'');
+try{ EXPD=localStorage.getItem(VK)==='expanded'; }catch(e){}
+function kidsOn(){ return !de.classList.contains('mobile') && !de.classList.contains('phone-whole'); }
+function nestOf(id){ var e=L.ev[id], p=e && e.p, q=p && L.ev[p]; return (kidsOn() && q && (q.l||'main')===(e.l||'main') && p!==id) ? p : ''; }
+function rootOf(id){ var g=0; while(nestOf(id) && g++<40) id=nestOf(id); return id; }
+function isKid(id){ return !!nestOf(id) && rootOf(id)!==id; }
+function expandedNow(){ return EXPD || PRINTX; }
+function openNow(root){ return expandedNow() || !!OPEN[root] || de.classList.contains('alto-editing'); }
+function kidShut(id){ return isKid(id) && !openNow(rootOf(id)); }
+function kidMap(ids){ var m={}; ids.forEach(function(id){ var p=nestOf(id); if(p && p!==id) (m[p]=m[p]||[]).push(id); }); return m; }
+function famOf(m, id, d, out){ (m[id]||[]).forEach(function(k){ out.push({id:k, d:d}); famOf(m, k, d+1, out); }); return out; }
 function med(a){ if(!a.length) return 0; a=a.slice().sort(function(x,y){ return x-y; }); var m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
 /* every event's time: dated as dated; undated spread evenly between the dated
    events around it in reading order (lanes.py) */
@@ -875,13 +1023,22 @@ function axisNums(order, fbOf){
   if(!order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; })) return false;
   return order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); });
 }
-window._altoLanes=function(h){
+/* the Expanded / Edit board must fit the window, children included, top AND bottom (Art, 2026-11-05): the rows of a family close up
+   first (KIDLY 70 -> 58, here and in layoutLanes), then fitStage() scales the whole stage into the room. The lines keep their layout. */
+window._altoLanes=function(h){ KIDLY=70; return layoutLanes(h); };
+function layoutLanes(h){
   if(de.classList.contains('mobile')) return false;
   var world=document.getElementById('world'); if(!world) return false;
   derive();
   hideOut();
-  var order=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id) && !hidEv(id); });
-  NODES.forEach(function(n){ if(order.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id) && !hidEv(n.id)) order.push(n.id); });
+  var order=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id) && !hidEv(id) && !isKid(id); });
+  NODES.forEach(function(n){ if(order.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id) && !hidEv(n.id) && !isKid(n.id)) order.push(n.id); });
+  /* the children (never on the line): their families, so the Expanded view can make room beyond a parent */
+  var allIds=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id); });
+  NODES.forEach(function(n){ if(allIds.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id)) allIds.push(n.id); });
+  var kidIds=allIds.filter(function(id){ return isKid(id) && !hidEv(id); }), kids=kidMap(kidIds);
+  var kidH={}, anyKids=false;
+  order.forEach(function(id){ if(!openNow(id)) return; var f=famOf(kids, id, 1, []); if(f.length){ kidH[id]=KIDGAP+KIDLY*f.length-(KIDLY-KIDH); anyKids=true; } });
   var idx={}; order.forEach(function(id,i){ idx[id]=i; });
   var w={}; order.forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card'); w[id]=c?c.offsetWidth:270; });
   var main={id:'main', label:L.main, color:'', side:'both'}, LB={main:main};
@@ -985,6 +1142,9 @@ window._altoLanes=function(h){
   /* box tags (brief.box_tags): labelled boxes that are not events; one on the axis has a row of its own above the ruler */
   var BTG=boxTags(order, fbOf), hasBA=BTG.some(function(t){ return t.on==='axis'; }), AX=(nums||hasFl||hasBA)?54+(hasBA?36:0):0;
   var hIn=h, hh={}, cards=order.filter(function(id){ return !!document.querySelector('#node-'+id+' .node-card'); });
+  /* each card's date line goes in BEFORE the cards are measured: it adds a line to the card, so a first pass that measured without it
+     (draw() used to add it afterwards) fitted rows 13 px short, and which fit a board kept depended on whether a second pass came */
+  cards.forEach(function(id){ whenChip(document.querySelector('#node-'+id+' .node-card'), id); });
   function measure(compact){
     de.classList.toggle('ln-compact', !!compact); de.classList.remove('ln-cz');
     L.lines.forEach(function(l){ l.tagW=l.tagEl.offsetWidth||60; });
@@ -1030,7 +1190,7 @@ window._altoLanes=function(h){
   var band={'-1':sideBand('-1',u), '1':sideBand('1',u)};
   /* the cards, in time order: each in the first free row on its side; with no free row it moves
      later in time, just clear of the card in its way, and everything after it moves as much */
-  var rows={'-1':mode.one?0:mode.R, '1':mode.R}, placed={'-1':[], '1':[]}, sideOf={}, offOf={}, alt=0, cum=0, PX=[], X0={};
+  var rows={'-1':mode.one?0:mode.R, '1':mode.R}, placed={'-1':[], '1':[]}, sideOf={}, offOf={}, rowOf={}, alt=0, cum=0, PX=[], X0={};
   var rowOff=function(sd,r){ return band[sd]+STm+r*(HR+CARD_GAP); };
   order.slice().sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }).forEach(function(id){
     var ln=lineOfEv(id), x0=X[id], x=x0+cum, half=w[id]/2+CARD_PAD;
@@ -1046,9 +1206,16 @@ window._altoLanes=function(h){
     pick=pick||best;
     cum+=pick.x-x; X0[id]=x0; X[id]=pick.x; PX.push([x0, cum]);
     (placed[pick.sd][pick.r]=placed[pick.sd][pick.r]||[]).push([pick.x-half, pick.x+half]);
-    sideOf[id]=+pick.sd; offOf[id]=rowOff(pick.sd, pick.r);
+    sideOf[id]=+pick.sd; offOf[id]=rowOff(pick.sd, pick.r); rowOf[id]=pick.r;
     if(ln===main && !fbOf[id]) alt=1-alt;
   });
+  /* the Expanded view: a row's cards that have children make room beyond them, so the next row of cards starts clear of the
+     deepest outline above it (a row with none keeps its pitch). The cap on the height is on the LINES, so this changes nothing there. */
+  if(anyKids){
+    var mxk={'-1':[], '1':[]};
+    order.forEach(function(id){ if(kidH[id]){ var T=mxk[String(sideOf[id])], r=rowOf[id]; T[r]=Math.max(T[r]||0, kidH[id]); } });
+    order.forEach(function(id){ var T=mxk[String(sideOf[id])], ex=0; for(var r=0;r<rowOf[id];r++) ex+=T[r]||0; offOf[id]+=ex; });
+  }
   /* anything placed by x (a detour, the time axis, a squeezed stretch) moves as the events
      before it did; then the lines' labels, side by side where several start together */
   var push=function(x){ var s=0; for(var i=0;i<PX.length;i++) if(PX[i][0]<=x+1e-6 && PX[i][1]>s) s=PX[i][1]; return x+s; };
@@ -1086,12 +1253,15 @@ window._altoLanes=function(h){
   order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||HR)/2); });
   var ys=[-16*mode.cz, 16*mode.cz, hasPast?pastY+30:0];
   L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-TH/2, l.y+TH/2); });
-  order.forEach(function(id){ ys.push(cy[id]-(h[id]||HR)/2, cy[id]+(h[id]||HR)/2); });
+  order.forEach(function(id){ ys.push(cy[id]-(h[id]||HR)/2, cy[id]+(h[id]||HR)/2);
+    if(kidH[id]) ys.push(cy[id]+sideOf[id]*((h[id]||HR)/2+kidH[id])); });             // the Expanded view's outline, beyond the card
   /* the flags' lane: pennants in rows above everything (a flag that would overlap the one before it goes up a row) */
   var frows=flagRows(world, FLG), flTop=Math.min.apply(null,ys)-6;
   if(frows) ys.push(flTop-frows*FL_ROW);
   FLG.forEach(function(f){ f.y=flTop-FL_ROW*(f.row+.5); });
   var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys)+AX;
+  /* children make the board taller than the fit allowed for: close their rows up first (fitStage() scales what is left) */
+  if(room && anyKids && KIDLY>58 && (y1-y0)-A>1){ KIDLY=58; return layoutLanes(h); }
   /* the board's top where the room starts (the slack shared above and below); the page no taller than the canvas */
   var dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2 : TOP-y0;
   var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
@@ -1120,6 +1290,8 @@ window._altoLanes=function(h){
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
                        pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG, w:w, boxes:BTG, boxOff:Math.max(14, Math.min(28, fv('b0',u)/2.4))*mode.cz});
   units(world, order, X, w, H, W);
+  KG={order:order, X:X, pos:pos, w:w, h:h, sideOf:sideOf, kids:kids, kidIds:kidIds, P:WORLD_PAD_TOP};
+  placeKids();
   /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
      canvas less its top padding (the engine's place() would lay the page out again every 250ms) — its height corrected by
      the difference, whatever its box; and the world ends where it does, in place()'s own terms (two different heights
@@ -1157,6 +1329,7 @@ window._altoLanes=function(h){
   window._altoLanesGeo={boxes:BTG.map(function(t){ return {id:t.id, label:t.label, on:t.on, x:t.x, y:t.y}; }), flags:FLG.map(function(f){ return {id:f.id, label:f.label, x:f.x, x2:f.x2, row:f.row, y:f.y}; }), x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
     detours:runs.map(function(r){ return {id:r.id, label:r.label, range:r.range, nodes:r.nodes.slice(), x0:r.x0, x1:r.x1,
       d0:r.d0, d1:r.d1, f0:r.f0, f1:r.f1, y:r.y, prev:r.prev, next:r.next}; })};
+  if(KG){ window._altoLanesGeo.kids=KG.geoK||{}; window._altoLanesGeo.fams=KG.fams||{}; }
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:H}; });
   /* the bars and the rail arrive after the first layout: lay out again if the room they leave changed */
   window._altoLanesH=hIn;
@@ -1173,8 +1346,152 @@ window._altoLanes=function(h){
   var sl=document.getElementById('glass-slab');
   if(sl && sl.offsetHeight){ var wcs=getComputedStyle(world), pads=(parseFloat(wcs.paddingTop)||0)+(parseFloat(wcs.paddingBottom)||0);
     var mh=Math.max(0, sl.offsetTop+sl.offsetHeight-pads)+'px'; if(world.style.minHeight!==mh) world.style.minHeight=mh; }
+  fitStage(KSHOW);                 // (once more, now that the world and the slab have their final heights)
   return true;
-};
+}
+/* ── child nodes: where they stand ────────────────────────────────────────────
+   The Expanded view (and a family opened in the Compact view): outline-style from the parent on the far side of the line,
+   one row each, KIDLY apart, each depth KIDIND further in, joined by an elbow off a rail down the parent's left. The Compact view
+   tucks them: hidden, a chip on the parent. Called after every layout, and on its own when a family opens or shuts. */
+function placeKids(){
+  var world=document.getElementById('world'), G=KG; if(!world) return;
+  var svg=document.getElementById('lanes-svg'), old=svg && svg.querySelector('.ln-kids'); if(old) old.remove();
+  world.querySelectorAll('.ln-chip').forEach(function(c){ c.remove(); });
+  world.querySelectorAll('.node.ln-kid,.node.ln-has-kids').forEach(function(n){ n.classList.remove('ln-kid','ln-kid-shut','ln-has-kids','ln-open','ln-sd-1','ln-sd1'); });
+  var geoK={}, fams={};
+  if(G && kidsOn()){
+    var g=svg ? el('g',{'class':'ln-kids'}, svg) : null, P=G.P, ex=expandedNow();
+    G.order.forEach(function(root){
+      var fam=famOf(G.kids, root, 1, []); if(!fam.length) return;
+      var rn=document.getElementById('node-'+root), rc=rn && rn.querySelector('.node-card'); if(!rn || !rc) return;
+      fams[root]=fam.map(function(f){ return f.id; });
+      var sd=G.sideOf[root], open=openNow(root), left0=G.X[root]-G.w[root]/2, far=G.pos[root]+P+sd*(G.h[root]||120)/2, r=0;
+      rn.classList.add('ln-has-kids', 'ln-sd'+sd); if(open) rn.classList.add('ln-open');
+      if(!ex && !de.classList.contains('alto-editing')){
+        var b=document.createElement('button'); b.type='button'; b.className='ln-chip'; b.setAttribute('data-root', root);
+        b.textContent=(open ? '▴ hide' : '▾ '+fam.length+' inside');
+        b.title=open ? 'Tuck the '+(fam.length===1 ? 'entry' : fam.length+' entries')+' back behind this card' : 'Open the '+(fam.length===1 ? 'entry' : fam.length+' entries')+' inside this card (or press Down)';
+        b.setAttribute('aria-expanded', open ? 'true' : 'false'); rc.appendChild(b);
+      }
+      fam.forEach(function(f){
+        var kn=document.getElementById('node-'+f.id), kc=kn && kn.querySelector('.node-card'); if(!kn || !kc) return;
+        kn.classList.add('ln-kid'); kn.setAttribute('data-ln', (L.ev[f.id]||{}).l||'main');
+        var lp=rn.getAttribute('data-lp'); if(lp) kn.setAttribute('data-lp', lp); else kn.removeAttribute('data-lp');
+        if(!open){ kn.classList.add('ln-kid-shut'); return; }
+        var kl=left0+KIDIND*f.d, kx=kl+KIDW/2, kcy=far+sd*(KIDGAP+KIDH/2+r*KIDLY); r++;
+        kn.style.left=kx+'px'; kn.style.top=kcy+'px';
+        var pid=nestOf(f.id), pl, pb;
+        if(pid===root){ pl=left0; pb=far; } else { var pg=geoK[pid]; pl=pg ? pg.x-KIDW/2 : left0; pb=pg ? pg.y+P+sd*KIDH/2 : far; }
+        geoK[f.id]={x:kx, y:kcy-P, w:KIDW, h:KIDH, root:root, parent:pid, d:f.d};
+        var nd=NODES.filter(function(q){ return q.id===f.id; })[0]; if(nd){ nd.displayX=kx; nd.y=kcy-P; }
+        if(g){ var rx=pl+12, rr=8;
+          el('path',{'class':'ln-kidline', d:'M'+rx+' '+pb+' V'+(kcy-sd*rr)+' Q'+rx+' '+kcy+' '+(rx+rr)+' '+kcy+' H'+kl}, g);
+          el('circle',{'class':'ln-kiddot', cx:kl, cy:kcy, r:3}, g); }
+      });
+    });
+  }
+  if(G){ G.geoK=geoK; G.fams=fams; }
+  if(window._altoLanesGeo){ window._altoLanesGeo.kids=geoK; window._altoLanesGeo.fams=fams; }
+  kidsDim(); viewSwitch(Object.keys(fams).length>0);
+  KSHOW=Object.keys(geoK).length>0; fitStage(KSHOW);
+}
+/* the whole stack inside the window: where children are showing and the cards stand beyond the room (130 px of header above, 110 of
+   player bar and nav below), the stage (#world, which carries #lanes-svg) is scaled from its top to fit and centred in that room.
+   Measured on the cards themselves, highest top to lowest bottom, so BOTH sides count. Never in print; the layout itself is untouched. */
+function fitStage(on){
+  var world=document.getElementById('world'); if(!world) return;
+  world.style.translate=''; world.style.scale='';                    // (the individual properties, so the overview's own transform is left alone)
+  if(!on || de.classList.contains('printing') || PRINTX) return;
+  var wr=world.getBoundingClientRect(), k=(wr.width && world.offsetWidth) ? wr.width/world.offsetWidth : 1;
+  /* from where the cards stand in the world (centre top + height), not from their rects: a card still easing in would be measured where it started */
+  var lt=1e9, lb=-1e9;
+  world.querySelectorAll('.node').forEach(function(n){
+    if(getComputedStyle(n).display==='none') return; var c=n.querySelector('.node-card'), y=parseFloat(n.style.top); if(!c || !c.offsetHeight || isNaN(y)) return;
+    lt=Math.min(lt, y-c.offsetHeight/2); lb=Math.max(lb, y+c.offsetHeight/2); });
+  var TOPB=130, BOTB=110, room=window.innerHeight-TOPB-BOTB, ext=(lb-lt)*k;
+  if(!(ext>0) || ext<=room+1) return;
+  var sc=Math.max(.3, room/ext), T=TOPB+(room-ext*sc)/2, ty=(T-wr.top)/k-sc*lt;
+  world.style.transformOrigin='0 0'; world.style.translate='0 '+ty.toFixed(2)+'px'; world.style.scale=sc.toFixed(4);
+}
+/* a child dims with its parent (any filter that dims a card: a chip, a slot, a relation) */
+function kidsDim(){
+  document.querySelectorAll('#world .node.ln-kid').forEach(function(n){
+    var rc=document.querySelector('#node-'+rootOf(n.id.slice(5))+' .node-card'), kc=n.querySelector('.node-card');
+    var dim=!!(rc && (rc.classList.contains('dimmed') || rc.classList.contains('rel-dimmed') || rc.classList.contains('ent-dimmed')));
+    if(kc && kc.classList.contains('ln-kid-dim')!==dim) kc.classList.toggle('ln-kid-dim', dim);
+  });
+}
+/* the Compact | Expanded switch (bottom right), only on a timeline that has something nested */
+function viewSwitch(has){
+  var b=document.getElementById('ln-view');
+  if(!has || !kidsOn() || document.getElementById('canvas')===null){ if(b) b.remove(); return; }
+  if(!b){
+    b=document.createElement('button'); b.type='button'; b.id='ln-view'; b.tabIndex=0;
+    b.addEventListener('click', function(){ closeOffer(); setView(!EXPD); });
+    document.body.appendChild(b);
+    var cv=document.getElementById('canvas');                       // seen while the pointer is on the board or on its corner, a moment after it leaves
+    [cv, b].forEach(function(t){
+      t.addEventListener('pointerenter', function(){ clearTimeout(VT); b._over=1; b.classList.add('ln-show'); });
+      t.addEventListener('pointerleave', function(){ clearTimeout(VT); b._over=0; VT=setTimeout(function(){ if(!document.getElementById('ln-offer') && !b._over) b.classList.remove('ln-show'); }, 1100); });
+    });
+    offerSoon();
+  }
+  var icon=EXPD
+    ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="15" height="5" rx="1.5"/><path d="M6 8v9h4"/><rect x="10" y="14" width="11" height="6" rx="1.5"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="15" height="11" rx="2"/><path d="M6 18h12M9 21h6"/></svg>';
+  var tip=EXPD ? 'Expanded view: entries inside another are shown beneath it. Click for the Compact view.' : 'Compact view: entries inside another are tucked behind it. Click for the Expanded view.';
+  if(b.getAttribute('data-v')!==(EXPD ? 'x' : 'c')){ b.setAttribute('data-v', EXPD ? 'x' : 'c'); b.innerHTML=icon; }
+  b.title=tip; b.setAttribute('aria-label', tip); b.setAttribute('aria-pressed', EXPD ? 'true' : 'false');
+}
+/* Alto's one-time offer (once a board has entries tucked inside others: the Compact page shows less than it holds): says where the
+   switch is and what it does; either answer ends it for good, and the glyph stays as the vanishing toggle after it */
+var VT=0, OFFK='alto-compact-offer';
+function offerSoon(){
+  var done=false; try{ done=!!localStorage.getItem(OFFK); }catch(e){}
+  if(done) return;
+  setTimeout(function(){
+    var fams=(window._altoLanesGeo||{}).fams||{}, n=0; Object.keys(fams).forEach(function(k){ n+=fams[k].length; });
+    var b=document.getElementById('ln-view');
+    if(!b || !n || EXPD || document.getElementById('ln-offer') || de.classList.contains('alto-editing') || de.classList.contains('mobile') || de.classList.contains('phone-whole')) return;
+    try{ localStorage.setItem(OFFK, '1'); }catch(e){}
+    var o=document.createElement('div'); o.id='ln-offer'; o.setAttribute('role','status');
+    o.innerHTML='<p></p><div class="ln-offer-b"><button type="button" data-a="x">Show Expanded</button><button type="button" data-a="c">Keep Compact</button></div>';
+    o.querySelector('p').textContent=(n===1 ? '1 entry is tucked inside another card.' : n+' entries are tucked inside other cards.')+' Expanded lays them out beneath their parent. The switch is the glyph at the bottom right; it appears when you point at the board.';
+    o.addEventListener('click', function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; closeOffer(); if(a==='x') setView(true); });
+    document.body.appendChild(o); b.classList.add('ln-show');
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ o.classList.add('ln-on'); }); });
+    window._lnOfferT=setTimeout(closeOffer, 14000);
+  }, 1800);
+}
+function closeOffer(){
+  clearTimeout(window._lnOfferT); var o=document.getElementById('ln-offer'); if(!o) return;
+  o.classList.remove('ln-on'); setTimeout(function(){ o.remove(); }, 300);
+  var b=document.getElementById('ln-view'); if(b && !b._over) b.classList.remove('ln-show');
+}
+function relayoutNow(){ if(window._altoLanesGeo && window._altoLanesH) window._altoLanes(window._altoLanesH); }
+function setView(x){
+  EXPD=!!x; try{ if(EXPD) localStorage.setItem(VK, 'expanded'); else localStorage.removeItem(VK); }catch(e){}
+  OPEN={}; clearKC(); relayoutNow();
+}
+function openFam(root, on){
+  if(!on && KC && rootOf(KC)===root) clearKC();
+  var cv=document.getElementById('canvas'), n=document.getElementById('node-'+root), t0=n ? n.getBoundingClientRect().top : 0;
+  if(on) OPEN[root]=1; else delete OPEN[root];
+  relayoutNow();
+  if(cv && n){ var d=n.getBoundingClientRect().top-t0; if(Math.abs(d)>1) cv.scrollTop+=d; }      // the parent stays where it was on the screen
+  if(on){ var f=((window._altoLanesGeo||{}).fams||{})[root]||[], k=f.length && document.getElementById('node-'+f[f.length-1]);
+    if(k) try{ k.scrollIntoView({block:'nearest', inline:'nearest'}); }catch(e){} }
+}
+window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
+  cursor:function(){ return KC; }, shut:kidShut, nest:nestOf};
+function clearKC(){ if(!KC) return; var n=document.getElementById('node-'+KC); if(n) n.classList.remove('ln-kc'); KC=''; }
+function setKC(id){
+  clearKC(); var n=document.getElementById('node-'+id); if(!n) return;
+  KC=id; n.classList.add('ln-kc'); var c=n.querySelector('.node-card');
+  if(c){ if(!c.hasAttribute('tabindex')) c.setAttribute('tabindex','0'); try{ c.focus({preventScroll:true}); }catch(e){} }
+  try{ n.scrollIntoView({block:'nearest', inline:'nearest', behavior:(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'auto' : 'smooth'}); }catch(e){}
+}
+
 /* ── box tags ─────────────────────────────────────────────────────────────── */
 /* the box tags this board can place: beside an event that is shown, or dated on a board with dated events */
 function boxTags(order, fbOf){
@@ -1589,6 +1906,7 @@ pickOk();
 function hidLine(id){ return PICK.length>0 && id!=='main' && PICK.indexOf(id)<0; }
 function hidEv(id){
   var e=L.ev[id]; if(!PICK.length || !e) return false;
+  if(nestOf(id)) return hidEv(rootOf(id));                       // a child is shown or hidden with its parent
   if(e.l && e.l!=='main' && lineBy(e.l)) return PICK.indexOf(e.l)<0;          // a character's own event
   return !PICK.some(function(c){ var l=lineBy(c);                                // a main-line event: someone picked is on the page
     return (e.present||[]).indexOf(c)>=0 || (e.ent||[]).indexOf(c)>=0 || (!!l && ((l.presence||[]).indexOf(id)>=0 || l.from===id || l.to===id)); });
@@ -1731,6 +2049,60 @@ function key(){
   keyPick();
 }
 window.addEventListener('load', function(){ setTimeout(key, 300); setTimeout(keyPick, 320); });
+/* ── child nodes: the chip, the keys, search, filters and print ────────────── */
+document.addEventListener('click', function(e){
+  var b=e.target.closest && e.target.closest('.ln-chip'); if(!b || de.classList.contains('alto-editing')) return;
+  e.stopPropagation(); e.preventDefault(); var r=b.getAttribute('data-root'); openFam(r, !OPEN[r]);
+}, true);
+['pointerdown','mousedown'].forEach(function(t){ document.addEventListener(t, function(e){ if(e.target.closest && e.target.closest('.ln-chip')) e.stopPropagation(); }, true); });
+/* Down opens the children of the event the path is on and lands on the first (then on the next, one at a time, in outline order);
+   Up goes back out, to the parent; ← → carry on along the line from the parent; Enter opens the card; Esc tucks them away */
+document.addEventListener('keydown', function(e){
+  if(!KG || !kidsOn() || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || de.classList.contains('alto-editing') || de.classList.contains('printing')) return;
+  if(window._focusedNodeId || de.classList.contains('detail-open')) return;
+  var ae=document.activeElement, tg=ae && ae.tagName; if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
+  var k=e.key, stop=function(){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
+  if(k==='Escape'){ if(Object.keys(OPEN).length && !expandedNow()){ stop(); clearKC(); OPEN={}; relayoutNow(); } return; }
+  if(k==='Enter'){ if(KC && window.enterFocus){ stop(); window.enterFocus(KC); } return; }
+  if(k==='ArrowLeft' || k==='ArrowRight'){ if(KC) clearKC(); return; }
+  if(k!=='ArrowDown' && k!=='ArrowUp') return;
+  var cur=KC || (window._altoLanesCurrent && window._altoLanesCurrent()); if(!cur) return;
+  var fams=(window._altoLanesGeo||{}).fams||{};
+  if(k==='ArrowDown'){
+    if(KC){ var f=fams[rootOf(KC)]||[], i=f.indexOf(KC); stop(); if(f[i+1]) setKC(f[i+1]); return; }
+    var mine=(fams[cur]||[]); if(!mine.length) return;
+    stop(); if(!openNow(cur)) openFam(cur, true); setKC(mine[0]); return;
+  }
+  if(KC){ stop(); var pa=nestOf(KC); if(!pa || pa===rootOf(KC)) clearKC(); else setKC(pa); }
+}, true);
+/* search (and anything else that enlarges a card by its id) finds a child tucked behind its parent: the family opens first */
+window.addEventListener('load', function(){
+  var ef=window.enterFocus; if(typeof ef==='function' && !ef._ln){
+    window.enterFocus=function(id){ if(KG && id && kidShut(id)) openFam(rootOf(id), true); return ef.apply(this, arguments); };
+    window.enterFocus._ln=1; }
+  /* the engine's own "is this shown" (its hops, an enlarged card's ← →) leaves a tucked child out */
+  var sh=window._altoShown; if(!sh || !sh._lk){ var f2=function(id){ return !kidShut(id) && (!sh || sh.apply(this, arguments)); }; f2._lk=1; f2._ln=sh ? sh._ln : 1; window._altoShown=f2; }
+  /* print: the Expanded view, whatever the screen shows */
+  var st=window._stagePrint, un=window._unstagePrint;
+  if(typeof st==='function' && !st._ln){ window._stagePrint=function(){ printX(true); return st.apply(this, arguments); }; window._stagePrint._ln=1; }
+  if(typeof un==='function' && !un._ln){ window._unstagePrint=function(){ var r=un.apply(this, arguments); printX(false); return r; }; window._unstagePrint._ln=1; }
+});
+function printX(on){
+  if(!kidsOn() || PRINTX===on) return; PRINTX=on;
+  if(KG && Object.keys((window._altoLanesGeo||{}).fams||{}).length) relayoutNow();
+}
+window.addEventListener('beforeprint', function(){ printX(true); });
+window.addEventListener('afterprint', function(){ printX(false); });
+/* filters: a child's card dims whenever its parent's does; entering or leaving Edit mode shows every child (or tucks them again) */
+(function(){
+  var raf=0, wq=function(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; kidsDim(); }); };
+  var start=function(){ var w=document.getElementById('world'); if(!w || w._lnKo || !window.MutationObserver) return; w._lnKo=1;
+    new MutationObserver(wq).observe(w, {attributes:true, attributeFilter:['class'], subtree:true}); };
+  window.addEventListener('load', function(){ start(); setTimeout(start, 400); });
+  var was=de.classList.contains('alto-editing');
+  if(window.MutationObserver) new MutationObserver(function(){ var now=de.classList.contains('alto-editing'); if(now!==was){ was=now; if(KG && (window._altoLanesGeo||{}).fams && Object.keys(window._altoLanesGeo.fams).length) relayoutNow(); } }).observe(de, {attributes:true, attributeFilter:['class']});
+  document.addEventListener('alto:lanes-pick', wq);
+})();
 })();
 """
 

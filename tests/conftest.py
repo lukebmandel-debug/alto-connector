@@ -37,6 +37,19 @@ _MUTE_JS = """(function(){ try{
 }catch(e){} })();"""
 
 
+# Style C (solar.STYLE_C) is ON by default (Luke, 2026-11-05). The older solar suites drive the five-style bar through window._altoSolarStyles, which is the
+# rollback path (localStorage alto-style-c=0) and stays covered that way; the suites below are the ones that test Style C itself and run on the default.
+_STYLE_C_DEFAULT_MODULES = {"test_star_chart_c", "test_scene_panel", "test_holo", "test_retro", "test_palace_chrome"}
+_STYLE_C_JS = "try{ if(localStorage.getItem('alto-style-c')===null) localStorage.setItem('alto-style-c','0'); }catch(e){}"
+_state = {"legacy": True}
+
+
+@pytest.fixture(autouse=True)
+def _style_c_legacy_path_unless_it_is_the_suite_under_test(request):
+    _state["legacy"] = request.module.__name__.rsplit(".", 1)[-1] not in _STYLE_C_DEFAULT_MODULES
+    yield
+
+
 def _silence_test_browsers():
     import os
     if os.environ.get("ALTO_TEST_SOUND") == "1":
@@ -52,11 +65,15 @@ def _silence_test_browsers():
     def new_context(self, *a, **k):
         c = o_ctx(self, *a, **k)
         c.add_init_script(_MUTE_JS)
+        if _state["legacy"]:
+            c.add_init_script(_STYLE_C_JS)
         return c
 
     def new_page(self, *a, **k):
         p = o_page(self, *a, **k)
         p.context.add_init_script(_MUTE_JS)
+        if _state["legacy"]:
+            p.context.add_init_script(_STYLE_C_JS)
         return p
 
     def launch(self, *a, **k):

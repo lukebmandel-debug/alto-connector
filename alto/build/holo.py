@@ -60,6 +60,18 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) :is(body,#canvas):not(#_){background-color:var(--ho-bg) !important;
     background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
     background-size:auto,48px 48px,48px 48px !important;}
+  /* the same ground on the page-bg layer, which is fixed and the screen's whole size, for every page that scrolls its document (the homepage, Reports,
+     a detail page). Painted on the body it stopped at the body's own height and the rest of a long page scrolled over a flat colour (a non-Holographic
+     background chosen or saved: Retro's sheet hides every photograph, and the grid was all that was left, cut off partway down: Luke, 2026-11-05).
+     The body lets it through (a phone's page too: Luke's standing phone rule, 2026-11-05). */
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #page-bg:not(#_):not(#__){background-color:var(--ho-bg) !important;
+    background-image:repeating-linear-gradient(0deg,rgba(var(--ho-rgb),.045) 0 1px,transparent 1px 3px),linear-gradient(rgba(var(--ho-rgb),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ho-rgb),.07) 1px,transparent 1px) !important;
+    background-size:auto,48px 48px,48px 48px !important;}
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) body:not(#_):not(#__){background:transparent !important;}
+  /* the Background picker in Holographic lists the style's own backgrounds and nothing else (Luke, 2026-11-10: "Only the holo backgrounds should be available"; the Import tile stays); a photograph or colour chosen
+     earlier stays stored and comes back with Classic. A phone's picker too; the palaces and the Star chart keep theirs. */
+  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(:has(.bg-tile[data-bg^="h-"])){display:none !important;}
+  X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
   X.alto-bg-h #page-bg:not(#_):not(#__){background:var(--alto-top) !important;}
@@ -244,6 +256,29 @@ FORMAT_CSS = r"""
    /* an outline page's rows: a hairline between them */
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-page .detail-section .ol-row:not(#_):not(#__){border-top:1px solid rgba(var(--ho-rgb),.28);padding:12px 0 10px;}
   }
+  /* the System's Star chart (Style C: Holographic is the page's style, the bars and labels; the bodies and the space keep their own light): the sky stays space whatever the theme */
+  X.alto-stars.sk-real :is(#canvas,#page-bg,#app):not(#_):not(#__){background:var(--sk-sky,linear-gradient(180deg,#05070f,#0a0b1d 50%,#06050f)) !important;}
+  /* the 3D scene's labels stand on space, which is dark in both themes: they keep the dark theme's light ink */
+  X.sk-3d #sk3d-l b{color:#c9fffa;text-shadow:0 0 3px #010a0e,0 0 2px #010a0e;}
+  X.sk-3d #sk3d-l b.u{background:rgba(1,10,14,.9);color:#4ff0e0;border-color:#4ff0e0;text-shadow:none;}
+  X.sk-3d #sk3d-l i{background:rgba(1,10,14,.92);color:#c9fffa;border-color:#4ff0e0;}
+  /* the name: a dark pane hung from the top edge, its sides and foot lit, a brighter tick in each bottom corner, the format symbol in the light beside it
+     (Luke, 2026-11-05, "1, B"; title_tab.py). The same plate on every page that shows the name; the light theme's is its pale pane in a teal edge */
+  @media (min-width:641px){
+  X:not(.mobile) #title-bar #title-text:not(#_):not(#__){background:linear-gradient(var(--ho-ac),var(--ho-ac)) 0 100%/9px 2px no-repeat,linear-gradient(var(--ho-ac),var(--ho-ac)) 100% 100%/9px 2px no-repeat,var(--ho-bg) !important;
+    color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.8) !important;border-top:0 !important;border-radius:0 !important;box-shadow:var(--ho-glow) !important;
+    font-weight:500 !important;font-size:14px;letter-spacing:.2em;text-transform:uppercase;clip-path:none;translate:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syh) !important;}
+  X.dark:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syk) !important;}
+  }
+  /* the New timeline and Start new project tiles: a lit glass pane that shows the grid through it (Luke, 2026-11-05, "2, A": no dashed outline); the Import tile in the Scene panel the same */
+  X.alto-home .course-tile.new-tile:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;
+    border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;box-shadow:0 0 14px rgba(var(--ho-rgb),.22),inset 0 0 22px rgba(var(--ho-rgb),.12) !important;color:var(--ho-ac2);}
+  X.alto-home .course-tile.new-tile:hover:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:hover:not(#_):not(#__){border-color:var(--ho-ac) !important;
+    box-shadow:0 0 18px rgba(var(--ho-rgb),.4),inset 0 0 26px rgba(var(--ho-rgb),.2) !important;color:var(--ho-ac2);}
+  X #bg-panel .bg-tile.bg-add:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;
+    box-shadow:0 0 12px rgba(var(--ho-rgb),.22),inset 0 0 18px rgba(var(--ho-rgb),.12) !important;}
+  X #bg-panel .bg-tile.bg-add:hover:not(#_):not(#__),X #bg-panel .bg-tile.bg-add:focus-visible:not(#_):not(#__){border-color:var(--ho-ac) !important;box-shadow:0 0 16px rgba(var(--ho-rgb),.4),inset 0 0 22px rgba(var(--ho-rgb),.2) !important;}
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
@@ -298,7 +333,7 @@ def css() -> str:
     body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
-            f"  {sel}.dark:not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")
+            f"  :is({sel}.dark,{sel}.alto-stars.sk-real):not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")   # (the Star chart's sky is space in both themes)
     return "@media screen{\n" + _rt._slim(toks + _rt.scoped(body, sel)) + "\n}"
 
 
@@ -310,7 +345,8 @@ HOMEB
 var PN={timeline:'Timeline',lanes:'Timeline · Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Memory Blueprint',world:'Memory Atlas'}, MAXT=40, pmo=null, praf=0, pio=null, rz=0;
 function pel(c,t){ var e=document.createElement(t||'div'); if(c) e.className=c; return e; }
 function desk(){ return !r.classList.contains('mobile') && window.innerWidth>640; }   // (the home page's phone layout is the media query's, 640 and under)
-function plive(){ return r.classList.contains('alto-holo') && r.classList.contains('alto-home') && desk(); }
+function phone(){ return Math.min(screen.width,screen.height)<=500; }   // (a phone, either way up: its own light/dark button, no moving projector)
+function plive(){ return r.classList.contains('alto-holo') && r.classList.contains('alto-home') && desk() && !phone(); }
 function pun(t){
   var em=t.querySelector('.tile-emblem');
   [].slice.call(t.querySelectorAll('.hp-scan')).forEach(function(n){ n.remove(); });
@@ -359,10 +395,12 @@ function hdark(on){
 }
 function hsync(){
   if(!r.classList.contains('alto-holo')) return;
-  hdark(desk());
+  hdark(desk() && !phone());   // (turning a phone must not flip its theme: dark in landscape, light in portrait, was Luke's "loses the dark theme and the background" after a rotation)
   var H=window._altoRetroHome;
-  if(plive()){ if(H) H.on(); pwatch(); proj(); }
-  else { punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); if(H && !r.classList.contains('alto-retro')) H.off(); }
+  if(r.classList.contains('alto-home')){ if(H) H.on(); }   // (the plate's markup on a phone too: the skin's padding and grid are written for it)
+  else if(H && !r.classList.contains('alto-retro')) H.off();
+  if(plive()){ pwatch(); proj(); }
+  else { punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); }
 }
 function hoff(){
   hdark(0); punwatch(); [].forEach.call(document.querySelectorAll('.course-tile'), pun); r.classList.remove('hp-hid');

@@ -173,6 +173,26 @@ def test_the_button_stays_while_the_pointer_travels_to_it(browser, server):
         pg.context.close()
 
 
+def test_the_button_holds_still_under_a_resting_pointer(browser, server):
+    """Luke 2026-11-10: "focus mode runs away from the cursor". The hover grow scaled the button itself, place() read that scaled box
+    to undo the page zoom, and every 110 ms tick moved the button (up to ~13 px) away from a pointer resting on its edge, and back."""
+    pg = _open(browser, server, "outline")
+    try:
+        _enlarge(pg, "offer")
+        b0 = _btn(pg)
+        pg.mouse.move(b0["l"] - 120, b0["t"] + 14)
+        pg.mouse.move(b0["l"] + 2, b0["t"] + 14)                     # resting on the button's left edge
+        lefts = []
+        for _ in range(12):
+            pg.wait_for_timeout(110)
+            lefts.append(_btn(pg)["l"])
+        assert pg.evaluate("document.getElementById('af-btn').matches(':hover')")
+        assert max(lefts) - min(lefts) < 0.5 and abs(lefts[0] - b0["l"]) < 0.5, f"the button moved under the pointer: {b0['l']} -> {lefts}"
+        assert pg.evaluate("getComputedStyle(document.getElementById('af-btn')).transform") == "none", "hover scales the button itself"
+    finally:
+        pg.context.close()
+
+
 # ── holding a branch ──
 def test_outside_is_faded_untouchable_and_not_filter_dimmed(browser, server):
     pg = _open(browser, server, "outline")

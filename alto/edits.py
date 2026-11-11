@@ -386,6 +386,9 @@ def _target(key, brief, by_id, conns):
     # who is on the page at a main-line event: the whole list of line ids
     if kind == "n" and len(p) == 3 and p[2] == "present":
         return (by_id[p[1]], "present", "present") if p[1] in by_id else None
+    # a horizontal timeline's child node (lanes.py): the id of the event it is nested under, "" for none
+    if kind == "n" and len(p) == 3 and p[2] == "nest":
+        return (by_id[p[1]], "nest", "nest") if p[1] in by_id and brief.get("mode") == "lanes" else None
     if kind == "nd" and len(p) == 2:
         return (by_id[p[1]], None, "delnode") if p[1] in by_id else None
     if key == "fl|list":
@@ -1221,6 +1224,31 @@ def fold(store, uid, tid) -> "dict | None":
                     bx[at] = keep
             if not bx:
                 holder.pop("box_tags", None)
+        elif kind == "nest":
+            # nested under another event of a horizontal timeline (v), or taken out of it (""): the parent is an
+            # event on the same line, and a chain of parents never loops (the page checks the same before it asks)
+            cur = holder.get("nest") or ""
+            if cur == (v or ""):
+                already.append(k)
+                continue
+            if cur != (b or ""):
+                conflicts.append(k)
+                continue
+            if v:
+                tgt, seen = by_id.get(v), {holder["id"]}
+                ok = tgt is not None and (tgt.get("line") or "") == (holder.get("line") or "")
+                while ok and tgt is not None:
+                    if tgt["id"] in seen:
+                        ok = False
+                        break
+                    seen.add(tgt["id"])
+                    tgt = by_id.get(tgt.get("nest") or "")
+                if not ok:
+                    conflicts.append(k)
+                    continue
+                holder["nest"] = v
+            else:
+                holder.pop("nest", None)
         elif kind == "present":
             # the characters on the page at a main-line event: compared as a set,
             # kept in the brief's line order

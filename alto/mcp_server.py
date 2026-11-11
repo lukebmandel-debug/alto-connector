@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.218"
+__version__ = "1.9.220"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1050,10 +1050,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
      hub_look?: 'stars'|'hub' (System only; default 'stars'): the look a
-      viewer sees FIRST. Every System page carries all its styles of the same
+      viewer sees FIRST. Every System page carries both views of the same
       content and the same orbit layout, and one switch in the page (System |
-      Star chart | Retro | 3D Star chart) flips them instantly, with no rebuild (the viewer's choice is
-      remembered for that timeline): HUB = System (concentric orbit rings,
+      Star chart) flips them instantly, with no rebuild (the viewer's choice is
+      remembered for that timeline; Retro and Holographic are looks in Scene > Style): HUB = System (concentric orbit rings,
       spokes, circles with number and title in Alto's usual glass look) and
       STARS = the Star chart (the same rings with realistic space graphics and
       spaceflight-style travel between bodies). In both the planets, moons and
@@ -1430,7 +1430,14 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
      the material does not say. Main-line events only: `present`: [line ids] — who is on
      the page in this scene; `flash`: a flashback id (declared in the brief,
      or with set_lines) when the story tells this event out of time — a
-     flashback's events must be consecutive on the main line)}.
+     flashback's events must be consecutive on the main line). `nest`
+     (mode 'lanes'): the id of the event this one is NESTED under — a child
+     drawn tucked behind its parent ("n inside"), and outline-style beyond it
+     in the Expanded view. ONLY when the user said yes to it: you may OFFER
+     it when an event has the same date as another, is clearly derived from
+     it and the user's own notes link them, but you never nest by yourself,
+     never write a child the notes do not hold, and the child is on its
+     parent's line (a child never crosses the line); omit it otherwise)}.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
     head a section "Text" unless it is a quote — head it for what it is.
@@ -1510,7 +1517,9 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
         warnings = validate_nodes(b, all_nodes)
     except BriefError as e:
         return {"error": "invalid_nodes", "message": str(e),
-                "hint": "fix the listed node and resend just that node"}
+                "hint": ("add the unit first with set_units, then resend the node"
+                         if " out of range " in str(e) and ": act " in str(e)
+                         else "fix the listed node and resend just that node")}
     except TypeError as e:      # a field no node has (e.g. `lot`, `summary`)
         return {"error": "invalid_nodes", "message": f"a node has a field Alto does not know: {e}",
                 "hint": "send only the fields listed in add_nodes's description"}
@@ -1635,6 +1644,118 @@ def set_flags(timeline_id: str, flags: list[dict],
         st.put_nodes(uid(), timeline_id, rebuilt)
     counts = {f: sum(1 for n in all_nodes if f in n.flags) for f in fids}
     return {"ok": True, "flags": counts, "warnings": warnings}
+
+
+@mcp.tool(title="Add or rename units", annotations=RW)
+@accounted
+def set_units(timeline_id: str, add: list[dict] | None = None,
+              update: list[dict] | None = None) -> dict:
+    """Add units (sections / acts / bands) to an existing timeline, or change a
+    unit's label, short name, colour or Overview summary. No limit on how many
+    units a timeline has. Nodes are never touched: existing nodes keep their
+    `act` index, so new units are always appended at the end.
+
+    add: [{label, short?, color?, summary?}] — appended in order; the reply
+    gives each new unit's `act` index for add_nodes. update: [{act, label?,
+    short?, color?, summary?}] — only the fields sent change. A new unit needs
+    its hub card (a node with no `parent`, in outline mode) before the build.
+    set_overview(section_summaries=...) then takes one entry per unit, new
+    ones included."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    add, update = add or [], update or []
+    if not add and not update:
+        return {"error": "nothing_to_do", "message": "send `add` and/or `update`"}
+    acts = [dict(a) for a in (doc["brief"].get("acts") or [])]
+    keys = ("label", "short", "color", "summary")
+    for u in update:
+        i = u.get("act") if isinstance(u, dict) else None
+        if not isinstance(i, int) or not 0 <= i < len(acts):
+            return {"error": "invalid_units",
+                    "message": f"update act {i!r} out of range (0-{len(acts)-1})"}
+        acts[i].update({k: u[k] for k in keys if k in u})
+    first_new = len(acts)
+    for a in add:
+        if not isinstance(a, dict) or not str(a.get("label") or "").strip():
+            return {"error": "invalid_units", "message": "every added unit needs a label"}
+        acts.append({k: a[k] for k in keys if k in a})
+    brief = {**doc["brief"], "acts": acts}
+    try:
+        load_brief({"brief": _checked(doc, brief)})
+    except (BriefError, TypeError) as e:
+        return {"error": "invalid_units", "message": str(e)}
+    doc["brief"] = brief
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"ok": True,
+            "units": [{"act": i, "label": a.get("label")} for i, a in enumerate(acts)],
+            **({"added": list(range(first_new, len(acts))),
+                "next": "add each new unit's hub node (no parent) with add_nodes"} if add else {})}
+
+
+@mcp.tool(title="Add sources to the materials list", annotations=RW)
+@accounted
+def add_sources(timeline_id: str, sources: list[dict]) -> dict:
+    """Append new materials (notes, readings) to a timeline's existing source
+    list — a list update, not a new consent: it works only on a timeline whose
+    materials consent was already recorded, and leaves that consent as it is.
+    Entries are upserted by `id` (same fields as record_materials_consent:
+    id, name, kind, url?, local?); entries not sent are kept unchanged."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    if not _consent_ok(doc):
+        return {"error": "no_consent",
+                "message": "no materials consent recorded yet — use "
+                           "record_materials_consent first"}
+    if not sources or not all(isinstance(s, dict) and s.get("id") and s.get("name")
+                              for s in sources):
+        return {"error": "invalid_sources", "message": "each source needs an id and a name"}
+    sources, local_report = _resolve_local(sources)
+    old = list(doc["consent"].get("sources") or [])
+    by_id = {s.get("id"): i for i, s in enumerate(old) if isinstance(s, dict)}
+    added, updated = [], []
+    for s in sources:
+        if s["id"] in by_id:
+            old[by_id[s["id"]]] = s
+            updated.append(s["id"])
+        else:
+            old.append(s)
+            added.append(s["id"])
+    doc["consent"] = {**doc["consent"], "sources": old}
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"ok": True, "added": added, "updated": updated, "count": len(old),
+            **({"local_files": local_report} if local_report else {})}
+
+
+@mcp.tool(title="Get nodes", annotations=RO)
+@accounted
+def get_nodes(timeline_id: str, ids: list[str] | None = None,
+              act: int | None = None, fields: list[str] | None = None) -> dict:
+    """The stored content of a timeline's nodes (title, desc, tag, parent,
+    act, sections, filters, axis values, sources ...), so an incremental
+    session can follow the existing cards' conventions. ids: only these nodes;
+    act: only the nodes in that unit; fields: only these keys (id is always
+    kept). With none of them every node is returned in full."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    _fold_edits(timeline_id)
+    nodes = [{k: v for k, v in n.items() if not k.startswith("_")}
+             for n in get_store().list_nodes(uid(), timeline_id)]
+    if ids:
+        want = set(ids)
+        missing = sorted(want - {n["id"] for n in nodes})
+        nodes = [n for n in nodes if n["id"] in want]
+    else:
+        missing = []
+    if act is not None:
+        nodes = [n for n in nodes if n.get("act") == act]
+    if fields:
+        keep = set(fields) | {"id"}
+        nodes = [{k: v for k, v in n.items() if k in keep} for n in nodes]
+    return {"count": len(nodes), "nodes": nodes,
+            **({"missing": missing} if missing else {})}
 
 
 def _feature_gate(feature: str):
@@ -3313,9 +3434,11 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
 
 @mcp.tool(title="Get timeline state", annotations=RO)
 @accounted
-def get_timeline(timeline_id: str) -> dict:
+def get_timeline(timeline_id: str, compact: bool = False) -> dict:
     """Full draft state for resuming: brief, consent, node ids, connection
-    count, status, urls."""
+    count, status, urls. compact=true trims the brief to a summary (each axis
+    value as {id, name}, overview_html as its length) — use it to look around
+    a large timeline; get_nodes gives the nodes' content."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -3331,7 +3454,7 @@ def get_timeline(timeline_id: str) -> dict:
         **({"manual_edits": edits} if edits else {}),
         "timeline_id": timeline_id,
         "project_id": doc.get("project_id"),
-        "brief": _brief_out(doc.get("brief")),
+        "brief": (_brief_compact if compact else _brief_out)(doc.get("brief")),
         "consent": doc.get("consent"),
         "node_ids": [n["id"] for n in nodes],
         "connection_count": len(conns),
@@ -3339,6 +3462,24 @@ def get_timeline(timeline_id: str) -> dict:
         "urls": doc.get("urls", {}),
         **_completeness(doc, nodes, conns),
     }
+
+
+def _brief_compact(brief):
+    """get_timeline(compact=True): the brief without its bulk."""
+    b = _brief_out(brief)
+    if not isinstance(b, dict):
+        return b
+    b = dict(b)
+    if b.get("axes"):
+        b["axes"] = [{**{k: v for k, v in a.items() if k != "values"},
+                      "values": [{"id": v.get("id"), "name": v.get("name")}
+                                 for v in (a.get("values") or []) if isinstance(v, dict)]}
+                     for a in b["axes"] if isinstance(a, dict)]
+    if b.get("overview_html"):
+        b["overview_html"] = f"<{len(b['overview_html'])} chars>"
+    for k in ("index_sections",):
+        b.pop(k, None)
+    return b
 
 
 def _brief_out(brief):

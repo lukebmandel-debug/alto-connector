@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import backgrounds, home_look
+from . import backgrounds, home_look, title_tab
 from .brief import Brief, PALETTE, period_words
 from .emit import emit
 from .sanitize import js_json
@@ -226,6 +226,11 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
   html.rw #title-bar:not(#_)::before{ content:''; position:absolute; left:0; right:0; top:-80px; bottom:0;
     z-index:-1; pointer-events:none; background:var(--header-glass-bg);
     -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  /* the chip row (profile, search, picker, info, theme) floats 11px under the bar: a frosted veil carries the bar's glass on under it, so a card's title is dimmed and blurred behind a chip
+     and not printed through it (Sim 1110b). Retro and Holographic paint their own ground there (retro.py HOME_CSS). */
+  html.rw:not(.alto-retro):not(.alto-holo) body:not(#_)::after{ content:''; position:fixed; left:0; right:0; top:calc(52px + env(safe-area-inset-top,0px)); height:58px; z-index:101; pointer-events:none;
+    background:linear-gradient(rgba(246,248,253,.8) 60%,rgba(246,248,253,0)); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  html.rw.dark:not(.alto-retro):not(.alto-holo) body:not(#_)::after{ background:linear-gradient(rgba(12,14,22,.8) 60%,rgba(12,14,22,0)); }
 }
 </style>"""
 
@@ -246,7 +251,7 @@ _HOME_LEGAL = (
 HOME_BG_KEY = "alto-bg-home-v1"
 # The homepage's title bar without its glass on a computer, as on every timeline (clear_top.py; Luke, 2026-10-22: "get rid
 # of the background of the top bar on the home page as well"): the background runs to the top of the window, the name keeps
-# a light frosted pad. html.alto-clear-top is set before the background script so a picture is drawn from the top
+# a hanging tab (title_tab.py). html.alto-clear-top is set before the background script so a picture is drawn from the top
 # (backgrounds.py inset()); a phone (max-width:640px) keeps its bar.
 _HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=window.matchMedia && matchMedia('(min-width:641px)'); r.classList.add('alto-home');
   function f(){ r.classList.toggle('alto-clear-top', !!(m && m.matches)); } f(); if(m && m.addEventListener) m.addEventListener('change', f); })();</script>
@@ -254,10 +259,8 @@ _HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=wind
 @media (min-width:641px){
   html.alto-clear-top #title-bar:not(#_){background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;border-color:transparent;pointer-events:none;}
   html.alto-clear-top #title-bar>*{pointer-events:auto;}
-  html.alto-clear-top #title-bar #title-text{--ct-g:color-mix(in srgb,var(--surface,#fff) 42%,transparent);background:var(--ct-g);border-radius:999px;
-    box-shadow:0 0 0 6px var(--ct-g);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);}
 }
-</style>"""
+</style><style id="alto-title-tab">""" + title_tab.home_css() + """</style>"""
 _HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=True) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
     "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim, #bg-panel")
 # Reports had none of the runway, and not even viewport-fit=cover until a
@@ -267,6 +270,7 @@ _HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=
 _REPORTS_RW_HEAD_OLD = '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
 _REPORTS_RW_HEAD_NEW = ('<meta name="viewport" content="width=device-width, initial-scale=1.0, '
                         'viewport-fit=cover">' + backgrounds.head_block(HOME_BG_KEY)
+                        + '<style id="alto-title-tab">' + title_tab.home_css() + "</style>"
                         + _rw_head("#reports-wrap", _REPORTS_RW_FIXED, "#account-scrim, #bg-panel"))
 _HOME_RW_TAIL_OLD = "</body>"
 _HOME_RW_TAIL_NEW = home_look.CSS + runway_script() + "</body>"
