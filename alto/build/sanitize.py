@@ -574,6 +574,11 @@ def sanitize_brief(b, nodes=None) -> list:
                 from .study import sanitize_study
                 s.cards, s.quiz = copy.deepcopy(s.cards), copy.deepcopy(s.quiz)   # the stored dicts stay as they were
                 sanitize_study(s)
+            if getattr(s, "photos", None):
+                from .photos import sanitize_items
+                s.photos = copy.deepcopy(s.photos)
+                s.photos["items"] = sanitize_items(s.photos.get("items"))
+                s.photos["label"] = plain_text(s.photos.get("label") or "").strip()
 
     b.title = plain_text(b.title)
     b.subject = plain_text(b.subject)
@@ -642,6 +647,9 @@ def sanitize_brief(b, nodes=None) -> list:
         n.desc = plain_text(n.desc)
         n.color = css_color(n.color, "") if n.color else ""
         sections(n.sections, f"node {n.id}")
+        if getattr(n, "photos", None):
+            from .photos import sanitize_items
+            n.photos = sanitize_items(n.photos)
 
     setattr(b, _FLAG, True)
     warnings = ov_warnings + sec_warnings

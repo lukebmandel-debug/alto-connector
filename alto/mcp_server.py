@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.220"
+__version__ = "1.9.221"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1463,6 +1463,14 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     every card, question, answer and explanation must be grounded in their notes
     — never outside knowledge. Offer a quiz or cards for outline concepts; see
     the guide's "Flash cards and quizzes". A bad one is refused with the reason.
+    PICTURES (the owner's own files only): a section's `photos: {items: [{ref,
+    caption?, alt?}], label?}` and a card's `photos: [{ref, caption?, alt?}]` hold
+    the names (`pic-…`) of pictures the owner has ADDED to their account, in Edit
+    mode on the page ("+ Add a section" > Photos, or Add pictures on a card). Read
+    them with get_timeline and keep them when you rewrite a section or a card —
+    leaving `photos` out removes the pictures from it. Never invent a `ref`, and
+    never search for, draw or attach a picture: Alto adds only files the owner
+    gives it, and Claude cannot add one yet.
     §0: title/desc/sections are authored VERBATIM from the user's materials —
     never fill gaps, never collapse multi-item arcs into one node.
     `parent` (outline mode): the id of the concept that CONTAINS this one; omit
