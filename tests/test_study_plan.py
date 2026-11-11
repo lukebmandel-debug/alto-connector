@@ -428,3 +428,23 @@ def test_the_dark_toggle_keeps_the_day_tag_and_the_unit_label_even_after_the_pag
             assert pg.evaluate(st) == before, (style, pg.evaluate(st))
         assert not errs, errs
         b.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("w, h", [(390, 844), (844, 390)])
+def test_the_phone_menu_shows_no_unlabelled_tile_under_todays_plan(site_hosted, style, w, h):
+    """Sim 1107d D finding: under the Today's plan row the MENU showed a symbol-only tile (the "back to the timeline" tile, a no-op on the timeline itself). Every visible tile in the
+    drawer now carries a word, in the three looks, portrait and landscape (WebKit)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site_hosted + "/o.html", w=w, h=h, mobile=True)
+        pg.evaluate("localStorage.clear()"); pg.evaluate("window._altoStyle.set('%s')" % style); pg.wait_for_timeout(1000)
+        pg.evaluate("window.openNavDrawer()"); pg.wait_for_timeout(500)
+        rows = pg.evaluate("""()=>[...document.querySelectorAll('#nav-drawer-body .drawer-btn')].filter(b=>b.getBoundingClientRect().height>0).map(b=>{const l=b.querySelector('.drawer-label');return [b.id,(l?l.textContent:b.textContent).trim()]})""")
+        assert rows and rows[0][0] == "sp-today-row", rows
+        assert all(r[1] for r in rows), rows
+        # on a detail page the symbol tile is still there (it is how you go back)
+        pg.evaluate("document.documentElement.classList.add('detail-open')")
+        assert pg.evaluate("getComputedStyle(document.getElementById('drawer-timeline-btn')).display") != "none"
+        assert not errs, errs
+        b.close()

@@ -134,6 +134,7 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-pr{margin-top:10px;font-size:12px;color:var(--muted);} #sp-sheet .sp-pr textarea{width:100%;box-sizing:border-box;height:90px;margin-top:6px;font:inherit;font-size:12px;
     background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;resize:none;}
   @media (max-width:640px){ #sp-chip,#sp-row,html:not(.mobile) #sp-sheet,html:not(.mobile) .sp-tag{display:none !important;} .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;box-shadow:none !important;opacity:1 !important;} }
+  html.mobile:not(.detail-open) #drawer-timeline-btn{display:none !important;}   /* the MENU's symbol-only "back to the timeline" tile does nothing on the timeline itself and read as an unlabelled tile under Today's plan (Sim 1107d D, finding) */
   @media print{ .node.sp-today > .node-card,.node.sp-soon > .node-card,.node.sp-late > .node-card,.node.sp-done > .node-card{outline:0 !important;opacity:1 !important;} .sp-tag,#sp-chip,#sp-row,#sp-sheet{display:none !important;} }
 </style>"""
 
