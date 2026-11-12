@@ -281,7 +281,10 @@ def site(timeline, tmp_path_factory):
 
         def log_message(self, *a):
             pass
-    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    # threaded: WebKit keeps a connection open (keep-alive, a picture still streaming) while it asks for the next page; a one-at-a-time server
+    # then answers nothing and Page.goto times out at 30 s (the "5 extra WebKit goto timeouts", Testing-2 1105-191922; main had them too)
+    srv = socketserver.ThreadingTCPServer(("127.0.0.1", 0), H)
+    srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     _SITES[f"http://127.0.0.1:{srv.server_address[1]}"] = str(d)
     yield f"http://127.0.0.1:{srv.server_address[1]}", timeline[1]

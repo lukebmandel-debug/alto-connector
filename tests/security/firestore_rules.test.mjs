@@ -169,6 +169,25 @@ test('Alice reads, lists, writes and deletes her own data', async () => {
   await assertFails(db.doc('bass_beta/allowlist').get());
 });
 
+test("a timeline's chip bar choice (chips, chipsAt) syncs for its owner only", async () => {
+  // alto-cloud.js merges { chips, chipsAt, updatedAt } into users/{uid}/tl/{tid}
+  // next to bg/bgAt; a whole-timeline save carries them too.
+  const fields = { chips: 'off', chipsAt: 1762380000000, updatedAt: ts() };
+  await assertSucceeds(who.alice.doc('users/alice/tl/t1').set(fields, { merge: true }));
+  await assertSucceeds(who.alice.doc('users/alice/tl/t2').set({ highlights: '[]', bg: 'h-rain', bgAt: 1, ...fields }));
+  const got = await assertSucceeds(who.alice.doc('users/alice/tl/t1').get());
+  assert.equal(got.data().chips, 'off');
+  assert.equal(got.data().highlights, '[]');
+  for (const w of OTHERS) {
+    await assertFails(who[w].doc('users/alice/tl/t1').set(fields, { merge: true }));
+    await assertFails(who[w].doc('users/alice/tl/t1').update({ chips: 'on', chipsAt: 2 }));
+    await assertFails(who[w].doc('users/alice/tl/t1').get());
+  }
+  // Bob writes his own, not Alice's; Carol (off the allowlist) writes neither.
+  await assertSucceeds(who.bob.doc('users/bob/tl/t1').set(fields, { merge: true }));
+  await assertFails(who.carol.doc('users/carol/tl/t1').set(fields, { merge: true }));
+});
+
 test('Alice creates, updates and revokes a share; the owner never changes', async () => {
   const db = who.alice;
   const b = db.batch();

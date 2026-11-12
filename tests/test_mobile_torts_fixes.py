@@ -77,6 +77,7 @@ def test_reports_runs_behind_safaris_bars_like_home():
     r, h = build_reports([], ""), build_home([])
     assert "viewport-fit=cover" in r.split("</head>", 1)[0]
     assert '<style id="alto-runway">' in r and "html.rw #reports-wrap:not(#_)" in r
-    assert "document.documentElement.classList.add('rw')" in r.split("</head>", 1)[0]
+    head = r.split("</head>", 1)[0]
+    assert "r.classList.toggle('rw', v)" in head and "matchMedia('(max-width:640px)')" in head
     assert "function pin(" in r.rsplit("</body>", 1)[0].rsplit("<div id=\"reports-wrap\"", 1)[1]
     assert "html.rw #projects-wrap:not(#_)" in h

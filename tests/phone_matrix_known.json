@@ -1,0 +1,37 @@
+{
+ "_how": "rows: fail = the fault is present today (any cell), pass = absent. Flip a line when a chunk fixes (or breaks) a row; see tests/test_phone_matrix.py",
+ "rows": {
+  "C1": "pass",
+  "C2": "pass",
+  "C3": "pass",
+  "E1": "pass",
+  "E5": "pass",
+  "F1": "pass",
+  "F2": "pass",
+  "F5": "pass",
+  "F6": "fail",
+  "H1": "pass",
+  "H2": "fail",
+  "W2": "pass",
+  "W3": "pass",
+  "W4": "pass"
+ },
+ "not_covered": {
+  "E2": "Simulator only: Safari's status-bar and bottom-bar strips and the 4 pt side gaps do not exist in WebKit emulation (audit sec. 3 note)",
+  "E3": "Simulator only: the gold frame foot sits above Safari's bottom bar; WebKit has no bars",
+  "E4": "Simulator only: the white band under Home at the foot appears with Safari's collapsed bar",
+  "E6": "Not an Alto fault, probably the Simulator drawing the Dynamic Island; a 10-minute blank-page check in the Simulator (chunk 0), nothing to measure in WebKit",
+  "E7": "Needs a pixel look at the last unit's tint against the screen foot; layout boxes do not show it. Left for a shot diff",
+  "C4": "Needs the study plan's DONE tags (seeded plan state) and a Dark toggle from MENU; not in the samples",
+  "C5": "Needs the Today's plan sheet (seeded study plan) and a tap on a name; not in the samples",
+  "C6": "A one-second timing fault on the real first tap after load; WebKit emulation timing is not the phone's",
+  "W1": "The unit header text is drawn in the board's canvas and the chip boxes report no overflow; needs a pixel check (sim1107d S7 still rests on the Simulator)",
+  "W5": "Stray bullet dots and the Holo clef sliver are painted ornaments; needs a pixel check",
+  "F3": "WebKit cannot draw the System's 3D bodies (audit sec. 6): re-shoot in the Simulator first, as the audit says",
+  "F4": "Not reproduced: the sample Atlas (Peru, USA, Brazil) shows no label cut at the left edge in WebKit; the audit's cut rests on the full atlas-world page. Re-check with that build",
+  "F7": "Needs a rotation re-fit probe of the city map and the Blueprint walk-in; the city and Blueprint pages are in the matrix (10 pages) but no rotation/walk-in step yet. Kept as a Simulator row",
+  "H3": "A design decision to record, not a measurement"
+ },
+ "_chunk6": "W3 and W4 pass since chunk 6 (C2, phone_index.py): the whole view of a timeline or an outline opens on the unit index (no text under 11 px, no split word). The matrix measures the page as it opens; the fitted board is still one pinch out and is as it was there (W3's mid-word splits and W4's small titles are the board's own, checked with &ix=0 in tests/test_phone_shell.py and test_phone_whole.py).",
+ "_chunk5": "C1, C3, W2, F5 and H1 pass since chunk 5 (landscape, Art 5-C): measured at the real visible boxes of a phone on its side (the b874 / b812 cells, 250 pt tall, Safari's bars up) as well as the full-height l874 / l812 ones; C1 is judged at the bar boxes only (at full height the card has the whole screen)."
+}

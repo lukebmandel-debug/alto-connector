@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.222"
+__version__ = "1.9.223"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -2433,7 +2433,7 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
 @mcp.tool(title="Set up a Memory Atlas", annotations=RW)
 @accounted
 def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: list[str] | None = None,
-                 level: str = "", clear: list[str] | None = None) -> dict:
+                 level: str = "", clear: list[str] | None = None, scope: str = "", country: str = "") -> dict:
     """Where the cards of a Memory Atlas (mode 'palace', palace_view 'world',
     §D-World) stand on the world map: a unit is a region, each of its concepts
     a country, and the cards under a concept cluster round it. Run it once the
@@ -2462,6 +2462,13 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     'cluster': the cards under a concept cluster round its country instead;
     'deep' is the default's old name. ('' keeps the stored one.)
     clear: node ids whose place should go back to the route.
+    scope: 'world' (the whole map, the default) or 'country' (a map of A country,
+    with its states or regions and major cities as the places; needs `country`).
+    The map offers two choices, World and A country; cards outside the chosen
+    country stay in the timeline and show again in World. '' keeps the stored one.
+    country: name or code of the country (United States, USA, US …). Only the
+    countries Art has signed are offered (world_plan.ATLAS_OFFERED): the United
+    States, Australia, Brazil, China, Indonesia, Russia, South Africa.
     The reply lists every unit's region and every stop's place."""
     err = _format_gate("world")
     if err:
@@ -2500,6 +2507,17 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     if bad:
         return {"error": "invalid_region", "message": f"not regions: {bad}; use one of " + ", ".join(n for n, _ in wp.REGIONS)}
     world = {"level": level or old.get("level") or "country", "places": given, "regions": regs}
+    sc = (scope or "").strip().lower()
+    if sc not in ("", "world", "country"):
+        return {"error": "invalid_scope", "message": f"scope {scope!r}: must be 'world' or 'country' (World or A country)"}
+    if sc == "country" or (country and sc != "world"):
+        cid = wp.atlas_country(country) if country else old.get("country")
+        if not cid:
+            return {"error": "country_needed", "message": "A country needs `country`: " + ", ".join(n for _, n in wp.offered_countries())
+                    + ". Only these countries have state or region data."}
+        world["country"] = cid
+    elif sc == "" and old.get("country"):
+        world["country"] = old["country"]
     new = {**brief, "palace_view": "world", "world": world}
     try:
         b, nodes, _ = load_brief({"brief": _checked(doc, new), "nodes": nodes_raw})

@@ -385,7 +385,7 @@ _JS = """
   // (the reports repository).
   window.__altoSwap = function(url){
     var u = String(url || '');
-    if(/^\\.?\\/?index\\.html/.test(u)){ window.top.location = '/'; return; }
+    if(/^\\.?\\/?index\\.html/.test(u)){ var qs = u.match(/\\?[^#]*/); window.top.location = '/' + (qs ? qs[0] : ''); return; }
     if(/^\\//.test(u)){ window.top.location = u; return; }
   };
 

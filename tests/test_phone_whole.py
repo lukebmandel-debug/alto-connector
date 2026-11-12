@@ -81,7 +81,7 @@ def test_the_phone_design_scripts_run_inside_the_mobile_window(pages):
 
 def test_the_hosted_layer_parses_and_keeps_its_parts():
     a = phone.ASSET
-    for part in ("gesturestart", "gesturechange", "gestureend", "alto-phone-chrome", "nav-drawer-body", "phone-whole.rw", "One card"):
+    for part in ("gesturestart", "gesturechange", "gestureend", "alto-phone-chrome", "nav-drawer-body", "One card"):
         assert part in a, part
     assert "ph-bar" not in a and "ph-sheet" not in a                                 # the v1.9.153 bar is gone
     assert "/*" not in a                                                            # comments are stripped at emit
@@ -251,7 +251,7 @@ def test_the_memory_map_opens_on_its_map_page(pg, site):
 
 
 def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
-    _go(pg, site + "/outline.html?view=whole")
+    _go(pg, site + "/outline.html?view=whole&ix=0")          # (ix=0: the board itself; the unit index that opens over it is tests/test_phone_whole_c2.py)
     s0 = pg.evaluate("window._altoPhone.ov.s")
     assert s0 < 1
     pg.evaluate(_PINCH, [195, 400, 100, 260])

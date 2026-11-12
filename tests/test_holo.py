@@ -143,6 +143,10 @@ def site(outline, tmp_path_factory):
     (d / "holo" / name).write_text(text, encoding="utf-8")
     name, text = retro.retro_asset()
     (d / "retro" / name).write_text(text, encoding="utf-8")
+    from alto.build import phone as _phone       # (the Whole view's hosted script)
+    name, text = _phone.phone_asset()
+    (d / "phone").mkdir(exist_ok=True)
+    (d / "phone" / name).write_text(text, encoding="utf-8")
     lib, js = bi.site_file()
     (d / lib).write_text(js, encoding="utf-8")
 
@@ -249,12 +253,48 @@ def test_the_bars_follow_the_top_bar_rule(browser, site):
     ctx.close()
 
 
-def test_a_detail_page_is_a_readout_column_on_a_computer_and_unchanged_on_a_phone(browser, site):
-    """Luke, 2026-11-05 (item 3, option A): no boxes, one centred column, a lit line beside each section and a lit diamond for the symbol, on an
-    outline page and a case page, text still at AA; a phone keeps the layout it has."""
+PHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
+
+def test_the_phone_whole_view_detail_page_is_the_readout_too(browser, site):
+    """Integration brief (Art PASS on 50de9edf + Luke's 3A pick + L-1105-160112): the Whole view (the desktop page on a phone, html.phone-whole) gets the
+    readout, not the older boxed look; the column is the Whole view's own (its gutters clear the edge tabs), no sideways scroll; light (portrait) and dark (landscape)."""
+    for w, h in ((390, 844), (844, 390)):
+        ctx = browser.new_context(viewport={"width": w, "height": h}, has_touch=True, is_mobile=True, user_agent=PHONE_UA)
+        pg = ctx.new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto(site + "/t.html")
+        pg.wait_for_timeout(300)
+        pg.evaluate("localStorage.clear()")
+        pg.goto(site + "/t.html?view=whole")
+        pg.wait_for_timeout(700)
+        pg.evaluate("window._altoStyle.set('holo')")
+        pg.wait_for_timeout(400)
+        assert pg.evaluate("document.documentElement.classList.contains('phone-whole')") is True
+        pg.evaluate("showDetail('node', 'offer')")
+        pg.wait_for_timeout(600)
+        q = lambda sel, prop: pg.evaluate("getComputedStyle(document.querySelector(%r)).%s" % (sel, prop))
+        assert q("#detail-content .detail-header", "flexDirection") == "column" and q("#detail-content .detail-header", "textAlign") == "center"
+        assert 0.9 < float(q("#detail-content .detail-section", "borderLeftWidth")[:-2]) < 1.5
+        assert q("#detail-content .detail-section", "backgroundColor") in ("rgba(0, 0, 0, 0)", "transparent") and q("#detail-content .detail-section", "boxShadow") == "none"
+        assert 70 < float(q("#detail-content .detail-symbol", "width")[:-2]) < 100
+        geo = pg.evaluate("(function(){ var p=document.getElementById('detail-page'), r=document.querySelector('#detail-content .detail-section').getBoundingClientRect();"
+                          " return [p.scrollWidth - p.clientWidth, r.left, innerWidth - r.right, r.width]; })()")
+        assert geo[0] <= 0 and geo[1] >= 14 and geo[2] >= 14 and geo[3] >= 240, geo
+        res = pg.evaluate(AUDIT_JS)
+        assert res["seen"] > 3 and not res["bad"], res["bad"][:4]
+        assert not errors, errors
+        ctx.close()
+
+
+def test_a_detail_page_is_a_readout_column_on_a_computer_and_on_a_phone(browser, site):
+    """Luke, 2026-11-05 (item 3, option A; "Yes to all phone" and the standing phone rule): no boxes, one centred column, a lit line beside each
+    section and a lit diamond for the symbol, on an outline page and a case page, text still at AA. A phone gets the same skin on the layout it
+    has: the same order, its own padding, no horizontal scroll."""
     for w, h in ((1400, 900), (390, 844)):
         phone = w < 500
-        ctx = browser.new_context(viewport={"width": w, "height": h}, has_touch=phone, is_mobile=phone)
+        ctx = browser.new_context(viewport={"width": w, "height": h}, has_touch=phone, is_mobile=phone, **({"user_agent": PHONE_UA} if phone else {}))
         pg = ctx.new_page()
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
@@ -262,15 +302,23 @@ def test_a_detail_page_is_a_readout_column_on_a_computer_and_unchanged_on_a_phon
         pg.wait_for_timeout(400)
         pg.evaluate("localStorage.clear(); window._altoStyle.set('holo')")
         pg.wait_for_timeout(400)
+        assert pg.evaluate("document.documentElement.classList.contains('mobile')") == phone
         for typ, ident in (("node", "offer"), ("env", "lucy-v-zehmer")):
             pg.evaluate("showDetail(%r, %r)" % (typ, ident))
             pg.wait_for_timeout(500)
             q = lambda sel, prop, i=0: pg.evaluate("getComputedStyle(document.querySelectorAll(%r)[%d]).%s" % (sel, i, prop))
             assert pg.evaluate("document.querySelectorAll('#detail-content .detail-section').length") >= 3
             if phone:
-                assert q("#detail-content .detail-header", "flexDirection") == "row"
-                assert q("#detail-content .detail-section", "borderLeftWidth") == "0px"
-                assert float(q("#detail-content .detail-symbol", "width")[:-2]) < 100
+                assert q("#detail-content .detail-header", "flexDirection") == "column"
+                assert q("#detail-content .detail-header", "textAlign") == "center"
+                assert 0.9 < float(q("#detail-content .detail-section", "borderLeftWidth")[:-2]) < 1.5
+                assert q("#detail-content .detail-section", "backgroundColor") in ("rgba(0, 0, 0, 0)", "transparent")
+                assert q("#detail-content .detail-section", "boxShadow") == "none"
+                assert 70 < float(q("#detail-content .detail-symbol", "width")[:-2]) < 100        # a smaller diamond than a computer's 124
+                assert pg.evaluate("[...document.querySelectorAll('#detail-content .detail-header, #detail-content .detail-section')].map(e => e.className.split(' ')[0]).slice(0, 2)") == ["detail-header", "detail-section"]
+                geo = pg.evaluate("(function(){ var p=document.getElementById('detail-page'); var r=document.querySelector('#detail-content .detail-section').getBoundingClientRect();"
+                                  " return [p.scrollWidth - p.clientWidth, r.left, innerWidth - r.right]; })()")
+                assert geo[0] <= 0 and geo[1] >= 14 and geo[2] >= 14, geo                        # no sideways scroll; nothing near the page edge
             else:
                 assert q("#detail-content .detail-header", "flexDirection") == "column"
                 assert q("#detail-content .detail-header", "textAlign") == "center"
@@ -279,12 +327,41 @@ def test_a_detail_page_is_a_readout_column_on_a_computer_and_unchanged_on_a_phon
                 assert q("#detail-content .detail-section", "boxShadow") == "none"
                 assert float(q("#detail-content .detail-symbol", "width")[:-2]) > 100
                 col = pg.evaluate("(function(){ var r=document.getElementById('detail-content').getBoundingClientRect(); return [r.width, r.left+r.width/2]; })()")
-                assert col[0] <= 900 and abs(col[1] - w / 2) < 3     # one centred column
+                assert col[0] <= 1400 and abs(col[1] - w / 2) < 3     # one centred column
             res = pg.evaluate(AUDIT_JS)
             assert res["seen"] > 8, res
             assert not [b for b in res["bad"] if "detail" in b["el"] or b["el"].startswith(("h3", "p", "span.ol", "div.ol", "div.detail"))], res["bad"][:12]
         assert not errors, errors
         ctx.close()
+
+
+@pytest.mark.parametrize("width", [700, 1100, 1440])
+def test_the_wide_detail_band_never_scrolls_sideways_on_a_computer(browser, site, width):
+    """Art look on 17-B (11 Nov 2026): the soft side fades of the wide band live in the column's own padding, so the page never scrolls sideways at any window
+    width (the first build's plate reached 132 px past the column: 12 px of scroll at 1100, 67 at 700), on a Holo background (where the plate is drawn) and on plain ground."""
+    ctx = browser.new_context(viewport={"width": width, "height": 900})
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear(); window._altoStyle.set('holo')")
+    pg.wait_for_timeout(400)
+    for bg in (None, "h-grid-horizon"):
+        if bg:
+            pg.evaluate("window._altoBg.choose(%r)" % bg)
+            pg.wait_for_timeout(300)
+        pg.evaluate("showDetail('env', 'lucy-v-zehmer')")
+        pg.wait_for_timeout(600)
+        pg.evaluate("document.getElementById('detail-page').scrollLeft = 500")
+        got = pg.evaluate("(function(){ var p=document.getElementById('detail-page'); return [p.scrollWidth - p.clientWidth, p.scrollLeft, document.documentElement.scrollWidth - innerWidth]; })()")
+        assert got[0] <= 0 and got[1] == 0 and got[2] <= 0, (width, bg, got)
+        if bg:
+            assert pg.evaluate("document.documentElement.classList.contains('alto-bg-h')")
+            plate = pg.evaluate("getComputedStyle(document.getElementById('detail-content'), '::before').backgroundImage")
+            assert "clamp(" in plate or "linear-gradient" in plate, plate
+    assert not errors, errors
+    ctx.close()
 
 
 def test_a_system_keeps_its_planets_round(browser, site):
@@ -596,10 +673,12 @@ def test_the_logo_turns_on_the_same_motion_budget_and_holds_still_under_reduced_
     css = holo.css()
     kf = re.search(r"@keyframes ho-logo\{(.*?)\}\}", css).group(1)
     assert "transform" in kf and not re.search(r"filter|box-shadow|width|height|top|left|margin|opacity", kf), kf
-    assert "ho-logo 10s linear infinite" in css            # the format symbols' 10 s turn
+    assert "ho-logo 10s ease-in-out -2.5s infinite" in css  # the 10 s period, eased at each end of the swing, starting facing front
+    # a swing of 55deg to each side, never a full turn: the clef is never edge-on (Board on Art's look at rel-223)
+    assert kf.replace(" ", "") == "0%,100%{transform:perspective(260px)rotateY(-55deg)}50%{transform:perspective(260px)rotateY(55deg)" and "rotateY(360deg)" not in css.split("ho-spin")[0]
     assert re.search(r"prefers-reduced-motion:reduce\)\{[^@]*brand-mark[^}]*animation:none", css)
     assert re.search(r"hp-hid #title-bar svg\.brand-mark[^{]*\{animation-play-state:paused", css)   # a hidden tab stops it (the phone clef too)
-    assert "translateY(-50%) perspective(260px) rotateY(360deg)" in css and "ho-logo-p" in css   # the phone clef keeps its centring while it turns
+    assert "@keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(-55deg)}50%{transform:translateY(-50%) perspective(260px) rotateY(55deg)}}" in css   # the phone clef keeps its centring while it swings
 
 
 @pytest.mark.parametrize("page", ["t", "h"])
@@ -614,7 +693,9 @@ def test_the_alto_marks_wear_the_light_and_the_clef_turns_on_a_computer_and_a_ph
         pg.evaluate("window._altoStyle.set('holo')")
         pg.wait_for_timeout(900)
         r = pg.evaluate(js)
-        assert r["anim"] == "ho-logo" and r["ghost"] and r["fill"] != 'url("#altoWordG")', (size, r)
+        # the clef's turn is the tube's now (holo_trace.py, tests/test_holo_trace.py): the page's own glyph is hidden under it and no longer turns
+        assert r["anim"] == "none" and r["fill"] != 'url("#altoWordG")', (size, r)
+        assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1 and pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).animationName") == "ho-tube", size
         pg.evaluate("window._altoStyle.set('classic')")
         pg.wait_for_timeout(300)
         r = pg.evaluate(js)
@@ -701,3 +782,13 @@ def test_every_toggle_wears_the_same_one_pixel_edge_on_a_computer_and_a_phone_ke
     pg.wait_for_timeout(700)
     assert "rgb(47, 167, 157) 0px 0px 0px 1px" not in pg.evaluate(js, "button,#search-btn,#info-btn")   # a phone's controls are as they were
     ctx.close()
+
+
+def test_short_viewports_get_the_firmer_toggle_frost_and_nothing_else_changes():
+    """Art 1111: #bg-toggle measured 2.60-2.86 against 3:1 at 874x402; 60% there (3.17-3.40), the picked 46% everywhere taller"""
+    src = (ROOT / "alto" / "build" / "holo.py").read_text(encoding="utf-8")
+    # one variable carries the frost for the toggles and the top label tab (Luke 2026-11-11): 46% by default, 60% on a short window
+    assert "X.alto-home{--ho-frost:.46;}" in src
+    assert re.search(r"@media \(max-height:500px\)\{ X\.alto-home\{--ho-frost:\.60;\} \}", src), "no short-viewport frost"
+    assert src.count("rgba(var(--ho-bgrgb),var(--ho-frost))") == 3    # the toggles (plain and chosen) and the tab, no literal beside it
+    assert "rgba(var(--ho-bgrgb),.46)" not in src and "rgba(var(--ho-bgrgb),.60)" not in src

@@ -852,7 +852,7 @@ UNIT_GLUE = """
         'bottom:calc(100% + 7px);text-align:center;pointer-events:none;' +
         'font:600 10px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;' +
         'letter-spacing:.2em;text-transform:uppercase;opacity:.9;' +
-        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        'white-space:normal;overflow-wrap:anywhere;}' +      /* (Luke 2026-11-06: a long unit title fell out of its header: it wraps, the header grows upward, nothing is cut) */
         'html.mobile .node-unit.in-card{position:static;text-align:left;margin:0 0 6px;opacity:.8;}' +
         'html.printing .node-unit{display:none !important;}';
       document.head.appendChild(st);

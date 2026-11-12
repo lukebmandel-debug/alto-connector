@@ -27,7 +27,7 @@ try:
 except ImportError:
     pw = None
 
-PAGE_BYTES_BEFORE = 1475530  # the same sample page built without flags (re-measured 2026-11-10 on the 1.9.221 candidate: photos adds ~4.2 KB to every timeline page; atlas+tour add 0 bytes over it)
+PAGE_BYTES_BEFORE = 1505915  # the same sample page built without flags (re-measured 2026-11-12 on alto-rel-223 58c7c673: 1,505,915 B raw, 415,767 B stored (gzip) of the 1,000,000 cap; the 1112 phone fixes (home toolbar colour, sideways home rules, shut-Overview rule) add 6,344 B raw, 1,891 B stored over 9d10f730's 1,499,571 / 413,876)
 
 
 # ── the data ──────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -690,6 +690,16 @@
   #nt-modal input:focus{ outline:2px solid var(--accent, #a78bfa); outline-offset:1px; }
   #nt-modal{ width:720px; }
   .nt-kinds{ display:flex; gap:10px; margin:0 0 18px; }
+  .nt-scope{ margin:0 0 14px; } .nt-scope .nt-kinds{ margin:0 0 10px; } .nt-scope .nt-pv{ aspect-ratio:2.4/1; }
+  .nt-scope .nt-pv .pv-land.pv-coast{ fill:var(--muted); fill-opacity:.07; stroke:var(--muted); }
+  .nt-kind, .nt-crow{ min-height:44px; }
+  .nt-clist input{ width:100%; height:40px; box-sizing:border-box; margin:0 0 6px; }
+  .nt-crows{ max-height:240px; overflow-y:auto; touch-action:pan-y; }
+  .nt-crow{ display:flex; align-items:center; justify-content:space-between; width:100%; min-height:44px; padding:0 12px; border:1px solid transparent; border-radius:10px; background:none; color:var(--text); font:inherit; font-size:13px; cursor:pointer; }
+  .nt-crow i{ font-style:normal; color:var(--muted); font-size:11px; } .nt-crow:hover{ border-color:var(--muted); }
+  .nt-crow.on{ border-color:var(--text); box-shadow:inset 0 0 0 1px var(--text); }
+  @media (max-width:640px){ .nt-crows{ max-height:36vh; } .nt-scope .nt-pv{ aspect-ratio:auto; } }
+
   .nt-kind{
     flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:10px 10px 11px; border-radius:12px;
     border:1px solid var(--btn-border); background:var(--card-glass-bg); color:var(--text); font-family:inherit;
@@ -750,7 +760,11 @@
     .nt-kind{ display:grid; grid-template-columns:104px 1fr; grid-template-rows:auto auto; column-gap:12px; row-gap:2px; align-items:center; }
     .nt-kind .nt-pv{ grid-row:1 / span 2; }
     .nt-kind .nt-t{ align-self:end; } .nt-kind small{ align-self:start; }
+    .nt-kind{ flex:none; min-height:min-content; }   /* column flex + flex-basis 0 collapsed each tile to 44px, so its text ran into the next row */
+    .nt-kind small{ overflow-wrap:anywhere; }
+    #nt-modal .nt-make{ position:sticky; bottom:0; z-index:2; height:44px; background:var(--surface,var(--bg)); box-shadow:0 -10px 10px -4px var(--surface,var(--bg)); }   /* Build stays on screen while the list scrolls */
   }
+  .nt-crow[hidden]{ display:none; }   /* .nt-crow's display:flex beat the hidden attribute, so the not-yet-signed countries showed */
   .nt-make{
     width:100%; height:38px; border-radius:10px; border:1px solid var(--btn-border); margin:0 0 8px; cursor:pointer;
     background:transparent; color:var(--text); font-family:inherit; font-size:13px; letter-spacing:.06em;
@@ -1083,6 +1097,16 @@
     </div>
     <div class="nt-modes" data-for="timeline" role="group" aria-label="Which timeline" hidden><button type="button" class="nt-mode on" data-mode="sketch" aria-pressed="true">Sketch</button><button type="button" class="nt-mode" data-mode="horizontal" aria-pressed="false">Horizontal</button></div>
     <div class="nt-modes" data-for="palace" role="group" aria-label="Which Memory Palace" hidden><button type="button" class="nt-mode on" data-mode="city" aria-pressed="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><path d="M4 20.5V10l5-2.5v13M9 20.5V4.5l6 2.5v13.5M15 20.5v-8l5 2.5v5.5"/><path d="M2.5 20.5h19"/></svg>Memory Map</button><button type="button" class="nt-mode" data-mode="building" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 10.5v7.5M9.5 10.5v7.5M14.5 10.5v7.5M18.5 10.5v7.5"/><path d="M3 20.5h18"/></svg>Memory Blueprint</button><button type="button" class="nt-mode" data-mode="world" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4 8.5 0 0 0 0 17a4 8.5 0 0 0 0-17M3.5 12h17"/></svg>Memory Atlas</button></div>
+    <div class="nt-scope" id="nt-scope" hidden>
+      <div class="nt-kinds nt-sck" role="group" aria-label="Where the Atlas is">
+        <button type="button" class="nt-kind on" data-scope="world" aria-pressed="true"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true"><use class="pv-land" href="#nt-atlas-land"/><use class="pv-coast" href="#nt-atlas-land" mask="url(#nt-atlas-m)" style="stroke-width:1.2"/><path class="pv-route" d="M66.6 41.3L101.0 36.6L114.9 47.8L164.9 44.3"/><circle class="pv-pin" cx="66.6" cy="41.3" r="2.7"/><circle class="pv-pin" cx="101.0" cy="36.6" r="2.7"/><circle class="pv-pin" cx="164.9" cy="44.3" r="2.7"/></svg><span class="nt-t">World</span><small>Every card on the whole map.</small></button>
+        <button type="button" class="nt-kind" data-scope="country" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true"><path class="pv-land pv-coast" d="M27.3 11L31.5 12.7L32 10L103.4 19.9L103.4 18.4L105 21.1L118.2 23.2L131.3 26.3L135.2 29.4L138.3 31.7L139.5 40.6L138.3 44.4L149.5 39.8L148.9 37.9L155.8 35.4L158.8 29.1L168.1 26.8L170 20.3L171.6 16.2L175.6 16.2L180.3 24.1L173.1 31.2L172.7 35.3L175.6 38.2L171.8 40.9L165.4 45.3L166.4 49.5L163.1 55.2L162.6 60.5L165.6 66.7L160 71.1L154.8 78.1L150.9 84.7L150.8 90.6L157.2 102.2L156.8 108.6L151.4 105.9L147.2 99.1L143.6 92.9L137.5 93.6L129.9 92L123.2 92.9L123.9 97.6L116.6 96.4L108.1 96L97.2 103.4L97.1 110L90.4 108.3L85.3 97.6L79.7 94.5L72.5 94.7L66.7 85.5L61.1 84.8L60.9 86.8L51.7 85.5L40.2 78.6L32.8 77L29.7 70.3L23.7 66.7L21.4 52.6L19.7 41.4L21.4 32L26.6 19.7Z"/><path class="pv-route" d="M32.5 15.8L125.5 46.6L103.4 95.2"/><circle class="pv-pin" cx="32.5" cy="15.8" r="2.7"/><circle class="pv-pin" cx="125.5" cy="46.6" r="2.7"/><circle class="pv-pin" cx="103.4" cy="95.2" r="2.7"/></svg><span class="nt-t">A country</span><small>One country, with its states or regions.</small></button>
+      </div>
+      <div class="nt-clist" id="nt-clist" hidden>
+        <input type="search" id="nt-cq" placeholder="Search countries" aria-label="Search countries" autocomplete="off">
+        <div class="nt-crows" role="listbox" aria-label="Country"><button type="button" class="nt-crow" role="option" data-iso="USA" data-name="United States" data-word="states"><span>United States</span><i>states</i></button><button type="button" class="nt-crow" role="option" data-iso="AUS" data-name="Australia" data-word="states"><span>Australia</span><i>states</i></button><button type="button" class="nt-crow" role="option" data-iso="BRA" data-name="Brazil" data-word="states"><span>Brazil</span><i>states</i></button><button type="button" class="nt-crow" role="option" data-iso="CAN" data-name="Canada" data-word="provinces"><span>Canada</span><i>provinces</i></button><button type="button" class="nt-crow" role="option" data-iso="CHN" data-name="China" data-word="provinces"><span>China</span><i>provinces</i></button><button type="button" class="nt-crow" role="option" data-iso="IND" data-name="India" data-word="states"><span>India</span><i>states</i></button><button type="button" class="nt-crow" role="option" data-iso="IDN" data-name="Indonesia" data-word="provinces"><span>Indonesia</span><i>provinces</i></button><button type="button" class="nt-crow" role="option" data-iso="RUS" data-name="Russia" data-word="regions"><span>Russia</span><i>regions</i></button><button type="button" class="nt-crow" role="option" data-iso="ZAF" data-name="South Africa" data-word="provinces"><span>South Africa</span><i>provinces</i></button></div>
+      </div>
+    </div>
     <div class="nt-msg" id="nt-msg"></div>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>
     <button type="button" class="dl-cancel" id="nt-cancel">Cancel</button>
@@ -1299,8 +1323,14 @@ const KIND_PHRASE = {
   building: 'a Memory Palace in a building (a Memory Blueprint: mode \'palace\', palace_view \'building\'): my outline inside one real building, a blueprint plus a walk through its rooms. Ask me which building, then use Alto\'s set_up_building',
   world: 'a Memory Palace on the world map (a Memory Atlas: mode \'palace\', palace_view \'world\'): my outline across the world, its sections regions and its concepts countries. Then use Alto\'s set_up_world to put each card where my notes place it'
 };
+let ntScope = { scope: 'world', iso: '', name: '' };       // Memory Atlas: World, or A country (its state data exists for 9)
+let ntRescope = '';                                          // the Atlas page's scope pill sent us here for ONE timeline: its title
+function scopeSentence(kind){
+  if(kind === 'world' && ntRescope) return ' This is my existing Memory Atlas "' + ntRescope + '": rebuild that same timeline with the scope I pick here (' + (ntScope.scope === 'country' && ntScope.iso ? 'a map of one country, ' + ntScope.name + ' (' + ntScope.iso + '): set_up_world with scope \'country\' and country \'' + ntScope.iso + '\'' : 'the whole world: set_up_world with scope \'world\'') + '), keeping its cards and notes.';
+  return kind === 'world' && ntScope.scope === 'country' && ntScope.iso ? ' It is a map of one country, ' + ntScope.name + ' (' + ntScope.iso + '): call set_up_world with scope \'country\' and country \'' + ntScope.iso + '\'.' : '';
+}
 function kindSentence(kind){
-  return KIND_PHRASE[kind] ? ' I\'ve already chosen the type: ' + KIND_PHRASE[kind] + '. Build that, and don\'t ask me to choose a type again.' : '';
+  return KIND_PHRASE[kind] ? ' I\'ve already chosen the type: ' + KIND_PHRASE[kind] + '.' + scopeSentence(kind) + ' Build that, and don\'t ask me to choose a type again.' : '';
 }
 function newProjectPrompt(kind){
   return 'I want to start a new project in Alto.' + kindSentence(kind) + ' If the Alto connector isn\'t connected here yet, ' +
@@ -1330,8 +1360,8 @@ function ntResolve(){
   return ntTile;
 }
 const ntLabel = () => (ntKind === 'palace' || ntKind === 'building' || ntKind === 'world') ? 'Build it with Claude' : 'Start writing';
-function ntOpen(projectName){
-  if(!altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt()); return; }
+function ntOpen(projectName, force){
+  if(!force && !altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt()); return; }
   const s = document.getElementById('nt-scrim');
   s.dataset.project = projectName || '';
   document.getElementById('nt-head').textContent = projectName ? 'New timeline' : 'New project';
@@ -1342,16 +1372,29 @@ function ntOpen(projectName){
   document.getElementById('nt-project').value = '';
   document.getElementById('nt-title').value = '';
   document.getElementById('nt-msg').textContent = '';
-  ntModes = { timeline: 'sketch', palace: 'city' };
-  ntPick('outline');
+  ntRescope = '';
+  ntModes = { timeline: 'sketch', palace: 'city' }; ntScope = { scope: 'world', iso: '', name: '' }; document.getElementById('nt-cq').value = ''; ntCountryFilter();
   const mk = document.getElementById('nt-make'); mk.disabled = false; mk.textContent = ntLabel();
+  ntPick('outline');
   s.classList.add('open');
   setTimeout(() => document.getElementById(projectName ? 'nt-title' : 'nt-project').focus(), 0);
+}
+// The scope pill on a Memory Atlas page lands here (?rescope=world|ISO&tl=Title): the normal set-up, prefilled for that timeline, with the scope picker.
+function ntRescopeOpen(sc, tl){
+  ntOpen('', true);
+  ntRescope = tl || 'this timeline';
+  document.getElementById('nt-head').textContent = 'What should this Atlas cover?';
+  document.getElementById('nt-sub').textContent = 'Pick the world or one country for ' + (tl ? '"' + tl + '"' : 'this Memory Atlas') + '. Claude rebuilds it from its own cards; nothing is lost.';
+  document.getElementById('nt-title').value = tl || '';
+  ntModes.palace = 'world'; ntPick('palace');
+  const row = sc && sc !== 'world' ? document.querySelector('#nt-clist .nt-crow[data-iso="' + sc.replace(/"/g, '') + '"]') : null;
+  ntScope = row ? { scope: 'country', iso: row.dataset.iso, name: row.dataset.name } : { scope: 'world', iso: '', name: '' };
+  ntScopeSync();
 }
 function ntClose(){ document.getElementById('nt-scrim').classList.remove('open'); }
 function ntPick(k){
   ntTile = k; ntKind = ntResolve();
-  document.querySelectorAll('#nt-modal .nt-kind').forEach(b => {
+  document.querySelectorAll('#nt-modal .nt-kinds:not(.nt-sck) .nt-kind').forEach(b => {
     b.classList.toggle('on', b.dataset.kind === k); b.setAttribute('aria-pressed', b.dataset.kind === k ? 'true' : 'false');
     if(ntModes[b.dataset.kind]) b.dataset.mode = ntModes[b.dataset.kind];
   });
@@ -1359,9 +1402,31 @@ function ntPick(k){
     r.hidden = r.dataset.for !== k;
     r.querySelectorAll('.nt-mode').forEach(m => { const on = m.dataset.mode === ntModes[r.dataset.for]; m.classList.toggle('on', on); m.setAttribute('aria-pressed', on ? 'true' : 'false'); });
   });
-  const mk = document.getElementById('nt-make'); if(mk && !mk.disabled) mk.textContent = ntLabel();
+  const mk = document.getElementById('nt-make'); if(mk) mk.textContent = ntLabel();
+  ntScopeSync();
 }
 function ntMode(tile, m){ ntModes[tile] = m; ntPick(tile); }
+// Memory Atlas scope row: World | A country (+ list of the 9 with state data). Shown only when the Atlas is the chosen mode.
+function ntScopeSync(){
+  const on = ntKind === 'world', sc = document.getElementById('nt-scope'); if(!sc) return;
+  sc.hidden = !on;
+  sc.querySelectorAll('.nt-kind').forEach(b => { const o = b.dataset.scope === ntScope.scope; b.classList.toggle('on', o); b.setAttribute('aria-pressed', o ? 'true' : 'false'); });
+  document.getElementById('nt-clist').hidden = ntScope.scope !== 'country';
+  sc.querySelectorAll('.nt-crow').forEach(r => { const o = r.dataset.iso === ntScope.iso; r.classList.toggle('on', o); r.setAttribute('aria-selected', o ? 'true' : 'false'); });
+  const mk = document.getElementById('nt-make'), msg = document.getElementById('nt-msg'), need = on && ntScope.scope === 'country' && !ntScope.iso;
+  if(mk){ mk.disabled = need; if(need) msg.textContent = 'Pick a country'; else if(msg.textContent === 'Pick a country') msg.textContent = ''; }
+}
+// THE ONE LIST of countries the picker offers; Art signs each, then add its iso3 here (and to ATLAS_OFFERED in world_plan.py).
+const NT_COUNTRIES_ON = ['USA', 'AUS', 'BRA', 'CHN', 'IDN', 'RUS', 'ZAF'];
+function ntCountryFilter(){
+  const q = document.getElementById('nt-cq').value.trim().toLowerCase();
+  document.querySelectorAll('#nt-clist .nt-crow').forEach(r => { r.hidden = NT_COUNTRIES_ON.indexOf(r.dataset.iso) < 0 || (!!q && (r.dataset.name + ' ' + r.dataset.word).toLowerCase().indexOf(q) < 0); });
+}
+ntCountryFilter();
+document.querySelectorAll('#nt-scope .nt-kind').forEach(b => b.addEventListener('click', () => { ntScope.scope = b.dataset.scope; ntScopeSync(); }));
+document.querySelectorAll('#nt-clist .nt-crow').forEach(r => r.addEventListener('click', () => { ntScope = { scope: 'country', iso: r.dataset.iso, name: r.dataset.name }; ntScopeSync(); }));
+document.getElementById('nt-cq').addEventListener('input', ntCountryFilter);
+
 function ntMake(){
   const s = document.getElementById('nt-scrim'), msg = document.getElementById('nt-msg');
   const inProject = s.dataset.project || '';
@@ -1386,7 +1451,7 @@ document.getElementById('nt-claude').addEventListener('click', () => {
   const p = document.getElementById('nt-scrim').dataset.project || '';
   ntClose(); openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind));
 });
-document.querySelectorAll('#nt-modal .nt-kind').forEach(b => b.addEventListener('click', () => ntPick(b.dataset.kind)));
+document.querySelectorAll('#nt-modal .nt-kinds:not(.nt-sck) .nt-kind').forEach(b => b.addEventListener('click', () => ntPick(b.dataset.kind)));
 document.querySelectorAll('#nt-modal .nt-mode').forEach(b => b.addEventListener('click', () => ntMode(b.closest('.nt-modes').dataset.for, b.dataset.mode)));
 document.getElementById('nt-scrim').addEventListener('click', e => { if(e.target.id === 'nt-scrim') ntClose(); });
 document.getElementById('nt-modal').addEventListener('keydown', e => {
@@ -2430,6 +2495,8 @@ function drawPrivate(all){
     _searchExtra('private', found);
   }
 }
+
+(function(){ try{ const q = new URLSearchParams(location.search), r = q.get('rescope'); if(r != null) setTimeout(() => ntRescopeOpen(r, q.get('tl') || ''), 400); }catch(e){} })();
 
 // ── Honor shared project links: index.html?project=NAME scrolls to that slab and
 // flashes it (the slab-share button copies exactly this URL — without a reader the

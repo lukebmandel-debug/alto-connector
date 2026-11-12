@@ -323,3 +323,30 @@ def test_the_world_opens_centred(browser, origin, size):
         assert not [e for e in errors if "ResizeObserver loop" not in e]                        # (WebKit's notice for the engine's card observer)
     finally:
         ctx.close()
+
+
+@pytest.mark.parametrize("size", [(750, 342, 0), (874, 292, 62), (812, 250, 48)])
+def test_the_world_on_a_phone_on_its_side_is_centred_below_the_header_row(browser, origin, size):
+    # 11 Nov (5-C's F5 + #19 merged): the first F5 fit put the world in the box between the header row and the Tour bar, 7 px off the map's middle and 0.669 of a 750 x 342
+    # map's height. It is the map's middle again, its top below the 44 pt row, its sides clear of the island's insets (the shell's --sh-left / --sh-right).
+    w, hgt, isl = size
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    ctx = browser.new_context(viewport={"width": w, "height": hgt}, user_agent=ua, has_touch=True)
+    if isl:
+        ctx.add_init_script("document.addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');"
+                            "s.textContent='#sh-probe{padding-left:%dpx!important;padding-right:%dpx!important}';document.head.appendChild(s);});" % (isl, isl))
+    page = ctx.new_page()
+    try:
+        page.goto(origin + "/index.html")
+        page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+        _settle(page, 1500)
+        r = page.evaluate("""(() => { var s = document.querySelector('#wpal-root .wp-sphere').getBoundingClientRect(), m = document.getElementById('wpal-root').getBoundingClientRect(),
+            n = document.getElementById('nav').getBoundingClientRect(), L = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sh-left')) || 0;
+            return {dx: (s.left + s.right) / 2 - (m.left + m.right) / 2, dy: (s.top + s.bottom) / 2 - (m.top + m.bottom) / 2, top: s.top, left: s.left, right: m.right - s.right,
+                    nav: Math.max(n.bottom, 44), isl: L, fill: s.height / m.height}; })()""")
+        assert abs(r["dx"]) <= 2 and abs(r["dy"]) <= 2, r
+        assert r["top"] >= r["nav"] + 4, r                                                      # nothing of the world under the header row
+        assert r["isl"] == isl and r["left"] >= isl + 12 and r["right"] >= isl + 12, r          # nor under the island
+        assert r["fill"] > (.7 if hgt >= 342 else .55), r
+    finally:
+        ctx.close()

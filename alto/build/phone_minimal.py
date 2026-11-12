@@ -64,15 +64,24 @@ P.detail-open :is(#hl-mode-btn,#notes-toggle)X{right:14px !important;left:auto !
 P.detail-open #notes-toggle X{bottom:calc(14px + env(safe-area-inset-bottom,0px)) !important;}
 P.detail-open #hl-mode-btn X{bottom:calc(70px + env(safe-area-inset-bottom,0px)) !important;}
 P.detail-open #pmin-find X{display:none !important;}
+/* a detail page's own FIND (the engine's tab on the left edge, a third of the way up: it sat on the first letters of the text, always; sim1111h) joins the other two:
+   the bottom-left corner, 14 pt in, NOTES' mirror, and it fades with them while the page is read */
+html.pmin.mobile.detail-open #search-toggle X{left:14px !important;bottom:calc(14px + env(safe-area-inset-bottom,0px)) !important;border-left:1px solid var(--border) !important;border-radius:6px !important;}
+html.pmin.mobile.detail-open:is(.alto-retro,.alto-holo) #search-toggle X{border-radius:0 !important;}
+html.pmin.mobile.detail-open #alto-back-prev X{max-width:calc(100vw - 140px) !important;}   /* (the pill between them: clear of FIND and of NOTES) */
 /* the horizontal timeline's step bar: low between the corners */
-html.pmin.phone-whole #lanes-nav X{left:70px !important;right:70px !important;width:auto !important;max-width:none !important;transform:none !important;bottom:calc(18px + env(safe-area-inset-bottom,0px)) !important;}
+/* (centred between the corner tiles, 70 px each side, and the island's insets; at most 360 px, so on its side it is a bar, not a 734 px rail) */
+html.pmin.phone-whole #lanes-nav X{left:50% !important;right:auto !important;width:min(360px,calc(100vw - 140px - var(--sh-left,0px) - var(--sh-right,0px))) !important;max-width:none !important;transform:translateX(-50%) !important;box-sizing:border-box !important;bottom:calc(18px + env(safe-area-inset-bottom,0px)) !important;}
 /* a Blueprint's or an Atlas's plan starts under the header (the tiles that sat there are gone) */
 WH #bldg-root :is(.bl-head,.bl-tabs){top:62px !important;}
 WH #bldg-root .bl-head{font-size:12px !important;padding:8px 12px !important;max-width:calc(100% - 96px) !important;}
 /* the fade */
-html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{transition:opacity .6s ease !important;}
-html.pmin.pmin-idle :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{opacity:0 !important;}
-@media (prefers-reduced-motion:reduce){html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#pal-mmap .pm-close)X{transition:none !important;}}
+/* (sim1111h A2: the first tap after the fade was swallowed, 4 of 4. Safari's tap-to-click watches for content that a touch makes VISIBLE and, when clickable content
+   appears, treats the touch as a hover and sends no click; to it "hidden" is display:none, visibility:hidden or opacity 0. The controls rest at .01, which no eye
+   sees and Safari does not count as hidden, so waking them is not "content appearing" and the tap that wakes them also acts) */
+html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#search-toggle,#pal-mmap .pm-close)X{transition:opacity .6s ease !important;}
+html.pmin.pmin-idle :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#search-toggle,#pal-mmap .pm-close)X{opacity:.01 !important;}
+@media (prefers-reduced-motion:reduce){html.pmin :is(C,#lanes-nav,#hl-mode-btn,#notes-toggle,#search-toggle,#pal-mmap .pm-close)X{transition:none !important;}}
 /* the search sheet: full screen, its field pinned at the top */
 P.msearch-open #m-search X{position:fixed !important;top:0 !important;bottom:auto !important;left:0 !important;right:0 !important;transform:none !important;width:auto !important;max-width:none !important;
   height:calc(60px + env(safe-area-inset-top,0px)) !important;padding:env(safe-area-inset-top,0px) 12px 0 !important;border-radius:0 !important;z-index:9001 !important;opacity:1 !important;
@@ -104,12 +113,74 @@ html.pmin.alto-solar #canvas:not(.focus-mode) :is(#solar-svg,#river-svg){opacity
 """
 
 
+# ── a phone held on its side (Luke 2026-11-11, Art sheet 1111b option 5-C; audit rows C1, C3, W2, F5, H1) ──
+# Safari's bars leave the page about 250 pt of 402; the portrait header (52 pt title row + 44 pt prev/next strip) and a card laid out like the portrait one used
+# most of it. On a phone on its side: ONE 44 pt header row (clef, previous name, title, next name, wordmark, all kept) and the one-card view's card laid out as a
+# two-page spread (unit, kind, title and the chips on the left, the text on the right at about 60 characters a line, scrolling inside its page), 16 pt clear of the
+# safe edges and clear of the two corner controls. The row is the page's own glass at its own place, never a painted bar. Portrait is not touched.
+LAND_MQ = "@media (orientation:landscape) and (max-height:480px)"
+LAND = r"""
+:root{--ls-l:max(var(--sh-left,0px),env(safe-area-inset-left,0px));--ls-r:max(var(--sh-right,0px),env(safe-area-inset-right,0px));--ls-cx:calc(var(--ls-l) + 66px);--ls-cy:calc(var(--ls-r) + 66px);}
+/* the header row: one 44 pt row */
+LH #nav@@{height:44px !important;min-height:0 !important;padding:0 !important;box-sizing:border-box !important;}
+LH #nav .brand-mark@@{translate:none !important;left:calc(var(--ls-l) + 16px) !important;right:auto !important;top:50% !important;height:34px !important;}
+LH #nav>svg:not(.brand-mark)@@{translate:none !important;right:calc(var(--ls-r) + 16px) !important;left:auto !important;top:50% !important;height:22px !important;}
+LH #nav .title@@{position:absolute !important;left:calc(50% + (var(--ls-l) - var(--ls-r)) / 2) !important;top:50% !important;transform:translate(-50%,-50%) !important;flex:none !important;width:auto !important;
+  max-width:24% !important;font-size:15px !important;line-height:1.2 !important;text-indent:0 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;margin:0 !important;padding:0 !important;}
+LH #timeline-label-bar@@{top:0 !important;height:44px !important;left:0 !important;right:0 !important;padding:0 var(--ls-r) 0 var(--ls-l) !important;box-sizing:border-box !important;background:none !important;border:0 !important;
+  box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;pointer-events:none !important;z-index:106 !important;}
+LH #timeline-label-bar :is(#tlb-prev,#tlb-next)@@{pointer-events:auto !important;min-width:0 !important;font-size:12px !important;}
+LH #tlb-prev@@{padding:0 10px 0 62px !important;}
+LH #tlb-next@@{padding:0 62px 0 10px !important;}
+LH #tlb-divider@@{flex:0 0 26% !important;width:26% !important;background:none !important;height:100% !important;pointer-events:none !important;}
+LH #timeline-label-bar .wrap-pill@@{max-width:100% !important;margin:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;}
+LH #summary-wrap@@{top:44px !important;}
+LH #summary-wrap.open@@{max-height:calc(100vh - 44px) !important;height:calc(100vh - 44px) !important;}
+/* the corner controls move in by the safe insets themselves (the shell's translate would add them twice) */
+LC :is(#pmin-find,#hamburger-tab)@@{translate:none !important;}
+LC #pmin-find@@{left:calc(var(--ls-l) + 14px) !important;}
+LC #hamburger-tab@@{right:calc(var(--ls-r) + 14px) !important;}
+/* the card: a spread, 16 pt clear of the safe edges and of the two corner controls, under the row */
+LC.focus-mode:not(.detail-open) .node.mobile-featured@@{left:calc(50% + (var(--ls-l) - var(--ls-r)) / 2) !important;top:calc(52px + (100dvh - 64px) / 2) !important;}
+LC.focus-mode .node.mobile-featured .node-card@@{box-sizing:border-box !important;width:calc(100vw - var(--ls-cx) - var(--ls-cy)) !important;height:calc(100dvh - 64px) !important;max-height:none !important;min-height:0 !important;
+  overflow:hidden !important;padding:12px 18px 12px !important;display:grid !important;grid-template-columns:minmax(0,38%) minmax(0,1fr);grid-template-rows:minmax(34px,auto) auto minmax(0,1fr) auto;column-gap:22px;align-content:stretch;}
+LC.focus-mode .node.mobile-featured .node-card>*@@{grid-column:1 / -1;min-width:0;}
+LC.focus-mode .node.mobile-featured .node-card>.node-unit@@{grid-column:1 / -1;grid-row:1;position:static !important;margin:0 0 4px !important;padding:0 170px 0 0 !important;letter-spacing:.1em !important;line-height:1.4 !important;}
+LC.focus-mode .node.mobile-featured .node-card>.node-tag@@{grid-column:1;grid-row:2;margin:0 0 4px !important;}
+LC.focus-mode .node.mobile-featured .node-card>.node-title@@{grid-column:1;grid-row:3;align-self:start;margin:0 !important;font-size:20px !important;line-height:24px !important;max-height:100%;overflow-y:auto;}
+LC.focus-mode .node.mobile-featured .node-card>.node-footer@@{grid-column:1;grid-row:4;align-self:end;margin:8px 0 0 !important;}
+LC.focus-mode .node.mobile-featured .node-card>.node-desc@@{grid-column:2;grid-row:2 / 5;align-self:stretch;max-height:none !important;height:auto !important;min-height:0;overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;padding:2px 0 0 !important;margin:0 !important;font-size:14px !important;line-height:1.55 !important;overscroll-behavior:contain;}
+LC.focus-mode .node.mobile-featured .node-card>.node-order@@{position:absolute !important;top:12px !important;right:18px !important;left:auto !important;}
+LC.focus-mode .node.mobile-featured .sp-tag@@{top:12px !important;right:124px !important;bottom:auto !important;}
+/* a detail page on its side (sim1111h): the text keeps clear of the island (its symbol and first letters were under it), and the "Back to" pill, which lay on the
+   first line of the summary on so short a screen, sits in the page's own empty top margin at the right */
+/* (sim1112a R1: --dp-il / --dp-ir tell a style what the page's side padding gained, so a plate laid behind the text column (Holo on one of its own backgrounds) can run on to the page's
+   edges under the island, as it does upright; inset, a 124 pt band of the bare scene rode between the two pages of a swipe) */
+/* (sim1112b S4: scrolled, FIND lay on the first letter of a heading and MARK touched the end of a line. FIND, MARK and NOTES stand 14 pt inside the insets and are up to 45 pt
+   wide: the text column runs between their two columns, 65 pt in from each inset, so nothing is ever under a tile wherever the page is scrolled to) */
+LC.detail-open #detail-page@@{--dp-il:calc(var(--ls-l) + 47px);--dp-ir:calc(var(--ls-r) + 47px);padding-left:calc(var(--ls-l) + 65px) !important;padding-right:calc(var(--ls-r) + 65px) !important;}
+/* (sim1112a: the names strip stood at the upright header's 52 pt under this 44 pt row: a pale 8 pt strip of bare ground between the two. It hangs from the row, and the page from it) */
+LC.detail-open #node-nav-bar@@{top:44px !important;}
+LC.detail-open #detail-page@@{top:86px !important;}
+LC.detail-open #alto-back-prev@@{--bp-page:1;position:absolute !important;left:auto !important;right:calc(var(--ls-r) + 18px) !important;bottom:auto !important;top:6px !important;transform:none !important;max-width:42vw !important;padding:8px 14px !important;}
+/* the focus button: in the card's top-right corner, between DONE and the number (it was above the card, on the strip) */
+LC #af-btn@@{left:auto !important;top:calc(52px + 5px) !important;right:calc(var(--ls-cy) + 74px) !important;}
+"""
+
+
 def _expand(css: str) -> str:
     """CSS's shorthand: P a phone page, WH a page seen whole, C the two controls, X the specificity that outranks the phone design."""
     css = _slim(css)
     for a, b in (("WH ", WH + " "), ("P.", P + "."), ("P ", P + " "), ("P:", P + ":"), (":is(C", ":is(" + C), (" X", X), (")X", ")" + X)):
         css = css.replace(a, b)
     return css
+
+def _land() -> str:
+    """The landscape rules (LAND), inside one media query: LC the one-card view, @@ the specificity that outranks the phone design."""
+    css = _slim(LAND).replace("LC", "html.pmin.mobile:not(.phone-whole)").replace("LH", "html.pmin:is(.mobile,.phone-whole)").replace("@@", X)
+    return LAND_MQ + "{\n" + css + "\n}"
+
 
 # The two controls' glyphs: a magnifier for FIND (the search sheet), the engine's three lines for MENU
 FIND_SVG = ('<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">'
@@ -169,7 +240,7 @@ if(rm.addEventListener)rm.addEventListener('change',wake);window.addEventListene
 window._altoPhoneMinApi={wake:wake,rest:rest,busy:busy,build:build};
 })();"""
 
-ASSET = _slim(JS.replace("__CSS__", _json.dumps(_expand(CSS))).replace("__FIND__", _json.dumps(FIND_SVG)))
+ASSET = _slim(JS.replace("__CSS__", _json.dumps(_expand(CSS) + "\n" + _land())).replace("__FIND__", _json.dumps(FIND_SVG)))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-phone-min-{V}.js"
 
