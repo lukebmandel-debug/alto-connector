@@ -7,7 +7,7 @@
    generalized to many timelines per user:
 
      users/{uid}                      — { theme, homeSort, homeSortAt, homeBg, homeBgAt }   (account-wide)
-     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, bg, bgAt, updatedAt }
+     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, bg, bgAt, chips, chipsAt, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
@@ -302,6 +302,7 @@
   const SORT_KEY = 'alto-home-sort-v1';       // the homepage's project order
   const HBG_KEY = 'alto-bg-home-v1';          // the homepage's (and reports') background: {v, t}
   let BG_KEY = TID ? `alto-hl-${TID}-bg` : null;   // this timeline's background: {v, t}
+  let CH_KEY = TID ? `alto-hl-${TID}-chips` : null; // this timeline's top chip bar, 'on' (open, the default) or 'off': {v, t}
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
   const RP_CAP = 25, TOMB_CAP = 800, TRASH_CAP = 200;
 
@@ -547,6 +548,25 @@
           }
         }
 
+        /* ---- this timeline's top chip bar, open or shut (the newest choice wins; none = open) ---- */
+        if (CH_KEY) {
+          let ls = null;
+          try { ls = JSON.parse(origGet(CH_KEY) || 'null'); } catch (e) {}
+          let rs = remoteMain && remoteMain.chipsAt
+            ? { v: String(remoteMain.chips || 'on'), t: Number(remoteMain.chipsAt) || 0 } : null;
+          // Only the expected shape is stored or pushed: 'on' | 'off' and a time no later than a day ahead; anything else is dropped.
+          const chOk = (o) => !!o && (o.v === 'on' || o.v === 'off') && isFinite(o.t) && o.t >= 0 && o.t < Date.now() + 864e5;
+          if (ls && !chOk({ v: ls.v, t: Number(ls.t) || Date.now() })) ls = null;
+          if (rs && !chOk(rs)) rs = null;
+          if (ls && (!rs || (Number(ls.t) || 0) > rs.t)) {
+            await setDoc(mainRef, { chips: ls.v, chipsAt: Number(ls.t) || Date.now(),
+                                    updatedAt: serverTimestamp() }, { merge: true });
+          } else if (rs && (!ls || rs.t > (Number(ls.t) || 0))) {
+            origSet(CH_KEY, JSON.stringify(rs));
+            try { window.dispatchEvent(new Event('alto-chips')); } catch (e) {}
+          }
+        }
+
         /* ---- highlights ---- */
         // A note still being typed (the "+" placeholder, flagged `pending`) stays
         // on this device until it is saved: other devices never see an empty note
@@ -667,7 +687,7 @@
     // (another tab signed someone in or out) must not write that data.
     if (this === localStorage && _blocked(k)) return;
     nativeSet.call(this, k, v);
-    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY || k === HBG_KEY || (BG_KEY && k === BG_KEY))) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY || k === HBG_KEY || (BG_KEY && k === BG_KEY) || (CH_KEY && k === CH_KEY))) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -1798,7 +1818,7 @@
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
     TID = tid; cloud.tid = tid;
-    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`; BG_KEY = `alto-hl-${tid}-bg`;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`; BG_KEY = `alto-hl-${tid}-bg`; CH_KEY = `alto-hl-${tid}-chips`;
     META_KEY = `alto-cloud-meta-v3-${tid}`;
     meta = loadMeta();
     if (cloud.user) subscribeTl(cloud.user);

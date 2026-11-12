@@ -1360,7 +1360,7 @@ _HDR_FN_NEW = r"""  // Ink for a header chip: the unit colour darkened (light) /
     span.textContent=text;
     el.appendChild(span);
     const cs=getComputedStyle(el);
-    const room=()=>el.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+    const room=()=>Math.min(el.clientHeight,56)-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);   // (the 56 px box: a grown header, _altoHX, must not change the fit)
     const MAXW=560, WIDTHS=[208,260,320,400,480,MAXW];
     function fitted(){
       return span.offsetHeight<=room()+0.5 && span.scrollWidth<=span.clientWidth+0.5;
@@ -1846,6 +1846,10 @@ _RW_FIXED = ("#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-labe
              "#timeline-return-pill, #wrap-warn-bar, #alto-icon-tip, #m-search, #m-search-results, "
              "#share-dialog, #account-btn, #account-scrim, #msp, #search-toggle, #ef-panel, "
              "#filter-toggle, #bg-panel, #bg-toggle")
+# #summary-wrap:not(.open) (Luke, 2026-11-12, his iPhone, the Memory Atlas: "a line that shouldn't be on top of the screen ... covering the globe,
+# and I've seen it in other formats as well"): on a phone the shut Overview is an accordion 0 px tall under the bars, and its own border (Classic
+# 1 px, Retro and Holo 2 px, Retro with a 4 px black ring) was a rule across the whole screen at 96 pt (44 pt on its side), over whatever came up
+# under it: an Atlas card, a detail page. Shut, it paints nothing (the box and its place stay: phone.py and phone_index.py measure from it).
 # body overflow-x:clip: the closed panels wait just off the right edge, and as
 # part of the page they made it twice the screen's width, which an iPhone pans
 # into (overflow-x:hidden on the root does not stop a finger in iOS Safari).
@@ -1854,14 +1858,15 @@ _RW_FIXED = ("#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-labe
 _RW_HEAD_OLD = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
 _RW_HEAD_NEW = _RW_HEAD_OLD + """
 <style id="alto-runway">
-html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
+html:is(.mobile,.phone-whole).rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
   overscroll-behavior:none; touch-action:none; }
-html.mobile.rw body *{ overscroll-behavior:contain; }
-html.mobile.rw body:not(#_){ position:relative !important; height:100dvh !important; min-height:0 !important;
+html:is(.mobile,.phone-whole).rw body *{ overscroll-behavior:contain; }
+html:is(.mobile,.phone-whole).rw body:not(#_){ position:relative !important; width:100% !important; height:100dvh !important; min-height:0 !important;
   margin:80px 0 140px !important; overflow-x:clip !important; overflow-y:visible !important;
   overscroll-behavior:none; touch-action:none; }
-html.mobile.rw #app:not(#_){ height:100dvh !important; margin-top:0 !important; }
-html.mobile.rw #page-bg:not(#_), html.mobile.rw #page-glass:not(#_){ position:absolute !important;
+html:is(.mobile,.phone-whole).rw #app:not(#_){ height:100dvh !important; }
+html.mobile.rw #app:not(#_){ margin-top:0 !important; }
+html:is(.mobile,.phone-whole).rw :is(#page-bg,#page-glass):not(#_){ position:absolute !important;
   top:-80px !important; bottom:auto !important; left:0 !important; right:0 !important;
   height:calc(100dvh + 220px) !important; }
 html.mobile.rw #page-bg:not(#_){ background:var(--page-grad) !important; }
@@ -1870,7 +1875,7 @@ html.mobile.rw #nav:not(#_){ background:transparent !important; -webkit-backdrop
 html.mobile.rw #nav:not(#_)::before{ content:''; position:absolute; left:0; right:0; top:-80px; bottom:0;
   z-index:-1; pointer-events:none; background:var(--header-tint, var(--header-glass-bg));
   -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%); }
-html.mobile.rw :is(""" + _RW_FIXED + """):not(#_), html.mobile.rw .rw-abs:not(#_){ position:absolute !important; }
+html:is(.mobile,.phone-whole).rw :is(""" + _RW_FIXED + """):not(#_), html:is(.mobile,.phone-whole).rw .rw-abs:not(#_){ position:absolute !important; }
 html.mobile.rw :is(#nav-drawer, #nav-drawer-overlay, #notes-panel, #minimap-wrap, #tutorial-wrap, #msp,
   #ef-panel, #bg-panel, #account-scrim):not(#_){ top:-80px !important; bottom:-140px !important; height:auto !important;
   padding-bottom:140px !important; }
@@ -1881,6 +1886,8 @@ html.mobile.rw :is(#notes-header, #minimap-header, #tutorial-header, #ef-panel >
   padding-top:96px !important; height:auto !important; }
 html.mobile.rw #nav-drawer-header:not(#_){ padding-top:98px !important; height:auto !important; }
 html.mobile.rw #detail-page:not(#_){ bottom:-140px !important; padding-bottom:240px !important; }
+html:is(.mobile,.phone-whole,.pmin) #summary-wrap:not(.open):not(#_):not(#__):not(#___){ border-color:transparent !important; box-shadow:none !important;
+  background-clip:content-box !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 </style>"""
 
 _RW_ANCHOR = '<script id="layout-settle">'
@@ -2344,6 +2351,8 @@ _HELP_M_TAIL_NEW = (
 # dark mode, until the swipe settled.
 _PEEK_BG_OLD = "      var inner = '';\n      var actNames = "
 _PEEK_BG_NEW = (
+    # sim1111h A0: the preview is the real page (see "the page that slides in is the page that stays" below); what follows is only the fallback
+    "      var _rp = _altoRealPeek(type, id, targetId, offset, _pIsWrap); if(_rp){ if(el.parentNode) el.parentNode.removeChild(el); return _rp; }\n"
     "      var _dcs = getComputedStyle(detailPage);\n"
     "      if(_dcs.backgroundColor !== 'rgba(0, 0, 0, 0)'){ el.style.background = _dcs.backgroundColor;\n"
     "        el.style.webkitBackdropFilter = el.style.backdropFilter = _dcs.backdropFilter || _dcs.webkitBackdropFilter || ''; }\n"
@@ -2353,12 +2362,132 @@ _PEEK_BG_NEW = (
     "        el.style.webkitBackdropFilter = el.style.backdropFilter = 'none'; }\n"
     "      el.style.position = _dcs.position; el.style.bottom = _dcs.bottom;\n"
     + _PEEK_BG_OLD)
+# ── the page that slides in is the page that stays (sim1111h A0; Luke 2026-11-11: "the text shouldn't jump and the background shouldn't jump") ──
+# The page under the finger was a hand-built Classic preview that Retro, Holo and a phone on its side never restyled, and the real page replaced it 240 ms after the finger
+# lifted: 20 ms after the 0.22 s slide stopped. Titles re-wrapped and dropped, panels appeared, the header's names, the "Back to" pill and the unit tint snapped late.
+#  * the preview is the real page: the real renderer draws the neighbour into a stand-in for #detail-content, quietly (no history entry, no Back trail, MARK left on), the
+#    whole #detail-page is copied as the preview, and the renderer draws the open page again; the open page's own nodes (its highlights, its scroll) are put back untouched.
+#    The copy keeps the page's ids, so every rule of every style, theme and orientation that styles the page styles the copy the same; it sits after the page, so
+#    getElementById still answers with the page.
+#  * the lift is the commit: a copy of the page going out takes its place, the real page becomes the next page at the preview's place in the same task, and the slide moves
+#    the real page. When the motion ends there is nothing to swap or re-render; only the copy that left is removed. A second swipe straight after is no longer lost.
+#  * the header's names and the pill change as the slide starts, and the unit tint cross-fades inside it (150 ms of the 220) instead of snapping.
+# Only the side the finger is dragging toward is drawn (two renders at the drag's start, not four).
+_SW_FN_OLD = "    function _makeDetPeek(dir){\n      var type = window._currentDetailType || 'node';\n"
+_SW_FN_NEW = (
+    "    var _detGhost = null;\n"
+    "    function _altoCopyPage(){\n"
+    "      var c = detailPage.cloneNode(true);\n"
+    "      c.classList.add('det-peek'); c.setAttribute('aria-hidden','true'); c.style.pointerEvents = 'none'; c.style.transition = 'none'; c.style.animation = 'none';\n"
+    "      detailPage.parentNode.insertBefore(c, detailPage.nextSibling);\n"
+    "      return c;\n"
+    "    }\n"
+    "    function _altoRealPeek(type, id, targetId, offset, wrap){\n"
+    "      var dc = document.getElementById('detail-content'), el = null, now = dc, top = detailPage.scrollTop;\n"
+    "      if(!dc || !dc.parentNode || !targetId || targetId === id || typeof window.showDetail !== 'function') return null;\n"
+    "      function blank(){ var b = dc.cloneNode(false); now.parentNode.replaceChild(b, now); now = b; }\n"
+    "      function draw(){\n"
+    "        blank(); window.showDetail(type, targetId);\n"
+    "        el = _altoCopyPage(); el._altoReal = 1; var _bp = el.querySelector('#alto-back-prev'); if(_bp) _bp.parentNode.removeChild(_bp); el.style.transform = 'translateX('+offset+'px)'; if(wrap) el.classList.add('wrap-warn');\n"
+    "      }\n"
+    "      window._altoQuiet = (window._altoQuiet||0) + 1;\n"
+    "      try{\n"
+    "        try{ if(window._altoNav && window._altoNav.quiet) window._altoNav.quiet(draw); else draw(); }\n"
+    "        catch(e){ if(el && el.parentNode) el.parentNode.removeChild(el); el = null; }\n"
+    "        try{ blank(); if(window._altoNav && window._altoNav.quiet) window._altoNav.quiet(function(){ window.showDetail(type, id); }); else window.showDetail(type, id); }catch(e){}\n"
+    "        try{ now.parentNode.replaceChild(dc, now); }catch(e){}\n"
+    "      } finally { window._altoQuiet--; }\n"
+    "      detailPage.scrollTop = top;\n"
+    "      return el;\n"
+    "    }\n"
+    + _SW_FN_OLD)
+# the seam (Art look rel-223, 2026-11-12): the two pages were drawn a 16 px gutter apart, and mid-swipe the gutter showed the bare ground with no frost on it, a flat band of
+# another colour riding across the screen (Luke: no flat colour bands). The incoming page butts against the outgoing page's edge: no gap, and no overlap (which would draw the
+# frost twice). The drag, the slide and the spring-back all place the pages by innerWidth + _DET_GAP, so the one number moves them all.
+_SW_GAP_OLD = "    var _DET_GAP = 16;\n"
+_SW_GAP_NEW = "    var _DET_GAP = 0;\n"
+_SW_RM_OLD = "      if(window._onWrapPeekRemoved) window._onWrapPeekRemoved();\n    }\n"
+_SW_RM_NEW = ("      if(_detGhost && _detGhost.parentNode) _detGhost.parentNode.removeChild(_detGhost);\n      _detGhost = null; window._altoTintMs = 0;\n" + _SW_RM_OLD)
+_SW_MOVE_OLD = ("        _detPeeks.prev = _makeDetPeek(-1);\n        _detPeeks.next = _makeDetPeek(1);\n      }\n")
+_SW_MOVE_NEW = ("      }\n"
+                "      if(dx > 0 && !_detDrag.p){ _detDrag.p = 1; _detPeeks.prev = _makeDetPeek(-1); }\n"
+                "      if(dx < 0 && !_detDrag.n){ _detDrag.n = 1; _detPeeks.next = _makeDetPeek(1); }\n")
+# (sim1112b S3, Retro upright: "the last 1 pt eases in over ~200 ms (5, 3, 1, 0 px)"; Luke's bar is "even 1-2 px".) The slide was `transform 0.22s ease`, whose curve
+# comes to rest asymptotically (its last 5 px took three frames), and it was ended by a 240 ms timer started before the transition was: on a phone whose slide began
+# a few frames late the timer cut it off short. Now the curve arrives still moving (end slope .45: about 7 px a frame over a 220 px slide, so the frame after the
+# last moving one is the final position), and the page is committed on its own transitionend (the timer is only a net), with no transition left on it.
+_SW_END_OLD = ("        detailPage.style.transition = ease;\n"
+               "        detailPage.style.transform  = 'translateX('+outTx+'px)';\n"
+               "        if(targetPeek){ targetPeek.style.transition=ease; targetPeek.style.transform='translateX(0)'; }\n")
+_SW_END_NEW = (
+    "        if(targetPeek && targetPeek._altoReal){\n"
+    "          var _at = targetPeek.style.transform, _top0 = detailPage.style.top, _sy = detailPage.scrollTop;\n"
+    "          _removeDetPeeks();\n"
+    "          _detGhost = _altoCopyPage(); _detGhost.scrollTop = _sy;\n"
+    "          window._altoTintMs = 150;\n"
+    "          detailPage.style.transition = 'none'; detailPage.style.animation = 'none';\n"
+    "          navNode(_dir);\n"
+    "          var _lock = function(){ if(_top0) detailPage.style.top = _top0; };\n"
+    "          _lock(); requestAnimationFrame(function(){ _lock(); requestAnimationFrame(_lock); });\n"
+    "          detailPage.style.transform = _at;\n"
+    "          void detailPage.offsetWidth;\n"
+    "          var _ez = 'transform 0.22s cubic-bezier(.3,.2,.5,.775)';\n"
+    "          detailPage.style.transition = _ez; detailPage.style.transform = 'translateX(0)';\n"
+    "          _detGhost.style.transition = _ez; _detGhost.style.transform = 'translateX('+outTx+'px)';\n"
+    "          var _te = function(e){ if(e.target === detailPage && e.propertyName === 'transform') _fin(); };\n"
+    "          var _fin = function(){\n"
+    "            detailPage.removeEventListener('transitionend', _te); detailPage.removeEventListener('transitioncancel', _te);\n"
+    "            if(_detCommitTimer !== _tm) return;\n"
+    "            clearTimeout(_tm); _detCommitTimer = null; _removeDetPeeks();\n"
+    "            detailPage.style.transition = 'none'; detailPage.style.transform = ''; detailPage.style.animation = '';\n"
+    "            void detailPage.offsetWidth; detailPage.style.transition = '';\n"
+    "          };\n"
+    "          detailPage.addEventListener('transitionend', _te); detailPage.addEventListener('transitioncancel', _te);\n"
+    "          var _tm = _detCommitTimer = setTimeout(_fin, 340);\n"
+    "          return;\n"
+    "        }\n"
+    + _SW_END_OLD)
+# a quiet draw leaves MARK on and schedules no highlight repaint (the open page's nodes come back as they were)
+_SW_HL_OLD = "    if(typeof reapplyHighlightsAfterNav === 'function') setTimeout(reapplyHighlightsAfterNav, 80);\n    document.documentElement.classList.add('detail-open');"
+_SW_HL_NEW = "    if(!window._altoQuiet && typeof reapplyHighlightsAfterNav === 'function') setTimeout(reapplyHighlightsAfterNav, 80);\n    document.documentElement.classList.add('detail-open');"
+_SW_MARK_OLD = ("  window.showDetail = function(type, id){\n    if(typeof hlPalette !== 'undefined') hlPalette.classList.remove('open');\n"
+                "    if(typeof _hlMode !== 'undefined' && _hlMode && typeof hlBtn !== 'undefined'){")
+_SW_MARK_NEW = ("  window.showDetail = function(type, id){\n    if(typeof hlPalette !== 'undefined' && !window._altoQuiet) hlPalette.classList.remove('open');\n"
+                "    if(!window._altoQuiet && typeof _hlMode !== 'undefined' && _hlMode && typeof hlBtn !== 'undefined'){")
+# the unit tint: cross-faded over window._altoTintMs while a swipe lands, set at once otherwise
+_SW_TINT_OLD = ("    if(!c){ root.style.removeProperty('--header-tint'); return; }\n"
+                "    var rgb=_hexToRgb(c);\n"
+                "    var a=root.classList.contains('dark')?ALPHA_DARK:ALPHA_LIGHT;\n"
+                "    root.style.setProperty('--header-tint','rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+a+')');\n"
+                "  }\n")
+_SW_TINT_NEW = ("    var rgb=c?_hexToRgb(c):null;\n"
+                "    _tintTo(rgb?[rgb[0],rgb[1],rgb[2],root.classList.contains('dark')?ALPHA_DARK:ALPHA_LIGHT]:null);\n"
+                "  }\n"
+                "  var _tfRaf=0,_tfKey=null;\n"
+                "  function _tintPut(v){ if(v) root.style.setProperty('--header-tint','rgba('+v.join(',')+')'); else root.style.removeProperty('--header-tint'); }\n"
+                "  function _tintTo(to){\n"
+                "    var key=to?to.join(','):'', ms=window._altoTintMs||0, from=(root.style.getPropertyValue('--header-tint').match(/[\\d.]+/g)||[]).map(Number);\n"
+                "    if(_tfRaf){ if(key===_tfKey) return; cancelAnimationFrame(_tfRaf); _tfRaf=0; }\n"
+                "    if(!ms||!to||from.length!==4||from.join(',')===key){ _tintPut(to); return; }\n"
+                "    _tfKey=key; var t0=performance.now();\n"
+                "    (function step(){ var k=Math.min(1,(performance.now()-t0)/ms);\n"
+                "      _tintPut(k<1?[0,1,2,3].map(function(i){ var v=from[i]+(to[i]-from[i])*k; return i<3?Math.round(v):Math.round(v*1000)/1000; }):to);\n"
+                "      _tfRaf=k<1?requestAnimationFrame(step):0; })();\n"
+                "  }\n")
 PATCHES += [
     {"name": "help-info-head", "old": _HELP_D_HEAD_OLD, "new": _HELP_D_HEAD_NEW, "count": 1},
     {"name": "help-info-tail", "old": _HELP_D_TAIL_OLD, "new": _HELP_D_TAIL_NEW, "count": 1},
     {"name": "help-sheet-head", "old": _HELP_M_HEAD_OLD, "new": _HELP_M_HEAD_NEW, "count": 1},
     {"name": "help-sheet-tail", "old": _HELP_M_TAIL_OLD, "new": _HELP_M_TAIL_NEW, "count": 1},
     {"name": "detail-peek-matches-page", "old": _PEEK_BG_OLD, "new": _PEEK_BG_NEW, "count": 1},
+    {"name": "swipe-real-preview", "old": _SW_FN_OLD, "new": _SW_FN_NEW, "count": 1},
+    {"name": "swipe-no-seam", "old": _SW_GAP_OLD, "new": _SW_GAP_NEW, "count": 1},
+    {"name": "swipe-ghost-goes-with-previews", "old": _SW_RM_OLD, "new": _SW_RM_NEW, "count": 1},
+    {"name": "swipe-preview-one-side", "old": _SW_MOVE_OLD, "new": _SW_MOVE_NEW, "count": 1},
+    {"name": "swipe-lift-is-the-commit", "old": _SW_END_OLD, "new": _SW_END_NEW, "count": 1},
+    {"name": "swipe-quiet-no-highlight-repaint", "old": _SW_HL_OLD, "new": _SW_HL_NEW, "count": 1},
+    {"name": "swipe-quiet-keeps-mark", "old": _SW_MARK_OLD, "new": _SW_MARK_NEW, "count": 1},
+    {"name": "swipe-tint-cross-fades", "old": _SW_TINT_OLD, "new": _SW_TINT_NEW, "count": 1},
 ]
 
 # ── no pop-up bar of active filters ─────────────────────────────────────────
@@ -2419,6 +2548,29 @@ PATCHES += [
 ]
 
 
+# ── a unit header that needs more than its 56 px box GROWS and the rows below move down (Luke 2026-11-06 L-1106-230647) ─────────────────
+# window._altoHX[i] = extra px for unit i's header (set by the phone layer after it measures the title wrapped at full size; absent = 0 = no change anywhere).
+# The act-boundary gap, unit 1's top reserve, the chip, the tube, the numeral's centring and the line gaps all read it, so a re-run of initLayout() moves every row below.
+_HX = "((window._altoHX||[])[%s]||0)"
+PATCHES += [
+    {"name": "unit-header-grows-gap", "old": "const needed = bottomA + ACT_BOUNDARY_GAP;",
+     "new": "const needed = bottomA + ACT_BOUNDARY_GAP + " + _HX % "ai+1" + ";", "count": 1},
+    {"name": "unit-header-grows-first", "old": "const deficit = LABEL_RESERVE - topB;",
+     "new": "const deficit = LABEL_RESERVE + " + _HX % "0" + " + (window._altoTopX||0) - topB;", "count": 1},
+    {"name": "unit-header-first-clear-of-rule", "old": "bands[0].startY = 0;",
+     "new": "bands[0].startY = window._altoTopX||0;   // (phone: the first unit's header starts under the header rule, _altoTopX)", "count": 1},
+    {"name": "unit-header-grows-top", "old": "const bandTop=startY+WORLD_PAD_TOP;",
+     "new": "const bandTop=startY+WORLD_PAD_TOP, hx=" + _HX % "i" + ";", "count": 1},
+    {"name": "unit-header-grows-numeral", "old": "    band.appendChild(num);",
+     "new": "    if(hx) num.style.setProperty('top',(BOX_TOP+hx/2)+'px','important');\n    band.appendChild(num);", "count": 1},
+    {"name": "unit-header-grows-chip", "old": "    lbl.style.top=(bandTop+BOX_TOP)+'px';",
+     "new": "    lbl.style.top=(bandTop+BOX_TOP)+'px'; if(hx) lbl.style.height=(BOX_H+hx)+'px';", "count": 1},
+    {"name": "unit-header-grows-tube", "old": "    bar.style.height=TUBE_H+'px';",
+     "new": "    bar.style.height=(TUBE_H+hx)+'px';", "count": 1},
+    {"name": "unit-header-grows-gaps", "old": "bottom:bandTop+TUBE_TOP+TUBE_H+4, cy:bandTop+TUBE_TOP+TUBE_H/2}",
+     "new": "bottom:bandTop+TUBE_TOP+TUBE_H+hx+4, cy:bandTop+TUBE_TOP+(TUBE_H+hx)/2}", "count": 1},
+]
+
 # ── one-card view held sideways: the card gets the screen's height, not what is left after a portrait's chrome (Sim 1107c, Luke L-1106-230038) ──
 # The engine caps the card at 100dvh - 276px (the portrait's top and bottom chrome): 114 px on a 390 px screen, so the card's body is cut under its title. Held sideways the
 # bottom has no chrome (the tiles ride the sides) and the card starts ~153 px down, so it may run to 12 px above the visible bottom; dvh follows Safari's bars, so it fits the VISUAL height.
@@ -2431,6 +2583,20 @@ _LS_NEW += ("@media (orientation:landscape) and (max-height:340px){ html.mobile.
             " html.mobile.focus-mode .node.mobile-featured .node-card .node-footer{margin-top:4px !important;} }\n")
 PATCHES += [
     {"name": "one-card-landscape-height", "old": _LS_OLD, "new": _LS_NEW, "count": 1},
+]
+
+
+# ── a phone turned after the page loaded keeps the card it was loaded with (sim1111h A5) ──
+# The one-card view's card width is a pixel count taken from the window's width when the page starts (and again from the compass's own re-measure, which a turn does not run):
+# loaded on its side (874 wide) and turned upright, the card stayed 858 px on a 402 px screen, cut on both sides. The width is the window's own, so it is written as that:
+# calc(100vw - 16px) follows every turn and resize with no listener. (A phone on its side has its own spread width, phone_minimal's landscape rules; that one already followed.)
+_FCW_A_OLD = "    var _fCW = window.innerWidth - 16;\n    document.documentElement.style.setProperty('--focus-card-width', _fCW + 'px');"
+_FCW_A_NEW = "    document.documentElement.style.setProperty('--focus-card-width','calc(100vw - 16px)');   // (the compass's re-measure)"
+_FCW_B_OLD = "      var _fCW2 = window.innerWidth - 16;\n      document.documentElement.style.setProperty('--focus-card-width', _fCW2 + 'px');"
+_FCW_B_NEW = "      document.documentElement.style.setProperty('--focus-card-width', 'calc(100vw - 16px)');"
+PATCHES += [
+    {"name": "focus-card-width-follows-the-window-a", "old": _FCW_A_OLD, "new": _FCW_A_NEW, "count": 1},
+    {"name": "focus-card-width-follows-the-window-b", "old": _FCW_B_OLD, "new": _FCW_B_NEW, "count": 1},
 ]
 
 

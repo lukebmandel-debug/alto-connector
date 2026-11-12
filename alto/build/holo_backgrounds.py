@@ -143,14 +143,17 @@ def signal_rain():
     return one(False), one(True)
 
 
-def targeting():
-    """A ship's targeting display: rings with tick marks, crosshairs and arcs, off to one side."""
+def targeting(dashed: bool = True):
+    """A ship's targeting display: rings with tick marks, crosshairs and arcs, off to one side. dashed=False leaves out the two dashed rings: holo_anim.py turns
+    its own copies of them over the picture and shows this scene meanwhile, so the still dashes never slide under the moving ones."""
     def one(dark):
         ink = "#4ff0e0" if dark else "#0a6f8c"
         a = (lambda v: v) if dark else (lambda v: v * .6)
         cx, cy = 1150, 520
         out = []
         for r, op, dash in ((90, .5, ""), (170, .35, "2 10"), (260, .28, ""), (380, .2, "40 14"), (520, .14, "")):
+            if dash and not dashed:
+                continue
             out.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{ink}" stroke-opacity="{a(op):.2f}"'
                        + (f' stroke-dasharray="{dash}"' if dash else "") + ' stroke-width="1.4"/>')
         ticks = ""

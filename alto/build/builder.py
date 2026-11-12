@@ -280,9 +280,10 @@ def _add_background_head(html: str, brief: Brief) -> str:
     retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
     from .phone import head_block as phone_head
     from .phone_minimal import head_block as phone_min_head
+    from .phone_shell import head_block as phone_shell_head
     auto = brief.mode == "palace" or solar_style(brief) == "orbit"     # an Atlas, a Blueprint, a city map and a System make their own background
     return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro, own=not retro, auto=auto) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
-                        + "\n" + anchor, 1)
+                        + "\n" + phone_shell_head() + "\n" + anchor, 1)
 
 
 def phone_mode(brief: Brief) -> str:
@@ -331,7 +332,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
             + (focus_branch.block() if brief.mode != "palace" and not solar_style(brief) else "")   # focus on a branch: timelines, outlines, the horizontal timeline
-            + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief))
+            + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief), hl_key=ID_PATTERNS["hl_key"].format(tid=brief.timeline_id))
             + select_guard.block()
             + title_tab.block(format_symbols.key_of(brief))
             + card_block(phone_mode(brief)) + history_nav())   # last: the outermost wrapper of showDetail / showTimeline

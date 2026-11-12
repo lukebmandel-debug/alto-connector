@@ -78,14 +78,7 @@ var b=document.getElementById('nav-drawer-body');if(b)new MutationObserver(go).o
 CSS = r"""
 /* the page is laid out at the phone's own size: no desktop page zoom (html{zoom:.8}), so a px is a px for a finger */
 html.phone-whole{zoom:1 !important;}
-/* the runway (runway.py, engine_patches mobile-runway-*): the body is the screen, the page rests 80px down it, pinned */
-html.phone-whole.rw{overflow-y:scroll !important;overflow-x:hidden !important;height:auto !important;overscroll-behavior:none;touch-action:none;}
-html.phone-whole.rw body *{overscroll-behavior:contain;}
-html.phone-whole.rw body:not(#_){position:relative !important;width:100% !important;height:100dvh !important;min-height:0 !important;margin:80px 0 140px !important;
-  overflow-x:clip !important;overflow-y:visible !important;overscroll-behavior:none;touch-action:none;}
-html.phone-whole.rw #app:not(#_){height:100dvh !important;}
-html.phone-whole.rw :is(#page-bg,#page-glass):not(#_){position:absolute !important;top:-80px !important;bottom:auto !important;left:0 !important;right:0 !important;height:calc(100dvh + 220px) !important;}
-html.phone-whole.rw :is(__FIXED__):not(#_),html.phone-whole.rw .rw-abs:not(#_){position:absolute !important;}
+/* the runway is the engine's own <head> block for card and whole view alike (engine_patches mobile-runway-behind-bars) */
 html.phone-whole #canvas{touch-action:pan-x pan-y;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
 html.phone-whole.alto-lanes #canvas{touch-action:none;}
 /* iOS zooms the page into any field under 16px when it takes the focus */
@@ -99,12 +92,13 @@ html.phone-whole :is(#nav-prev-label,#nav-next-label) .wrap-pill:not(#_){display
 html.phone-whole #nav-prev-label .wrap-pill:not(#_){margin-left:8px;}
 html.phone-whole #nav-next-label .wrap-pill:not(#_){margin-right:8px;}
 /* a detail page's Back, whole view: the same chevron-only round button beside the clef as the phone design's (item 12; the desktop's #desk-back is off here) */
-html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;position:fixed !important;top:calc((51px + env(safe-area-inset-top,0px)) / 2 - 17px);bottom:auto;left:48px;width:34px;height:34px;padding:0;align-items:center;justify-content:center;
+html.phone-whole.detail-open #detail-back-fixed:not(#_):not(#__){display:flex !important;position:fixed !important;top:calc((51px + env(safe-area-inset-top,0px)) / 2 - 17px);bottom:auto;left:48px;width:34px;height:34px;padding:0;align-items:center;justify-content:center;
   background:var(--card-glass-bg);border:1px solid var(--card-glass-border);border-radius:17px;color:var(--muted);font-size:0;gap:0;z-index:296;}
 /* a timeline or an outline seen whole: a card shows its name alone until it is enlarged (Luke, 2026-10-24: "just have node
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
-html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:break-word;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}
+html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title:not(#_){line-height:1.2 !important;overflow-wrap:normal;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}
+html.phone-whole #world .node:not(.focused) .node-title[style*="--ph-"]:not(#_){font-size:var(--ph-t,inherit) !important;letter-spacing:var(--ph-l,inherit) !important;}
 /* what a hover showed, on a long press */
 html.phone-whole .node-card :is(.csym-btn,.esym-btn,.tsym-btn).ph-hover ~ .chip-tip{opacity:1;transform:translateX(-50%) translateY(0);}
 html.phone-whole.alto-solar #world .node[data-solar].ph-hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
@@ -115,7 +109,14 @@ html.phone-whole :is(#tab-rail,#scroll-hint,#timeline-label-bar,#compass-rose,#n
 html.phone-whole :is(#sol-ctl,#pal-ctl,#lanes-nav):not(#_){bottom:calc(8px + env(safe-area-inset-bottom,0px)) !important;max-width:calc(100vw - 112px);}
 html.phone-whole :is(#sol-ctl,#pal-ctl):not(#_){left:56px !important;right:auto !important;transform:none !important;overflow-x:auto;scrollbar-width:none;}
 html.phone-whole :is(#sol-ctl,#pal-ctl)::-webkit-scrollbar{display:none;}
-html.phone-whole #lanes-nav:not(#_){left:56px !important;right:56px !important;width:auto !important;transform:none !important;}
+/* the step bar sits centred between the corner tiles (56 px each side, and the Dynamic Island's insets on its side); its middle takes what is left (it was a fixed
+   250 px: the buttons were squeezed to 16 px and Next ran under the MENU tile, off the screen at 375 pt; audit row F2). Each button keeps its 28 px look and
+   takes a 44 pt touch area */
+html.phone-whole #lanes-nav:not(#_){left:50% !important;right:auto !important;transform:translateX(-50%) !important;box-sizing:border-box !important;
+  width:min(360px,calc(100vw - 112px - var(--sh-left,0px) - var(--sh-right,0px))) !important;}
+html.phone-whole #lanes-nav .lnv-mid:not(#_){width:auto !important;flex:1 1 0 !important;min-width:0 !important;}
+html.phone-whole #lanes-nav>button:not(#_){flex:0 0 28px !important;position:relative !important;}
+html.phone-whole #lanes-nav>button:not(#_)::after{content:'';position:absolute;inset:-8px;}
 """
 
 JS = r"""(function(){
@@ -151,7 +152,9 @@ function gev(type, scale, x, y){
 /* the board's own zoom (CSS zoom, not a transform: WebKit keeps a transformed board's full-size scroll extent) */
 var OV={s:1, w:0}, ovA=0;
 function world(){ return document.getElementById('world'); }
-function fitS(){ var c=cv(), w=world(); if(!c || !w) return 1; if(OV.s>=.999 || !OV.w) OV.w=w.offsetWidth||1; return Math.min(1, (c.clientWidth-8)/OV.w); }
+/* the fitted board keeps EDGE pt clear on each side as well (the world is centred in the canvas): the unit frames and their title chips sit at 20-29 world px, ~5-7 pt at this scale, which is a card hugging the screen edge (Sim 1111g S4; Luke: cards never near the page edge) */
+var EDGE=8;
+function fitS(){ var c=cv(), w=world(); if(!c || !w) return 1; if(OV.s>=.999 || !OV.w) OV.w=w.offsetWidth||1; return Math.min(1, (c.clientWidth-8-2*EDGE)/OV.w); }
 function ovSet(s, px, py){                       /* scale s, the board point under (px, py) on screen staying there */
   var c=cv(), w=world(); if(!c || !w) return;
   var smin=fitS(); s=Math.max(smin, Math.min(1, s));
@@ -214,6 +217,7 @@ function pinchEnd(){
   var g=G; G=null; if(!g) return;
   if(g.own==='engine') gev('gestureend', g.s, g.m[0], g.m[1]);
   if(g.own==='me' && OV.s>.94 && OV.s<1) ovAnim(1, g.m[0], g.m[1]);
+  if(g.own==='me' && g.s<.8 && g.ov0<=fitS()+.002 && window._altoPhoneIx) window._altoPhoneIx.show();   /* a pinch out on the fitted board: back to the unit index (phone_index.py) */
   if(!g.moved && now()-g.t0<260) zoomBy(.5, g.m[0], g.m[1]);          /* a two-finger tap: out */
 }
 function zoomBy(f, x, y){                          /* a double tap (in) or a two-finger tap (out), gliding */
@@ -310,7 +314,37 @@ function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(
 document.addEventListener('DOMContentLoaded', function(){ build(); });
 window.addEventListener('load', function(){ build(); fit(); setTimeout(build, 900); });
 window.addEventListener('resize', function(){ if(OV.s<1) ovSet(OV.s); });
-window._altoPhone={on:on, fmt:fmt, ov:OV, ovSet:ovSet, zoomBy:zoomBy, build:build, swap:swap, remap:remap};
+// a unit's title in its chip (Luke 2026-11-06 L-1106-230647): the title wraps at full size (the engine's own fit picks the width, up to 560 px, in the 56 px box); a title that still needs
+// more makes the header GROW: window._altoHX[i] = the extra px, and initLayout() re-runs (the engine reads _altoHX for the chip, the tube, the line gaps and the gap to the first row), so
+// every row below moves down. Nothing is shrunk below 11 px, clamped, cut or ellipsised.
+// a card's title breaks only at a space (or where Safari can hyphenate it, which it will not for capitals): a word that does not fit shrinks the type, down to 10.5 px, not split letters (Luke 2026-11-07, REVOCATIO N)
+function titles(){ if(!on()||de.classList.contains('alto-solar')||de.classList.contains('alto-lanes')) return;
+  [].forEach.call(document.querySelectorAll('#world .node:not(.focused) .node-title'), function(e){ var st=e.style; st.removeProperty('--ph-t'); st.removeProperty('--ph-l'); if(!e.offsetHeight) return;
+    var c=getComputedStyle(e), z=parseFloat(c.fontSize)||16, l=parseFloat(c.letterSpacing)||0, k=l/z;
+    while(e.scrollWidth>e.clientWidth+.5 && z>10.5){ z=Math.max(10.5,z-.5); st.setProperty('--ph-t',z+'px'); st.setProperty('--ph-l',k*z+'px'); }
+    if(e.scrollWidth>e.clientWidth+.5) st.setProperty('--ph-l','0px'); }); }
+// a turn of the phone (portrait <-> landscape): the header rule is where it was but the board kept its portrait offsets and scroll, so the first unit's header sat in the header band (Sim 1107d S2); lay it out again from the top
+function turned(cv){ var w=innerWidth; if(!chips.w){ chips.w=w; return; } if(Math.abs(w-chips.w)<80) return; chips.w=w; window._altoTopX=0; window._altoHX=[]; try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(x){} cv.scrollTop=0; cv.scrollLeft=0;
+  setTimeout(function(){ var c=document.querySelector('#world .phase-label-float'), r=c&&c.getBoundingClientRect(); if(r&&r.height&&(r.left<0||r.right>innerWidth+1)&&!detail()) location.reload(); }, 500); }   // (landscape -> portrait: the engine keeps the wide chips; a fresh load is exact)
+function chips(){ if(!on()) return; var cv=document.getElementById('canvas'); if(!cv||getComputedStyle(cv).display==='none') return; turned(cv); titles(); var hx=[], cur=window._altoHX||[], bad=false, z=parseFloat(getComputedStyle(document.getElementById('world')).zoom)||1;
+  [].forEach.call(document.querySelectorAll('#world .phase-label-float'), function(e,i){
+    var st=e.style; st.hyphens='manual'; st.webkitHyphens='manual'; st.overflowWrap='break-word'; st.wordBreak='normal';
+    if(!(parseFloat(st.fontSize)>=10.5)){ st.fontSize='12.5px'; st.width='560px'; }
+    var h=st.height, c=getComputedStyle(e), sp=e.firstElementChild||e; st.height='auto'; var n=sp.getBoundingClientRect().height/z+(parseFloat(c.paddingTop)||0)+(parseFloat(c.paddingBottom)||0); st.height=h; if(!n) bad=true; hx[i]=n>56?Math.ceil(n-56)+2:0; if(Math.abs(hx[i]-(cur[i]||0))>1) bad='re'; });
+  var lc=[].filter.call(document.querySelectorAll('#world .lu-chip'),function(e){ return e.getBoundingClientRect().height>0; });
+  if(lc.length && window._altoLanes && window._altoLanesH){   // lanes: the chips wrap (CSS); the board starts under the tallest, lower when it needs the room
+    var cb=0, tp=1e9, k=z, wr=document.getElementById('world').getBoundingClientRect().top, hl=window._altoHXL||0;
+    lc.forEach(function(e){ cb=Math.max(cb,(e.getBoundingClientRect().bottom-wr)/k); });
+    [].forEach.call(document.querySelectorAll('#world .node-card, #world .lanes-flag'),function(e){ var r=e.getBoundingClientRect(); if(r.height>0) tp=Math.min(tp,(r.top-wr)/k); });
+    var sl=tp-cb-12, nh=Math.max(0,hl-sl); if(sl<0||hl>0&&sl>1){ nh=Math.ceil(nh); if(Math.abs(nh-hl)>1){ window._altoHXL=nh; try{ window._altoLanes(window._altoLanesH); }catch(x){} } } }
+  // the first unit's header sits under the header rule (the rule is the top bar's foot: #summary-wrap), 8 px clear of it; measured with the board at its top
+  var rl=document.getElementById('summary-wrap'), c0=document.querySelector('#world .phase-label-float');
+  if(rl && c0 && !cv.scrollTop && c0.getBoundingClientRect().height>0){ var tx=window._altoTopX||0, nt=Math.max(0,Math.ceil(tx+(rl.getBoundingClientRect().bottom+8-c0.getBoundingClientRect().top)/z)); if(Math.abs(nt-tx)>1){ window._altoTopX=nt; bad='re'; } }
+  if(bad==='re'){ window._altoHX=hx; try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(x){} } }
+var chT=0; function chipsSoon(){ clearTimeout(chT); chT=setTimeout(chips,120); }
+window.addEventListener('load', function(){ chips(); setTimeout(chips,900); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(function(){ setTimeout(chips,50); }); }); new MutationObserver(chipsSoon).observe(de,{attributes:true,attributeFilter:['class']}); window.addEventListener('resize', chipsSoon); window.addEventListener('orientationchange', chipsSoon);
+document.addEventListener('DOMContentLoaded', function(){ var w=document.getElementById('world'); if(w) new MutationObserver(function(m){ if(m.some(function(x){ return [].some.call(x.addedNodes||[],function(n){ return n.classList&&n.classList.contains('phase-label-float'); }); })) chipsSoon(); }).observe(w,{childList:true}); });
+window._altoPhone={on:on, fmt:fmt, ov:OV, ovSet:ovSet, zoomBy:zoomBy, build:build, swap:swap, remap:remap, chips:chips, fit:fit};
 })();"""
 
 
@@ -324,8 +358,10 @@ def _fixed() -> str:
     return _RW_FIXED
 
 
+from . import phone_index as _ix  # noqa: E402  (the unit index, chunk 6 C2: its rules and its script ride in the same hosted file)
+
 ASSET = _slim(JS.replace("__KEY__", _json.dumps(KEY))
-              .replace("__CSS__", _json.dumps(_slim(CSS.replace("__FIXED__", _fixed())))))
+              .replace("__CSS__", _json.dumps(_slim(CSS.replace("__FIXED__", _fixed()) + _ix.CSS)))) + "\n" + _slim(_ix.JS)
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-phone-{V}.js"
 

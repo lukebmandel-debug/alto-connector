@@ -104,7 +104,19 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
 #wpal-root .wp-plane path{fill:var(--w-card);stroke:var(--w-text);stroke-width:1.5px;stroke-linecap:round;stroke-linejoin:round;}
 #wpal-root .wp-plane path.f{fill:none;}
 #wpal-root .wp-trail{fill:none;stroke:var(--w-text);stroke-width:1.6px;stroke-linecap:round;stroke-dasharray:.1 6;opacity:.55;transition:opacity .4s;}
+#wpal-root .wp-c.wp-hid{fill:none !important;stroke:none !important;pointer-events:none;}
+#wpal-root .wp-s{stroke:rgba(90,105,150,.9);stroke-width:1.25px;pointer-events:none;}html.dark #wpal-root .wp-s{stroke:rgba(170,185,225,.55);}
+#wpal-root .wp-s.t1:not(.wp-u){fill:color-mix(in srgb,var(--w-land) 78%,#9db4ea);}#wpal-root .wp-s.t2:not(.wp-u){fill:color-mix(in srgb,var(--w-land) 78%,#9ad6c8);}
+#wpal-root .wp-s.t3:not(.wp-u){fill:color-mix(in srgb,var(--w-land) 78%,#ead9a6);}#wpal-root .wp-s.t4:not(.wp-u){fill:color-mix(in srgb,var(--w-land) 78%,#e3b6c8);}
+#wpal-root .wp-frame{fill:var(--w-sea2);stroke:var(--w-edge);stroke-width:1px;vector-effect:non-scaling-stroke;}
+#wpal-root .wp-lbl.wp-inl{font-size:10px;font-weight:650;text-align:left;}#wpal-root .wp-lbl.wp-stn{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;pointer-events:none;}
+html.alto-retro #wpal-root .wp-s:not(.wp-u):not(#_){fill:color-mix(in srgb,#0b0d12 93%,#d9ae55);stroke:rgba(217,174,85,.8);stroke-width:1.25px;}html.alto-retro #wpal-root .wp-frame:not(#_){fill:#05070b;stroke:rgba(217,174,85,.55);}
 #wpal-root .wp-trail.wp-gone{opacity:0;}
+#wpal-root .wp-train .bd{display:none;}#wpal-root .wp-train > g:first-child path{fill:#e3e6f0;stroke:var(--w-text);stroke-width:1px;stroke-opacity:.35;filter:drop-shadow(0 0 3px rgba(70,85,130,.55));}html.alto-retro #wpal-root .wp-train > g:first-child path:not(#_){fill:#efe6cf;stroke:none;filter:none;}#wpal-root .wp-rail{transition:opacity .4s;pointer-events:none;}html.mobile #wpal-root .wp-enl .node > .node-unit{bottom:auto;top:6px;left:16px;text-align:left;}#wpal-root .wp-rail.wp-gone{opacity:0;}
+#wpal-root .wp-rail path{fill:none;stroke-linecap:round;stroke-linejoin:round;}#wpal-root .wp-rail .h{stroke:var(--w-halo);stroke-width:5px;opacity:.8;}
+#wpal-root .wp-rail .c{stroke:var(--u);stroke-width:2.4px;}#wpal-root .wp-rail .s{stroke:var(--w-text);stroke-width:1px;opacity:.35;}#wpal-root .wp-train circle{fill:var(--w-text);}
+html.alto-retro #wpal-root .wp-rail .c:not(#_){stroke:#d9ae55;}html.alto-retro #wpal-root .wp-rail .h:not(#_){stroke:#0b0d12;}html.alto-retro #wpal-root .wp-train circle:not(#_){fill:#d9ae55;}
+
 #wpal-root .wp-pulse{fill:none;stroke:var(--u);stroke-width:2px;animation:wp-pulse .45s cubic-bezier(.2,.7,.2,1) forwards;}
 @keyframes wp-pulse{from{r:6px;opacity:.9;}to{r:26px;opacity:0;}}
 html.alto-retro #wpal-root .wp-plane path:not(#_){fill:#0b0d12;stroke:#d9ae55;}html.alto-retro #wpal-root .wp-plane path.f:not(#_){fill:none;}
@@ -196,6 +208,9 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit-exit{bottom:73px;}
 #wpal-root .wp-tour .d{color:var(--w-sub);overflow:hidden;text-overflow:ellipsis;max-width:180px;}
 #wpal-root .wp-tour .c{font-weight:650;overflow:hidden;text-overflow:ellipsis;}
+#wpal-root .wp-scope{left:50%;top:64px;transform:translateX(-50%);height:30px;box-sizing:border-box;padding:0 12px;gap:7px;border-radius:999px;font:650 13px/1 inherit;color:var(--w-text);cursor:pointer;max-width:min(260px,calc(100% - 140px));z-index:6;}#wpal-root .wp-scope .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}#wpal-root .wp-scope svg{width:14px;height:14px;flex:none;}#wpal-root .wp-scope .v{width:10px;height:10px;opacity:.6;}#wpal-root .wp-scope:focus-visible{outline:2px solid var(--w-text);outline-offset:2px;}
+html.mobile #wpal-root .wp-scope{top:56px !important;height:36px;padding:0 14px;}@media (orientation:landscape) and (max-height:460px){html.mobile #wpal-root .wp-tour{bottom:8px;left:calc(env(safe-area-inset-left,0px) + 66px);transform:none;width:196px;box-sizing:border-box;flex-wrap:wrap;row-gap:5px;padding:8px 10px;}html.mobile #wpal-root .wp-tour .c{order:-1;flex:0 0 100%;min-width:0;height:32px;line-height:16px;font-size:12.5px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}html.mobile #wpal-root .wp-tour .d{display:none;}html.mobile #wpal-root .wp-tour .wp-btn.r{width:40px;height:34px;border-radius:17px;}html.mobile #wpal-root .wp-tour .x{margin-left:auto;}html.mobile #wpal-root .wp-enl > .node > .node-card{max-width:220px !important;box-sizing:border-box;}html.mobile.wpal-open:not(.summary-open) #summary-wrap:not(#_){border-color:transparent !important;box-shadow:none !important;background:none !important;}html.mobile #wpal-root .wp-scope{top:calc(var(--w-top,52px) + 6px) !important;left:calc(env(safe-area-inset-left,0px) + 12px);transform:none;}}   /* (sim1111f E8: a phone on its side, Safari's bars in, has ~290 px; a centred pill cost the map a 100 px band) */@media (max-width:700px){#wpal-root .wp-scope{top:70px !important;height:45px;padding:0 16px;font-size:16px;}}   /* (the phone page is laid out at .8: 70 / 45 css px read as 56 / 36 pt) */
+html.alto-retro #wpal-root .wp-scope:not(#_){border-radius:0;border:1px solid rgba(217,174,85,.4);color:#efe6cf;background:#05070b;}html.alto-retro #wpal-root .wp-scope:not(#_) svg:not(.v){color:#d9ae55;}
 #wpal-root .wp-key{left:16px;bottom:66px;display:block;font-size:12px;line-height:20px;max-width:340px;white-space:normal;}
 #wpal-root .wp-key button.u{display:flex;align-items:center;gap:7px;border:0;background:none;color:var(--w-text);font:inherit;padding:0 4px;border-radius:6px;cursor:pointer;width:100%;text-align:left;}
 #wpal-root .wp-key button.u:hover{background:color-mix(in srgb,var(--u) 14%,transparent);}
@@ -232,6 +247,7 @@ html.alto-retro #detail-page .wp-where-d:not(#_){color:#d9ae55;font-family:var(-
 #wpal-root .wp-ban::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--w-text) 14%,transparent);pointer-events:none;}
 #wpal-root .wp-ban .ban-n{position:absolute;left:73px;top:50%;transform:translateY(-50%);max-width:calc(100% - 85px);padding:4px 11px;border-radius:7px;background:rgba(10,14,20,.62);color:#fff;
   font-size:13px;font-weight:700;letter-spacing:.2em;line-height:1.2;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+html.mobile #wpal-root .wp-ban .ban-n{left:66px;max-width:calc(100% - 74px);padding:3px 8px;font-size:11px;letter-spacing:.1em;line-height:1.15;white-space:normal;overflow-wrap:anywhere;text-overflow:clip;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;}   /* a long name wraps to two lines, never "BRA..." */
 #wpal-root .wp-ban .ban-t{display:none;position:absolute;inset:0;width:100%;height:100%;overflow:visible;fill:none;}
 #wpal-root .wp-flag{position:relative;flex:none;display:block;width:24px;height:18px;margin:-2px 1px -2px -3px;}
 #wpal-root .wp-flag.none svg{display:block;width:100%;height:100%;fill:none;stroke:var(--w-sub);stroke-width:1.4px;stroke-linecap:round;stroke-linejoin:round;}
@@ -376,8 +392,11 @@ html.alto-retro #wpal-root .wp-mm rect{fill:#d9ae55;stroke:#d9ae55;}
 }
 @media print{#wpal-root{display:none !important;}html.wpal-open #world{visibility:visible !important;}}
 @media (max-width:700px){#wpal-root .wp-card{width:180px;padding:8px 10px 9px;}#wpal-root .wp-card.main{width:220px;}#wpal-root .wp-card h4{font-size:13px;}
-  #wpal-root .wp-card.main h4{font-size:15px;}#wpal-root .wp-tour .d{display:none;}#wpal-root .wp-tour{bottom:68px;}
+  #wpal-root .wp-card.main h4{font-size:15px;}#wpal-root .wp-tour .d{display:none;}#wpal-root .wp-tour{bottom:68px;width:min(calc(100% - 32px),370px);box-sizing:border-box;}#wpal-root .wp-tour .c{flex:1;min-width:0;text-align:center;}#wpal-root .wp-tour .x{margin-left:8px;}
   #wpal-root .wp-key{bottom:120px;left:12px;max-width:calc(100% - 24px);}#wpal-root .wp-ctl{right:10px;top:8px;}
+  html:not(.mobile) #wpal-root .wp-ctl{top:54px;left:10px;right:10px;justify-content:flex-end;flex-wrap:wrap;}   /* (a phone seen whole or a narrow window: the Tour / country / zoom group sat ON the title and the wordmark, and clipped the country name: it hangs under the header, wraps, its names whole; #23) */
+  html.phone-whole #wpal-root .wp-ctl{top:112px !important;}
+  #wpal-root .wp-ctl .wp-btn{white-space:nowrap;max-width:100%;}
   #wpal-root .wp-list{left:12px;right:12px;width:auto;top:auto;bottom:120px;max-height:40%;}
   #wpal-root .wp-enl > .node{zoom:1;max-width:calc(100vw - 28px);}}
 """
@@ -400,7 +419,9 @@ function phone(){ return S.vw<700; }
 function lbo(){ return 2; }          // a name sits 2 px clearer of its pin's glow (phones too)
 
 // ── geometry: integer delta rings → smooth closed curves (centripetal Catmull-Rom) ──
-function decode(flat,q){ var x=flat[0],y=flat[1],o=[[x/q,y/q]]; for(var i=2;i<flat.length;i+=2){ x+=flat[i]; y+=flat[i+1]; o.push([x/q,y/q]); } return o; }
+function decode(flat,q){ var x=flat[0],y=flat[1],o=[[x/q,y/q]]; for(var i=2;i<flat.length;i+=2){ x+=flat[i]; y+=flat[i+1]; o.push([x/q,y/q]); } return PJ?pjMap(o):o; }
+function pjMap(o){ var mx=0,my=0; o.forEach(function(p){ mx+=p[0]; my+=p[1]; }); var c=eeR(mx/o.length,my/o.length), g=PJ.reg(PJC,c[0],c[1]); if(!g) return [];
+  return o.map(function(p){ var l=eeR(p[0],p[1]); return PJ.fwd(l[0],l[1],g); }); }
 function curve(P,dp){
   var n=P.length, f=function(v){ return v.toFixed(dp); };
   if(n<4){ var s='M'+f(P[0][0])+' '+f(P[0][1]); for(var j=1;j<n;j++) s+='L'+f(P[j][0])+' '+f(P[j][1]); return s+'Z'; }
@@ -416,10 +437,11 @@ function curve(P,dp){
   return d+'Z';
 }
 // bb gets the box of the country's main landmass (its largest ring): France is zoomed to France, not to French Guiana as well
-function rings2d(list,q,dp,bb){ var d='', best=-1; list.forEach(function(fl){ var P=decode(fl,q), b=[1e9,1e9,-1e9,-1e9];
+function rings2d(list,q,dp,bb){ var d='', best=-1; list.forEach(function(fl){ var P=decode(fl,q), b=[1e9,1e9,-1e9,-1e9]; if(P.length<2) return;
   P.forEach(function(p){ if(p[0]<b[0])b[0]=p[0]; if(p[1]<b[1])b[1]=p[1]; if(p[0]>b[2])b[2]=p[0]; if(p[1]>b[3])b[3]=p[1]; });
+  var u=bb.u||(bb.u=[1e9,1e9,-1e9,-1e9]); u[0]=Math.min(u[0],b[0]); u[1]=Math.min(u[1],b[1]); u[2]=Math.max(u[2],b[2]); u[3]=Math.max(u[3],b[3]);   /* (the union of all its rings: a country of islands) */
   var a=(b[2]-b[0])*(b[3]-b[1]); if(a>best){ best=a; bb[0]=b[0]; bb[1]=b[1]; bb[2]=b[2]; bb[3]=b[3]; } d+=curve(P,dp); }); return d; }
-function line2d(flat,q){ var P=decode(flat,q), d='M'+P[0][0].toFixed(2)+' '+P[0][1].toFixed(2); for(var i=1;i<P.length;i++) d+='L'+P[i][0].toFixed(2)+' '+P[i][1].toFixed(2); return d; }
+function line2d(flat,q){ var P=decode(flat,q); if(P.length<2) return ''; var d='M'+P[0][0].toFixed(2)+' '+P[0][1].toFixed(2); for(var i=1;i<P.length;i++) d+='L'+P[i][0].toFixed(2)+' '+P[i][1].toFixed(2); return d; }
 function quad(a,b,bend){ var mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,k=bend*Math.min(L,520);
   return {c:[mx-dy/L*k,my+dx/L*k],L:L}; }
 
@@ -429,13 +451,28 @@ function quad(a,b,bend){ var mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b
 function cp(x,y){ return [(x-(S.rl||0))/(S.z||1),(y-(S.rt||0))/(S.z||1)]; }
 function scr(x,y){ if(S.globe) return gScr(x,y); return [(x-S.cx)*S.k+S.vw/2,(y-S.cy)*S.k+S.vh/2]; }
 function wld(sx,sy){ if(S.globe){ var w=gWld(sx,sy); if(w) return w; return [S.cx,S.cy]; } return [(sx-S.vw/2)/S.k+S.cx,(sy-S.vh/2)/S.k+S.cy]; }
-function inset(){ return phone()?{t:56,b:124,l:14,r:14}:{t:60,b:96,l:30,r:70}; }      // (clear of the page's own corner buttons and side rail)
-function fitBox(bb,pad){ var I=inset(), w=S.vw-I.l-I.r-2*pad, hh=S.vh-I.t-I.b-2*pad, bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3);
+// (a phone on its side, F5: the map sits between the header row's foot and the Tour bar's top, 14 pt clear of the island's insets: Safari's bars leave ~250 pt, so the old 56 / 124
+// left 70 pt and the whole world ran under the header and the Tour bar)
+function side(n){ return Math.max(0,parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n))||0); }
+function sideways(){ return S.vh<500&&document.documentElement.classList.contains('mobile'); }      // (a phone on its side: wider than phone() allows, but short)
+// (three cases, in this order. One country on a short landscape, e8 / #19: the pill and the Tour block are a column at the left, the map and its cards live beside it, never
+// under the 44 pt header row. Any other map on a phone on its side, F5. Else the upright phone's and the desktop's bands; one country starts below its scope pill.)
+function inset(){ if(shortC()){ var Ll=30; (S.obs||[]).forEach(function(r){ if(r[0]<S.vw*.3&&r[2]<S.vw*.5) Ll=Math.max(Ll,r[2]+10); }); return {t:Math.max(S.top||52,44)+6,b:8,l:Ll,r:66}; }
+  var I=sideways()?{t:Math.max(S.top||0,44)+6,b:S.tour?64:10,l:14+side('--sh-left'),r:14+side('--sh-right')}:phone()?{t:56,b:124,l:14,r:14}:{t:60,b:96,l:30,r:70};      // (clear of the page's own corner buttons and side rail)
+  if(sideways()&&S.tour){ var tb=tourBox(); if(tb&&tb[2]<S.vw*.5){ I.b=10; I.l=Math.max(I.l,tb[2]+10); } }      // (the Tour bar is a block at the left on a short landscape, e8: clear of it means beside it, not above it)
+  if(S.pillB&&D().scope) I.t=Math.max(I.t,S.pillB+8); return I; }
+function tourBox(){ var e=S.tourEl; if(!e) return null; var h=e.hidden; if(h) e.hidden=false; var r=e.getBoundingClientRect(); if(h) e.hidden=true; if(r.width<2||r.height<2) return null;
+  var a=cp(r.left,r.top), q=cp(r.right,r.bottom); return [a[0],a[1],q[0],q[1]]; }
+function fitBox(bb,pad,xl){ var I=inset(); I.l+=xl||0; var w=Math.max(S.vw-I.l-I.r-2*pad,40), hh=Math.max(S.vh-I.t-I.b-2*pad,40), bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3);
   var k=Math.min(w/bw,hh/bh); return {k:k,cx:(bb[0]+bb[2])/2-((I.l-I.r)/2)/k,cy:(bb[1]+bb[3])/2-((I.t-I.b)/2)/k}; }
 // The whole world, centred in the map (Luke, 2026-10-26: "have the map centered when opening from homepage"): the same margin on either
 // side (the map's bars float over the sea), less on a short landscape phone; a phone held upright shows the world taller (60% of its
 // height) and the reader pans sideways from its middle.
 function worldView(){ var short=S.vh<500, px=phone()?10:short?16:40, py=short?18:62, bw=2000, bh=974;
+  // (a phone on its side, the whole world: still the map's middle, as Luke asked. Its top margin is the header row's foot + 6 and the foot's margin is the same, so nothing is
+  // under the 44 pt row and the world is not pushed off centre (the first F5 fit centred it in the box between the header and the Tour bar: 7 px high and 0.669 of a 750 x 342
+  // map's height). Either side clears the wider of the island's two insets by 14 pt. The Tour block floats over the far south-west Pacific, open sea. One country keeps its own fit.)
+  if(sideways()&&!S.globe&&!one()){ var m=Math.max(S.top||0,44)+6, sx=14+Math.max(side('--sh-left'),side('--sh-right')); return {k:Math.min((S.vw-2*sx)/bw,(S.vh-2*m)/bh),cx:0,cy:0}; }
   var k=Math.min((S.vw-2*px)/bw,(S.vh-2*py)/bh); if(phone()&&!short) k=Math.max(k,(S.vh-2*py)*.6/bh);
   if(S.globe) return {k:Math.min(S.vw*.42,(S.vh-2*py)*.46)/GR,cx:S.cx,cy:0};          // (the globe: whole, turned where it was)
   return {k:k,cx:0,cy:0}; }
@@ -483,11 +520,11 @@ function live(){ return seq().filter(function(id){ return !S.out[id]; }); }
 // ── drawing ──
 function drawBase(G){
   S.base=G; var q=G.q, used=D().used||{};
-  (G.grat||[]).forEach(function(fl){ el('path',{d:line2d(fl,q),'class':'wp-grat'},S.gGrat); });
-  if(G.sphere) el('path',{d:curve(decode(G.sphere,q),1),'class':'wp-sphere'},S.gGrat);
+  if(!PJ) (G.grat||[]).forEach(function(fl){ el('path',{d:line2d(fl,q),'class':'wp-grat'},S.gGrat); });
+  if(G.sphere&&!PJ) el('path',{d:curve(decode(G.sphere,q),1),'class':'wp-sphere'},S.gGrat);
   Object.keys(G.c).sort().forEach(function(cid){
-    var bb=[1e9,1e9,-1e9,-1e9], d=rings2d(G.c[cid],q,1,bb); S.bb[cid]=bb;
-    var p=el('path',{d:d,'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._base=d; p._cid=cid; S.paths[cid]=p;
+    PJC=cid; var bb=[1e9,1e9,-1e9,-1e9], d=rings2d(G.c[cid],q,1,bb); S.bb[cid]=bb;
+    var p=el('path',{d:d,'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')+(PJ&&cid===D().scope&&GEO.s&&GEO.s[cid]?' wp-hid':'')},S.gLand); p._base=d; p._cid=cid; S.paths[cid]=p;
     p.addEventListener('click',function(){ if(S.dragged||(D().used||{})[cid]==null) return; var f=firstIn(cid); if(f) A.select(f); });
   });
 }
@@ -541,6 +578,38 @@ function place(){
     if(s[2]===false){ x=-9999; y=-9999; } P.el.style.visibility=s[2]===false?'hidden':'';
     P.x=x; P.y=y; P.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
     P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)+lbo()).toFixed(1)+'px)'; }
+  // a one-country map (e8): a state's own card that is the state's only card (Nevada's, pinned on Carson City beside Sacramento) slides to the middle of its state
+  // while its capital is crowded, as far as it overlaps; pushing every pin apart where it stood sent California's and Nevada's down the Pacific in a column
+  if(D().scope&&S.sts&&!S.globe){ var by=null;
+    for(var q3 in S.pins){ var Pc=S.pins[q3]; if(Pc.cen===undefined){ if(!by){ by={par:{}}; S.sts.forEach(function(s){ by['$'+dec(s.n)]=s; }); for(var q0 in D().nodes){ var m0=N(q0); if(m0&&m0.par&&m0.x!=null) by.par[m0.par]=1; } }
+        var s2=by['$'+dec(N(q3).pl||'')]; var n3=N(q3), ins=0; if(PJ) for(var kb in PJ.box){ var Xb=PJ.box[kb]; if(n3.x/ESC>=Xb[0]&&n3.x/ESC<=Xb[2]&&n3.y/ESC>=Xb[1]&&n3.y/ESC<=Xb[3]) ins=1; }      // (not in the small Alaska / Hawaii frames)
+        Pc.cen=s2&&!ins&&!by.par[q3]&&!Pc.fan?[s2.x,s2.y]:null; }
+      if(!Pc.cen||Pc.x<-9000) continue; var mo=0; for(var q4 in S.pins){ var Po=S.pins[q4]; if(Po===Pc||Po.x<-9000) continue; mo=Math.max(mo,Math.min(38-Math.abs(Po.x-Pc.x),24-Math.abs(Po.y-Pc.y))); }
+      if(mo>0){ var cc=scr(Pc.cen[0],Pc.cen[1]), tt=Math.min(1,mo/10); Pc.x+=(cc[0]-Pc.x)*tt; Pc.y+=(cc[1]-Pc.y)*tt; } } }
+  if(D().scope){ var SA=[]; for(var q1 in S.pins){ var Z=S.pins[q1]; if(Z.x>-9000) SA.push(Z); }   // a one-country map: pins that would overprint (California's 1.1-3 / 1.1-4) are pushed apart on screen
+    for(var it=0;it<10;it++){ var mvd=0;
+      for(var i1=0;i1<SA.length;i1++) for(var j1=i1+1;j1<SA.length;j1++){ var a1=SA[i1], b1=SA[j1], dx=b1.x-a1.x, dy=b1.y-a1.y, ox=38-Math.abs(dx), oy=24-Math.abs(dy);
+        if(ox>0&&oy>0){ mvd=1; if(oy<=ox){ var sy=(dy>0||(dy===0))?1:-1, m=oy/2+.5; a1.y-=sy*m; b1.y+=sy*m; } else { var sx=dx>=0?1:-1, m2=ox/2+.5; a1.x-=sx*m2; b1.x+=sx*m2; } } }
+      if(!mvd) break; }
+    SA.forEach(function(Z){ Z.el.style.transform='translate('+Z.x.toFixed(1)+'px,'+Z.y.toFixed(1)+'px)'; Z.lbl.style.transform='translate(-50%,0) translate('+Z.x.toFixed(1)+'px,'+(Z.y+(big?16:10)+lbo()).toFixed(1)+'px)'; }); }
+  if(S.sts) S.sts.forEach(function(s){ if(s.on){ var c=scr(s.x,s.y); s.lbl.style.transform='translate(-50%,-50%) translate('+c[0].toFixed(1)+'px,'+c[1].toFixed(1)+'px)'; } });
+  if(S.insL){ var tk=[], LB=[]; for(var id3 in S.pins){ var Pl=S.pins[id3], Lq=Pl.lbl; if(Pl.x>-9000&&Lq&&!Lq.classList.contains('wp-off')){ var lw=Lq.offsetWidth, lh=Lq.offsetHeight, ly=Pl.y+(big?16:10)+lbo(); if(lw) LB.push([Pl.x-lw/2,ly,Pl.x+lw/2,ly+lh]); } }   // (the cards' names under their pins, sim1111d: "Alaska / Erie & Co" over HAWAII)
+    var OB=S.obs||[], RT=[]; if(!S.globe) S.chev.forEach(function(C){ for(var u=0;u<=1.001;u+=.08){ var x=(1-u)*(1-u)*C.a[0]+2*(1-u)*u*C.c[0]+u*u*C.b[0], y=(1-u)*(1-u)*C.a[1]+2*(1-u)*u*C.c[1]+u*u*C.b[1]; RT.push(scr(x,y)); } });
+    // a frame's name sits clear of every pin, the cards' names, the other frame's name, the route lines and the map's panels (sim1111f E2: on Safari's real
+    // 402 x 714 the three old spots all hit something and the first, over pin 1.1-3, was kept): above / below / inside its frame at the left, then at the right,
+    // then beside it; if none is free, the one that hits least
+    S.insL.forEach(function(t){ var c=scr(t.x,t.y), c0=scr(t.x,t.y0), c1=scr(t.x1,t.y), w=(t.lbl.offsetWidth||80)+4, hh=18, X0=c[0]+4, X1=c1[0]-w-4,
+      cand=[[X0,c0[1]-hh-2],[X0,c[1]+3],[X0,c0[1]+3],[X0,c[1]-hh-3],[X1,c0[1]-hh-2],[X1,c[1]+3],[X1,c[1]-hh-3],[X1,c0[1]+3],[c[0]-w-4,c0[1]+3],[c[0]-w-4,c[1]-hh],[c1[0]+4,c0[1]+3],[c1[0]+4,c[1]-hh]], pick=cand[0], least=1e9;
+    LB.forEach(function(o){ if(o[1]>c[1]-4&&o[1]<c[1]+20&&o[0]<c1[0]&&o[2]>c[0]) [X0,X1].forEach(function(x){ cand.push([x,o[3]+3]); }); });      // (and under a card's name that sits under the frame)
+    for(var ci=0;ci<cand.length;ci++){ var q=cand[ci], bad=0;
+      for(var id2 in S.pins){ var Pn=S.pins[id2]; if(Pn.x>-9000&&Math.abs(Pn.x-(q[0]+w/2))<w/2+(big?21:12)&&Math.abs(Pn.y-(q[1]+hh/2))<hh/2+(big?14:10)) bad+=10; }
+      tk.forEach(function(o){ if(Math.abs(o[0]-q[0])<Math.max(o[2],w)&&Math.abs(o[1]-q[1])<hh) bad+=10; });
+      LB.forEach(function(o){ if(q[0]<o[2]+1&&q[0]+w>o[0]-1&&q[1]<o[3]+2&&q[1]+hh>o[1]-2) bad+=5; });
+      OB.forEach(function(o){ if(q[0]<o[2]+3&&q[0]+w>o[0]-3&&q[1]<o[3]+2&&q[1]+hh>o[1]-2) bad+=8; });
+      RT.forEach(function(r){ if(r[0]>q[0]-2&&r[0]<q[0]+w+2&&r[1]>q[1]-2&&r[1]<q[1]+hh+2) bad+=1; });
+      if(q[0]<4||q[0]+w>S.vw-4||q[1]<(S.top||0)||q[1]+hh>S.vh-4) bad+=8;
+      if(bad<least){ least=bad; pick=q; } if(!bad) break; }
+    tk.push([pick[0],pick[1],w]); t.lbl.style.transform='translate('+pick[0].toFixed(1)+'px,'+pick[1].toFixed(1)+'px)'; t.lbl.style.display=S.globe?'none':''; }); }
   S.tags.forEach(function(T){ if(T.pos&&T.d){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
   var ov=S.ovChev; while(ov.firstChild) ov.removeChild(ov.firstChild);
   if(S.globe) gArcs(); else if(S.ovg&&S.ovg.firstChild) S.ovg.textContent='';
@@ -560,6 +629,7 @@ function place(){
 function band(was,v,lo,hi){ return was?v>=lo:v>=hi; }
 function off(e,on){ e.classList.toggle('wp-off',!on); }
 function labels(){                                  // decided once a gesture settles: names that fit, the ones already showing first
+  if(D().scope) S.obs=obstacles();                  // (the map's panels, for the frame names: measured here and on resize, not every frame)
   var lvl=S.k/S.kW, big=S.big=band(S.big,lvl,1.65,1.9), tags=S.tagsOn=!band(!S.tagsOn,lvl,1.3,1.55), tight=!big;
   for(var id0 in S.pins){ var P0=S.pins[id0], n0=N(id0); P0.el.classList.toggle('n',big); P0.num.textContent=big?(n0.n||''):''; }
   place();
@@ -568,15 +638,19 @@ function labels(){                                  // decided once a gesture se
   if(S.cl) S.cl.boxes.forEach(function(b){ taken.push(b); });
   [S.rowEl,S.ctlEl,S.keyEl,S.tourEl,S.list,S.navEl,S.mmEl].forEach(function(e){ if(!e||e.hidden||(e===S.mmEl&&!e.classList.contains('on'))) return; var r=e.getBoundingClientRect(); if(!r.width) return;      // the map's own panels: no name goes under them
     var a=cp(r.left,r.top), b=cp(r.right,r.bottom); taken.push([a[0]-6,a[1]-6,b[0]+6,b[1]+6]); });
+  var FR=[]; if(S.insL&&shortC()) S.insL.forEach(function(t){ var a=scr(t.x,t.y0), b=scr(t.x1,t.y); FR.push([a[0],a[1],b[0],b[1]]); });      // (a phone on its side: a lower-48 card's name stays off the Alaska / Hawaii frames, e8)
   var hit=function(b,sl){ sl=sl||0; for(var i=0;i<taken.length;i++){ var t=taken[i]; if(b[0]+sl<t[2]&&b[2]-sl>t[0]&&b[1]+sl<t[3]&&b[3]-sl>t[1]) return true; } return false; };
   var seenC={}, order=Object.keys(S.hint||{}).concat(stops(),Object.keys(S.pins)), was=order.filter(function(id){ return S.pins[id]&&S.pins[id].on; });
   was.concat(order).forEach(function(id){ var P=S.pins[id]; if(!P||P._done===S) return; P._done=S; var n=N(id);
     var L=P.lbl, show=!S.out[id]&&!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
     if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
     L.querySelector('i').style.display=tight?'none':'';
-    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)||b[3]>S.vh-2||b[0]<2||b[2]>S.vw-2||FR.some(function(f){ return !(P.x>f[0]&&P.x<f[2]&&P.y>f[1]&&P.y<f[3])&&b[0]<f[2]&&b[2]>f[0]&&b[1]<f[3]&&b[3]>f[1]; })) show=false; else taken.push(b); }      // (a name that would be cut by the screen's edge stays off: e8)
     P.on=show; off(L,show); });
   for(var k in S.pins) delete S.pins[k]._done;
+  if(S.sts){ var lv=S.k/(S.kHome||S.kW), bs=phone()?3:2.2; S.sts.forEach(function(s){ var c=scr(s.x,s.y), L=s.lbl, show=lv>=bs&&c[2]!==false&&c[0]>24&&c[0]<S.vw-24&&c[1]>24&&c[1]<S.vh-24;
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, b=[c[0]-w/2,c[1]-hh/2,c[0]+w/2,c[1]+hh/2]; if(hit(b)) show=false; else taken.push(b); }
+    s.on=show; off(L,show); if(show) L.style.transform='translate(-50%,-50%) translate('+c[0].toFixed(1)+'px,'+c[1].toFixed(1)+'px)'; }); }
   // the unit tags (world view only): beside their unit's pins where nothing else is; a tag keeps its side while that is free
   S.tags.forEach(function(T){ var u=D().u[T.a], ids=(u.tops||[]).filter(placed); if(!ids.length){ T.pos=null; off(T.el,false); return; }
     var cx=0,cy=0; ids.forEach(function(i){ cx+=N(i).x; cy+=N(i).y; }); cx/=ids.length; cy/=ids.length; T.pos=[cx,cy];
@@ -589,6 +663,21 @@ function labels(){                                  // decided once a gesture se
   place();
 }
 
+// ── a one-country map's states as filled shapes (the hosted a1p tier: faces of the same Natural Earth coast + border lines) ──
+function stDraw(T){ if(!PJ||S.sts||!S.gLand) return; var used=D().st||{}, g=el('g',{'class':'wp-sts'},S.gLand); PJC=D().scope; S.sts=[]; S.sts._T=T;
+  S.insL=[]; for(var k in PJ.box){ var X=PJ.box[k]; el('rect',{x:X[0]*ESC,y:X[1]*ESC,width:(X[2]-X[0])*ESC,height:(X[3]-X[1])*ESC,'class':'wp-frame'},g);
+    S.insL.push({x:X[0]*ESC,x1:X[2]*ESC,y:X[3]*ESC,y0:X[1]*ESC,lbl:h('div',{'class':'wp-lbl wp-stn wp-inl'},S.lLbl,k==='A'?'Alaska':k==='H'?'Hawaii':k)}); }
+  T.s.forEach(function(r,i){ var d='', big=-1, cx=0, cy=0;
+    r[1].forEach(function(fl){ var P=decode(fl,T.q); if(P.length<3) return; var b=[1e9,1e9,-1e9,-1e9]; P.forEach(function(p,j){ d+=(j?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2); if(p[0]<b[0])b[0]=p[0]; if(p[1]<b[1])b[1]=p[1]; if(p[0]>b[2])b[2]=p[0]; if(p[1]>b[3])b[3]=p[1]; }); d+='Z';
+      var a=(b[2]-b[0])*(b[3]-b[1]); if(a>big){ big=a; cx=(b[0]+b[2])/2; cy=(b[1]+b[3])/2; } });
+    var u=used[r[0]], p=el('path',{d:d,'class':'wp-c wp-s t'+(i%5)+(u!=null?' wp-u '+ucls(u):'')},g), L=h('div',{'class':'wp-lbl wp-stn wp-off'},S.lLbl,dec(r[0]));
+    S.sts.push({n:r[0],p:p,x:cx,y:cy,fl:r[1],lbl:L,on:false}); });
+  mmDraw(); labels(); gAgain(); }
+function gSts(x,W,H){ var T=S.sts._T; PJC=D().scope;
+  S.sts.forEach(function(s){ var st=getComputedStyle(s.p); x.fillStyle=st.fill; x.strokeStyle=st.stroke; x.lineWidth=s.p.classList.contains('wp-u')?2.2:1.3; x.beginPath();
+    s.fl.forEach(function(fl){ var P=decode(fl,T.q), last=null, pts=[]; P.forEach(function(w){ var l=eeI(w[0],w[1]); if(last!=null){ while(l[0]-last>180) l[0]-=360; while(l[0]-last<-180) l[0]+=360; } last=l[0]; pts.push([(l[0]+180)/360*W,(90-l[1])/180*H]); });
+      [-W,0,W].forEach(function(o){ pts.forEach(function(p,i){ if(i) x.lineTo(p[0]+o,p[1]); else x.moveTo(p[0]+o,p[1]); }); x.closePath(); }); });
+    x.fill('evenodd'); x.stroke(); }); }
 // ── zoomed-in detail: a continent at 1:50m, a country's state lines ──
 function fetchJSON(url){ return fetch(url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
 function visBox(){ var a=wld(0,0), b=wld(S.vw,S.vh); return [a[0],a[1],b[0],b[1]]; }
@@ -608,7 +697,7 @@ function detail(){ var want=wantD(), vb=S.globe?gVis():[visBox()];
     } else if(S.detOn[cs]) swapOut(cs);
   });
   if(want) (D().multi||[]).forEach(function(cid){ if(S.a1[cid]||!GEO.a1[cid]||!S.bb[cid]||!seen(S.bb[cid],vb)) return; S.a1[cid]='loading';
-    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); gAgain(); }).catch(function(){ S.a1[cid]=null; }); });
+    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); PJC=cid; if(!PJ||!(GEO.s&&GEO.s[cid])) G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); /* (the states as shapes replace the dashed lines where that tier exists) */ gAgain(); }).catch(function(){ S.a1[cid]=null; }); });
   S.gA1.style.display=want?'':'none';
 }
 // ── the Tour's flag fill (CSS: .wp-ff) ──
@@ -642,7 +731,7 @@ function ffLay(cid,r){ if(S.ffC!==cid||!S.ffM) return; var f=ffFit(cid), B=3000,
   var x0=f.x, y0=f.y, x1=f.x+f.w, y1=f.y+f.h;                                                           // (the strips tuck 1.5 units under the flag: one group, no hairline)
   im(r.u[0],x0,y0-B,f.w,B+u); im(r.u[1],x0,y1-u,f.w,B+u); im(r.u[2],x0-B,y0,B+u,f.h); im(r.u[3],x1-u,y0,B+u,f.h);
   rc(r.cn[0],x0-B,y0-B,B+u,B+u); rc(r.cn[1],x1-u,y0-B,B+u,B+u); rc(r.cn[2],x0-B,y1-u,B+u,B+u); rc(r.cn[3],x1-u,y1-u,B+u,B+u); }
-function ffWant(){ if(!S.tour||!S.sel||!S.cur||S.ua!=null||!S.ready) return null; var n=N(S.sel), cid=n&&n.c;
+function ffWant(){ if(D().scope||!S.tour||!S.sel||!S.cur||S.ua!=null||!S.ready) return null; var n=N(S.sel), cid=n&&n.c;
   if(!cid||!(GEO.flag||{})[cid]||!S.paths[cid]||!S.bb[cid]||!S.paths[cid].classList.contains('wp-u')||S.k<S.kW*1.6) return null; return cid; }
 // the scan line is ~14 px of screen at any zoom (Art 2026-11-05: a fixed share of the box was a 45 px slab on France), refitted when the camera settles
 function ffBand(){ if(!S.ffC||!S.ffStops) return; var bb=S.bb[S.ffC], f=Math.min(.25,14/Math.max((bb[3]-bb[1])*S.k,1)), o=[0,1-f,1-f*.15,1];
@@ -682,7 +771,7 @@ function gFlag(todo){ var cv=S.gf, i=cv.fi, t=S.ffC&&todo.filter(function(q){ re
 function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
   Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid];
     if(!p){ p=el('path',{'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._cid=cid; p._extra=1; S.paths[cid]=p; }
-    if(!p._det){ var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
+    if(!p._det){ PJC=cid; var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
     p.setAttribute('d',p._det); p.style.display=''; }); gAgain(); }
 function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); gAgain(); }
 function gAgain(){ ffClip(); if(S.globe&&S.G&&S.gM) gVector(S.k*GR); }
@@ -693,6 +782,7 @@ function placeView(id){
   var span=bb?Math.max(bb[2]-bb[0],bb[3]-bb[1]):8; if(n.k==='sub') span=Math.min(span,110); else if(n.k==='city') span=Math.min(span,60);
   var cities=n.k==='country'&&Object.keys(D().nodes||{}).some(function(c){ var m=N(c); return m.par===id&&m.k==='city'; });
   var k=clamp(room*(phone()?.62:cities?.72:.42)/Math.max(span,4),S.kW*2.2,S.kW*30);          // (a country with cards on its cities: close enough to tell them apart)
+  if(shortC()) return {cx:n.x-((I.l-I.r)/2)/k,cy:n.y-((I.t-I.b)/2)/k,k:k};      // (a phone on its side: the pin in the middle of the free box, its card beside it, e4)
   return {cx:n.x,cy:n.y-(phone()?40:30)/k,k:k};
 }
 // A card is enlarged where it stands (Luke, 2026-10-23: "it should still have the ability to enlarge nodes"): a pin, a cluster card, a
@@ -717,7 +807,11 @@ A.select=function(id,opts){
 // camera settles on the place and the card grows out of its marker. A hop under ~120 px keeps the plain hand-off; a click, Esc, Enter or
 // the next hop goes straight to the landing.
 function planeHop(from,to,v,land){
-  var a=N(from), b=N(to), sa=scr(a.x,a.y), sb=scr(b.x,b.y); if(Math.hypot(sb[0]-sa[0],sb[1]-sa[1])<120) return false;
+  var a=N(from), b=N(to), sa=scr(a.x,a.y), sb=scr(b.x,b.y);
+  if(D().scope){                                                               // (a country: every leg rides, however short; the plane's 120 px floor left neighbouring states with no train)
+    if(PJ&&[a,b].some(function(n){ for(var k in PJ.box){ var X=PJ.box[k], u=n.x/ESC, w=n.y/ESC; if(u>=X[0]&&u<=X[2]&&w>=X[1]&&w<=X[3]) return true; } return false; })) return false;   // no rail runs into an inset (Alaska, Hawaii): hand-off only
+    return trainHop(from,to,v,land,a,b,sa,sb); }                  // a country: a train on a rail, not the plane
+  if(Math.hypot(sb[0]-sa[0],sb[1]-sa[1])<120) return false;
   var sq=seq(), back=sq.indexOf(to)<sq.indexOf(from), Q=quad([a.x,a.y],[b.x,b.y],back?-.22:.22), bb=[Math.min(a.x,b.x,Q.c[0]),Math.min(a.y,b.y,Q.c[1]),Math.max(a.x,b.x,Q.c[0]),Math.max(a.y,b.y,Q.c[1])];
   var f=fitBox(bb,phone()?36:110), kf=Math.min(f.k,v.k), I=inset();
   var fits=[sa,sb].every(function(q){ return q[0]>I.l+30&&q[0]<S.vw-I.r-30&&q[1]>I.t+30&&q[1]<S.vh-I.b-30; });
@@ -735,6 +829,56 @@ function planeHop(from,to,v,land){
     var sc=(e<0?.6+.4*mj(clamp((now-P.t0)/W,0,1)):1)*(1+.15*Math.sin(Math.PI*t));                 // (wind-up at the pin; lift mid-route)
     g.setAttribute('transform','translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate('+(r*180/Math.PI).toFixed(1)+') scale('+sc.toFixed(3)+')');
     var d=''; for(var i=0;i<=24;i++){ var w=pt(m*i/24); d+=(i?'L':'M')+w[0].toFixed(1)+' '+w[1].toFixed(1); } tr.setAttribute('d',d);
+    if(t<1) P.raf=requestAnimationFrame(step); else planeLand(P); })(P.t0);
+  return true; }
+// ── the toy train (Tour legs on a map of one country; Luke 2026-11-06: "For single country, make it travel by train instead of plane"; Art: notes-art/atlas-country-look.md) ──
+// An octilinear rail (a 45-degree run from the stop, then straight in, corners rounded) in map units; each frame it is projected, a halo + core
+// + sleepers drawn, and three units (engine, two cars) placed at arc-length offsets so the train bends round a corner. The camera frames both ends as for the plane.
+function railPts(a,b){ var dx=b.x-a.x, dy=b.y-a.y, d=Math.min(Math.abs(dx),Math.abs(dy));
+  return d<1e-6||Math.abs(Math.abs(dx)-Math.abs(dy))<1e-6?[[a.x,a.y],[b.x,b.y]]:[[a.x,a.y],[a.x+(dx<0?-d:d),a.y+(dy<0?-d:d)],[b.x,b.y]]; }
+function railScr(W){ var out=[],i,j,r;
+  if(S.globe){ for(i=0;i<W.length-1;i++){ var ga=gVec(W[i][0],W[i][1]), gb=gVec(W[i+1][0],W[i+1][1]); for(j=i?1:0;j<=12;j++) out.push(gProj(gSlerp(ga,gb,j/12),1.002)); } }
+  else{ var Q=W.map(function(w){ return scr(w[0],w[1]); }); out.push(Q[0]);
+    if(Q.length===3){ var A=Q[0], B=Q[1], C=Q[2], l1=Math.hypot(B[0]-A[0],B[1]-A[1]), l2=Math.hypot(C[0]-B[0],C[1]-B[1]); r=Math.min(phone()?30:64,l1/2,l2/2);
+      var E=[B[0]+(A[0]-B[0])*r/Math.max(l1,1e-6),B[1]+(A[1]-B[1])*r/Math.max(l1,1e-6)], X=[B[0]+(C[0]-B[0])*r/Math.max(l2,1e-6),B[1]+(C[1]-B[1])*r/Math.max(l2,1e-6)];
+      for(j=0;j<=8;j++){ var t=j/8, u=1-t; out.push([u*u*E[0]+2*u*t*B[0]+t*t*X[0],u*u*E[1]+2*u*t*B[1]+t*t*X[1]]); } }
+    out.push(Q[Q.length-1]); }
+  var Ls=[0]; for(i=1;i<out.length;i++) Ls.push(Ls[i-1]+Math.hypot(out[i][0]-out[i-1][0],out[i][1]-out[i-1][1]));
+  return {P:out,Ls:Ls,L:Ls[Ls.length-1]}; }
+function railAt(R,sd){ var P=R.P, Ls=R.Ls, i=1;
+  if(sd<0){ var h=Math.atan2(P[1][1]-P[0][1],P[1][0]-P[0][0]); return [P[0][0]+Math.cos(h)*sd,P[0][1]+Math.sin(h)*sd,h]; }   // behind the first stop: the cars wait on the line's own direction, never piled on the engine
+  sd=clamp(sd,0,R.L); while(i<Ls.length-1&&Ls[i]<sd) i++;
+  var u=(sd-Ls[i-1])/Math.max(Ls[i]-Ls[i-1],1e-6); return [P[i-1][0]+(P[i][0]-P[i-1][0])*u,P[i-1][1]+(P[i][1]-P[i-1][1])*u,Math.atan2(P[i][1]-P[i-1][1],P[i][0]-P[i-1][0])]; }
+// a unit's pose for a heading: heading west mirrors it left-right, and it never tilts past 45 degrees, so its chimney always points screen-up (Luke: "don't let the train turn upside down")
+function orient(th){ var fx=Math.cos(th)<0?-1:1, ro=fx<0?th+(th>0?-Math.PI:Math.PI):th; return [clamp(ro,-Math.PI/4,Math.PI/4),fx]; }
+A.orient=orient;
+function trainHop(from,to,v,land,a,b,sa,sb){
+  var W0=railPts(a,b), bb=[1e9,1e9,-1e9,-1e9]; W0.forEach(function(w){ bb=[Math.min(bb[0],w[0]),Math.min(bb[1],w[1]),Math.max(bb[2],w[0]),Math.max(bb[3],w[1])]; });
+  var f=fitBox(bb,shortC()?26:phone()?36:110), kf=Math.min(f.k,v.k), I=inset();
+  var fits=[sa,sb].every(function(q){ return q[0]>I.l+30&&q[0]<S.vw-I.r-30&&q[1]>I.t+30&&q[1]<S.vh-I.b-30; });
+  var Lm=phone()?150:240, L0=Math.hypot(sb[0]-sa[0],sb[1]-sa[1]);          // a short hop: the camera closes in until the rail is long enough to ride
+  if(!S.globe&&L0<Lm){ var kz=Math.min(S.k*Lm/Math.max(L0,1),f.k,S.kW*40), sc=shortC(); fly((bb[0]+bb[2])/2-(sc?(I.l-I.r)/2/kz:0),(bb[1]+bb[3])/2-(sc?(I.t-I.b)/2/kz:0),kz); } else if(!fits) fly(f.cx,f.cy,kf);      // (a phone on its side: the rail in the middle of the free box, not under the title bar)
+  var us=phone()?.75:1, tr=el('g',{'class':'wp-rail '+ucls(N(to).a)},S.ovPlane), hp=el('path',{'class':'h'},tr), cp=el('path',{'class':'c'},tr), sp=el('path',{'class':'s'},tr);
+  // Luke 2026-11-06 (L-1106-100308): "i like the folded steam engine, but i like the steam of the second one": the sheet's C1 folded locomotive (gL1) leading two folded cars (gK)
+  // with the C2 soft-cloud puffs (gS2) drifting and fading behind. 83 px locomotive / 36 px cars on desktop, 44 / 19 on phone (scale 1.8 / .95 of the 46 / 20 px glyphs).
+  var ts=phone()?.95:1.8, g=el('g',{'class':'wp-plane wp-train'},S.ovPlane), pf=el('g',null,g), puffs=[], lastP=0, CH=null, FUN=[9,-15],
+    LOCO=[['M-23 -10L-15 -15L-7 -10L-7 7L-23 7Z'],['M-7 -5L12 -5L23 2L23 7L-7 7Z'],['M7 -5L4 -15L14 -15L11 -5Z'],['M-7 1L19 1',1],['M-15 -15L-15 7',1],['M-3 -5L0 -9L3 -5',1],
+      ['M-12.4 8.2L-14.2 11.3L-17.8 11.3L-19.6 8.2L-17.8 5.1L-14.2 5.1Z'],['M0.6 8.2L-1.2 11.3L-4.8 11.3L-6.6 8.2L-4.8 5.1L-1.2 5.1Z'],['M13.6 8.2L11.8 11.3L8.2 11.3L6.4 8.2L8.2 5.1L11.8 5.1Z'],['M21.6 8.6L20.3 10.9L17.7 10.9L16.4 8.6L17.7 6.3L20.3 6.3Z']],
+    CAR=[['M-10 -4L-6 -8L6 -8L10 -4L10 7L-10 7Z'],['M-4 -1h.1M3 -1h.1',2],['M-10 -4L10 -4',1],['M0 -4L0 7',1],['M10 2L15 0L19 2',1],['M-2.4 7.6L-3.7 9.9L-6.3 9.9L-7.6 7.6L-6.3 5.3L-3.7 5.3Z'],['M7.6 7.6L6.3 9.9L3.7 9.9L2.4 7.6L3.7 5.3L6.3 5.3Z']],
+    U=[[0,LOCO],[36,CAR],[59,CAR]].map(function(d){ var u=el('g',null,g); d[1].forEach(function(a){ el('path',a[1]?{d:a[0],'class':a[1]>1?'bd':'f'}:{d:a[0]},u); }); return {g:u,off:d[0]}; });
+  var R0=railScr(W0), spd=phone()?360:420, dur=clamp(900+1000*R0.L/spd,1000,phone()?2000:2400), Wd=300;
+  var P=S.plane={g:g,tr:tr,t0:performance.now(),dur:dur,W:Wd,to:to,v:v,land:land,raf:0};
+  (function step(now){ if(S.plane!==P) return; var e=now-P.t0-Wd, t=clamp(e/dur,0,1), m=e<0?0:mj(t), R=railScr(W0), d='', k;
+    d=R.P.map(function(q,i){ return (i?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1); }).join(''); hp.setAttribute('d',d); cp.setAttribute('d',d);
+    var sl=''; if(!S.globe){ var gap=phone()?8:7; for(k=gap;k<R.L;k+=gap){ var q=railAt(R,k), nx=-Math.sin(q[2])*3*us, ny=Math.cos(q[2])*3*us; sl+='M'+(q[0]-nx).toFixed(1)+' '+(q[1]-ny).toFixed(1)+'L'+(q[0]+nx).toFixed(1)+' '+(q[1]+ny).toFixed(1); } }
+    sp.setAttribute('d',sl);
+    var sd=m*Math.max(R.L-(23*ts+10),0), sc=ts*(e<0?.3+.7*mj(clamp((now-P.t0)/Wd,0,1)):1);
+    U.forEach(function(u,ui){ var q=railAt(R,sd-u.off*ts), oo=orient(q[2]), ro=oo[0], fx=oo[1];
+      u.g.setAttribute('transform','translate('+q[0].toFixed(1)+' '+q[1].toFixed(1)+') rotate('+(ro*180/Math.PI).toFixed(1)+') scale('+(fx*sc).toFixed(3)+' '+sc.toFixed(3)+')');
+      if(!ui){ var cs=Math.cos(ro), sn=Math.sin(ro), fl=FUN[0]*fx; CH=[q[0]+(cs*fl-sn*FUN[1])*ts,q[1]+(sn*fl+cs*FUN[1])*ts,fx];
+        if(e>0&&now-lastP>90&&puffs.length<5){ lastP=now; puffs.push({x:CH[0],y:CH[1],t:now,e:el('path',{d:'M-5 2Q-7 -2 -3 -3Q-2 -7 2 -5Q6 -5 5 -1Q7 2 3 2Z'},pf)}); } } });
+    puffs=puffs.filter(function(f){ var a=(now-f.t)/700; if(a>=1||!CH){ f.e.remove(); return false; }       // a plume on the chimney: each puff rides with it (15% left behind), rises and drifts back 24 px, grows to 2.5x, fades in .7 s
+      f.e.setAttribute('transform','translate('+(CH[0]+(f.x-CH[0])*.15-CH[2]*24*a*ts).toFixed(1)+' '+(CH[1]+(f.y-CH[1])*.15-24*a*ts).toFixed(1)+') scale('+((.5+.75*a)*ts*1.3).toFixed(2)+')'); f.e.setAttribute('opacity',(.9*(1-a)).toFixed(2)); return true; });
     if(t<1) P.raf=requestAnimationFrame(step); else planeLand(P); })(P.t0);
   return true; }
 function planeLand(P){ if(S.plane!==P) return; S.plane=null; P.g.remove(); var tr=P.tr; tr.classList.add('wp-gone'); setTimeout(function(){ tr.remove(); },450);
@@ -757,12 +901,14 @@ function focus(a,cid,id){
 }
 function unfocus(){ closeCluster(true); S.sel=null; S.cur=null; S.ua=null; S.rel=[]; focus(null,null,null); tourBar(); place(); }
 // the timeline's own card, borrowed from the board while it is enlarged and given back after (the board keeps its order)
-function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.classList.remove('wp-bnode');
+function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.classList.remove('wp-bnode'); if(B.un){ B.un.classList.remove('in-card'); n.insertBefore(B.un,n.firstChild); }
   if(B.par&&B.par.isConnected&&document.getElementById(n.id)===n) B.par.insertBefore(n,B.nxt&&B.nxt.parentNode===B.par?B.nxt:null); else n.remove(); }
 function enlarge(id,kid){
   var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
   giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
   S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); flagIn(id,whereLine(id,'wp-where',w),w);
+  // the phone's unit label ("ERIE", blocks.UNIT_GLUE) hangs above a card, where the flag banner is here (sim1111d F4): it goes inside the card's top, as the glue's own in-card fallback, and back after
+  var un=node.querySelector(':scope > .node-unit'), cd=node.querySelector('.node-card'); if(un&&cd){ S.bor.un=un; un.classList.add('in-card'); cd.insertBefore(un,cd.firstChild); }
   return w;
 }
 // the flag of the country a card sits in, first in its place line: a hosted SVG fetched now, only this one (GEO.flag, world_flags.py); Holographic turns
@@ -831,7 +977,7 @@ function openCluster(id,at,enl){
     if(enl!==id) cards.push({id:enl,el:enlarge(enl,true),extra:1}); }
   else kids.forEach(function(c){ cards.push({id:c,el:c===enl?enlarge(c,true):card(c,false)}); });
   S.cl={id:id,main:main,cards:cards,k:S.k,boxes:[],at:at||null,enl:enl};
-  layoutCluster(); place(); labels(); navSync(); grow(els(S.cl));
+  layoutCluster(); place(); labels(); navSync(); if(S.cl) grow(els(S.cl));
 }
 function swapEnl(id){
   var C=S.cl; if(!C||C.enl===id) return;
@@ -847,7 +993,7 @@ function layoutCluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C), I=inset();
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, gap=phone()?22:30;
   // the place's own card goes on the side of its pin that hides the fewest other pins (above, then beside, then below)
-  var cost=function(sd){ var b=mainBox(P,sd,mw,mh), c=b[0]<8||b[2]>S.vw-8||b[1]<8||b[3]>S.vh-I.b+40?1000:0;
+  var sc=shortC(), cost=function(sd){ var b=mainBox(P,sd,mw,mh), c=(sc?b[0]<I.l-2||b[2]>S.vw-I.r+2||b[1]<I.t-2||b[3]>S.vh-I.b+2:b[0]<8||b[2]>S.vw-8||b[1]<8||b[3]>S.vh-I.b+40)?1000:0;
     for(var k in S.pins){ var Q=S.pins[k]; if(k!==C.id&&Q.x>b[0]-14&&Q.x<b[2]+14&&Q.y>b[1]-14&&Q.y<b[3]+14) c++; } return c; };
   C.side=['up','right','left','down'].reduce(function(best,sd){ return cost(sd)<cost(best)?sd:best; },'up');
   var mb=mainBox(P,C.side,mw,mh);
@@ -871,7 +1017,7 @@ function cluster(){
   if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim){ closeCluster(); if(!S.tour) setTimeout(function(){ if(!S.cl&&!S.anim) unfocus(); },0); } return; }
   var I=inset(), links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh);
-  var mx=clamp(mb[0],8,Math.max(8,S.vw-8-mw)), my=clamp(mb[1],8,Math.max(8,S.vh-8-mh));     // the place's own card beside its pin
+  var sc=shortC(), mx=sc?clamp(mb[0],I.l,Math.max(I.l,S.vw-I.r-mw)):clamp(mb[0],8,Math.max(8,S.vw-8-mw)), my=sc?clamp(mb[1],I.t,Math.max(I.t,S.vh-I.b-mh)):clamp(mb[1],8,Math.max(8,S.vh-8-mh));     // the place's own card beside its pin (a phone on its side: never over the Tour block, whose arrows it covered, e4)
   C.main.style.transform='translate('+mx.toFixed(1)+'px,'+my.toFixed(1)+'px)'; C.main._x=mx; C.main._y=my; var org=P.x.toFixed(1)+'px '+P.y.toFixed(1)+'px'; C.main.style.transformOrigin=org;
   C.boxes=[[mx,my,mx+mw,my+mh]];
   C.cards.forEach(function(K){ var w=K.el.offsetWidth, hh=K.el.offsetHeight, x=P.x+K.c[0]-w/2, y=P.y+K.c[1]-hh/2;
@@ -890,20 +1036,38 @@ A.hop=function(d){ var all=seq(), n=all.length; if(!n) return; var i=all.indexOf
 A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1e9,-1e9];
   (u.st||[]).filter(placed).forEach(function(id){ var n=N(id), b=S.bb[n.c]||[n.x,n.y,n.x,n.y]; bb=[Math.min(bb[0],n.x,b[0]),Math.min(bb[1],n.y,b[1]),Math.max(bb[2],n.x,b[2]),Math.max(bb[3],n.y,b[3])]; });
   if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(true); S.ua=a; S.sel=u.hub||null; S.cur=u.hub||null; if(u.hub) rels(u.hub); else S.rel=[]; focus(a,null,null); tourBar();
-  var I=inset(), v=fitBox(bb,phone()?20:60), k=Math.min(v.k,S.kW*14), mh=u.hub?(phone()?150:260):0;
-  v.cy-=mh/2/k;                                                               // room above the region for its own card
-  var land=function(){ if(u.hub&&S.sel===u.hub&&!(S.cl&&S.cl.id===u.hub)) openCluster(u.hub,[(bb[0]+bb[2])/2,bb[1]]); };
+  var sc=shortC(), I=inset(), v=sc?fitBox(bb,10,u.hub?296:0):fitBox(bb,phone()?20:60), k=Math.min(v.k,S.kW*14), mh=u.hub&&!sc?(phone()?150:260):0;
+  v.cy-=mh/2/k;                                                               // room above the region for its own card (a phone on its side: beside it, the fixed bands left a negative scale there, e4)
+  var land=function(){ if(u.hub&&S.sel===u.hub&&!(S.cl&&S.cl.id===u.hub)) openCluster(u.hub,sc?[bb[0],(bb[1]+bb[3])/2]:[(bb[0]+bb[2])/2,bb[1]]); };
   if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=k; apply(); settle(); land(); } else fly(v.cx,v.cy,k,land,land); emit('select',u.hub||null); };
 // the Tour switch: off, the bar goes, nothing is dimmed and the map stays where the reader is (free to pan, zoom and fly anywhere; the
 // arrow keys pan); on, it starts from the card the reader is on, or the first stop
 A.tourMode=function(v){ if(v==null) return S.tour; S.tour=!!v; try{ localStorage.setItem('alto-world-tour',S.tour?'on':'off'); }catch(x){}
   if(S.tourBtn) S.tourBtn.setAttribute('aria-pressed',String(S.tour)); S.root.classList.toggle('wp-free',!S.tour);
   if(S.tour){ if(S.cur) A.select(S.cur); else A.hop(1); } else { stop(); if(S.cl||S.cur) unfocus(); else tourBar(); if(S.ready) labels(); } };
-A.world=function(){ unfocus(); var v=homeView(); fly(v.cx,v.cy,v.k); };
+A.world=function(){ unfocus(); var v=homeView(); if(one()) S.hv=v; fly(v.cx,v.cy,v.k); };
 // a map of one country (brief.world.country, world_plan._plan_country): its home is the country, framed; the rest of the world is still
 // there to pan to, faded
 function one(){ var c=D().scope; return c&&S.bb[c]?c:null; }
-function homeView(){ var c=one(); if(!c) return worldView(); var b=S.bb[c], v=fitBox(b,phone()?14:40); return v; }
+function hbox(c){ var b=(PJ&&PJ.union&&c===D().scope&&S.bb[c].u||S.bb[c]).slice(); if(PJ&&c===D().scope) for(var k in PJ.box){ var X=PJ.box[k]; b=[Math.min(b[0],X[0]*ESC),Math.min(b[1],X[1]*ESC),Math.max(b[2],X[2]*ESC),Math.max(b[3],X[3]*ESC)]; } return b; }   // (the country's box, its insets in)
+function homeView(){ var c=one(); if(!c) return worldView(); var b=hbox(c);
+  var v=short()?fitFree(b,6):fitBox(b,phone()?14:S.vh<500?12:40); S.kHome=v.k; return v; }
+// a phone on its side (sim1111f E8, real Mobile Safari: 874 x 292 css px with its bars and tab strip, not the 874 x 402 of a bare WebKit window): the fixed
+// portrait / desktop bands (pill +8 at the top, 96 px at the foot) left the US a 72 px slot. Here the map's own panels, measured, are the obstacles, and of a
+// few candidate frames (under the title bar or under each top panel, above the foot or above each foot panel) the one with the biggest scale that clears every panel wins.
+function short(){ return S.vw>S.vh&&S.vh<460; }
+function shortC(){ return !!(one()&&short()&&!S.globe); }
+function obstacles(){ var o=[]; [S.root.querySelector('.wp-scope'),S.ctlEl,S.keyEl,S.tourEl,S.navEl].forEach(function(e){ if(!e) return; var tb=e===S.tourEl&&S.tour&&e.hidden; if(e.hidden&&!tb) return;      // (the Tour's strip counts before its first show)
+    if(tb) e.hidden=false; var r=e.getBoundingClientRect(); if(tb) e.hidden=true; if(r.width<2||r.height<2) return;
+    var a=cp(r.left,r.top), q=cp(r.right,r.bottom); if(q[0]<0||a[0]>S.vw||q[1]<0||a[1]>S.vh) return; o.push([a[0],a[1],q[0],q[1]]); }); return o; }
+function fitFree(bb,pad){ var O=S.obs=obstacles(), pr=5, T=(S.top||0)+pad+pr, ts=[T], bs=[pad+pr], sl=66, bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3), best=null, xs=[[sl,S.vw-sl]];
+  // (pr: room for a numbered pin's half height at the box's top and foot edge: pins sit on their states, not under a panel)
+  O.forEach(function(r){ if(r[1]<S.vh/2) ts.push(r[3]+pad+pr); else { bs.push(S.vh-r[1]+pad+pr); xs.push([r[2]+10,S.vw-sl],[sl,r[0]-10]); } });      // (and the strip at the foot can leave the country the whole height beside it, e8)
+  ts.forEach(function(t){ bs.forEach(function(b){ xs.forEach(function(xr){ var w=xr[1]-xr[0], hh=S.vh-t-b; if(hh<20||w<60) return; var k=Math.min(w/bw,hh/bh), xm=(xr[0]+xr[1])/2, cx=(bb[0]+bb[2])/2-(xm-S.vw/2)/k, cy=(bb[1]+bb[3])/2-((t-b)/2)/k;
+    var x0=S.vw/2+((bb[0]-cx)*k), x1=S.vw/2+((bb[2]-cx)*k), y0=S.vh/2+((bb[1]-cy)*k), y1=S.vh/2+((bb[3]-cy)*k);
+    if(O.some(function(r){ return x0<r[2]+4&&x1>r[0]-4&&y0<r[3]+4&&y1>r[1]-4; })) return;
+    if(!best||k>best.k*1.001) best={k:k,cx:cx,cy:cy}; }); }); });
+  return best||fitBox(bb,pad); }      // (a phone on its side: a slim margin, the country as big as the box takes)
 function homeName(){ var c=D().scope; return c?dec((D().names||{})[c]||c):'Whole world'; }
 A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW,g:S.gN}; };
 function tourBar(){ navSync();
@@ -945,12 +1109,44 @@ function watchBoard(){ var t=0, w=document.getElementById('world');
 // S.k sets the radius (equal scale at the centre), so a place, a Tour stop, the plane, the cards and the keys all carry over. The surface is
 // painted once (2048 x 1024, equirectangular) from the map's own rings and colours, and a WebGL quad turns it into an orthographic sphere.
 var EA1=1.340264,EA2=-0.081106,EA3=0.000893,EA4=0.003796,EM=Math.sqrt(3)/2,ESC=1000/(Math.PI/(EM*EA1)),GR=1000/Math.PI,D2R=Math.PI/180;
-function eeF(lon,lat){ var th=Math.asin(EM*Math.sin(lat*D2R)), t2=th*th, t6=t2*t2*t2;
+function eeF(lon,lat){ return PJ?PJ.fwd(lon,lat,'M'):eeE(lon,lat); }
+function eeE(lon,lat){ var th=Math.asin(EM*Math.sin(lat*D2R)), t2=th*th, t6=t2*t2*t2;
   return [lon*D2R*Math.cos(th)/(EM*(EA1+3*EA2*t2+t6*(7*EA3+9*EA4*t2)))*ESC,-th*(EA1+EA2*t2+t6*(EA3+EA4*t2))*ESC]; }
-function eeI(x,y){ var X=x/ESC, Y=clamp(-y/ESC,-1.3173,1.3173), th=Y/EA1;
+// A country's own projection (PJ; the US: Albers equal-area conic, Alaska + Hawaii in insets): the SAME constants as world_geo.py (usa_project). decode() re-projects the
+// hosted Equal Earth tiles into it (flat), eeI() un-projects for the globe, so flat and globe draw ONE set of Natural Earth geometry (Luke 2026-11-06).
+var PJ=null, PJC=null;
+function mkUSA(){
+  var T={M:{l:-96,a:29.5,b:45.5,c:[-96.6,38.7],s:1,o:[0,0]},A:{l:-154,a:55,b:65,c:[-156,58.5],s:.35,o:[-.307,.201]},H:{l:-157,a:8,b:18,c:[-160,19.9],s:1,o:[-.205,.212]}};
+  function alb(lo,la,P){ var a=P.a*D2R, n=(Math.sin(a)+Math.sin(P.b*D2R))/2, C=Math.cos(a)*Math.cos(a)+2*n*Math.sin(a), r=Math.sqrt(C-2*n*Math.sin(la*D2R))/n, t=n*(lo-P.l)*D2R; return [r*Math.sin(t),r*Math.cos(t)-Math.sqrt(C)/n]; }
+  function albI(X,Y,P){ var a=P.a*D2R, n=(Math.sin(a)+Math.sin(P.b*D2R))/2, C=Math.cos(a)*Math.cos(a)+2*n*Math.sin(a), y=Y+Math.sqrt(C)/n, r=Math.hypot(X,y); return [P.l+Math.atan2(X,y)/n/D2R,Math.asin(clamp((C-r*r*n*n)/(2*n),-1,1))/D2R]; }
+  for(var k in T) T[k].cc=alb(T[k].c[0],T[k].c[1],T[k]);
+  var BOX={A:[-.425,.120,-.214,.234],H:[-.214,.166,-.115,.234]};
+  return {box:BOX,
+    reg:function(c,lon,lat){ if(c==='USA'){ if(lat<25&&lon<-150&&lon>-165) return 'H'; if(lat>50&&(lon<-129&&lon>-180||lon>165)) return 'A'; return 'M'; } return lon>-170&&lon<-30&&lat>0&&lat<85?'M':null; },
+    fwd:function(lon,lat,g){ var P=T[g||'M']; if(g&&g!=='M') lon=P.l+((lon-P.l+540)%360)-180; var q=alb(lon,lat,P); return [((q[0]-P.cc[0])*P.s+P.o[0])*ESC,((q[1]-P.cc[1])*P.s+P.o[1])*ESC]; },
+    inv:function(x,y){ var g='M', u=x/ESC, v=y/ESC; for(var k in BOX){ var b=BOX[k]; if(u>=b[0]&&u<=b[2]&&v>=b[1]&&v<=b[3]) g=k; } var P=T[g]; return albI((u-P.o[0])/P.s+P.cc[0],(v-P.o[1])/P.s+P.cc[1],P); }}; }
+function eeR(x,y){ var X=x/ESC, Y=clamp(-y/ESC,-1.3173,1.3173), th=Y/EA1;
   for(var i=0;i<8;i++){ var t2=th*th, t6=t2*t2*t2, f=th*(EA1+EA2*t2+t6*(EA3+EA4*t2))-Y, d=EA1+3*EA2*t2+t6*(7*EA3+9*EA4*t2); th-=f/d; }
   var t2b=th*th, t6b=t2b*t2b*t2b, db=EA1+3*EA2*t2b+t6b*(7*EA3+9*EA4*t2b);
   return [X*EM*db/Math.max(Math.cos(th),1e-6)/D2R,Math.asin(clamp(Math.sin(th)/EM,-1,1))/D2R]; }
+// Another country (data.proj = world_geo.COUNTRY_PROJ[cid]): the same maths as world_geo._conic_xy, no insets; a neighbour's land within R degrees of the centre stays as context.
+function mkConic(P,scope){ var t=P.t, l0=P.l0, ra=(P.a||0)*D2R, rb=(P.b||0)*D2R, n, F, wrap=function(lo){ return l0+((lo-l0+540)%360)-180; };
+  if(t==='alb') n=(Math.sin(ra)+Math.sin(rb))/2; else if(t==='lcc') n=Math.log(Math.cos(ra)/Math.cos(rb))/Math.log(Math.tan(Math.PI/4+rb/2)/Math.tan(Math.PI/4+ra/2));
+  var C=Math.cos(ra)*Math.cos(ra)+2*(n||0)*Math.sin(ra); F=t==='lcc'?Math.cos(ra)*Math.pow(Math.tan(Math.PI/4+ra/2),n)/n:0;
+  function xy(lo,la){ lo=wrap(lo); var th;
+    if(t==='merc') return [(lo-l0)*D2R,-Math.log(Math.tan(Math.PI/4+clamp(la,-85,85)*D2R/2))];
+    th=n*(lo-l0)*D2R;
+    if(t==='alb'){ var r=Math.sqrt(C-2*n*Math.sin(la*D2R))/n; return [r*Math.sin(th),r*Math.cos(th)-Math.sqrt(C)/n]; }
+    var rho=F/Math.pow(Math.tan(Math.PI/4+la*D2R/2),n); return [rho*Math.sin(th),rho*Math.cos(th)]; }
+  var cc=xy(P.c[0],P.c[1]);
+  return {box:{},union:true,
+    reg:function(c,lon,lat){ if(c===scope) return 'M'; var a=lat*D2R,b=P.c[1]*D2R,d=Math.acos(clamp(Math.sin(a)*Math.sin(b)+Math.cos(a)*Math.cos(b)*Math.cos((lon-P.c[0])*D2R),-1,1))/D2R; return d<P.R?'M':null; },
+    fwd:function(lon,lat){ var q=xy(lon,lat); return [(q[0]-cc[0])*ESC,(q[1]-cc[1])*ESC]; },
+    inv:function(x,y){ var X=x/ESC+cc[0], Y=y/ESC+cc[1];
+      if(t==='merc') return [l0+X/D2R,(2*Math.atan(Math.exp(-Y))-Math.PI/2)/D2R];
+      if(t==='alb'){ var yy=Y+Math.sqrt(C)/n, r=Math.hypot(X,yy); return [l0+Math.atan2(X*(n<0?-1:1),yy*(n<0?-1:1))/n/D2R,Math.asin(clamp((C-r*r*n*n)/(2*n),-1,1))/D2R]; }
+      var sg=n<0?-1:1, rho=sg*Math.hypot(X,Y), th=Math.atan2(sg*X,sg*Y); return [l0+th/n/D2R,(2*Math.atan(Math.pow(F/rho,1/n))-Math.PI/2)/D2R]; }}; }
+function eeI(x,y){ return PJ?PJ.inv(x,y):eeR(x,y); }
 var GC={};
 function gVec(x,y){ var k=x+','+y, v=GC[k]; if(v) return v; var l=eeI(x,y), la=l[1]*D2R, lo=l[0]*D2R; v=GC[k]=[Math.cos(la)*Math.sin(lo),Math.sin(la),Math.cos(la)*Math.cos(lo)]; return v; }
 function gSlerp(a,b,t){ var d=clamp(a[0]*b[0]+a[1]*b[1]+a[2]*b[2],-1,1), w=Math.acos(d); if(w<1e-6) return a; var s=Math.sin(w), p=Math.sin((1-t)*w)/s, q=Math.sin(t*w)/s;
@@ -991,12 +1187,13 @@ function gPaint(){ if(!S.G||!S.base||!S.base.c) return; var cs=getComputedStyle(
   for(var lo=-180;lo<=180;lo+=30){ var px=(lo+180)/360*W; x.moveTo(px,0); x.lineTo(px,H); } for(var la=-60;la<=60;la+=30){ var py=(90-la)/180*H; x.moveTo(0,py); x.lineTo(W,py); } x.stroke(); x.setLineDash([]);
   Object.keys(S.base.c).forEach(function(cid){ var pth=S.paths[cid]; if(!pth) return; var st=getComputedStyle(pth);
     x.fillStyle='rgba(255,255,255,.9)'; x.fillStyle=st.fill; x.strokeStyle=edge; x.strokeStyle=st.stroke; x.lineWidth=pth.classList.contains('wp-u')?2.2:1.3;
-    var Pf=new Path2D(), Ps=new Path2D();                                                // (filled whole; stroked without a ring's polar edge, which on the sphere would be a little circle round the pole)
+    PJC=cid; var Pf=new Path2D(), Ps=new Path2D();                                                // (filled whole; stroked without a ring's polar edge, which on the sphere would be a little circle round the pole)
     gFls(cid,S.base.c[cid],q).forEach(function(fl){ var P=decode(fl,q), last=null, pts=[], sp=[]; S.gRings.push(gR(cid,gVecs(fl,q)));
       P.forEach(function(w){ var l=eeI(w[0],w[1]), pole=l[1]<-89; if(pole) l[1]=-90; if(last!=null){ while(l[0]-last>180) l[0]-=360; while(l[0]-last<-180) l[0]+=360; } last=l[0]; var u=[(l[0]+180)/360*W,(90-l[1])/180*H]; pts.push(u); if(!pole) sp.push(u); });
       [-W,0,W].forEach(function(o){ pts.forEach(function(p,i){ if(i) Pf.lineTo(p[0]+o,p[1]); else Pf.moveTo(p[0]+o,p[1]); }); Pf.closePath();
         sp.forEach(function(p,i){ if(i) Ps.lineTo(p[0]+o,p[1]); else Ps.moveTo(p[0]+o,p[1]); }); if(sp.length===pts.length) Ps.closePath(); }); });
     x.fill(Pf,'evenodd'); x.stroke(Ps); });
+  if(S.sts) gSts(x,W,H);
   var gl=S.G.gl; gl.bindTexture(gl.TEXTURE_2D,S.G.tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c);
   S.G.K=rgba(edge); S.G.K[3]=Math.min(1,S.G.K[3]*2.4); S.G.B=rgba(sea); S.G.B[3]=.18; }
 function gDraw(){ var G=S.G; if(!G) return; S.gM=gRot(); var gl=G.gl, M=S.gM, d=G.d||1, R=S.k*GR*d;
@@ -1047,6 +1244,13 @@ function gRuns(v,R,closed){ var M=S.gM, cx=S.vw/2, cy=S.vh/2, n=v.length/3, m=cl
     pv=vis; pX=X; pY=Y; pZ=Z; }
   if(closed&&runs.length){ if(!hid) runs[0].length-=2; else if(v0&&runs.length>1){ var e=runs.pop(); e.length-=2; runs[0]=e.concat(runs[0]); } }      // (the closing point is the first again)
   return {runs:runs,whole:!hid}; }
+// a state's border runs straight between its few corners (a parallel is straight on the Equal Earth plane): the plane edge is cut into ~1 unit pieces so it bends round the globe,
+// and drawn as a plain polyline (a Catmull-Rom through the corners would bulge)
+function stVecs(fl,q){ var n=fl.length>>1, pts=[[fl[0]/q,fl[1]/q]], x=fl[0], y=fl[1], px=x, py=y, i, j;
+  for(i=1;i<n;i++){ x+=fl[2*i]; y+=fl[2*i+1]; var m=Math.max(1,Math.ceil(Math.hypot(x-px,y-py)/q)); for(j=1;j<=m;j++) pts.push([(px+(x-px)*j/m)/q,(py+(y-py)*j/m)/q]); px=x; py=y; }
+  var v=new Float32Array(3*pts.length); pts.forEach(function(p,k){ var l=eeR(p[0],p[1]), la=l[1]*D2R, lo=l[0]*D2R, c=Math.cos(la); v[3*k]=c*Math.sin(lo); v[3*k+1]=Math.sin(la); v[3*k+2]=c*Math.cos(lo); });
+  return v; }
+function gLine(p,P,closed){ var n=P.length>>1; if(!n) return; p.moveTo(P[0],P[1]); for(var j=1;j<n;j++) p.lineTo(P[2*j],P[2*j+1]); if(closed) p.closePath(); }
 function gCurve(p,P,closed){ var n=P.length>>1; if(!n) return; p.moveTo(P[0],P[1]);
   if(n<4){ for(var j=1;j<n;j++) p.lineTo(P[2*j],P[2*j+1]); if(closed) p.closePath(); return; }
   var ix=function(i){ return 2*(closed?(i+n)%n:i<0?0:i>n-1?n-1:i); }, m=closed?n:n-1, e=1e-9;
@@ -1076,6 +1280,11 @@ function gVector(R){ var cv=S.gv, on=gOn()&&S.gRings; cv.style.display=on?'':'no
   x.strokeStyle=S.G.sea; x.lineWidth=R*Math.PI/1024*2.6+2; todo.forEach(function(t){ x.stroke(t[1]); x.stroke(t[3]); });
   todo.forEach(function(t){ var st=gSt(t[0]); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w;
     x.fill(t[1],'evenodd'); x.fill(t[2],'evenodd'); x.stroke(t[1]); x.stroke(t[3]); });
+  if(S.sts&&S.sts._T&&D().scope){ var T=S.sts._T, scid=D().scope;                                                   // a one-country map: its states drawn sharp over the country, each in its live colour (read at paint time, with the tint class)
+    S.sts.forEach(function(st0){ var rr=gTile(st0,'_g',function(o){ o.r=st0.fl.map(function(fl){ return gR(scid,stVecs(fl,T.q)); }); }).r, SW=new Path2D(), SF=new Path2D(), SS=new Path2D(), ok=false;
+      rr.forEach(function(r){ if(gSkip(r.k,R)) return; var q=gRuns(r.v,R,true); if(!q.runs.length) return; ok=true;
+        if(q.whole) gLine(SW,q.runs[0],true); else q.runs.forEach(function(P){ gLine(SS,P,false); if(r.k[3]<1.5){ SF.moveTo(P[0],P[1]); for(var i=2;i<P.length;i+=2) SF.lineTo(P[i],P[i+1]); SF.closePath(); } }); });
+      if(!ok) return; var st=gSt(st0.p); x.globalAlpha=st.o; x.fillStyle=st.f; x.strokeStyle=st.s; x.lineWidth=st.w; x.fill(SW,'evenodd'); x.fill(SF,'evenodd'); x.stroke(SW); x.stroke(SS); }); }
   x.globalAlpha=1; gFlag(todo);
   var a1=S.gA1.querySelector('path');                                                                                // (the state lines, dashed as the flat map has them)
   if(a1&&S.gA1.style.display!=='none'){ var as=gSt(a1), P1=new Path2D();
@@ -1217,9 +1426,10 @@ function mmSize(mm){ var rz=h('i',{'class':'rz',title:'Drag to resize'},mm), HK=
   rz.addEventListener('pointerup',function(){ if(d&&v){ try{ localStorage.setItem(HK,v); }catch(x){} } d=null; });
   rz.addEventListener('dblclick',function(){ S.root.style.removeProperty('--mh'); try{ localStorage.removeItem(HK); }catch(x){} mmBox(); }); }
 function mmDraw(){ var L=S.mmLand, used=D().used||{}; while(L.firstChild) L.removeChild(L.firstChild);
-  var oc=one(); if(oc){ var bb=S.bb[oc], w=bb[2]-bb[0], hh=bb[3]-bb[1], m=Math.max(w,hh*2.05)*.08, W=Math.max(w,hh*2.05)+2*m, H=W/2.05;
+  var oc=one(); if(oc){ var bb=hbox(oc), w=bb[2]-bb[0], hh=bb[3]-bb[1], m=Math.max(w,hh*2.05)*.08, W=Math.max(w,hh*2.05)+2*m, H=W/2.05;
     S.mmSvg.setAttribute('viewBox',[(bb[0]+bb[2])/2-W/2,(bb[1]+bb[3])/2-H/2,W,H].map(function(v){ return v.toFixed(1); }).join(' ')); S.mmHere.setAttribute('r',(W/80).toFixed(1)); }
-  for(var cid in S.paths){ var p=S.paths[cid]; if(!p._base) continue; el('path',{d:p._base,'class':'c'+(used[cid]!=null?' u '+ucls(used[cid]):'')},L); }
+  for(var cid in S.paths){ var p=S.paths[cid]; if(!p._base||(S.sts&&cid===D().scope)) continue; el('path',{d:p._base,'class':'c'+(used[cid]!=null?' u '+ucls(used[cid]):'')},L); }
+  if(S.sts) S.sts.forEach(function(t){ el('path',{d:t.p.getAttribute('d'),'class':'c'+(t.p.classList.contains('wp-u')?' u '+/wu\d+/.exec(t.p.getAttribute('class'))[0]:'')},L); });   // (a one-country map: its states, tinted)
   var P=S.mmPins; while(P.firstChild) P.removeChild(P.firstChild);
   var pr=oc?(S.mmSvg.viewBox.baseVal.width/160):12; stops().forEach(function(id){ var n=N(id); if(n&&n.x!=null) el('circle',{cx:n.x,cy:n.y,r:pr.toFixed(1),'class':ucls(n.a),'data-id':id},P); }); }
 function mmPt(e){ var M=S.mmSvg.getScreenCTM(); if(!M) return null; var p=S.mmSvg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; p=p.matrixTransform(M.inverse()); return [p.x,p.y]; }
@@ -1315,12 +1525,21 @@ function bindInput(){
     else if((e.key==='Escape'||e.key==='Enter')&&S.plane){ e.preventDefault(); planeSkip(); }
     else if(e.key==='Escape'){ if(S.cl||S.cur) unfocus(); else if(S.sel!=null) A.world(); }      // Esc shrinks the card; again, the whole world
     else if(e.key==='+'||e.key==='='){ zoomAt(1.5,S.vw/2,S.vh/2); } else if(e.key==='-'){ zoomAt(1/1.5,S.vw/2,S.vh/2); } });
-  window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); });
+  var rz=[], again=function(){ rz.forEach(clearTimeout); rz=[450,1100].map(function(ms){ return setTimeout(function(){ if(!S.root.hidden) resize(); },ms); }); };
+  window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); again(); });
+  window.addEventListener('orientationchange',function(){ setTimeout(function(){ if(!S.root.hidden) resize(); },250); again(); });      // (Safari may report the turned size only after the event)
+  // (sim1111f: Mobile Safari fires its last resize while the turned page is still scrolled up by its bars, the title bar measured off screen; the re-runs see it settled)
 }
 function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=S.root.clientWidth||r.width||window.innerWidth; S.vh=S.root.clientHeight||r.height||window.innerHeight;
   S.z=r.width&&S.root.clientWidth?r.width/S.root.clientWidth:1; S.rl=r.left; S.rt=r.top; var v=worldView(); S.kW=v.k;
   if(S.globe){ S.globe=0; S.kW=worldView().k; S.globe=1; } gSize();
-  if(!S.inited){ S.inited=1; if(one()) v=homeView(); S.cx=v.cx; S.cy=v.cy; S.k=v.k; } else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
+  var pe=S.root.querySelector('.wp-scope'), pb=pe&&pe.getBoundingClientRect(); S.pillB=pb&&pb.height?Math.round((pb.bottom-r.top)/(S.z||1)):0;
+  // one country (sim1111d E8): a turn of the phone, or a first landscape layout Safari settles late, refits the country (or the card the reader is on) to the new box;
+  // scaling the old view by the world's ratio left the US tiny. The world map keeps its own rule.
+  var H=S.hv, home=H&&S.cx===H.cx&&S.cy===H.cy&&S.k===H.k, turn=S.wasL!=null&&S.wasL!==(S.vw>S.vh); S.wasL=S.vw>S.vh;
+  if(!S.inited){ S.inited=1; if(one()) v=S.hv=homeView(); S.cx=v.cx; S.cy=v.cy; S.k=v.k; }
+  else if(one()&&!S.plane&&(home||turn)){ stop(); v=S.sel&&placed(S.sel)?placeView(S.sel):(S.hv=homeView()); S.cx=v.cx; S.cy=v.cy; S.k=v.k; }
+  else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
 function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
   S.top=top; S.root.style.setProperty('--w-top',top+'px'); }
 
@@ -1332,6 +1551,13 @@ function chrome(){
   var tb=S.tourBtn=h('button',{type:'button','class':'wp-btn wp-tt','aria-pressed':String(S.tour),title:'Tour the route stop by stop, or turn it off to roam the world (T)'},ctl,'Tour');
   h('span',{'class':'wp-sw','aria-hidden':'true'},tb); tb.addEventListener('click',function(){ A.tourMode(!S.tour); }); root.classList.toggle('wp-free',!S.tour);
   var wb=h('button',{type:'button','class':'wp-btn',title:D().scope?'The whole of '+homeName()+' (O)':'The whole world (O)'},ctl,D().scope?'⤢ '+homeName():'⤢ World'); wb.addEventListener('click',A.world);
+  // The scope pill (CEO ruling 6 Nov): World or the country this map is of. Tapping it opens the homepage set-up for THIS timeline with the scope picker (the rebuild is the normal make path; nothing is rebuilt in the page).
+  var spn=D().scope?homeName():'World', sp=h('button',{type:'button','class':'wp-bar wp-scope','aria-haspopup':'dialog',title:'Change what this map covers: the world or one country',
+      'aria-label':'Scope: '+spn+'. Change it'},root);
+  sp.innerHTML='<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">'+(D().scope?'<path d="M2 4l3-1.5 3 1 4-.5-.5 4L9 12 6 10.5 2 9.5z"/>':'<circle cx="7" cy="7" r="5.5"/><path d="M1.5 7h11M7 1.5c-2.5 2.5-2.5 8.5 0 11M7 1.5c2.5 2.5 2.5 8.5 0 11"/>')+'</svg><span class="n"></span><svg class="v" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 3.5l3 3 3-3"/></svg>';
+  sp.querySelector('.n').textContent=spn;
+  sp.addEventListener('click',function(){ var q='?rescope='+encodeURIComponent(D().scope||'world')+'&tl='+encodeURIComponent((document.title||'').replace(/\s*[·|–-]\s*Alto\s*$/,''));
+    if(window.__altoGo) window.__altoGo('index.html'+q); else A.scopePill=q; });
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in',title:'Zoom in (+)'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out',title:'Zoom out (−)'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
   var narrow=(window.innerWidth||1000)<700||document.documentElement.classList.contains('mobile');      // (the map is not measured yet; a phone on its side too)
@@ -1346,13 +1572,19 @@ function chrome(){
   if(!narrow&&typeof window._altoKeyToggle==='function'){ key.className='wk'; kt.remove(); var hd=document.createElement('h5'); h('span',null,hd,'Key'); h('span',null,hd,'');
     key.insertBefore(hd,key.firstChild); try{ window._altoKeyToggle(key,'alto-world-key','Key to the map'); }catch(x){} }
   var tour=S.tourEl=h('div',{'class':'wp-bar wp-tour',hidden:''},row);
-  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop',title:'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.hop(-1); });
+  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop',title:'Previous stop'},tour,'◀'); onTap(pv,function(){ A.hop(-1); });
   S.tPrev=h('span',{'class':'d'},tour,''); S.tCur=h('span',{'class':'c'},tour,''); S.tNext=h('span',{'class':'d'},tour,'');
-  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop',title:'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.hop(1); });
+  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop',title:'Next stop'},tour,'▶'); onTap(nx,function(){ A.hop(1); });
   var tx=h('button',{type:'button','class':'wp-btn r x','aria-label':'End the Tour',title:'End the Tour: roam the world freely'},tour,'✕'); tx.addEventListener('click',function(){ A.tourMode(false); });
   S.list=h('div',{'class':'wp-list',hidden:''},root);
   navChrome();
 }
+// a finger acts on touchend (as the phone layer's FIND does): iOS dropped the first tap's click on ◀ ▶ after a pause (sim1111d); a mouse still clicks
+function onTap(b,fn){ var t0=null, tt=0;
+  b.addEventListener('touchstart',function(e){ var t=e.touches&&e.touches[0]; t0=t?[t.clientX,t.clientY]:[0,0]; },{passive:true});
+  b.addEventListener('touchend',function(e){ var t=e.changedTouches&&e.changedTouches[0], ok=t0&&(!t||Math.abs(t.clientX-t0[0])<10&&Math.abs(t.clientY-t0[1])<10); t0=null; if(!ok) return; if(e.cancelable) e.preventDefault(); tt=Date.now(); fn(); },{passive:false});
+  b.addEventListener('touchcancel',function(){ t0=null; });
+  b.addEventListener('click',function(){ if(Date.now()-tt<800) return; fn(); }); }
 function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+',.wk .wu'+(i%12)+',.wp-where-d.wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
   var s=document.getElementById('wpal-units')||h('style',{id:'wpal-units'},document.head); s.textContent=css; }
 
@@ -1376,7 +1608,7 @@ function back(){ var f=window._featuredNodeId, R=S.reopen; S.reopen=null;
   if(f&&f!==S.f0&&N(f)&&placeOf(f)){ A.select(f,{instant:true}); return; }
   if(R) openCluster(R.id,R.at,R.enl); }
 A.mount=function(data){
-  if(S.root||!data||!window.fetch) return; A.data=data;
+  if(S.root||!data||!window.fetch) return; A.data=data; PJ=data.proj==='USA'?mkUSA():data.proj?mkConic(data.proj,data.scope):null;
   var st=h('style',{id:'wpal-css'},document.head); st.textContent=WORLD_CSS; unitStyle();
   var root=S.root=h('div',{id:'wpal-root','aria-label':data.scope?'Map':'World map','class':data.scope?'wp-one':''},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
@@ -1389,7 +1621,7 @@ A.mount=function(data){
   chrome(); A.show(); bindInput(); watchDetail(); watchPage();
   document.addEventListener('visibilitychange',function(){ if(S.root) S.root.classList.toggle('wp-hid',document.hidden); });
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
-    msg.remove(); drawBase(G); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); if(one()){ var hv=homeView(); S.cx=hv.cx; S.cy=hv.cy; S.k=hv.k; apply(); } settle(); watchBoard(); dim(); navSync();
+    msg.remove(); drawBase(G); if(PJ&&GEO.s&&GEO.s[data.scope]) fetchJSON(GEO.s[data.scope]).then(stDraw).catch(function(){}); drawArcs(); drawPins(); mmDraw(); S.ready=1; resize(); if(one()){ var hv=S.hv=homeView(); S.cx=hv.cx; S.cy=hv.cy; S.k=hv.k; apply(); } settle(); watchBoard(); dim(); navSync();
     new MutationObserver(function(){ if(S.globe&&S.G) setTimeout(function(){ gPaint(); gDraw(); },60); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
     replay();
     try{ if(localStorage.getItem('alto-world-globe')==='1'&&!phone()) A.globe(true); }catch(x){}
@@ -1479,5 +1711,5 @@ def world_data(b, nodes) -> str:
             "acts": [{"n": _unit_name(a.short or a.label), "c": a.color or ""} for a in b.acts],
             "u": [{"reg": u["reg"], "tops": u["tops"], "st": u["stops"], **({"hub": u["hub"]} if u.get("hub") else {})} for u in p["units"]],
             "nodes": out, "cl": p["cl"], "used": p["used"], "multi": p["multi"],
-            "names": {c: C[c]["n"] for c in p["used"] if c in C}, **({"scope": p["country"]} if p.get("country") else {})}
+            "names": {c: C[c]["n"] for c in p["used"] if c in C}, **({"scope": p["country"], "st": p.get("st") or {}, **({"proj": p["proj"]} if p.get("proj") else {})} if p.get("country") else {})}
     return "\nwindow._ALTO_WORLD=" + js_json(data, separators=(",", ":")) + ";" + WORLD_LOADER + WORLD_START

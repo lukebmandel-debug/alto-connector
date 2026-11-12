@@ -218,6 +218,7 @@ function fitHome(c, B, ids){
   var lo=B.t+up, hi=B.b-dn, h0=home(c,B);
   return lo<=hi ? Math.max(lo,Math.min(hi,h0)) : (lo+hi)/2;
 }
+function phone(){ return de.classList.contains('phone-whole'); }
 function lineHome(c, B){ if(_fit==null || _fit.t!==B.t || _fit.b!==B.b) _fit={t:B.t, b:B.b, y:fitHome(c,B,stops().ids)}; return _fit.y; }
 /* the scroll offsets that put this event where it rests */
 function camFor(id, B){
@@ -828,17 +829,22 @@ function ovSlab(o){
   if(!o || o.s>=0.999){ if(_sky){ _sky.remove(); _sky=null; } if(sl){ sl.style.opacity=''; sl.style.transition=''; } return; }
   if(!sl || !c) return;
   if(!_sky) ovSkyOn();
-  var W=geo().W*o.s, cw=c.clientWidth, gl=Math.max(0,o.tx), gr=Math.max(0,cw-(o.tx+W));   // a gap left or right of the board is covered by stretching the colours to the window's edge
-  _sky.style.backgroundSize=(W+gl+gr).toFixed(1)+'px 100%'; _sky.style.backgroundPositionX=Math.min(0,o.tx).toFixed(1)+'px';
+  // a gap left or right of the board is covered by stretching the colours to the window's edge. The window's, not the canvas's: on a phone on its side the canvas
+  // sits between the Dynamic Island's insets (phone_shell.py) and the layer runs under them, so the canvas's own offset in the layer is counted
+  // (the slab, whose colours these are, runs on past the board through the canvas's side padding on a phone on its side: lanes.py slabX())
+  var e0=-(parseFloat(sl.style.left)||0), W=(parseFloat(sl.style.width)||geo().W)*o.s, sr=_sky.getBoundingClientRect(), off=c.getBoundingClientRect().left-sr.left, x=off+o.tx-e0*o.s, gl=Math.max(0,x), gr=Math.max(0,(sr.width||c.clientWidth)-(x+W));
+  _sky.style.backgroundSize=(W+gl+gr).toFixed(1)+'px 100%'; _sky.style.backgroundPositionX=Math.min(0,x).toFixed(1)+'px';
 }
+/* the canvas's own side padding (a phone on its side: the Dynamic Island's insets, phone_shell.py): the board is fitted and held between them, the ground and the lines run under them */
+function ins(c){ var q=getComputedStyle(c); return {l:parseFloat(q.paddingLeft)||0, r:parseFloat(q.paddingRight)||0}; }
 function ovFit(){
-  var c=cv(), G=geo(), B=band(c), cw=c.clientWidth, P=PAD(), H=G.H+P;
-  var s=Math.min(1,(cw-60)/G.W,(B.b-B.t-16)/H); s=Math.max(OV_MIN,s);
+  var c=cv(), G=geo(), B=band(c), cw=c.clientWidth, P=PAD(), H=G.H+P, I=ins(c);
+  var s=Math.min(1,(cw-60-I.l-I.r)/G.W,(B.b-B.t-16)/H); s=Math.max(OV_MIN,s);
   var tx=cw/2-(c.scrollLeft+cw/2-worldOff(c).x)*s;          // what is in the middle now stays in the middle
   var ty=H*s<=B.b-B.t ? B.t+(B.b-B.t-H*s)/2 : B.t;
   return ovClampX({s:s, tx:tx, ty:ty});
 }
-function ovClampX(o){ var c=cv(), cw=c.clientWidth, Wd=geo().W*o.s; o.tx=Wd<=cw ? (cw-Wd)/2 : Math.max(cw-Wd-30, Math.min(30, o.tx)); return o; }
+function ovClampX(o){ var c=cv(), cw=c.clientWidth, Wd=geo().W*o.s, I=ins(c); o.tx=Wd<=cw-I.l-I.r ? I.l+(cw-I.l-I.r-Wd)/2 : Math.max(cw-Wd-30-I.r, Math.min(30+I.l, o.tx)); return o; }
 function ovAnim(from, to, done){
   if(_ovA) cancelAnimationFrame(_ovA);
   var c=cv(); c.classList.add('ln-ovanim');
@@ -960,8 +966,8 @@ function wsz(){ var w=document.getElementById('world'); return {w:(w && w.offset
 function tall(o){ var c=cv(), z=wsz(); return o.s>1.001 || z.h*o.s>c.clientHeight+2; }
 /* the board never leaves the window: bigger than it, its edges stay at or past the window's (+30px); smaller, it stays inside */
 function ovClamp(o){
-  var c=cv(), z=wsz(), cw=c.clientWidth, ch=c.clientHeight, Wd=z.w*o.s, Hd=z.h*o.s, m=30;
-  o.tx=Wd>cw-2*m ? Math.max(cw-Wd-m, Math.min(m, o.tx)) : Math.max(m, Math.min(cw-Wd-m, o.tx));
+  var c=cv(), z=wsz(), cw=c.clientWidth, ch=c.clientHeight, Wd=z.w*o.s, Hd=z.h*o.s, m=30, I=ins(c), ml=m+I.l, mr=m+I.r;
+  o.tx=Wd>cw-ml-mr ? Math.max(cw-Wd-mr, Math.min(ml, o.tx)) : Math.max(ml, Math.min(cw-Wd-mr, o.tx));
   o.ty=Hd>ch ? Math.max(ch-Hd-m, Math.min(m, o.ty)) : Math.max(Math.min(0, ch-Hd), Math.min(Math.max(0, ch-Hd), o.ty));
   return o;
 }
@@ -1044,7 +1050,9 @@ window.addEventListener('keydown', function(e){
 window._altoLanesZoom={s:function(){ return _ov ? _ov.s : 1; }, view:function(){ return _ov ? {s:_ov.s, tx:_ov.tx, ty:_ov.ty} : null; }, step:zStep, reset:function(){ if(_ov) ovLeave(null); }};
 
 /* ── after every layout ─────────────────────────────────────────────────── */
+var _vw=0;
 function relaid(first){
+  var turned=_vw && Math.abs(innerWidth-_vw)>=80; _vw=innerWidth;
   var G=geo(); if(!G) return;
   hookWheel(); watchFocus(); buildRail(); ovNoScroll();
   document.querySelectorAll('#world .node[data-ln] .node-card').forEach(function(c){ if(!c.hasAttribute('tabindex')) c.setAttribute('tabindex','0'); });
@@ -1055,7 +1063,13 @@ function relaid(first){
   /* a re-layout (a resize, an edit) keeps the view on the event the steps were on */
   if(M.raf){ M.stale=true; ui(current(),0); return; }        // mid-travel: tick carries on from the view as it is
   M.pth=null; _fit=null;
+  /* a phone opens on the first event, as one tap on Next would leave it: at the start of time the first card ran off the right edge of a 402 pt screen
+     (x 185 to 475, audit row F1), because the camera cannot centre an event that near the start. Not when the page opened somewhere of its own (a link to a card). */
+  if(first && phone() && on() && !window._focusedNodeId && !(window.__altoHash ? window.__altoHash() : location['hash']) && !cv().scrollLeft){ var f0=stops().ids[0]; if(f0){ glideTo(f0,{instant:true}); ui(f0,0); return; } }
   if(!first && _cur && de.classList.contains('ln-stepped') && on() && !window._focusedNodeId){ glideTo(_cur,{instant:true}); }
+  /* a phone turned (sim1112b S6): the board is laid out again for the new box and the view was left at the start of time, the first card off the right edge
+     (x 185 to 475 again). It rests on the event it was on, as a page opened this way up does. */
+  else if(!first && turned && phone() && on() && !window._focusedNodeId){ var c0=current()||stops().ids[0]; if(c0){ glideTo(c0,{instant:true}); ui(c0,0); } else ui(current(),0); }
   else ui(current(),0);
 }
 var _lay=window._altoLanes, _laid=0;

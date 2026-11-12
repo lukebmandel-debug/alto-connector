@@ -36,6 +36,10 @@ FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-
 FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo", "bottom
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
   X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:calc(4px / var(--alto-zoom,.8));right:calc(4px / var(--alto-zoom,.8));top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));}
+  /* (Luke 2026-11-06, L-1106-230038: "Retro has the border going above the apple search bar instead of along the bottom"; Sim 1107: 100lvh from the top still ended ~60 pt short, because
+     Safari's viewport units do not reach the screen's foot while its bar is up) On a phone the frame's foot is lowered by --fz-ext, which the script (fzFit) measures: the
+     screen's height less the page's visible height, portrait only (landscape's bars are at the top, the page already ends at the true bottom); never lifted by the safe-area inset */
+  X:is(.phone-whole,.alto-home) #sk-frame:not(#_){bottom:calc(3px / var(--alto-zoom,.8) - var(--fz-ext,0px));}   /* (the homepage too, Sim 1107c S6: its foot sat ~100 pt above the screen's) */
   X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
   /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page";
      the corners (Art's pick, option B): chamfered 45deg x 16px, so a rounded window cannot clip a corner point. Drawn as four straight gradient lines that stop 16px short
@@ -81,12 +85,14 @@ CHROME_CSS = r"""
   /* the bars: the name in poster letters, the chips cut square and rimmed in gold */
   X #title-text:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  /* the name: a gold plate hung from the top edge, its feet cut at 45deg, the format symbol in black beside it (Luke, 2026-11-05, "1, B"; title_tab.py).
+  /* the name: a black plate in a gold rim hung from the top edge, the same as the corner toggles (Luke, 2026-11-11: "the top label tab is too strong, make it the same
+opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), the format symbol in the light ink beside it (title_tab.py).
      Shown where the name shows: the homepage, a detail page, a narrow window (the crown on the board carries it otherwise) */
   @media (min-width:641px){
-  X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:8px;--tt-i:var(--tt-syr) !important;background:#d9ae55 !important;color:#000 !important;border:0 !important;border-radius:0 !important;
-    font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
-    clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px));}
+  X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:8px;--tt-i:var(--tt-syd) !important;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
+    box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
+    clip-path:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X.alto-home:not(.mobile) #title-bar #title-text:not(#_){box-shadow:none !important;border:1.5px solid #d9ae55 !important;border-top-width:0 !important;}
   }
   X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
     background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */
@@ -180,6 +186,8 @@ CHROME_CSS = r"""
   /* a phone's search: a square field with the gold rim, no soft shadow */
   X :is(#m-search,#sol-tour):not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X .wrap-pill:not(#_){background:#000 !important;color:#efe6cf !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-family:var(--rt-f) !important;}
+  /* a phone's "Back to" pill kept Classic's green (sim1112a): the style's own pill, as above */
+  X #alto-back-prev:not(#_){background:#000 !important;color:#efe6cf !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-family:var(--rt-f) !important;}
   /* the System's tour bar (Next / Back, solar_*.py): a square bar of square buttons, Next in gold */
   X #sol-tour button:not(#_){border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
   X #sol-tour .tb-next:not(#_){background:#d9ae55 !important;color:#000 !important;}
@@ -385,7 +393,7 @@ FORMAT_CSS = r"""
   X #wpal-root .wu10:not(#_){--u:#cfa0d8;}
   X #wpal-root .wu11:not(#_){--u:#efe6cf;}
   X #wpal-root .wp-land{filter:none;}
-  X #wpal-root .wp-c.wp-on{fill:color-mix(in srgb,var(--u) 34%,#0b0d12);}
+  X #wpal-root .wp-c.wp-u.wp-on{fill:color-mix(in srgb,var(--u) 34%,#0b0d12);}
   X #wpal-root :is(.wp-arc.h,.wp-arc.s){display:none;}
   X #wpal-root .wp-arc.m{stroke-width:1.6px;}
   X #wpal-root .wp-chev{stroke:#efe6cf;stroke-width:1.4px;}
@@ -450,7 +458,7 @@ HOME_CSS = r"""
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   /* the top row: the Home pill a square chip in gold capitals */
   X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
-  @media (max-width:640px){ X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
+  @media (max-width:640px){ X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
   /* projects: no glass, a fine gold rim, the name in gold capitals */
   X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}
@@ -628,10 +636,17 @@ var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null;
 function desk(){ return !r.classList.contains('mobile'); }
 function plain(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
 // the frame and the wordmark are the Star chart's (#sk-frame, #sk-mark): drawn on a desktop page
+// the frame's foot on a phone (Sim 1107 steps 1, 1b): how far below the page's visible bottom the screen runs on, portrait only. The page is laid out below the status strip (its top is
+// --T below the screen's), so the screen's foot is screen height - T from the page's top; the visible bottom is the VISUAL viewport's (offsetTop + height). Written as --fz-ext, 0..104 px
+// (the bar 70 + the home indicator 34: never more, so the foot can not leave the screen), on every viewport change and scroll.
+function fzFit(){ var f=document.getElementById('sk-frame'); if(!f||!(r.classList.contains('phone-whole')||(r.classList.contains('alto-home')&&Math.min(screen.width,screen.height)<=500))) return; var vv=window.visualViewport, vh=Math.round(vv ? vv.height+vv.offsetTop : window.innerHeight), w=Math.round(window.innerWidth), por=vh>=w,
+    p=document.getElementById('sk-fzp'); if(!p){ p=document.createElement('div'); p.id='sk-fzp'; p.setAttribute('aria-hidden','true'); p.style.cssText='position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)'; document.body.appendChild(p); }
+  var T=p.offsetHeight, sh=por ? Math.max(screen.width,screen.height) : Math.min(screen.width,screen.height), ext=por ? Math.max(0,Math.min(104,sh-vh-T)) : 0; f.style.setProperty('--fz-ext',ext+'px'); }
+['resize','orientationchange','scroll'].forEach(function(n){ window.addEventListener(n,fzFit,{passive:true}); }); if(window.visualViewport){ visualViewport.addEventListener('resize',fzFit); visualViewport.addEventListener('scroll',fzFit); }
 function art(){
   if(!document.body) return;
   var on=r.classList.contains('alto-retro') && desk(), fr=document.getElementById('sk-frame'), m=document.getElementById('sk-mark');
-  if(on && !fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden','true'); fr.innerHTML=FRAME; document.body.appendChild(fr); }
+  if(on && !fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden','true'); fr.innerHTML=FRAME; document.body.appendChild(fr); fzFit(); setTimeout(fzFit,300); }
   else if(!on && fr) fr.remove();
   if(on){ if(!m){ m=document.createElement('div'); m.id='sk-mark'; m.setAttribute('aria-hidden','true'); document.body.appendChild(m); }
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[—–-]\s+/)[0]; }

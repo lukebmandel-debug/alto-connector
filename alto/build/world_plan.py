@@ -25,7 +25,8 @@ import difflib
 import math
 from collections import Counter
 
-from .world_geo import REGIONS, REGION_WORDS, gazetteer, norm, project
+from .world_geo import COUNTRY_PROJ, REGIONS, REGION_WORDS, country_projection, gazetteer, norm, project
+from .world_geo import project as _wg_project
 
 LEVELS = ("country", "deep", "cluster")
 SEP_K = .12        # two city pins of one country stand at least this x the country's size apart
@@ -399,6 +400,18 @@ def _plan_country(b, nodes, w) -> dict:
     from .palace import structure
     cid = w["country"]
     C = _countries()
+    pj = country_projection(cid)                    # the country's own flat projection (the US: Albers + insets), else Equal Earth
+    _pr = pj or _wg_project                           # (these names shadow the module's inside this plan, so every place and distance is in the country's units)
+
+    def project(lon, lat):                          # noqa: F811
+        return _pr(lon, lat)
+
+    def _xy(p):                                     # noqa: F811
+        return _pr(p["lon"], p["lat"])
+
+    def _at(c):                                     # noqa: F811
+        cc = C[c]
+        return _pr(*(cc["cap"][1:] if cc.get("cap") else cc["lab"]))
     level = w.get("level") or "country"
     given = {k: v for k, v in dict(w.get("places") or {}).items() if v.get("c") == cid}
     units, floors, _of = structure(b, nodes)
@@ -482,7 +495,13 @@ def _plan_country(b, nodes, w) -> dict:
                     up = par.get(up)
                 if up:
                     cl.setdefault(up, []).append(f)
-    return {"level": level, "units": out_units, "places": out, "cl": cl, "used": {cid: 0}, "multi": [cid], "country": cid}
+    st = {}                                         # state / region -> unit: the shapes the page tints (a card on a city tints its state)
+    for a, u in enumerate(out_units):
+        for nid in u["stops"]:
+            if places.get(nid, {}).get("s"):
+                st.setdefault(places[nid]["s"], a)
+    return {"level": level, "units": out_units, "places": out, "cl": cl, "used": {cid: 0}, "multi": [cid], "country": cid,
+            "st": st, **({"proj": cid if cid == "USA" else {**COUNTRY_PROJ[cid], "c": list(COUNTRY_PROJ[cid]["c"])}} if pj else {})}
 
 
 def summary(b, nodes) -> dict:
@@ -495,6 +514,37 @@ def summary(b, nodes) -> dict:
                                   **({"from_notes": True} if p["places"][t].get("r") else {})} for t in u["stops"]]}
                       for i, u in enumerate(p["units"])],
             "own_pins": [_countries()[c]["n"] for c in p["multi"]]}
+
+
+# The countries the Atlas can be a map of (those with state / region data); United States first, then A to Z. Art spec: notes-art/atlas-country-look.md.
+ATLAS_COUNTRIES = (("USA", "United States"), ("AUS", "Australia"), ("BRA", "Brazil"), ("CAN", "Canada"), ("CHN", "China"),
+                   ("IND", "India"), ("IDN", "Indonesia"), ("RUS", "Russia"), ("ZAF", "South Africa"))
+
+
+# THE ONE SWITCH for the scope picker (homepage tiles list, MCP set_up_world words + validation). Art signs each country, then add its
+# iso3 here AND to NT_COUNTRIES_ON in engine/home_template.html + alto/engine/home_template.html (a test keeps the three in step).
+# The data, projections and state tiers of the others stay in the build; they are only not offered.
+ATLAS_OFFERED = ("USA", "AUS", "BRA", "CHN", "IDN", "RUS", "ZAF")  # Art signed USA 2026-11-07, then AUS BRA CHN IDN RUS ZAF (CEO C-1107-0705); CAN and IND stay hidden (known gaps)
+
+
+def offered_countries():
+    """[(iso3, name)] the picker offers, in ATLAS_COUNTRIES order."""
+    return [(c, n) for c, n in ATLAS_COUNTRIES if c in ATLAS_OFFERED]
+
+
+def atlas_country(text):
+    """The iso3 of an OFFERED country named by name or code ("United States", "US", "usa"), else None."""
+    k = norm(text or "")
+    alias = {"us": "USA", "united states of america": "USA", "america": "USA", "uk": None, "south africa": "ZAF"}
+    cid = alias[k] if k in alias else None
+    if cid is None:
+        for c, name in ATLAS_COUNTRIES:
+            if k in (norm(c), norm(name)):
+                cid = c
+                break
+    if cid is None:
+        cid = _country_index().get(k)
+    return cid if cid in ATLAS_OFFERED else None
 
 
 def validate(world) -> None:
