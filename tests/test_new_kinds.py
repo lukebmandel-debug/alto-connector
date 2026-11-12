@@ -24,7 +24,7 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     kinds = re.findall(r'<button type="button" class="nt-kind[^"]*" data-kind="(\w+)"', h)
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    assert blk.count('class="nt-pv"') == 7                       # one each, and a second for the two with modes (Horizontal, Building), a third for the Atlas
+    assert blk.count('class="nt-pv"') == 9                       # one each, and a second for the two with modes (Horizontal, Building), a third for the Atlas, a fourth and fifth for its scope tiles (World, A country)
     for want in ("Timeline", "Outline", ">System<", "Memory Palace", ">Sketch<", ">Horizontal<", "Memory Map</button>", "Memory Blueprint</button>", "Memory Atlas</button>"):
         assert want in blk, want
     assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
@@ -113,7 +113,7 @@ def test_the_picker_in_a_browser_shows_one_picture_per_tile():
         pg.goto((ROOT / "alto" / "engine" / "home_template.html").as_uri())
         pg.wait_for_timeout(500)
         pg.evaluate("document.getElementById('nt-scrim').classList.add('open')")
-        shown = lambda: pg.evaluate("[...document.querySelectorAll('#nt-modal .nt-kind')].map(k => [k.dataset.kind, "
+        shown = lambda: pg.evaluate("[...document.querySelectorAll('#nt-modal .nt-kinds:not(.nt-sck) .nt-kind')].map(k => [k.dataset.kind, "
                                     "[...k.querySelectorAll('.nt-pv')].filter(v => getComputedStyle(v).display !== 'none').length, "
                                     "[...k.querySelectorAll('small')].filter(v => getComputedStyle(v).display !== 'none').length])")
         assert shown() == [["timeline", 1, 1], ["outline", 1, 1], ["solar", 1, 1], ["palace", 1, 1]]

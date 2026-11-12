@@ -69,7 +69,7 @@ def test_the_map_is_hosted_tiers_named_by_their_hash():
     assert any(n.startswith("base-") for n in names) and sum(n.startswith("cont-") for n in names) >= 6
     assert any(n.startswith("a1-USA-") for n in names) and not any(n.startswith("gazetteer") for n in names)
     for n in files:
-        assert re.fullmatch(r"(base|cont-[a-z-]+|a1-[A-Z]{3})-[0-9a-f]{10}\.json", n), n
+        assert re.fullmatch(r"(base|cont-[a-z-]+|a1p?-[A-Z]{3})-[0-9a-f]{10}\.json", n), n
     base = json.loads(files[next(n for n in names if n.startswith("base-"))])
     assert {"USA", "FRA", "DEU", "BRA", "JPN"} <= set(base["c"]) and base["q"] == 10
     assert len(files[next(n for n in names if n.startswith("base-"))]) < 120_000           # the whole world, at a glance, is small

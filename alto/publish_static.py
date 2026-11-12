@@ -320,6 +320,14 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         gfx_out.mkdir(parents=True, exist_ok=True)
         (gfx_out / gname).write_bytes(gbytes)
     _restore_kept(gfx_out, gfx_kept)
+    # Holographic's looping background clips (build/holo_video.py): binary, content-hash named, under /hvid/, named only by the hosted Holographic script
+    from .build import holo_video
+    hv_out = site / holo_video.FOLDER
+    if hv_out.exists():
+        shutil.rmtree(hv_out)
+    for hname, hbytes in holo_video.files():
+        hv_out.mkdir(parents=True, exist_ok=True)
+        (hv_out / hname).write_bytes(hbytes)
     # The curated buildings' artwork images (alto/buildings: the PMA's public-domain paintings), binary, content-hash named, under /bart/
     from .buildings.pma_art import ART_FOLDER, files as art_files
     art_out = site / ART_FOLDER
@@ -445,7 +453,7 @@ def _security_headers(site_dir: Path | None = None, site: str | None = None) -> 
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir))
+    return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir), _hv_names(site_dir))
 
 
 def _csp(form_action: str, own: str = "") -> str:
@@ -489,7 +497,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=(), cmap_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=(), cmap_files=(), hv_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -528,6 +536,8 @@ def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=
         *_art_rules(art_files),
         # gfx: the FPV graphics pass's textures, sky and transcoder, one literal immutable rule per file that exists
         *_gfx_rules(gfx_files),
+        # hvid: Holographic's looping background clips (build/holo_video.py), one literal immutable rule per file that exists
+        *_hv_rules(hv_files),
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).
         {"source": "/connect/**", "headers": [
@@ -554,6 +564,20 @@ def _gfx_rules(names) -> list:
     from .build.fpv_gfx import FOLDER, NAME_RE
     return [{"source": "/%s/%s" % (FOLDER, n), "headers": [
         {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}, _ANY_ORIGIN]} for n in names if NAME_RE.match(n)]
+
+
+def _hv_names(site_dir) -> list:
+    """The Holographic background clips in the site folder (build/holo_video.py), only names of the published shape."""
+    if site_dir is None:
+        return []
+    from .build.holo_video import FOLDER, NAME_RE
+    d = Path(site_dir) / FOLDER
+    return sorted(p.name for p in d.iterdir() if p.is_file() and NAME_RE.match(p.name)) if d.is_dir() else []
+
+
+def _hv_rules(names) -> list:
+    from .build.holo_video import FOLDER, NAME_RE
+    return [{"source": "/%s/%s" % (FOLDER, n), "headers": [{"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if NAME_RE.match(n)]
 
 
 def _art_names(site_dir) -> list:
@@ -704,7 +728,7 @@ def live_pages(site_dir: Path) -> list[str]:
     return out
 
 
-HOSTED_REF_RE = re.compile(r"(?<![A-Za-z0-9_.-])/((?:retro|holo|pics|world|phone|bldg|gfx|fleet|bart|tex|street|cmap)/[A-Za-z0-9_.-]+-[0-9a-f]{8,12}\.[A-Za-z0-9.]+)")
+HOSTED_REF_RE = re.compile(r"(?<![A-Za-z0-9_.-])/((?:retro|holo|pics|world|phone|bldg|gfx|fleet|bart|tex|street|cmap|hvid)/[A-Za-z0-9_.-]+-[0-9a-f]{8,12}\.[A-Za-z0-9.]+)")
 
 
 def hosted_refs(html: str) -> set:

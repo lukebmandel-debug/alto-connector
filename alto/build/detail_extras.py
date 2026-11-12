@@ -183,9 +183,9 @@ window._altoTreeCalc = function(h, shift, TP, slide){
     var l=slide&&slide[i]; if(l){ dx+=l[0]; dy+=l[1]; }
     if(dx || dy) off[i]=[dx,dy];
   });
-  var cur=T.top;
+  var HX=window._altoHX||[], cur=T.top+(HX[0]||0)+(window._altoTopX||0);   // (a unit header that grew, phone.py chips(): the rows below it move down)
   T.acts.forEach(function(ops,a){
-    if(a && ops.length) cur=bottom+T.act_gap;
+    if(a && ops.length) cur=bottom+T.act_gap+(HX[a]||0);
     var start=cur;
     ops.forEach(function(o){ cur=run(o,cur); });
     var moved=Object.keys(off).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; });
@@ -471,8 +471,18 @@ html.printing #alto-back-prev{ display:none !important; }
     else document.body.appendChild(b);
     return b;
   }
+  // A phone on its side (phone_minimal's landscape rules set --bp-page): the pill lives inside the page, in its top margin, and scrolls away with the title.
+  // Fixed to the screen it stayed over the text once the page was scrolled (Art look rel-223). Upright it is the floating pill at the foot, in <body>.
+  function home(b){
+    if(!root.classList.contains('mobile')) return;
+    var dp=document.getElementById('detail-page'), inPage=false;
+    try{ inPage=!!dp && getComputedStyle(b).getPropertyValue('--bp-page').trim()==='1'; }catch(e){}
+    var want=inPage?dp:document.body;
+    if(want && b.parentNode!==want) want.appendChild(b);
+  }
   function sync(){
     var b=btn(), top=stack[stack.length-1], dp=document.getElementById('detail-page');
+    home(b);
     var open=dp && dp.classList.contains('visible');
     if(top && open){
       b.innerHTML=(root.classList.contains('mobile')?'<span>&larr;</span>':'<svg class="dbr-arr" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7.5 3.5L3 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>')+'<span class="bp-t dbr-lab">Back to '+top.title.replace(/[<&]/g,function(c){return c==='<'?'&lt;':'&amp;';})+'</span>';
@@ -489,6 +499,7 @@ html.printing #alto-back-prev{ display:none !important; }
   }
   var prevFn=window.showDetail;
   window.showDetail=function(type,id){
+    if(window._altoQuiet) return prevFn.apply(this, arguments);   // a swipe's preview being drawn (engine_patches: swipe-real-preview)
     var was=current(), hop=fromDetail && !goingBack;
     fromDetail=false;
     var r=prevFn.apply(this, arguments);
@@ -511,6 +522,8 @@ html.printing #alto-back-prev{ display:none !important; }
       .observe(row,{attributes:true,attributeFilter:['class']});
   }
   watchRow();
+  function turn(){ var b=document.getElementById('alto-back-prev'); if(b) setTimeout(function(){ try{ home(b); }catch(e){} }, 60); }
+  window.addEventListener('resize', turn); window.addEventListener('orientationchange', turn);
 })();
 </script>"""
 

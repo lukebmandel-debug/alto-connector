@@ -788,7 +788,7 @@ LANES_CSS = KEY_CSS + """
   @media print{.lanes-flag{border-style:solid;}}
   .lanes-unit{position:absolute;z-index:6;top:0;border-left:1.5px solid color-mix(in srgb,var(--unit-color) 30%,transparent);pointer-events:none;}
   .lanes-unit:first-child{border-left:0;}
-  .lanes-unit .lu-chip{position:absolute;left:14px;top:22px;white-space:nowrap;font-size:12px;font-weight:800;
+  .lanes-unit .lu-chip{position:absolute;left:14px;top:22px;white-space:normal;max-width:560px;font-size:12px;font-weight:800;
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
     background:color-mix(in srgb,var(--surface) 80%,transparent);border:1.5px solid color-mix(in srgb,var(--unit-color) 45%,transparent);}
   .lanes-unit .lu-chip b{font-weight:800;margin-right:7px;}
@@ -1263,7 +1263,7 @@ function layoutLanes(h){
   /* children make the board taller than the fit allowed for: close their rows up first (fitStage() scales what is left) */
   if(room && anyKids && KIDLY>58 && (y1-y0)-A>1){ KIDLY=58; return layoutLanes(h); }
   /* the board's top where the room starts (the slack shared above and below); the page no taller than the canvas */
-  var dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2 : TOP-y0;
+  var HXL=window._altoHXL||0, dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2+HXL : TOP+HXL-y0;   /* (HXL: a unit header that wrapped taller than its room, phone.py chips(): the board starts lower) */
   var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
   order.forEach(function(id){ xe.push(X[id]+w[id]/2); });
   var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl||hasBA)?AX+BOTTOM-56:24);
@@ -1298,7 +1298,9 @@ function layoutLanes(h){
      ping-pong in its ResizeObserver: WebKit's "loop completed with undelivered notifications") */
   var slab=document.getElementById('glass-slab');
   if(slab){
-    var foot=Math.ceil((room && y1-y0<=A) ? room.ch-room.pt : H+WORLD_PAD_TOP);
+    /* (sim1111h A6: a phone on its side: the board does not fit the room the rail leaves, yet ends above the canvas's foot; the slab stopped with it and the
+       page's own pastel showed in a strip along the foot. The slab never ends short of the canvas, fitted or not) */
+    var foot=Math.ceil((room && y1-y0<=A) ? room.ch-room.pt : Math.max(H+WORLD_PAD_TOP, room ? room.ch-room.pt : 0));
     for(var k=0;k<3 && slab.offsetTop+slab.offsetHeight!==foot;k++)          // whole px, so its rounded foot cannot drift by one
       de.style.setProperty('--lanes-slab-h', Math.max(0, Math.round((parseFloat(getComputedStyle(slab).height)||0)+foot-(slab.offsetTop+slab.offsetHeight)))+'px');
   }
@@ -1337,7 +1339,14 @@ function layoutLanes(h){
     var again=function(){ var f=window._altoLanesFit, r2=lanesRoom(world); if(!f || !f.room || !r2 || !window._altoLanesH || de.classList.contains('mobile')) return;
       if(Math.abs(r2.b-f.room.b)>6 || Math.abs(r2.top-f.room.top)>6 || Math.abs(r2.ch-f.room.ch)>6) window._altoLanes(window._altoLanesH); };
     [700, 1800].forEach(function(ms){ setTimeout(again, ms); });
-    window.addEventListener('load', function(){ setTimeout(again, 300); }); }
+    window.addEventListener('load', function(){ setTimeout(again, 300); });
+    /* a phone's turn (sim1112b S6): its second resize changes the height alone (Safari's bars come up, 874 x 402 -> 874 x 292), which nothing else lays out for, so the
+       board stayed fitted to the taller box and its cards were 1.5x a fresh open's. Fit again in the room that is left, the cards measured afresh (their compact
+       form has its own heights) */
+    var rt=0; window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(function(){
+      var f=window._altoLanesFit, r2=lanesRoom(world); if(!f || !f.room || !r2 || !window._altoLanesH || de.classList.contains('mobile')) return;
+      if(Math.abs(r2.b-f.room.b)>6 || Math.abs(r2.top-f.room.top)>6 || Math.abs(r2.ch-f.room.ch)>6){
+        try{ if(typeof initLayout==='function'){ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); } else again(); }catch(x){ again(); } } }, 220); }); }
   /* the first time: open at the start of time, not the engine's centre */
   if(!window._altoLanesOpened){ window._altoLanesOpened=1; var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=0; setTimeout(function(){ if(!window._focusedNodeId) cv.scrollLeft=0; }, 60); } }
   var svgR=document.getElementById('river-svg'); if(svgR) svgR.innerHTML='';
@@ -1835,6 +1844,16 @@ function pastTag(world, r){
   world.appendChild(t);
   return t;
 }
+/* the slab across the board: each unit's colour, changing midway between two units. (sim1112a R4) On a phone on its side the canvas runs under the Dynamic Island's insets and holds
+   the board clear of them with its own side padding (phone_shell.py): the slab is the board's ground, so it runs on through that padding to the screen's edges in its first and last
+   unit's colour, one piece of glass with no strip beside it to match. The shell calls this again when the insets arrive or a turn changes them (nothing is laid out again) */
+function slabX(slab){
+  var q=slab && slab._ln; if(!q) return;
+  var cvE=document.getElementById('canvas'), csE=cvE && de.classList.contains('phone-whole') ? getComputedStyle(cvE) : null, EL=csE && parseFloat(csE.paddingLeft) || 0, ER=csE && parseFloat(csE.paddingRight) || 0, T=q.W+EL+ER;
+  ['width',T+'px','left',(-EL)+'px','transform','none'].forEach(function(v,i,a){ if(i%2===0) slab.style.setProperty(v,a[i+1],'important'); });
+  if(q.stops.length) slab.style.backgroundImage='linear-gradient(90deg, '+q.stops[0][0]+' 0%, '+q.stops.map(function(c){ return c[0]+' '+((c[1]+EL)/T*100).toFixed(1)+'%'; }).join(', ')+', '+q.stops[q.stops.length-1][0]+' 100%)';
+}
+window._altoLanesSlab=function(){ slabX(document.getElementById('glass-slab')); };
 /* the units: columns of time, each from its first event to its last */
 function units(world, order, X, w, H, W){
   world.querySelectorAll('.lanes-unit').forEach(function(e){ e.remove(); });
@@ -1857,13 +1876,12 @@ function units(world, order, X, w, H, W){
     if(cuts[a]<=0) u.querySelector('.lu-chip').style.left='66px';   // clear of the key's toggle at the top left
     u.querySelector('b').textContent=pm.numeral; u.querySelector('span').textContent=(pm.label.split(' — ')[1]||pm.label);
     world.insertBefore(u, world.firstChild);
-    stops.push(pm.colorRaw+'b3 '+((cuts[a]+cuts[a+1])/2/W*100).toFixed(1)+'%');
+    stops.push([pm.colorRaw+'b3', (cuts[a]+cuts[a+1])/2]);
   });
   var slab=document.getElementById('glass-slab');
   if(!slab){ slab=document.createElement('div'); slab.id='glass-slab'; world.insertBefore(slab, world.firstChild); }
   slab.style.top='0px'; slab.style.height=(H+WORLD_PAD_TOP+200)+'px';
-  ['width',W+'px','left','0px','transform','none'].forEach(function(v,i,a){ if(i%2===0) slab.style.setProperty(v,a[i+1],'important'); });
-  if(stops.length) slab.style.backgroundImage='linear-gradient(90deg, '+stops[0].split(' ')[0]+' 0%, '+stops.join(', ')+', '+stops[stops.length-1].split(' ')[0]+' 100%)';
+  slab._ln={W:W, stops:stops}; slabX(slab);
   window._headerTint={slabTop:0, slabH:H, stops:[{p:0,c:PHASE_META[0].colorRaw},{p:100,c:PHASE_META[0].colorRaw}]};
   if(window.updateHeaderTint) try{ window.updateHeaderTint(); }catch(e){}
 }

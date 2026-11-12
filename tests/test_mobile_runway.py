@@ -29,8 +29,8 @@ def test_the_runway_is_switched_on_before_the_first_layout(html):
 
 
 def test_no_fixed_chrome_is_left_on_the_edges(html):
-    assert "html.mobile.rw :is(#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-label-bar" in html
-    assert "):not(#_), html.mobile.rw .rw-abs:not(#_){ position:absolute !important; }" in html
+    assert "html:is(.mobile,.phone-whole).rw :is(#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-label-bar" in html
+    assert "):not(#_), html:is(.mobile,.phone-whole).rw .rw-abs:not(#_){ position:absolute !important; }" in html
     # the panels' own headers are not sticky, and reach up under the clock
     assert "html.mobile.rw :is(#minimap-header, #tutorial-header):not(#_){ position:relative !important; }" in html
     assert "html.mobile.rw #ef-panel .ef-head{position:relative;flex:none;}" in html
@@ -50,7 +50,7 @@ def test_scroll_into_view_never_moves_the_page(html):
     # page on a runway that scrolled the page and every tile with it.
     assert "Element.prototype.scrollIntoView = function(o){" in html
     assert "p !== document.body && p !== r" in html
-    assert "html.mobile.rw body *{ overscroll-behavior:contain; }" in html
+    assert "html:is(.mobile,.phone-whole).rw body *{ overscroll-behavior:contain; }" in html
 
 
 def test_a_finger_never_moves_the_page(html):
@@ -58,7 +58,7 @@ def test_a_finger_never_moves_the_page(html):
     # the page slid sideways into the parked panels and jittered vertically.
     assert "overflow-x:clip !important; overflow-y:visible !important;" in html
     assert "document.addEventListener('touchmove', function(e){" in html
-    assert "if(e.touches.length !== 1 || !e.cancelable) return;" in html
+    assert "if(!on() || e.touches.length !== 1 || !e.cancelable) return;" in html
     assert "!(window.pageXOffset || 0)" in html
 
 
@@ -67,8 +67,11 @@ def test_the_homepage_runs_behind_the_bars_too():
     home = build_home([{"name": "P", "pid": "p", "courses": []}])
     body = home.index("<body")
     # class and rules before first layout, only for a phone-width top-level page
-    assert home.index("classList.add('rw')") < body
-    assert "window.matchMedia('(max-width:640px)').matches" in home
+    # (sim1112b: the class follows the query, so a turn puts it on and takes it off; tests/test_phone_sim1112b.py turns the page both ways)
+    assert home.index("r.classList.toggle('rw', v)") < body and "function f(){ set(m.matches); }" in home
+    # (sim1112c T3) and it goes on at orientationchange, before the window has its upright size: the first upright layout is the runway's
+    assert "window.addEventListener('orientationchange', function(){ var o = window.orientation" in home and "set(true, 1)" in home
+    assert "window.matchMedia('(max-width:640px)')" in home and "m.addEventListener('change', f)" in home
     assert home.index('<style id="alto-runway">') < body
     # the list is the one scroller; the body cannot collapse its margin away
     assert "html.rw #projects-wrap:not(#_){ margin-top:-80px !important;" in home

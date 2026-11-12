@@ -20,7 +20,10 @@ measured in the iOS 27 simulator.
 
 RUNWAY_JS = r"""(function(){
   var r = document.documentElement, OFF = 80;
-  if(!r.classList.contains('rw')) return;
+  // (the homepage's html.rw follows its phone layout, pages.py: there the class comes and goes with a turn, and everything below asks on())
+  if(!r.classList.contains('rw') && !window._altoRwLive) return;
+  function on(){ return r.classList.contains('rw'); }
+  var nat = Element.prototype.scrollIntoView;
   // The page itself now scrolls (it rests on the runway), so the engine's
   // scrollIntoView calls — the Map centring the current node, search jumping
   // to a hit — scrolled the page too, dragging every tile with it until the
@@ -33,6 +36,7 @@ RUNWAY_JS = r"""(function(){
     return null;
   }
   Element.prototype.scrollIntoView = function(o){
+    if(!on()) return nat.apply(this, arguments);
     var p = scroller(this);
     if(!p) return;
     var block = (o && typeof o === 'object' && o.block) || (o === false ? 'end' : 'start');
@@ -66,21 +70,22 @@ RUNWAY_JS = r"""(function(){
       if((pos === 'fixed' || pos === 'sticky') && e.parentElement && loose(e)) e.classList.add('rw-abs');
     }
   }
-  sweep(document.body);
+  if(on()) sweep(document.body);
   new MutationObserver(function(ms){
-    ms.forEach(function(m){ [].forEach.call(m.addedNodes, function(n){ if(n.nodeType === 1) sweep(n); }); });
+    if(on()) ms.forEach(function(m){ [].forEach.call(m.addedNodes, function(n){ if(n.nodeType === 1) sweep(n); }); });
   }).observe(document.body, {childList: true, subtree: true});
   // A finger never moves the page itself. On an iPhone touch-action:none on
   // the root does not hold, and a drag that reached the page made every tile
   // move and snap back ("seizure"). One-finger drags go only to a panel that
   // can still scroll that way; anything else is refused. Two fingers (the
   // engine's own panel zoom), text selection and form fields are left alone.
-  var tx = 0, ty = 0;
+  var tx = 0, ty = 0, tt = 0;
   document.addEventListener('touchstart', function(e){
+    tt = Date.now();
     if(e.touches.length === 1){ tx = e.touches[0].clientX; ty = e.touches[0].clientY; }
   }, {passive: true, capture: true});
   document.addEventListener('touchmove', function(e){
-    if(e.touches.length !== 1 || !e.cancelable) return;
+    if(!on() || e.touches.length !== 1 || !e.cancelable) return;
     var t = e.target;
     if(t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
     var sel = window.getSelection && window.getSelection();
@@ -114,11 +119,11 @@ RUNWAY_JS = r"""(function(){
     return b.top + shift < 0 || b.bottom + shift > h - 8;
   }
   function pin(){
-    if(busy || typing() || (Math.abs((window.pageYOffset || 0) - OFF) <= 1 && !(window.pageXOffset || 0))) return;
+    if(!on() || busy || typing() || (Math.abs((window.pageYOffset || 0) - OFF) <= 1 && !(window.pageXOffset || 0))) return;
     busy = true;
-    requestAnimationFrame(function(){ busy = false; window.scrollTo(0, OFF); });
+    requestAnimationFrame(function(){ busy = false; if(on()) window.scrollTo(0, OFF); });
   }
-  function settle(){ window.scrollTo(0, OFF); setTimeout(pin, 100); setTimeout(pin, 400); setTimeout(pin, 1000); }
+  function settle(){ if(!on()) return; window.scrollTo(0, OFF); setTimeout(pin, 100); setTimeout(pin, 400); setTimeout(pin, 1000); }
   window.addEventListener('scroll', pin, {passive: true});
   window.addEventListener('load', settle);
   window.addEventListener('pageshow', settle);
@@ -126,6 +131,21 @@ RUNWAY_JS = r"""(function(){
   window.addEventListener('resize', pin);
   document.addEventListener('focusout', function(){ setTimeout(pin, 50); });
   settle();
+  // (sim1112c T1) The runway taken away by a turn (the homepage on its side has none): the page goes back to its top, and is held there while the turn
+  // lasts. Safari puts the page back where it was as its turn ends (80px down the runway: the list stood 78pt higher than on a page opened on its side,
+  // until the reader scrolled). A finger on the screen ends the hold.
+  function top0(){
+    var t0 = Date.now();
+    function z(){
+      if(on() || tt >= t0 || Date.now() - t0 > 1600){ window.removeEventListener('scroll', z); return; }
+      if(window.pageYOffset || window.pageXOffset) window.scrollTo(0, 0);
+    }
+    window.addEventListener('scroll', z, {passive: true});
+    z(); [80, 350, 450, 600, 800, 1100, 1500, 1700].forEach(function(t){ setTimeout(z, t); });
+  }
+  var was = on();
+  // (early: the class set on orientationchange, the layout still the last way up's. What is fixed there is not what is fixed upright: the sweep waits for the layout)
+  window._altoRw = function(v, early){ if(v){ was = true; if(!early) sweep(document.body); settle(); } else if(was){ was = false; top0(); } };
 })();
 """
 

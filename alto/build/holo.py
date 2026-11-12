@@ -23,7 +23,7 @@ import hashlib as _hashlib
 import json as _json
 import re as _re
 
-from . import holo_backgrounds as _hb, retro as _rt
+from . import holo_anim as _ha, holo_backgrounds as _hb, holo_trace as _ht, retro as _rt
 
 FOLDER = "holo"
 
@@ -82,6 +82,10 @@ HOLO_CSS = r"""
      own solid square plate instead (the floor on text over anything) */
   X:not(.ct-on):not(.alto-home.alto-clear-top) :is(#title-bar,#nav,#node-nav-bar):not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;}
   X:not(.ct-on):not(.alto-home.alto-clear-top) #title-bar:not(#_):not(#__){border-bottom:1px solid rgba(var(--ho-rgb),.5) !important;box-shadow:var(--ho-glow) !important;}
+  /* a phone's one-card view, upright: the previous / next names strip under the header kept Classic's unit tint (grey-beige on the light theme, brown on the dark; sim1112a). It is the
+     header's own solid bar, as the same strip on a detail page (#node-nav-bar) is. On its side the strip has no ground of its own (phone_minimal.py), and keeps none */
+  X.pmin.mobile:not(.sh-landscape) #timeline-label-bar:not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;border-bottom:1px solid rgba(var(--ho-rgb),.35) !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;}
   X:is(.ct-on,.alto-home.alto-clear-top) :is(#title-text,.nav-group-label):not(#_):not(#__){background:var(--ho-bg) !important;box-shadow:0 0 0 6px var(--ho-bg) !important;border-radius:0 !important;}
   /* a group label's plate stays inside the gap between chips (the row's column gap is 5px): a 6px plate cut a corner off the chip on each side of ELEMENT (Luke, 2026-11-01) */
   X:is(.ct-on,.alto-home.alto-clear-top) #nav .nav-group-label:not(#_):not(#__){box-shadow:0 0 0 4px var(--ho-bg) !important;}
@@ -109,6 +113,8 @@ HOLO_CSS = r"""
   /* the glass of the controls and panels is square and rimmed in the light, with a faint glow */
   X :is(#tab-rail>button,#search-btn,#info-icon,#account-btn,#key-toggle,.alto-edit-pill,#timeline-return-pill,#sx-toggle){box-shadow:0 0 0 1px var(--ho-ac),var(--ho-glow) !important;}
   X :is(#search-results,#info-content,#bg-panel,#ef-panel,#notes-panel,#summary-wrap,.key-pop,#share-dialog>*){box-shadow:0 0 0 4px var(--ho-bg),var(--ho-glow) !important;}
+  /* the phone parks these side panels just off-screen; their 4px ring + glow would land inside the screen edge as a flat strip (Art, holo-home-int-look-1111b): no ring while closed, the ring returns on .open */
+  X:is(.mobile,.rw) :is(#bg-panel,#ef-panel,#notes-panel,#summary-wrap,#search-results,#info-content):not(.open):not(.show){box-shadow:none !important;}
   X #search-input:not(#_){color:var(--ho-tx) !important;}
   X ::placeholder{color:var(--ho-mu);opacity:1;}
   X :focus-visible{outline:2px solid var(--ho-ac) !important;outline-offset:2px !important;}   /* (Art's rule 3: both themes) */
@@ -132,11 +138,13 @@ HOLO_CSS = r"""
   X svg:is(.brand-mark,.brand-word) [stroke^="url"],X svg.brand-mark .alto-head{stroke:var(--ho-ac2) !important;}
   X #title-bar svg.brand-word:not(#_):not(#__){filter:drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;}
   X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){filter:drop-shadow(-1.5px 0 0 rgba(255,95,210,.5)) drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;
-    animation:ho-logo 10s linear infinite;will-change:transform;}
+    animation:ho-logo 10s ease-in-out -2.5s infinite;will-change:transform;}
   X.hp-hid #title-bar svg.brand-mark,X.hp-hid.pmin #nav svg.brand-mark{animation-play-state:paused;}
-  @keyframes ho-logo{from{transform:perspective(260px) rotateY(0)}to{transform:perspective(260px) rotateY(360deg)}}
+  /* a swing, not a spin (Board, on Art's look at rel-223): a full turn passed through edge-on, and a still frame caught the clef as a 3 px hairline, a broken logo. It swings
+     55deg to each side of facing front, easing at each end, in the same 10 s, and starts a quarter-period in: facing front. It is never narrower than about half its width. */
+  @keyframes ho-logo{0%,100%{transform:perspective(260px) rotateY(-55deg)}50%{transform:perspective(260px) rotateY(55deg)}}
   /* the phone's clef is centred by translateY(-50%) (html.mobile #nav .brand-mark), and an animated or reduced-motion transform replaces it: carry it */
-  @keyframes ho-logo-p{from{transform:translateY(-50%) perspective(260px) rotateY(0)}to{transform:translateY(-50%) perspective(260px) rotateY(360deg)}}
+  @keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(-55deg)}50%{transform:translateY(-50%) perspective(260px) rotateY(55deg)}}
   X.pmin #nav svg.brand-mark:not(#_):not(#__){animation-name:ho-logo-p;}
   @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;}
     X.pmin #nav svg.brand-mark:not(#_):not(#__){transform:translateY(-50%) perspective(260px) rotateY(24deg);} }
@@ -215,18 +223,30 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-pin:not(#_):not(#__){border-radius:0;font:inherit;font-size:9px;font-weight:500;line-height:1;letter-spacing:.06em;border-width:1px;}   /* (`font:inherit`: the sheet names no font family) */
   X #wpal-root .wp-pin:not(.wp-hint):not(#_):not(#__){box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
   X #wpal-root .wp-pin.wp-hint:not(#_):not(#__){box-shadow:0 0 0 4px color-mix(in srgb,var(--u) 38%,transparent),0 0 10px color-mix(in srgb,var(--u) 55%,transparent);}
+  X #wpal-root .wp-scope:not(#_):not(#__){border-radius:0;border:1px solid rgba(0,255,238,.55);color:#c9fffa;background:rgb(2,27,33);text-transform:uppercase;letter-spacing:.14em;font-size:12px;}   /* the scope pill (Art spec 2) */
+  X #wpal-root .wp-train:not(#_):not(#__){filter:drop-shadow(0 0 4px rgba(79,240,224,.55));}   /* the Tour train: square cyan plates on the dark teal, two lit bead windows per car, a comet of beads for steam, a cyan hairline track (Art, train sheet) */
+  X #wpal-root .wp-train path:not(#_):not(#__){fill:rgb(2,27,33);stroke:rgb(79,240,224);stroke-width:1px;stroke-linejoin:miter;}
+  X #wpal-root .wp-train path.f:not(#_):not(#__){fill:none;}
+  X #wpal-root .wp-train path.bd:not(#_):not(#__){display:inline;fill:none;stroke-width:2.2px;stroke-linecap:round;}
+  X #wpal-root .wp-train > g:first-child path:not(#_):not(#__){fill:rgb(79,240,224);stroke:none;}
+  X #wpal-root .wp-rail .c:not(#_):not(#__){stroke:rgb(79,240,224);stroke-width:1.2px;}
+  X #wpal-root .wp-rail .h:not(#_):not(#__){stroke:rgba(79,240,224,.22);}
+  X #wpal-root .wp-rail .s:not(#_):not(#__){stroke:rgb(79,240,224);opacity:.4;}
   X #wpal-root .wp-pin.wp-on:not(#_):not(#__){border-width:2px;font-size:11px;}
   /* the Atlas's Start Tour pill (Art, 2026-11-05: white on the cyan plate was 1.41:1 and read as a blank block): the page's dark ink on the light, square like the rest */
-  X:not(.mobile) #wpal-root .wp-row .wp-tt:not(#_):not(#__){color:var(--ho-bg) !important;border-radius:0;}
+  @media (min-width:701px){ X:not(.mobile) #wpal-root .wp-row .wp-tt:not(#_):not(#__){color:var(--ho-bg) !important;border-radius:0;} }   /* (the accent pill is a wide screen's: on a narrow one the Tour toggle is a plain chip, and its dark ink on no fill read as an empty box; #23) */
+  @media (max-width:700px){ X:not(.mobile) #wpal-root .wp-row .wp-tt:not(#_):not(#__){border-radius:0;} }
   X #wpal-root .wp-tag:not(#_):not(#__){letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
   /* the detail page, "readout column" (Luke 2026-11-05, option A of the holographic-detail-pages sheet): no boxes, one centred column, a lit line
-     running down beside each section with a square light at its head, a lit diamond for the symbol. A computer's page only (a phone keeps the
-     layout it has: it is one column already); a palace's door pages keep their own header and the elevator's gutter */
+     running down beside each section with a square light at its head, a lit diamond for the symbol. A computer's page here (a phone's own block follows below; a phone's Whole view keeps its own look); a palace's door pages keep their own header and the elevator's gutter */
   @media (min-width:641px){
-   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content:not(#_):not(#__){box-sizing:border-box;max-width:856px;padding-left:48px;padding-right:48px;margin-left:auto;margin-right:auto;position:relative;isolation:isolate;}
-   /* on one of the style's own backgrounds the column has no plate to read on: a feathered scrim of the page's colour stands behind it, edgeless (no box) */
+   X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content:not(#_):not(#__){box-sizing:border-box;max-width:1400px;padding-left:calc(48px + clamp(0px,(100% - 1136px)/2,132px));padding-right:calc(48px + clamp(0px,(100% - 1136px)/2,132px));margin-left:auto;margin-right:auto;position:relative;isolation:isolate;}
+   /* on one of the style's own backgrounds the column has no plate to read on: a feathered scrim of the page's colour stands behind it, edgeless (no box).
+      Wide text, soft sides (Luke L-1111-105552, 17-B of the 11 Nov Art sheet): the text column is 1040px, the .9 plate is the same as before and is full 10px outside the text, and the
+      scene shows only in the fades each side (up to 170px). The fades live in the column's own padding, which grows by up to 132px a side only where the page has the room
+      (100% here is the page's width), so the box never passes the page's edge: no sideways scroll at any window width (Art look, 11 Nov) */
    X.alto-bg-h:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content::before{content:"";position:absolute;z-index:-1;inset:-48px 0 -160px;pointer-events:none;
-     background:linear-gradient(90deg,transparent,rgba(var(--ho-bgrgb),.9) 56px,rgba(var(--ho-bgrgb),.9) calc(100% - 56px),transparent);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 48px,#000 calc(100% - 160px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 48px,#000 calc(100% - 160px),transparent);}
+     background:linear-gradient(90deg,transparent,rgba(var(--ho-bgrgb),.9) calc(38px + clamp(0px,(100% - 1136px)/2,132px)),rgba(var(--ho-bgrgb),.9) calc(100% - 38px - clamp(0px,(100% - 1136px)/2,132px)),transparent);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 48px,#000 calc(100% - 160px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 48px,#000 calc(100% - 160px),transparent);}
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr):not(#_):not(#__){position:relative;flex-direction:column;align-items:center;gap:6px;
      text-align:center;border-bottom:0 !important;margin-bottom:44px;padding-bottom:40px;}
    X:not(.mobile):not(.pmin):not(.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
@@ -262,11 +282,11 @@ FORMAT_CSS = r"""
   X.sk-3d #sk3d-l b{color:#c9fffa;text-shadow:0 0 3px #010a0e,0 0 2px #010a0e;}
   X.sk-3d #sk3d-l b.u{background:rgba(1,10,14,.9);color:#4ff0e0;border-color:#4ff0e0;text-shadow:none;}
   X.sk-3d #sk3d-l i{background:rgba(1,10,14,.92);color:#c9fffa;border-color:#4ff0e0;}
-  /* the name: a dark pane hung from the top edge, its sides and foot lit, a brighter tick in each bottom corner, the format symbol in the light beside it
-     (Luke, 2026-11-05, "1, B"; title_tab.py). The same plate on every page that shows the name; the light theme's is its pale pane in a teal edge */
+  /* the name: a pane hung from the top edge in the toggles' own edge (one 1px soft-cyan ring, no glow, no corner ticks) and, on the homepage, their frost (--ho-frost, below);
+     the format symbol in the light beside it (Luke, 2026-11-05, "1, B"; 2026-11-11, same as the toggles; title_tab.py). The same plate on every page that shows the name */
   @media (min-width:641px){
-  X:not(.mobile) #title-bar #title-text:not(#_):not(#__){background:linear-gradient(var(--ho-ac),var(--ho-ac)) 0 100%/9px 2px no-repeat,linear-gradient(var(--ho-ac),var(--ho-ac)) 100% 100%/9px 2px no-repeat,var(--ho-bg) !important;
-    color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.8) !important;border-top:0 !important;border-radius:0 !important;box-shadow:var(--ho-glow) !important;
+  X:not(.mobile) #title-bar #title-text:not(#_):not(#__){background:var(--ho-bg) !important;
+    color:var(--ho-tx) !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px var(--ho-edge,rgba(var(--ho-rgb),.55)) !important;
     font-weight:500 !important;font-size:14px;letter-spacing:.2em;text-transform:uppercase;clip-path:none;translate:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syh) !important;}
   X.dark:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syk) !important;}
@@ -279,6 +299,53 @@ FORMAT_CSS = r"""
   X #bg-panel .bg-tile.bg-add:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;
     box-shadow:0 0 12px rgba(var(--ho-rgb),.22),inset 0 0 18px rgba(var(--ho-rgb),.12) !important;}
   X #bg-panel .bg-tile.bg-add:hover:not(#_):not(#__),X #bg-panel .bg-tile.bg-add:focus-visible:not(#_):not(#__){border-color:var(--ho-ac) !important;box-shadow:0 0 16px rgba(var(--ho-rgb),.4),inset 0 0 22px rgba(var(--ho-rgb),.2) !important;}
+  /* the homepage is see-through (Luke, 2026-11-05: "should be able to see the background on home page through the project boxes and toggle boxes", "this is for holo
+     specifically"; his pick L-1105-185607 = Art's rec on ORG/option-sheets/see-through-home): the PROJECT PANELS are B, clear (16% of the page colour, no blur, a brighter
+     rim, a dark keyline and a glow; the panel's name and count sit on a scrim pill), the TOGGLE BOXES are A, frost (46% and a 10px blur; glyphs keep a dark halo).
+     The tiles stay solid (Luke: "no"). Phones too (L-1105-160112). No backdrop blur on the panels: they are large, and blur is Safari's costly paint */
+  X.alto-home .project-slab:not(.new-project-slab):not(#_):not(#__):not(#___){background:rgba(var(--ho-bgrgb),.16) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;
+    border:1px solid rgba(var(--ho-rgb),.75) !important;box-shadow:0 0 0 1px rgba(var(--ho-bgrgb),.6),0 0 16px rgba(var(--ho-rgb),.2),inset 0 0 28px rgba(var(--ho-bgrgb),.4) !important;}
+  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__){background:rgba(var(--ho-bgrgb),.88);padding:3px 9px;width:fit-content;
+    text-shadow:0 0 8px rgba(var(--ho-bgrgb),.95),0 0 3px rgba(var(--ho-bgrgb),.95),0 1px 1px rgba(var(--ho-bgrgb),.9) !important;}
+  X.alto-home .bin-group .bin-toggle:not(#_):not(#__){text-shadow:0 0 8px rgba(var(--ho-bgrgb),.95),0 0 3px rgba(var(--ho-bgrgb),.95),0 1px 1px rgba(var(--ho-bgrgb),.9) !important;}
+  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn,#m-search,#mode-toggle,.slab-share,.slab-download):not(#_):not(#__):not(#___){
+    background:rgba(var(--ho-bgrgb),var(--ho-frost)) !important;-webkit-backdrop-filter:blur(10px) saturate(1.25) !important;backdrop-filter:blur(10px) saturate(1.25) !important;}
+  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn,#m-search,#mode-toggle):is(.on,.active,.open,[aria-pressed="true"],[aria-expanded="true"]):not(#_):not(#__):not(#___){
+    background:linear-gradient(rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.16)),rgba(var(--ho-bgrgb),var(--ho-frost)) !important;}
+  /* one frost for the toggles AND the top label tab (Luke, 2026-11-11: "the top label tab is too strong, make it the same opacity as toggles so it doesn't instantly draw the eye
+     there"): --ho-frost is the plate's share of the page colour, 46%, and 60% on a short window; the tab reads the same variable and the same blur, so the two cannot drift apart */
+  X.alto-home{--ho-frost:.46;}
+  @media (max-height:500px){ X.alto-home{--ho-frost:.60;} }
+  X.alto-home #title-bar #title-text:not(#_):not(#__):not(#___){background:rgba(var(--ho-bgrgb),var(--ho-frost)) !important;-webkit-backdrop-filter:blur(10px) saturate(1.25) !important;backdrop-filter:blur(10px) saturate(1.25) !important;}
+  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn,#m-search,#mode-toggle,.slab-share,.slab-download) :is(svg,#search-glyph,#info-icon):not(#_):not(#__){
+    filter:drop-shadow(0 0 3px rgba(var(--ho-bgrgb),.95)) drop-shadow(0 0 1px rgba(var(--ho-bgrgb),.9)) !important;}
+  /* (the Whole view, html.phone-whole, too: the desktop page on a phone takes the phone's readout at its own 64px gutters, integration brief 1111)
+  /* the same readout on a phone (Luke 2026-11-05, "assume my changes apply to phone as well"): the phone's own order, padding, gestures and bars are untouched; only the
+     blocks' skin changes: the header stacks and centres under a smaller lit diamond, each section loses its box for a lit line and a square light, outline rows get hairlines */
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content:not(#_):not(#__){position:relative;isolation:isolate;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on).alto-bg-h #detail-content::before{content:"";position:absolute;z-index:-1;inset:-24px calc(-18px - var(--dp-ir,0px)) -90px calc(-18px - var(--dp-il,0px));pointer-events:none;background:rgba(var(--ho-bgrgb),.9);
+     -webkit-mask-image:linear-gradient(to bottom,transparent,#000 24px,#000 calc(100% - 90px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 24px,#000 calc(100% - 90px),transparent);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr):not(#_):not(#__){flex-direction:column;align-items:center;gap:4px;text-align:center;border-bottom:0 !important;
+     margin-bottom:26px !important;padding-bottom:30px;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+     background:linear-gradient(90deg,transparent,rgba(var(--ho-rgb),.85) 14%,rgba(var(--ho-rgb),.85) 86%,transparent);box-shadow:0 0 8px rgba(var(--ho-rgb),.45);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol:not(#_):not(#__){position:relative;display:grid;place-items:center;width:84px;height:84px;font-size:26px;
+     color:var(--ho-ac2) !important;text-shadow:0 0 10px rgba(var(--ho-rgb),.7);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::before,
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::after{content:"";position:absolute;transform:rotate(45deg);pointer-events:none;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::before{inset:12px;border:1px solid rgba(var(--ho-rgb),.75);box-shadow:var(--ho-glow),inset 0 0 10px rgba(var(--ho-rgb),.18);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol::after{inset:20px;border:1px solid var(--ho-ac);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-symbol > *{position:relative;z-index:1;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-name:not(#_):not(#__){letter-spacing:.14em;margin-top:2px;text-shadow:0 0 12px rgba(var(--ho-rgb),.5);overflow-wrap:anywhere;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-role:not(#_):not(#__){letter-spacing:.16em;color:var(--ho-mu) !important;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-content .detail-header:not(.pd-hdr) .detail-badge:not(#_):not(#__){background:transparent !important;border:1px solid rgba(var(--ho-rgb),.6) !important;
+     border-radius:0 !important;border-top-color:transparent !important;color:var(--ho-ac2) !important;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-page .detail-section:not(#_):not(#__){position:relative;background:transparent !important;border:0 !important;border-left:1px solid rgba(var(--ho-rgb),.5) !important;
+     box-shadow:none !important;padding:0 0 2px 20px;margin-bottom:28px;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-page .detail-section::before{content:"";position:absolute;left:-4px;top:2px;width:7px;height:7px;background:var(--ho-ac);box-shadow:var(--ho-glow);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-page .detail-section > h3:not(#_):not(#__){letter-spacing:.26em;color:var(--ho-ac2) !important;margin:0 0 12px;}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-page .detail-section .alto-lead-num:not(#_):not(#__){opacity:1;color:var(--ho-mu);}
+  X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-page .detail-section .ol-row:not(#_):not(#__){border-top:1px solid rgba(var(--ho-rgb),.28);padding:10px 0 8px;}
 """
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
@@ -334,7 +401,7 @@ def css() -> str:
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
             f"  :is({sel}.dark,{sel}.alto-stars.sk-real):not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")   # (the Star chart's sky is space in both themes)
-    return "@media screen{\n" + _rt._slim(toks + _rt.scoped(body, sel)) + "\n}"
+    return "@media screen{\n" + _rt._slim(toks + _rt.scoped(body, sel)) + "\n}"   # (the animated backgrounds' rules ride in the script's data and go in only with a layer: holo_anim.py)
 
 
 JS = r"""(function(){
@@ -407,7 +474,7 @@ function hoff(){
   if(window._altoRetroHome && !r.classList.contains('alto-retro')) window._altoRetroHome.off();
 }
 document.addEventListener('visibilitychange', function(){ if(r.classList.contains('alto-holo')) r.classList.toggle('hp-hid', document.hidden); });
-window.addEventListener('resize', function(){ if(rz) return; rz=setTimeout(function(){ rz=0; hsync(); }, 150); });
+window.addEventListener('resize', function(){ if(rz) return; rz=setTimeout(function(){ rz=0; hsync(); hasync(); }, 150); });
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); if(typeof window.redrawConnections==='function') window.redrawConnections(); window.dispatchEvent(new Event('resize')); }catch(e){} }   // (the lines break at a divider by the style: vSegWithGaps)
 // the style's own backgrounds (holo_backgrounds.py): in the picker's catalog only while Holographic is on; a page set to one of them
 // paints it when the style comes on and goes back to no background when it goes off (the choice itself is kept)
@@ -424,16 +491,18 @@ function bgs(on){
   var at=document.getElementById('bg-yours'); if(!at){ var all=U.body.querySelectorAll('.bg-sec'); at=all[all.length>1 ? 2 : 0]||null; }
   U.body.insertBefore(s, at); if(U.mark) U.mark();
 }
+ANIMJS
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-holo-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);
-  r.classList.add('alto-holo'); bgs(true); redraw(); hsync();
+  r.classList.add('alto-holo'); bgs(true); redraw(); hsync(); hawatch(true); hasync();
 }
-function off(){ if(!r.classList.contains('alto-holo')) return; r.classList.remove('alto-holo'); hoff(); bgs(false); redraw(); }
+function off(){ if(!r.classList.contains('alto-holo')) return; r.classList.remove('alto-holo'); hoff(); bgs(false); redraw(); hawatch(false); hasync(); }
 window._altoHolo={on:on, off:off};
 })();"""
+JS = JS.replace("window._altoHolo={on:on, off:off};", _ht.JS + "window._altoHolo={on:on, off:off};", 1)   # (the wordmark's trace of light: holo_trace.py)
 
-ASSET = _rt._slim(JS.replace("HOMEB", _rt.HOME_B_JS).replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
+ASSET = _rt._slim(JS.replace("ANIMJS", _ha.JS.replace("__HA__", _ha.client())).replace("HOMEB", _rt.HOME_B_JS).replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-holo-{V}.js"
 GUARD = "_altoHolo"

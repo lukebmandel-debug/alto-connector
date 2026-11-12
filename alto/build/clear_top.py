@@ -53,7 +53,7 @@ html.ct-on :is(#title-bar,#nav,#node-nav-bar) :is(button,a,input,select,textarea
 html.ct-on :is(#title-bar,#nav,#node-nav-bar) :is(button,a,svg,[role=button],[onclick]) *{pointer-events:auto;}
 /* the chips' own collapse (Luke): a little x in line with the chips, just before the first. Clicked, it spins like a wheel and winds
    the chips into itself like a tape measure, coming to rest as a + (the nearest first, the far ones travelling longest), and turned back it runs them
-   out again; on the timeline and its detail pages alike, kept per viewer; the row keeps its height */
+   out again; on the timeline and its detail pages alike, kept per timeline (open until a viewer shuts it; Luke, 2026-11-05); the row keeps its height */
 html.ct-on.ct-chips-off #nav>*{visibility:hidden !important;}
 #ct-chips{position:fixed;z-index:120;left:-100px;width:22px;height:22px;margin-top:-11px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--muted);border:1px solid var(--card-glass-border,var(--border));background:color-mix(in srgb,var(--surface,#fff) 55%,transparent);
@@ -69,6 +69,7 @@ html.ct-chips-off #ct-chips .rl{transform:rotate(45deg);}
    a hover (a mouse or trackpad): a touch screen has no way to point near it, so it keeps the +. Phones never run this file's chips (html.mobile). */
 @media (hover:hover) and (pointer:fine){
 html.ct-on.ct-chips-off #ct-chips:not(#_){opacity:0;transition:opacity .12s,color .12s;}
+html.ct-on.ct-chips-off.ct-hint #ct-chips:not(#_){opacity:.55;}   /* (Luke, 2026-11-05: over a card's sub-chip with the bar shut, the + lights faintly: it reopens the bar; before the next rule, which wins) */
 html.ct-on.ct-chips-off.ct-near #ct-chips:not(#_),html.ct-on.ct-chips-off #ct-chips:focus-visible:not(#_){opacity:1;}
 }
 @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:reduce){ html.ct-on.ct-chips-off #ct-chips:not(#_){transition:none;} }
@@ -128,7 +129,7 @@ JS = r"""(function(){
   __SHEET__
   /* the chips' reel, centred on the chip row (its place follows the row) */
   var nav=document.getElementById('nav'); if(!nav || !nav.querySelector('button')) return;
-  var K='alto-chips-off', off=false, busy=false; try{ off=localStorage.getItem(K)==='1'; }catch(e){}
+  var K='__HLK__-chips', off=false, busy=false; function rd(){ try{ return JSON.parse(localStorage.getItem(K)).v==='off'; }catch(e){ return false; } } off=rd();   /* (per timeline, {v:'on'|'off', t}, synced with the account like the background; none = open, the default) */
   var bt=document.createElement('button'); bt.type='button'; bt.id='ct-chips';
   bt.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><g class="rl"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g></svg>';   /* an x; spun shut it rests as a + */
   var reel=bt.querySelector('.rl');
@@ -139,7 +140,7 @@ JS = r"""(function(){
   function items(){ return [].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth && !(e.parentElement && e.parentElement.closest('#nav button')); }); }
   function quiet(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function turn(){
-    if(busy) return; off=!off; try{ localStorage.setItem(K, off ? '1' : '0'); }catch(x){} label();
+    if(busy) return; off=!off; try{ localStorage.setItem(K, JSON.stringify({v:off ? 'off' : 'on', t:Date.now()})); }catch(x){} label();
     if(quiet() || typeof Element.prototype.animate!=='function'){ de.classList.toggle('ct-chips-off', off); return; }
     if(!off) de.classList.remove('ct-chips-off');
     var b=bt.getBoundingClientRect(), hx=b.left+b.width/2, its=items(), T=0, anims=[];
@@ -153,6 +154,11 @@ JS = r"""(function(){
   }
   bt.addEventListener('click', function(e){ e.stopPropagation(); turn(); });
   document.body.appendChild(bt); de.classList.toggle('ct-chips-off', off); label(); place();
+  window.addEventListener('alto-chips', function(){ var n=rd(); if(busy || n===off) return; off=n; de.classList.toggle('ct-chips-off', off); label(); place(); });   /* (a change from another device) */
+  /* the hint: over a card's sub-chip with the bar shut, html.ct-hint lights the + faintly (mouse only: a tap on a touch screen opens the chip's page, and the + is always in sight there) */
+  function setHint(v){ de.classList.toggle('ct-hint', v); }
+  document.addEventListener('pointerover', function(e){ var t=e.target;
+    setHint(e.pointerType!=='touch' && de.classList.contains('ct-chips-off') && !!(t.closest && t.closest('.csym-btn,.esym-btn,.tsym-btn'))); }, {passive:true});
   /* the dormant +: html.ct-near while the pointer is within 64 x 96 px of it, or over the clef (the CSS above shows it then) */
   var near=false, mark=document.querySelector('#title-bar .brand-mark');
   function inR(e, l, t, r, b){ return e.clientX>=l && e.clientX<=r && e.clientY>=t && e.clientY<=b; }
@@ -161,7 +167,7 @@ JS = r"""(function(){
     if(!de.classList.contains('ct-chips-off')){ setNear(false); return; }
     var b=bt.getBoundingClientRect(), cx=(b.left+b.right)/2, cy=(b.top+b.bottom)/2, m=mark && mark.getBoundingClientRect();
     setNear(inR(e, cx-32, cy-48, cx+32, cy+48) || !!(m && m.width && inR(e, m.left-8, m.top-8, m.right+8, m.bottom+8))); }, {passive:true});
-  document.documentElement.addEventListener('pointerleave', function(){ setNear(false); });
+  document.documentElement.addEventListener('pointerleave', function(){ setNear(false); setHint(false); });
   window.addEventListener('resize', place); setTimeout(place, 300); setTimeout(place, 1200); if(document.fonts && document.fonts.ready) document.fonts.ready.then(place);   /* (after the row's own layout settles) */
   if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);
   var pt=0; if(typeof MutationObserver==='function') new MutationObserver(function(){ requestAnimationFrame(place); clearTimeout(pt); pt=setTimeout(place, 400); }).observe(de, {attributes:true, attributeFilter:['class']});   /* (a style switch — Retro's wider labels — moves the row without resizing the bar: the x follows it, so it never sits on the first label) */   /* (a frame later: never a change inside the observer's own pass) */
@@ -175,11 +181,12 @@ SHEET_JS = r"""function c0(){ var t=window._headerTint, c=t && t.stops && t.stop
   c0(); window.addEventListener('load', c0);"""
 
 
-def block(sheet: bool = True) -> str:
+def block(sheet: bool = True, hl_key: str = "alto-hl-local") -> str:
     """The page copy: comments and indentation left out (the source keeps them; every byte counts on a palace page).
-    `sheet`: the page has the timeline's unit-colour sheet (not a palace or a Star chart)."""
+    `sheet`: the page has the timeline's unit-colour sheet (not a palace or a Star chart). `hl_key`: the timeline's own
+    `alto-hl-{tid}` storage key (a share re-stamps it), under which the bar's open / shut choice is kept as `-chips`."""
     import re
     from .backgrounds import _lean
     return ('<style id="alto-clear-top-css">' + _lean(CSS + (SHEET_CSS if sheet else ""), css=True)
             + '</style><script id="alto-clear-top-js">'
-            + _lean(re.sub(r"/\*.*?\*/", "", JS.replace("__SHEET__", SHEET_JS if sheet else ""), flags=re.S)) + "</script>")
+            + _lean(re.sub(r"/\*.*?\*/", "", JS.replace("__SHEET__", SHEET_JS if sheet else "").replace("__HLK__", hl_key), flags=re.S)) + "</script>")

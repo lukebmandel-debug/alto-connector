@@ -28,10 +28,13 @@ html:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:7px;positi
 html:not(.mobile) #title-bar #title-text:not(#_):hover::before{left:calc(var(--tt-px) + var(--tt-sw,0px));top:var(--tt-pt);}
 """
 
-# Classic: a solid sheet of the theme's own surface, square at the top edge, rounded at its feet, a soft shadow so it reads on any ground
+# Classic: the corner toggles' own glass (Luke, 2026-11-11: "the top label tab is too strong, make it the same opacity as toggles"; "especially on home page,
+# and especially in classic"): the same variables the toggles read (--card-glass-bg / -border, --node-rest-shadow) and the same blur, so the two cannot drift apart.
+# Square at the top edge, rounded at its feet; no border along the top edge, where it hangs from the window
 CLASSIC_CSS = r"""
-html:not(.mobile) #title-bar #title-text:not(#_){background:color-mix(in srgb,var(--surface,#fff) 96%,transparent);color:var(--text);border-radius:0 0 14px 14px;
-  box-shadow:0 0 0 1px var(--border,rgba(0,0,0,.12)),0 10px 22px -12px rgba(0,0,0,.5);-webkit-backdrop-filter:none;backdrop-filter:none;}
+html:not(.mobile) #title-bar #title-text:not(#_){background:var(--card-glass-bg,var(--surface,#fff));color:var(--text);border-radius:0 0 14px 14px;
+  border:1px solid var(--card-glass-border,var(--border,rgba(0,0,0,.12)));border-top-width:0;box-shadow:0 10px 26px var(--node-rest-shadow,rgba(0,0,0,.12));
+  -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));}
 """
 
 

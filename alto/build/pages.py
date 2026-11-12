@@ -15,6 +15,7 @@ from .brief import Brief, PALETTE, period_words
 from .emit import emit
 from .sanitize import js_json
 from .runway import runway_script
+from . import phone_shell
 from .search import HOME_ROW_JS, sx_block
 
 from ..engine import template as engine_template
@@ -195,10 +196,24 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
     return """
 <script>
 (function(){
-  // Before first layout — see pages.py, _HOME_RW.
-  if(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && window.top === window &&
-     window.matchMedia && window.matchMedia('(max-width:640px)').matches)
-    document.documentElement.classList.add('rw');
+  // Before first layout — see pages.py, _HOME_RW. The class follows the phone layout's own media query (sim1112b S1/S6): a page opened upright and turned
+  // on its side kept html.rw (the page stayed pinned 80px down its runway and the shell took it for a runway page: Safari's toolbar stayed peach), and one
+  // opened on its side and turned upright never got it (flat bands under both of Safari's bars).
+  var r = document.documentElement, m = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && window.top === window &&
+     window.matchMedia && window.matchMedia('(max-width:640px)');
+  if(!m) return;
+  window._altoRwLive = 1;
+  function set(v, early){ r.classList.toggle('rw', v); if(window._altoRw) window._altoRw(v, early); }
+  function f(){ set(m.matches); }
+  f(); if(m.addEventListener) m.addEventListener('change', f); else if(m.addListener) m.addListener(f);
+  // (sim1112c T3) Opened on its side and turned upright, Safari's status-bar zone stayed a flat band of the root's colour over a page that was the upright one in
+  // every pixel below it: the media query's change event comes after the first layout at the new width, so that layout still had the header and the page's two
+  // ground layers fixed to the screen's top (and the page at the top of its scroll), and Safari kept what it saw. An iPhone says which way up on orientationchange,
+  // ~80 ms before its window has the new size: the class goes on there, so the first upright layout is already the runway's (nothing fixed, 80px down).
+  window.addEventListener('orientationchange', function(){ var o = window.orientation, s = window.screen;
+    if(typeof o !== 'number' || !s || !/iPhone|iPod/.test(navigator.userAgent)) return;
+    if(Math.abs(o) !== 90 && Math.min(s.width, s.height) <= 640 && !r.classList.contains('rw')){ set(true, 1); setTimeout(f, 1500); }
+  });
 })();
 </script>
 <style id="alto-runway">
@@ -226,6 +241,13 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
   html.rw #title-bar:not(#_)::before{ content:''; position:absolute; left:0; right:0; top:-80px; bottom:0;
     z-index:-1; pointer-events:none; background:var(--header-glass-bg);
     -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  /* (Luke, 2026-11-12, his iPhone, Holo dark: "the top bar on the home page, you can see the background above it. The top bar is meant to be an actual top bar there, so
+     we shouldn't have stuff showing up above it") the bar runs up through the 80px of page Safari shows under the clock, in the bar's own colour, and the list no longer
+     shows there: Holo's and Retro's ground, opaque; Classic's glass was .06 white (.10 dark), clear enough to read a card through, and is .92 of the veil's colour below it */
+  html.rw:not(.alto-retro):not(.alto-holo) #title-bar:not(#_)::before{ background:rgba(246,248,253,.92); }
+  html.rw.dark:not(.alto-retro):not(.alto-holo) #title-bar:not(#_)::before{ background:rgba(12,14,22,.92); }
+  html.rw.alto-holo #title-bar:not(#_):not(#__)::before{ bottom:100% !important; background:rgb(var(--ho-bgrgb)) !important; }
+  html.rw.alto-retro #title-bar:not(#_):not(#__)::before{ bottom:100% !important; background:#000 !important; }
   /* the chip row (profile, search, picker, info, theme) floats 11px under the bar: a frosted veil carries the bar's glass on under it, so a card's title is dimmed and blurred behind a chip
      and not printed through it (Sim 1110b). Retro and Holographic paint their own ground there (retro.py HOME_CSS). */
   html.rw:not(.alto-retro):not(.alto-holo) body:not(#_)::after{ content:''; position:fixed; left:0; right:0; top:calc(52px + env(safe-area-inset-top,0px)); height:58px; z-index:101; pointer-events:none;
@@ -260,8 +282,25 @@ _HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=wind
   html.alto-clear-top #title-bar:not(#_){background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;border-color:transparent;pointer-events:none;}
   html.alto-clear-top #title-bar>*{pointer-events:auto;}
 }
+/* a phone on its side (Safari's bars leave ~250 pt; Art 5-C, audit row H1): the header is the page's own glass over the list, not a bare row the tiles scroll under the clef, the tag and the
+   wordmark of. Touch screens only (a mouse and a short desktop window keep the hanging tab as it is). */
+@media (min-width:641px) and (orientation:landscape) and (max-height:480px) and (pointer:coarse){
+  html.alto-clear-top:is(.alto-retro,.alto-holo) #title-bar:not(#_):not(#__){background:var(--nav-bg,rgba(246,248,253,.82)) !important;-webkit-backdrop-filter:blur(10px) !important;backdrop-filter:blur(10px) !important;pointer-events:auto !important;}
+  /* Classic (sim1112a R7; Luke: "the top label tab is too strong, make it the same opacity as toggles ... especially on home page, and especially in classic"): the same glass, on the bar's
+     ::before, cut away under the name tab (--hx0 / --hx1 / --hy: the tab's box in the bar, phone_shell.py hole(); its feet are rounded, 14px; the two corner pieces lap 1px over the side pieces and 2px over the foot piece, so no seam opens between them). The tab then frosts the page itself, as the
+     corner toggles do, and is no longer a solid white box (frost over a pane that is already .82 white) */
+  html.alto-clear-top:not(.alto-retro):not(.alto-holo) #title-bar:not(#_):not(#__){pointer-events:auto !important;}
+  html.alto-clear-top:not(.alto-retro):not(.alto-holo) #title-bar:not(#_):not(#__)::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--nav-bg,rgba(246,248,253,.82));
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);--hm:linear-gradient(90deg,#000 var(--hx0,50%),transparent var(--hx0,50%),transparent var(--hx1,50%),#000 var(--hx1,50%)),
+    linear-gradient(transparent var(--hy,0px),#000 var(--hy,0px)),radial-gradient(circle at 15px 0,transparent 13.5px,#000 14px),radial-gradient(circle at 0 0,transparent 13.5px,#000 14px);
+    --hp:0 0,0 0,calc(var(--hx0,50%) - 1px) calc(var(--hy,0px) - 14px),calc(var(--hx1,50%) - 14px) calc(var(--hy,0px) - 14px);
+    -webkit-mask-image:var(--hm);mask-image:var(--hm);-webkit-mask-size:100% 100%,100% 100%,15px 16px,15px 16px;mask-size:100% 100%,100% 100%,15px 16px,15px 16px;
+    -webkit-mask-position:var(--hp);mask-position:var(--hp);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;}
+  /* (the dark theme had the light glass: --nav-bg is a timeline's variable, never set here. The dark glass is the one the upright page's veil uses) */
+  html.dark.alto-clear-top:not(.alto-retro):not(.alto-holo) #title-bar:not(#_):not(#__)::before{background:var(--nav-bg,rgba(12,14,22,.8));}
+}
 </style><style id="alto-title-tab">""" + title_tab.home_css() + """</style>"""
-_HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=True) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
+_HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=True) + "\n" + phone_shell.head_block() + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
     "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim, #bg-panel")
 # Reports had none of the runway, and not even viewport-fit=cover until a
 # script re-applied the viewport 100ms after load — so Safari painted flat
