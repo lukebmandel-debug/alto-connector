@@ -1,0 +1,13 @@
+{
+  "repo": "lukebmandel-debug/alto-connector",
+  "branch": "alto-rel-225-int (private)",
+  "commit": "74a142a140988b9f39ed02b05e4aec184d47e4c4",
+  "sha256": {
+    "alto/build/share_shell.py": "e1823d2df2330e32ce5482918c68bc637589dca0abfe0d917926c6879d90d1ea",
+    "alto/cloud/alto-cloud.js": "175578ae525393903867d93c30496dd5bf2fb6d93157ae6e8bb15bc115d988e5",
+    "firestore.rules": "495d8c5bef2365ccb2a92dabc714dbd8675a13d292852b6546d1b5398a3add46",
+    "alto/firestore.rules": "495d8c5bef2365ccb2a92dabc714dbd8675a13d292852b6546d1b5398a3add46",
+    "alto/publish_static.py": "dd9f9f093a0158e15319de0b0758063963fe47eba4de120e5c3c04f6691735ed"
+  },
+  "note": "Refreshed 2026-11-13 on alto-bass-cur2 (1.9.225 release head 74a142a1): with the Bass additions removed, every file below is byte-identical to 74a142a1."
+}

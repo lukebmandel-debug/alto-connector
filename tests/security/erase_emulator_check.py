@@ -21,6 +21,7 @@ PROJECT = os.environ.get("GCLOUD_PROJECT") or "demo-alto-security"
 BUCKET = f"{PROJECT}.appspot.com"
 GONE, KEEP = "erase-me-uid", "keep-me-uid"
 GONE_EMAIL, KEEP_EMAIL = "erase.me@example.com", "keep.me@example.com"
+TOK = {GONE: "a" * 64, KEEP: "b" * 64}                                     # bass_drive_tok ids (sha256-shaped; no uid in the id)
 
 
 def guard() -> None:
@@ -120,6 +121,8 @@ def seed(uid: str, email: str, share: str) -> None:
     put(f"bass_doc_text/{uid}_f1", {"t": "x"})
     put(f"bass_beta_meta/{uid}_2026-11-01", {"n": 1})
     put(f"bass_research_consent/{uid}", {"v": 1})
+    put(f"bass_drive/{uid}", {"refresh": "opaque"})                       # the Add-from-Drive token record
+    put(f"bass_drive_tok/{TOK[uid]}", {"uid": uid})                       # its token index: named by a hash, the uid is a field
     for name in (f"builds/{uid}/t1/page.html", f"builds/{uid}/t1/photo-1.jpg", f"builds/{uid}/t1/photo-2.jpg",
                  f"users/{uid}/bass/f1", f"users/{uid}/photos/photo-1.jpg"):
         bucket.blob(name).upload_from_string(b"x" * 64, content_type="application/octet-stream")
@@ -158,11 +161,13 @@ def main() -> int:
     seed(GONE, GONE_EMAIL, "E" * 22)
     seed(KEEP, KEEP_EMAIL, "K" * 22)
     put("bass_beta/allowlist", {"emails": [GONE_EMAIL, KEEP_EMAIL]})
+    put("bass_beta/bass_testers", {"emails": [GONE_EMAIL.upper(), KEEP_EMAIL]})          # Bass's own tester list (case-insensitive match)
 
     before_docs, before_blobs = all_paths(), blobs()
     assert len(mine(before_docs, GONE)) >= 15 and len(mine(blobs(), GONE)) == 5, "the seed did not land (the check would pass for nothing)"
     assert any("photo-1" in p for p in mine(before_docs, GONE)) and any("photo-" in b for b in mine(before_blobs, GONE))
     assert GONE in auth_uids() and KEEP in auth_uids()
+    assert db.document(f"bass_drive_tok/{TOK[GONE]}").get().exists and db.document(f"bass_drive/{GONE}").get().exists
     kept_docs, kept_blobs = mine(before_docs, KEEP) + [f"shares/{'K' * 22}"], mine(before_blobs, KEEP)
     kept_docs_n = len(mine(before_docs, KEEP))
 
@@ -192,8 +197,11 @@ def main() -> int:
     left_docs, left_blobs, left_uids = mine(all_paths(), GONE), mine(blobs(), GONE), [GONE] if GONE in auth_uids() else []
     left_docs += [p for p in all_paths() if p.startswith(f"shares/{'E' * 22}")]
     allow = db.document("bass_beta/allowlist").get().to_dict()["emails"]
+    testers = db.document("bass_beta/bass_testers").get().to_dict()["emails"]
+    left_docs += [f"bass_drive_tok/{TOK[GONE]}"] if db.document(f"bass_drive_tok/{TOK[GONE]}").get().exists else []
     problems = {"firestore": left_docs, "storage": left_blobs, "auth": left_uids,
-                "allowlist": [e for e in allow if e == GONE_EMAIL]}
+                "allowlist": [e for e in allow if e == GONE_EMAIL],
+                "bass_testers": [e for e in testers if e.lower() == GONE_EMAIL]}
     assert not any(problems.values()), f"left behind after the erase: {problems}"
     try:
         auth.get_user(GONE, app=seed_app)
@@ -204,7 +212,8 @@ def main() -> int:
     now_docs, now_blobs = all_paths(), blobs()
     assert len(mine(now_docs, KEEP)) == kept_docs_n and all(p in now_docs for p in kept_docs), "the other account lost documents"
     assert sorted(mine(now_blobs, KEEP)) == sorted(kept_blobs), "the other account lost Storage objects"
-    assert KEEP in auth_uids() and allow == [KEEP_EMAIL]
+    assert KEEP in auth_uids() and allow == [KEEP_EMAIL] and testers == [KEEP_EMAIL]
+    assert db.document(f"bass_drive_tok/{TOK[KEEP]}").get().exists and db.document(f"bass_drive/{KEEP}").get().exists
     # a second run is harmless
     builtins.input = lambda prompt="": GONE
     fresh_default_app()

@@ -73,7 +73,7 @@ const A_DOCS = ['users/alice', 'users/alice/pages/pk1', 'users/alice/pagemeta/pk
   'users/alice/alto_timelines/t1', 'users/alice/alto_timelines/t1/nodes/n1',
   'users/alice/shared/' + KEY_A, 'users/alice/bglib/b1',
   `shares/${KEY_A}/private/owner`, 'terms_acceptance/alice_v1',
-  'bass_beta/allowlist', 'bass_beta/state_alice'];
+  'bass_beta/allowlist', 'bass_beta/bass_testers', 'bass_beta/state_alice'];
 const A_COLLS = ['users', 'users/alice/pages', 'users/alice/pagemeta', 'users/alice/tl',
   'users/alice/alto_projects', 'users/alice/shared', 'shares', `shares/${KEY_A}/private`,
   'terms_acceptance', 'bass_beta'];
@@ -291,6 +291,35 @@ test('no client can read or write the allowlist', async () => {
     await assertFails(who[w].doc('bass_beta/allowlist').update({ emails: firebase.firestore.FieldValue.arrayUnion('carol@example.com') }));
     await assertFails(who[w].doc('bass_beta/allowlist').delete());
     await assertFails(who[w].doc('bass_beta/other').set({ x: 1 }));
+  }
+});
+
+// Bass server-only collections (alto/store/erase.py BASS_COLLECTIONS): the Add-from-Drive token record and its token index, the tester
+// list, the credit ledger, the Documents index and text, the day / period counters and the per-call metadata. Only the Bass proxy (admin)
+// touches them; no client, not even the owner, may get, list, query or write one.
+const BASS_SERVER_DOCS = ['bass_drive/alice', 'bass_drive_tok/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+  'bass_beta/bass_testers', 'bass_credits/alice', 'bass_docs/alice', 'bass_doc_text/alice_f1', 'bass_beta_days/2026-11-03',
+  'bass_beta_period_counters/2026-11', 'bass_beta_periods/2026-11', 'bass_beta_meta/alice_2026-11-03',
+  'bass_research_consent/alice', 'bass_research_purge/t1'];
+
+test('no client, not even the owner, can read, list, query or write a Bass server collection (bass_drive*, bass_testers, ledger)', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    for (const d of BASS_SERVER_DOCS) await db.doc(d).set({ uid: 'alice', emails: ['alice@example.com'], refresh: 'opaque' });
+  });
+  for (const w of [...OTHERS, 'alice']) {
+    const db = who[w];
+    for (const d of BASS_SERVER_DOCS) {
+      await assertFails(db.doc(d).get());
+      await assertFails(db.doc(d).set({ x: 1 }));
+      await assertFails(db.doc(d).set({ x: 1 }, { merge: true }));
+      await assertFails(db.doc(d).delete());
+      const coll = d.split('/')[0];
+      await assertFails(db.collection(coll).get());
+      await assertFails(db.collection(coll).where('uid', '==', 'alice').get());
+    }
+    await assertFails(db.doc('bass_drive/' + (w === 'alice' ? 'alice' : 'bob')).set({ refresh: 'x' }));     // nor create one's own
+    await assertFails(db.doc('bass_drive_tok/new').set({ uid: w }));
   }
 });
 

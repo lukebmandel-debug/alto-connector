@@ -16,7 +16,11 @@ Auth "user deleted" trigger removes all of it:
   bass_docs/{uid}                 the Bass Documents index, and bass_doc_text/{uid}_{fid} for each file in it
   bass_beta_meta/{uid}_{day}      the per-day Bass metadata lines
   bass_research_consent/{uid}     the opt-in conversation-sharing record
+  bass_drive/{uid}                the Add-from-Drive token record, and bass_drive_tok/{hash} entries that name the uid
   bass_beta/allowlist             the account's EMAIL is removed from the list (pass `email`)
+  bass_beta/bass_testers          ... and from Bass's own tester list
+Every collection the Bass proxy keeps (deploy/bass-proxy/firestore_store.py) is classified in BASS_COLLECTIONS below; a test keeps the
+two equal, so a new Bass collection cannot be added without saying what an account erase does with it.
   Storage (pass `bucket`)
   builds/{uid}/                   built artifacts (alto/store/firestore.py)
   users/{uid}/                    the originals of Bass Documents (users/{uid}/bass/{fid}, storage.rules)
@@ -46,10 +50,29 @@ SHARE_COPY_COLLECTIONS = ("pics", "picbig")
 # The top-level collections firestore.rules matches (users and shares are handled above; a test keeps
 # this equal to the rules, so a new top-level collection must be classified here).
 RULES_TOP_LEVEL = {"users": "users/{uid}/**", "shares": "owned shares", "terms_acceptance": "by uid field",
-                   "bass_beta": "allowlist entry (email)"}
+                   "bass_beta": "allowlist and bass_testers entries (email)",
+                   "bass_research": "no account data (the sharing switch)",
+                   "bass_research_consent": "by uid (document id)",
+                   "bass_research_purge": "no uid: tickets named by a keyed pseudonym; the purge job deletes them"}
 # Server-only collections (no client rule matches them) that hold an account's data, by document id.
-SERVER_BY_UID = ("bass_credits", "bass_docs", "bass_research_consent")
+SERVER_BY_UID = ("bass_credits", "bass_docs", "bass_research_consent", "bass_drive")
 SERVER_BY_UID_PREFIX = ("bass_beta_meta",)           # {uid}_{YYYY-MM-DD}
+SERVER_BY_UID_FIELD = ("bass_drive_tok",)            # {sha256 of a token}: {uid}
+EMAIL_LISTS = ("allowlist", "bass_testers")          # documents of bass_beta that list emails
+# EVERY collection the Bass proxy keeps, and what an account erase does with it (review finding D2). "erase": deleted here.
+# "none": holds nothing of one account's. "ticket": cannot be found from the uid here; the proxy's account-deleted hook tickets it.
+BASS_COLLECTIONS = {
+    "bass_credits": "erase: by uid", "bass_docs": "erase: by uid", "bass_doc_text": "erase: each file the index lists",
+    "bass_beta_meta": "erase: by uid prefix", "bass_research_consent": "erase: by uid",
+    "bass_drive": "erase: by uid", "bass_drive_tok": "erase: by its uid field",
+    "terms_acceptance": "erase: by its uid field",
+    "bass_beta": "erase: the email from allowlist and bass_testers; kill, disabled, live_go, badinput hold no account data",
+    "bass_beta_days": "none: one counter per day for everyone",
+    "bass_beta_period_counters": "none: one counter per period; open reservations name a uid for at most 15 minutes and are then booked",
+    "bass_beta_periods": "none: the period confirmation",
+    "bass_research": "none: the sharing switch",
+    "bass_research_purge": "ticket: named by a keyed pseudonym, written by the account-deleted hook, deleted by the purge job",
+}
 STORAGE_PREFIXES = ("builds/{uid}/", "users/{uid}/")
 
 
@@ -75,6 +98,14 @@ def _delete_doc(db, coll: str, doc_id: str) -> int:
     return 1
 
 
+def erase_bass_records(db, uid: str) -> int:
+    """Every Bass record of one account (BASS_COLLECTIONS "erase" rows that are found by the uid). The ONE function both erase paths
+    call: erase_user below (the admin run) and the proxy's account-deleted hook (deploy/bass-proxy/main.py)."""
+    if not isinstance(uid, str) or not _UID.match(uid):
+        raise ValueError("not a user id")
+    return _erase_bass(db, uid)
+
+
 def _erase_bass(db, uid: str) -> int:
     n = 0
     index = db.collection("bass_docs").document(uid).get()
@@ -90,6 +121,10 @@ def _erase_bass(db, uid: str) -> int:
             if day.match(snap.reference.id):
                 snap.reference.delete()
                 n += 1
+    for coll in SERVER_BY_UID_FIELD:
+        for snap in list(db.collection(coll).where("uid", "==", uid).stream()):
+            snap.reference.delete()
+            n += 1
     return n
 
 
@@ -101,16 +136,19 @@ def _erase_terms(db, uid: str) -> int:
 
 
 def _erase_allowlist(db, email: str) -> int:
-    ref = db.collection("bass_beta").document("allowlist")
-    snap = ref.get()
-    if not snap.exists:
-        return 0
-    emails = list((snap.to_dict() or {}).get("emails") or [])
-    keep = [e for e in emails if str(e).strip().lower() != email.strip().lower()]
-    if len(keep) == len(emails):
-        return 0
-    ref.update({"emails": keep})
-    return 1
+    n = 0
+    for name in EMAIL_LISTS:
+        ref = db.collection("bass_beta").document(name)
+        snap = ref.get()
+        if not snap.exists:
+            continue
+        emails = list((snap.to_dict() or {}).get("emails") or [])
+        keep = [e for e in emails if str(e).strip().lower() != email.strip().lower()]
+        if len(keep) == len(emails):
+            continue
+        ref.update({"emails": keep})
+        n += 1
+    return n
 
 
 def _erase_storage(bucket, uid: str) -> int:

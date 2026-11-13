@@ -22,6 +22,9 @@ RELEASES_URL = "https://api.github.com/repos/lukebmandel-debug/alto-connector/re
 TIMEOUT = 3.0
 
 _lock = threading.Lock()
+# Test-only: tests/test_stale_guard.py sets this (with its GitHub fetch stubbed) so the check runs even in an offline process, e.g. after a
+# Bass suite has installed the network guard. Nothing outside the tests sets it; offline app and Bass processes stay without the check.
+_TEST_ALLOW_OFFLINE = False
 _started = False
 _done = threading.Event()
 _latest = ""
@@ -51,6 +54,9 @@ def start() -> None:
     """Begin the once-per-session check in the background (idempotent)."""
     global _started
     if os.environ.get("ALTO_UPDATE_CHECK") == "off":
+        return
+    from .cloud import offline
+    if offline.reason() is not None and not _TEST_ALLOW_OFFLINE:   # ALTO_NO_NETWORK=1 or the Bass mock's guard: never a GitHub call
         return
     with _lock:
         if _started:

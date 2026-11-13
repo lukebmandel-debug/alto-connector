@@ -130,6 +130,13 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
     # (store_mode 'auto' becomes cloud when site.json says ready).
     monkeypatch.setenv(
         "XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg-config")))
+    # Offline processes (ALTO_NO_NETWORK=1, or the Bass network guard installed) refuse any store that needs an account and never open
+    # a sign-in or site file (alto/cloud/offline.py). Inside pytest every config dir is a temp fake under the base temp dir: register it,
+    # so the tests of the cloud store's own code keep running when a Bass suite has installed the guard earlier in the same session.
+    from alto.cloud import offline as _offline
+    _offline.allow_test_root(tmp_path_factory.getbasetemp())
+    # A test that trips the network guard logs the block into its own temp file, never the real ~/Library/Logs/Alto/net_guard.log.
+    monkeypatch.setenv("ALTO_NET_GUARD_LOG", str(tmp_path_factory.mktemp("net-guard-log") / "net_guard.log"))
     monkeypatch.setenv(
         "ALTO_TOOLS_DIR", str(tmp_path_factory.mktemp("alto-tools")))
     from alto.cloud import provision

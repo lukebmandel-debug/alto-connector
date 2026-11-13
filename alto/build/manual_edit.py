@@ -156,6 +156,12 @@ def manual_edit(b, nodes=()) -> str:
           .replace("/*__STUDY_DECORATE__*/", STUDY_EDIT_DECORATE)
           .replace("/*__STUDY_EDIT__*/", STUDY_EDIT_JS))
     css = MANUAL_CSS[:MANUAL_CSS.rindex("</style>")] + STUDY_EDIT_CSS + "\n</style>"
+    from . import bass_ui
+    if bass_ui.enabled():                    # Bass (bass_ui.py): its button in the Edit pill and the loader of its hosted bundle; off, the markers vanish and nothing changes
+        js = js.replace("/*__BASS_FN__*/", bass_ui.PILL_FN).replace("/*__BASS_USE__*/", bass_ui.PILL_USE).replace("/*__BASS_WIRE__*/", bass_ui.PILL_WIRE)
+        css = css.replace("</style>", bass_ui.PILL_CSS + "</style>")
+        return edit_keys(b, nodes) + css + "\n" + js + "\n" + bass_ui.pill_script()
+    js = js.replace("/*__BASS_FN__*/", "").replace("/*__BASS_USE__*/", "").replace("/*__BASS_WIRE__*/", "")
     return edit_keys(b, nodes) + css + "\n" + js + "\n"
 
 
@@ -1792,16 +1798,16 @@ MANUAL_JS = r"""<script id="alto-manual">
      openClaude), the pencil edits by hand. A phone gets the pencil alone, at
      the foot of each page. While editing, the editing bar takes its place. */
   var BUILD_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l7-3v18"/><path d="M11 9h9v12"/><path d="M2.5 21h19"/><path d="M7 8.5v.01M7 12v.01M7 15.5v.01M15 12.5v.01M15 16v.01"/></svg>';
-  function pillHTML(phone){
+  /*__BASS_FN__*/function pillHTML(phone){
     return (phone ? '' : '<button type="button" class="aep-half aep-claude" data-tip="Edit with Claude: best for bigger changes" aria-label="Edit with Claude">' + BUILD_SVG + '</button><span class="aep-div" aria-hidden="true"></span>')
-      + '<button type="button" class="aep-half aep-manual" data-tip="Edit manually: best for small fixes" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span>' + (phone ? '<span>Edit this page</span>' : '') + '</button>';
+      + /*__BASS_USE__*/'<button type="button" class="aep-half aep-manual" data-tip="Edit manually: best for small fixes" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span>' + (phone ? '<span>Edit this page</span>' : '') + '</button>';
   }
   function wire(el){
     if(el._aed) return; el._aed = 1;
     el.addEventListener('click', function(e){
       var t = e.target.closest('button'); if(!t) return;
       e.stopPropagation();
-      if(t.classList.contains('aep-claude')){ if(window._altoEditTimeline) window._altoEditTimeline(); }
+      if(t.classList.contains('aep-claude')){ if(window._altoEditTimeline) window._altoEditTimeline(); }/*__BASS_WIRE__*/
       else if(t.classList.contains('aep-manual')){ if(t.classList.contains('off')){ toast(whyNot()); return; } if(editing()) exit(); else enter(); }
     });
   }

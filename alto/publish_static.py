@@ -257,6 +257,14 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         cdir.mkdir(parents=True, exist_ok=True)
         (cdir / "index.html").write_text(connect_page(cloud_v), encoding="utf-8")
 
+    # Bass "Add from Drive": the Picker's own page (build/drive_picker_page.py); written only when the Bass UI is built in with a proxy base
+    if _picker_csp():
+        from .build.drive_picker_page import FOLDER as _PK, picker_js, picker_page
+        pkdir = site / _PK
+        pkdir.mkdir(parents=True, exist_ok=True)
+        (pkdir / "index.html").write_text(picker_page(), encoding="utf-8")
+        (pkdir / "picker.js").write_text(picker_js(), encoding="utf-8")
+
     # reports viewer (no public courses to preselect)
     rdir = site / "reports"
     rdir.mkdir(exist_ok=True)
@@ -453,7 +461,15 @@ def _security_headers(site_dir: Path | None = None, site: str | None = None) -> 
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir), _hv_names(site_dir))
+    return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir), _hv_names(site_dir), picker_csp=_picker_csp())
+
+
+def _picker_csp() -> str | None:
+    """The wider policy of /drive-picker/ (build/drive_picker_page.py), the one page that loads Google's Picker; None unless the Bass UI is built in
+    (ALTO_BASS_UI and a proxy base), so a site without Bass is byte-identical. Never applied to any other path."""
+    from .build import bass_ui
+    from .build.drive_picker_page import PICKER_CSP
+    return PICKER_CSP if bass_ui.enabled() and bass_ui.base_url() else None
 
 
 def _csp(form_action: str, own: str = "") -> str:
@@ -473,7 +489,7 @@ def _csp(form_action: str, own: str = "") -> str:
         "font-src 'self'" + own + " data:",
         # Firestore + Identity Toolkit, which alto-cloud.js talks to directly.
         "connect-src 'self'" + own + " https://*.googleapis.com https://*.firebaseio.com "
-        "wss://*.firebaseio.com https://*.firebaseapp.com" + _tile_src(),
+        "wss://*.firebaseio.com https://*.firebaseapp.com" + _tile_src() + _bass_src(),
         # The Google sign-in popup's helper frame, on the project's authDomain:
         # *.firebaseapp.com by default, or this site itself when authDomain is
         # set to the site (<site>.web.app), hence 'self'.
@@ -492,12 +508,23 @@ def _tile_src() -> str:
     return (" " + h) if re.fullmatch(r"https://[a-z0-9-]+\.(web\.app|firebaseapp\.com)", h or "") else ""
 
 
+def _bass_src() -> str:
+    """The Bass beta proxy's origin (ALTO_BASS_BASE), only when the Bass UI is built in (ALTO_BASS_UI) AND the base is set: without both,
+    the CSP is byte-identical to a build without Bass. One https origin, no wildcard; a Cloud Run (<svc>-<hash>-uc.a.run.app or <svc>-<projectnumber>.<region>.run.app) or Cloud Functions host only, https, lowercase, no port (a
+    same-site path needs nothing: 'self' covers it). Anything else adds nothing, so the page's own connect-src stays closed."""
+    from .build import bass_ui
+    if not bass_ui.enabled():
+        return ""
+    m = re.fullmatch(r"(https://[a-z0-9][a-z0-9.-]*\.(?:run\.app|cloudfunctions\.net))(?:/.*)?", bass_ui.base_url())
+    return (" " + m.group(1)) if m else ""
+
+
 def _palace_folders() -> list:
     from .build.palace_assets import folders
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=(), cmap_files=(), hv_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=(), cmap_files=(), hv_files=(), picker_csp: str | None = None) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -543,6 +570,10 @@ def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=
         {"source": "/connect/**", "headers": [
             {"key": "Content-Security-Policy", "value": connect_csp},
         ]},
+        # Bass "Add from Drive": the Picker's page and ONLY that page (build/drive_picker_page.py) gets the Google origins the Picker needs.
+        *([{"source": "/drive-picker/**", "headers": [
+            {"key": "Content-Security-Policy", "value": picker_csp},
+        ]}] if picker_csp else []),
     ]
 
 

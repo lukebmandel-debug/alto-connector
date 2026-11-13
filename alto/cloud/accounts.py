@@ -110,6 +110,9 @@ def accounts_path() -> Path:
 
 
 def _load_saved() -> list[dict]:
+    from . import offline
+    if not offline.may_read(accounts_path()):
+        return []
     try:
         d = json.loads(accounts_path().read_text(encoding="utf-8"))
         rows = d.get("accounts") if isinstance(d, dict) else None
@@ -130,6 +133,9 @@ def _save_saved(rows: list[dict]) -> None:
 
 def _peek(project: str) -> dict:
     """Who a project's stored sign-in is, without a network call."""
+    from . import offline
+    if not offline.may_read(config_dir()):
+        return {"email": "", "uid": "", "signed_in": False}
     try:
         d = json.loads((config_dir() / f"session-{project}.json")
                        .read_text(encoding="utf-8"))
@@ -283,6 +289,8 @@ def ensure_config(a: dict) -> dict:
 
 
 def session_for(a: dict) -> Session:
+    from . import offline
+    offline.refuse(f"account {a.get('id') or a.get('project') or '?'}", config_dir())
     cfg = ensure_config(a)
     with _LOCK:
         s = _SESSIONS.get(a["project"])
