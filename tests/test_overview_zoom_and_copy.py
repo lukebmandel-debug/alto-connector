@@ -79,7 +79,8 @@ def test_new_anchors_match_the_engine_exactly_once(name):
 
 def test_the_account_glyph_no_longer_slides_with_info(home):
     assert "slideAside('account-btn'" not in home
-    assert "slideAside('search-btn', expanded);" in home
+    assert "slideAside(" not in home   # the row slides by one CSS rule now (html.info-open), not per button
+    assert "html.info-open #search-btn, html.info-open #bin-btn{ transform:translateX(-324px); }" in home
 
 
 def test_a_failed_sign_in_is_explained_in_the_modal(home):

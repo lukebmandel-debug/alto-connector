@@ -916,10 +916,10 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   }
   function prompt(extra){
     var at = where(), host = at ? at.split('/')[2] : '';
-    return "I want to edit my Alto timeline \"" + TITLE + "\" (timeline id: " + tid +
+    return "I want to edit \"" + TITLE + "\" in Alto (id: " + tid +
       (at ? ", page: " + at : "") + "). " +
       "If the Alto connector isn't connected here yet, help me install it from " + GET +
-      " first. Then open this timeline with Alto's get_timeline" +
+      " first. Then open it with Alto's get_timeline" +
       (at ? " \u2014 if it isn't found, it may be in another of my Alto accounts: look with " +
             "list_projects(account=\"all\"), and add my site (" + host + ") with connect_account " +
             "if it isn't listed" : "") +

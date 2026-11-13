@@ -1904,7 +1904,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "report_title": f"{jsq(b.title)} — Notes Report",
         "report_h1": f"<h1>{jsq(b.title)}</h1>",
         "report_footer": ("Generated from highlights and notes in the "
-                          f"{jsq(b.title)} study timeline."),
+                          f"{jsq(b.title)}."),
         "reports_link": rhref,
         "course_id_lit": ID_PATTERNS["course_id_lit"].format(tid=tid),
         "drawer_title": f"'    <span id=\"nav-drawer-title\">{jsq(b.title)}</span>',",

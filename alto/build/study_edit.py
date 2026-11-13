@@ -57,7 +57,7 @@ STUDY_EDIT_JS = r"""  /* ── flash cards and quizzes: the editor (study_edit.
       ? 'a section {h: "Quiz", t: "", quiz: {questions: [{q, choices: [2-8 answers], answer: <index of the right choice, or a list of indexes for select-all-that-apply>, explain}]}}'
       : 'a section {h: "Flash cards", t: "", cards: {cards: [{front, back}]}}';
     return 'Please write ' + what + ' for the page “' + title + '”' + (P ? ' (' + P.type + ' page, id: ' + P.id + ')' : '') +
-      ' of my Alto timeline. Use ONLY my own material — what this timeline already holds and the notes and sources I have given you — never outside knowledge: ' +
+      ' in Alto. Use ONLY my own material — what it already holds and the notes and sources I have given you — never outside knowledge: ' +
       'every ' + (kind === 'q' ? 'question, choice, answer and explanation' : 'card') + ' must be grounded in my notes. ' +
       'Read the page first with get_timeline, then add ' + shape + ' to that page’s sections with add_nodes (keep its other sections), rebuild and republish. ' +
       'Ask me first if it would help to know how many ' + (kind === 'q' ? 'questions' : 'cards') + ' I want.';

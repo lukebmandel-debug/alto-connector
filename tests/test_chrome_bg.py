@@ -39,9 +39,11 @@ def test_the_homepage_bar_is_clear_on_a_computer_and_search_opens_compact():
     assert "/*" not in js[js.index("<script"):]                                  # the script's comments stay in the source
 
 
-def test_retro_corners_sit_at_the_top_above_the_marks():
-    assert "top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));" in retro.FRAME_CSS and "var(--nav-bottom" not in retro.FRAME_CSS
-    assert "X #title-bar:not(#_)>*{translate:0 8px;}" in retro.FRAME_CSS
+def test_retro_has_no_frame_only_the_rule_under_the_title():
+    """Art option D (Luke 2026-11-12): no frame lines, chamfers or corner diagonals, no foot measuring; one plain faded gold line, no diamond, under the title."""
+    assert "#sk-frame i" not in retro.FRAME_CSS and "linear-gradient(var(--fg)" not in retro.FRAME_CSS and "fz-ext" not in retro.ASSET and "fzFit" not in retro.ASSET
+    assert "b::after" not in retro.FRAME_CSS and "rotate(45deg)" not in retro.FRAME_CSS and "#d9ae55 14%,#d9ae55 86%" in retro.FRAME_CSS
+    assert retro.FRAME_HTML == "<b></b>" and "X #sk-frame b{position:absolute;left:50%;top:40px;" in retro.FRAME_CSS and "top:38px" in retro.FRAME_CSS
 
 
 def test_retro_and_the_theme_follow_one_rule_everywhere():

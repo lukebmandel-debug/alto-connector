@@ -184,12 +184,12 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
         "name": "alto",
         "display_name": "Alto",
         "version": __version__,
-        "description": ("Build an interactive timeline from your own "
-                        "materials — never from invented content."),
+        "description": ("Build interactive outlines, timelines and memory palaces from "
+                        "your own materials — never from invented content."),
         "long_description": (
             "Alto interviews you about material you already have — a course, a "
             "novel, a research project — and builds an interactive, filterable "
-            "timeline or outline from it: glass cards on colored bands, chips, "
+            "page from it, such as an outline, timeline or memory palace: glass cards on colored bands, chips, "
             "routed connection lines, detail pages using your own schema, "
             "highlights, notes and freewriting, a mobile layout, and a self-contained "
             "offline file you can send to anyone. The suggested route is to have "
@@ -197,7 +197,7 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
             "by hand in the page.\n\n"
             "Alto is a closed knowledge container. It connects and organizes "
             "what you provide and never invents facts, events, holdings or "
-            "descriptions. Sparse notes make a sparse timeline, on purpose."),
+            "descriptions. Sparse notes make a sparse page, on purpose."),
         "author": {"name": "Luke Mandel"},
         "homepage": WEBSITE_URL,
         # The download page is the documentation; /get never existed (404).
@@ -236,7 +236,7 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
         "user_config": {
             "store_dir": {
                 "type": "directory",
-                "title": "Where to keep your timelines",
+                "title": "Where to keep your work",
                 "description": ("Drafts, built pages and offline files are "
                                 "stored here on this Mac."),
                 "default": "${HOME}/Documents/Alto",
@@ -256,7 +256,7 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
                 "type": "string",
                 "title": "Advanced: existing Firebase Hosting site",
                 "description": ("Not needed — Claude sets up your own private "
-                                "site the first time you build a timeline. "
+                                "site the first time you build something. "
                                 "Only to use a Firebase project you already "
                                 "have: its Hosting site id."),
                 "required": False,

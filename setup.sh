@@ -60,9 +60,9 @@ EOF
 
 echo
 echo "Done. Quit and reopen the Claude Desktop app, then start a chat with:"
-echo "  “I want to build a timeline in Alto — interview me.”"
+echo "  “I want to build something in Alto — interview me.”"
 echo
 echo "Optional — shareable web links (also free): create a Firebase project +"
 echo "Hosting site, log in the firebase CLI, and add ALTO_FIREBASE_SITE and"
 echo "ALTO_FIREBASE_PROJECT to the alto entry in Claude Desktop's config."
-echo "Without that, every timeline still works as a self-contained offline file."
+echo "Without that, every page still works as a self-contained offline file."

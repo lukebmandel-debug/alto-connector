@@ -54,7 +54,7 @@ def copy(src: LocalStore, from_uid: str, dst, uid: str, local: LocalStore,
                 local.put_artifact(uid, tid, a, body)
         n["timelines"] += 1
         n["nodes"] += len(nodes)
-        log(f"  timeline  {(t.get('brief') or {}).get('title', tid)}  ({len(nodes)} cards)")
+        log(f"  page      {(t.get('brief') or {}).get('title', tid)}  ({len(nodes)} cards)")
     return n
 
 
@@ -105,6 +105,6 @@ def main(argv: list[str]) -> int:
         r = copy(src, fu, dst, uid, local, a.overwrite)
         for k in total:
             total[k] += r[k]
-    print(f"Done: {total['projects']} projects, {total['timelines']} timelines, "
+    print(f"Done: {total['projects']} projects, {total['timelines']} pages, "
           f"{total['nodes']} cards copied; {total['skipped']} already there.")
     return 0

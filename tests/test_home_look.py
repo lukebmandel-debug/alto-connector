@@ -237,7 +237,7 @@ def test_retro_plates_keep_every_button_and_off_restores_the_original(tmp_path, 
     assert info["units"][0] == "3 units" and info["units"][1] == "1 unit" and info["units"][2] is None       # no strip, no count
     assert all(set(x) >= {"tile-share", "tile-more"} for x in info["btns"])
     assert set(info["radius"]) <= {"0px"} and set(info["shadow"]) <= {"none"}
-    assert info["counts"] == ["3 timelines"] and shared
+    assert info["counts"] == ["3"] and shared
     assert after_off == classic                                       # off puts every node back, in the original order
 
 

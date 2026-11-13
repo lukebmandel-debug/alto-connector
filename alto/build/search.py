@@ -634,7 +634,8 @@ SX_JS = r"""
     } else if(placed){ placed=false; btn.style.setProperty('left','auto','important'); }
   }
   fit(); window.addEventListener('resize',function(){ fit(); root.classList.toggle('sx-big',big()); setTimeout(place,0); });
-  function label(){ var t=on?'Collapse search':'Expand search'; tg.title=t; tg.setAttribute('aria-label',t); tg.setAttribute('aria-pressed',on?'true':'false'); }
+  function label(){ var t=on?'Collapse search':'Expand search'; if(root.classList.contains('alto-holo')) tg.removeAttribute('title'); else tg.title=t; tg.setAttribute('aria-label',t); tg.setAttribute('aria-pressed',on?'true':'false'); }
+  tg.addEventListener('mouseenter',label);   /* (Holo shows the name inside its field, holo.py: no title bubble over the rim; the look can change after load) */
   function render(){ var f=window._altoSearchRender||window._homeSearchRender, v=input.value; if(f && v.trim().length>=2) f(v); }
   var pref=on;   /* the saved choice; Esc shrinks for now without changing it */
   function set(v,temp){

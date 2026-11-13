@@ -228,7 +228,7 @@ def test_the_row_is_the_pages_own_glass_never_a_painted_band(cells, st):
 def test_portrait_is_untouched(cells, st):
     m = cells[("port", st, 402, 874, "on")]
     assert abs(m["nav"][3] - 52) <= 1.5, m["nav"]
-    assert abs(m["bar"][1] - 52) <= 1.5 and abs(m["bar"][3] - 96) <= 1.5, m["bar"]
+    assert abs(m["bar"][3] - (874 - 14)) <= 1.5 and (abs(m["bar"][3] - m["bar"][1] - 44) <= 1.5 or abs(m["bar"][3] - m["bar"][1] - 52) <= 1.5), m["bar"]   # the names are a 44 pt (52 when a name wraps) glass pill at the foot (phone navbar B), no longer a strip under the header
     assert m["grid"] != "grid" and m["desc"]["oy"] == "auto"
     assert m["card"][0] >= 8 and m["card"][2] <= 402 - 8
 

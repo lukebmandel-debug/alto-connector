@@ -240,7 +240,7 @@ JS = r"""<script id="alto-sp">
     ex.textContent = bits.join(' · '); ex.style.display = bits.length ? '' : 'none';
   }
   function prompt(){
-    return 'Make or change my study plan for this timeline. Ask me one question at a time: when my exam is and how much time I have each day, and what I already know I am weak on. '
+    return 'Make or change my study plan. Ask me one question at a time: when my exam is and how much time I have each day, and what I already know I am weak on. '
       + 'Then propose the nodes I should study first, each with the reason in my own words, and save it with set_study_plan.';
   }
   function make(box){

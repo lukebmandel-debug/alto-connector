@@ -235,8 +235,8 @@ def _server_base(ident: dict, name: str, repo: str) -> dict:
     return {
         "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
         "name": name,
-        "description": ("Build an interactive timeline from your own materials "
-                        "— never from invented content."),
+        "description": ("Build interactive outlines, timelines and memory palaces from your own "
+                        "materials — never from invented content."),
         "version": __version__,
         "repository": {
             "url": f"https://github.com/{ident['github_user']}/{ident['github_repo']}",
@@ -249,7 +249,7 @@ def _server_base(ident: dict, name: str, repo: str) -> dict:
 def _env_vars() -> list[dict]:
     return [
         {"name": "ALTO_STORE_DIR",
-         "description": "Where timelines are kept on this machine.",
+         "description": "Where your work is kept on this machine.",
          "isRequired": False,
          "default": "~/Documents/Alto"},
         {"name": "ALTO_FIREBASE_SITE",
@@ -275,8 +275,8 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Alto — build a timeline from your own material</title>
-<meta name="description" content="Alto interviews you about material you already have and builds an interactive, filterable timeline from it. It never invents content.">
+<title>Alto — build from your own material</title>
+<meta name="description" content="Alto interviews you about material you already have and builds an interactive, filterable outline, timeline or memory palace from it. It never invents content.">
 <meta name="theme-color" content="#f0efea" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12141f" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -372,7 +372,7 @@ PAGE = """<!doctype html>
 
   <p class="lede">Alto interviews you about material you already have — a
   course, a novel, a research project — and builds it into an interactive,
-  filterable timeline or outline. Cards on colored bands, chips, connection
+  filterable page, such as an outline or timeline. Cards on colored bands, chips, connection
   lines, detail pages using your own headings, highlights, notes and
   freewriting, a phone layout, and a single offline file you can send to
   anyone.</p>
@@ -381,7 +381,7 @@ PAGE = """<!doctype html>
   outlines or readings, then make small adjustments and revisions by hand in the
   page. You can build everything by hand, but Claude does the main build best.
   It never invents content. Alto organizes what you give it and nothing else —
-  sparse notes make a sparse timeline, on purpose.</p>
+  sparse notes make a sparse page, on purpose.</p>
 
 {notice}  <h2>Download</h2>
   <div class="dl">
@@ -396,7 +396,7 @@ PAGE = """<!doctype html>
         downloaded. (Double-clicking it works too, if your system opens
         <code>.mcpb</code> files with Claude.)</li>
     <li>Restart Claude Desktop. Alto appears under Extensions.</li>
-    <li>Start a chat and say <em>“I want to build a timeline in Alto —
+    <li>Start a chat and say <em>“I want to build something in Alto —
         interview me.”</em></li>
   </ol>
 
@@ -410,14 +410,14 @@ PAGE = """<!doctype html>
   </details>
 
   <details>
-    <summary>Where do my timelines go?</summary>
+    <summary>Where does my work go?</summary>
     <p>Onto your own private Alto site — a free Firebase project that Claude
-    sets up in <em>your</em> Google account the first time you build a
-    timeline, never one of ours. You click <b>Allow</b> and <b>Continue with
+    sets up in <em>your</em> Google account the first time you build
+    something, never one of ours. You click <b>Allow</b> and <b>Continue with
     Google</b> in your browser; there is nothing to install or configure.
     Only your Google account can open what you publish there; to show a
-    timeline to someone, you make a share link from your homepage.</p>
-    <p>Every timeline is also produced as a self-contained file you can open
+    page to someone, you make a share link from your homepage.</p>
+    <p>Every page is also produced as a self-contained file you can open
     without any server, and it lives in <code>~/Documents/Alto</code> until
     your site is ready. See the <a href="/privacy/">privacy note</a>.</p>
   </details>

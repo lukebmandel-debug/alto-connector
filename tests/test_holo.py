@@ -790,5 +790,5 @@ def test_short_viewports_get_the_firmer_toggle_frost_and_nothing_else_changes():
     # one variable carries the frost for the toggles and the top label tab (Luke 2026-11-11): 46% by default, 60% on a short window
     assert "X.alto-home{--ho-frost:.46;}" in src
     assert re.search(r"@media \(max-height:500px\)\{ X\.alto-home\{--ho-frost:\.60;\} \}", src), "no short-viewport frost"
-    assert src.count("rgba(var(--ho-bgrgb),var(--ho-frost))") == 3    # the toggles (plain and chosen) and the tab, no literal beside it
+    assert src.count("rgba(var(--ho-bgrgb),var(--ho-frost))") == 4    # the toggles (plain and chosen), the tab and the home row's chips (#home-row, 1.9.225), no literal beside it
     assert "rgba(var(--ho-bgrgb),.46)" not in src and "rgba(var(--ho-bgrgb),.60)" not in src

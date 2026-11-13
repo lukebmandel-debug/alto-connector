@@ -35,31 +35,12 @@ FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-
 # ── shared with the Star chart (solar_stars.RETRO_CSS splices these in; `X ` is the style's own selector) ──
 FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo", "bottom
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:calc(4px / var(--alto-zoom,.8));right:calc(4px / var(--alto-zoom,.8));top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));}
-  /* (Luke 2026-11-06, L-1106-230038: "Retro has the border going above the apple search bar instead of along the bottom"; Sim 1107: 100lvh from the top still ended ~60 pt short, because
-     Safari's viewport units do not reach the screen's foot while its bar is up) On a phone the frame's foot is lowered by --fz-ext, which the script (fzFit) measures: the
-     screen's height less the page's visible height, portrait only (landscape's bars are at the top, the page already ends at the true bottom); never lifted by the safe-area inset */
-  X:is(.phone-whole,.alto-home) #sk-frame:not(#_){bottom:calc(3px / var(--alto-zoom,.8) - var(--fz-ext,0px));}   /* (the homepage too, Sim 1107c S6: its foot sat ~100 pt above the screen's) */
-  X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
-  /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page";
-     the corners (Art's pick, option B): chamfered 45deg x 16px, so a rounded window cannot clip a corner point. Drawn as four straight gradient lines that stop 16px short
-     of each corner and the four <i>'s diagonals; every length is whole real px under the page zoom) */
-  X #sk-frame{--fz:var(--alto-zoom,.8);--fc:calc(16px / var(--fz));--ft:calc(1px / var(--fz));--fg:rgba(217,174,85,.8);
-    background:linear-gradient(var(--fg),var(--fg)) var(--fc) 0/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,linear-gradient(var(--fg),var(--fg)) var(--fc) 100%/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,
-      linear-gradient(var(--fg),var(--fg)) 0 var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat,linear-gradient(var(--fg),var(--fg)) 100% var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat;}
-  X #sk-frame i{position:absolute;width:var(--fc);height:var(--fc);}
-  X #sk-frame i:nth-child(1){left:0;top:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
-  X #sk-frame i:nth-child(2){right:0;top:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
-  X #sk-frame i:nth-child(3){left:0;bottom:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
-  X #sk-frame i:nth-child(4){right:0;bottom:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
-  /* (Art, 2026-10-28: the right rail and the X box sat on the frame's line, and the two bottom rows on different baselines: the rail and the X stand
-     inside the line, the left row rides the right row's baseline; all in whole real px, so the zoom doesn't blur them) */
-  X:not(.mobile):not(.detail-open) #tab-rail:not(#_){right:calc(6px / var(--alto-zoom,.8)) !important;}
-  X:not(.mobile):not(.detail-open) #ct-chips:not(#_){margin-left:calc(4px / var(--alto-zoom,.8));}
-  X:not(.mobile):not(.alto-home) :is(#account-btn,#pal-ctl):not(#_){bottom:var(--alto-row-b,24px) !important;}   /* (not the homepage: its account toggle shares the 24px baseline of the other home toggles) */
-  X #sk-frame b{position:absolute;left:50%;top:31px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
-    background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
-  X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:0;right:0;top:0;bottom:0;}
+  /* (Luke 2026-11-12, Art option D: no frame round the page, only one plain gold line, faded at both ends, under the title (Luke: no diamond); the rule is lowered to clear the title,
+     and on the homepage it is a plain rule under the HOME tab) */
+  X #sk-frame b{position:absolute;left:50%;top:40px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,#d9ae55 14%,#d9ae55 86%,transparent);opacity:.7;}
+  @media (max-height:500px) and (orientation:landscape){ X #sk-frame b:not(#_){top:38px;} }
+  X:not(.mobile):not(.alto-home) :is(#account-btn,#pal-ctl):not(#_){bottom:var(--alto-row-b,24px) !important;}   /* (the left bottom row rides the right row's baseline; not the homepage, whose account toggle shares the 24px baseline of the other home toggles) */
 """
 BRAND_CSS = r"""  /* Alto's own marks in Retro: the glyph and the wordmark in the Empire's gold (Retro only) */
   X svg:is(.brand-mark,.brand-word) [fill^="url"],X svg:is(.brand-mark,.brand-word) .alto-word{fill:#d9ae55 !important;}
@@ -69,7 +50,7 @@ BRAND_CSS = r"""  /* Alto's own marks in Retro: the glyph and the wordmark in th
 WORDMARK_CSS = r"""  X #sk-mark{display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:78px;z-index:300;pointer-events:none;color:#efe6cf;font-size:20px;font-weight:300;letter-spacing:.62em;opacity:.95;white-space:nowrap;}
   X #sk-mark::before,X #sk-mark::after{content:'';display:inline-block;width:64px;height:1.5px;margin:0 22px 6px;background:#d9ae55;vertical-align:middle;}
 """
-FRAME_HTML = "<i></i><i></i><i></i><i></i><b></b>"
+FRAME_HTML = "<b></b>"
 
 # ── the chrome round every Retro page, shared with the System's Retro (solar_stars.RETRO_CSS splices it in with scoped()): Retro is a
 # dark look, so these are the dark tokens and the dark drawing of the bars, chips, controls, panels and detail pages whatever the theme
@@ -112,6 +93,11 @@ opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), t
   X :is(#tab-rail>button,#search-btn,#info-icon,#account-btn,#key-toggle):hover{box-shadow:0 0 0 1px #d9ae55 !important;}
   X :is(#tab-rail>button.active,#tab-rail>button[aria-expanded=true]){background:#d9ae55 !important;color:#000 !important;}
   X #search-input{color:#efe6cf !important;font-family:var(--rt-f) !important;letter-spacing:.08em;}
+  /* the big/mini search is one field with one gold rim: the hint and the expand button inside it get no frame (Luke 2026-11-12); focus brightens the field's rim */
+  X #search-btn #sx-toggle:not(#_):not(#__):not(#___){background:transparent !important;border:0 !important;outline:none !important;box-shadow:none !important;}
+  X #search-btn #sx-toggle:is(:hover,:focus-visible):not(#_):not(#__):not(#___){color:#f6d98a !important;}
+  X #search-btn #search-input:focus-visible:not(#_){outline:none !important;box-shadow:none !important;}
+  X #search-btn.expanded:focus-within:not(#_):not(#__){border-color:#f6d98a !important;box-shadow:0 0 0 1px #f6d98a !important;}
   X #search-results,X #info-content,X #bg-panel,X #ef-panel,X #notes-panel,X #summary-wrap,X .key-pop,X #share-dialog>*{background:rgba(3,4,7,.97) !important;color:#efe6cf !important;
     border:1px solid rgba(217,174,85,.45) !important;border-radius:0 !important;box-shadow:0 0 0 4px #000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X :is(#bg-panel,#ef-panel,#notes-panel,#summary-wrap) :is(h1,h2,h3,.bg-t,.bg-h,.ef-h){color:#d9ae55 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.22em;font-weight:400 !important;}
@@ -454,7 +440,10 @@ HOME_CSS = r"""
   /* the top rows on solid ground (Sim 1110b: tiles showed through behind HOME and the wordmark, and under the chip row): a phone's portrait page, header + chip row; a phone held sideways, the header row alone */
   @media (max-width:640px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:calc(108px + env(safe-area-inset-top,0px));background:linear-gradient(#000 calc(100% - 12px),transparent);z-index:101;pointer-events:none;} }
   @media (min-width:641px) and (max-height:500px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:60px;background:linear-gradient(#000 calc(100% - 10px),transparent);z-index:101;pointer-events:none;} }
-  X.alto-home #sk-frame b{display:none !important;}   /* (the crown's diamond would sit on the Home chip) */
+  @media (min-width:641px) and (min-height:501px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:54px;background:linear-gradient(#000 calc(100% - 10px),transparent);z-index:101;pointer-events:none;} }   /* (desktop Home: tiles tuck under the rule, not through it) */
+  X.alto-home #sk-frame b:not(#_){top:40px;width:min(46vw,520px);}   /* (Art option D: on Home the same plain line under the HOME tab) */
+  @media (max-width:640px){ X.alto-home #sk-frame b:not(#_){top:54px;width:88vw;} }
+  @media (max-height:500px) and (orientation:landscape){ X.alto-home #sk-frame b:not(#_){top:44px;} }
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   /* the top row: the Home pill a square chip in gold capitals */
   X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
@@ -469,6 +458,12 @@ HOME_CSS = r"""
   X.alto-home .home-sort:hover{color:#f0c15e;}
   X.alto-home .home-sort-pop:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}
   X.alto-home .home-sort-pop button{border-radius:0;font-family:var(--rt-f);}
+  /* row B under HOME: square gold chips, the chosen side of the switch filled */
+  X.alto-home #home-row .hr-chip:not(#_):not(#__){background:#000;color:#d9ae55;border:1px solid #d9ae55;border-radius:0;font-family:var(--rt-f);font-size:11px;letter-spacing:.14em;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home #home-row .hr-switch:not(#_){border-radius:0;border:1px solid #d9ae55;background:#000;-webkit-backdrop-filter:none;backdrop-filter:none;}
+  X.alto-home #home-row .hr-switch .hr-chip:not(#_):not(#__){border:0;}
+  X.alto-home #home-row .hr-switch .hr-chip[aria-checked="true"]:not(#_):not(#__){background:rgba(217,174,85,.2);color:#f0c15e;box-shadow:inset 0 -2px 0 #d9ae55;}
+  X.alto-home #home-row .hr-chip:hover:not(.hr-plain){color:#f0c15e;}
   /* cards: square, a gold rim, a black plate; the title in capitals; the symbol in gold, very faint; the strip thin with square ends */
   X.alto-home .course-tile:not(.new-tile):not(#_){background:#070a0f !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X.alto-home .course-tile.live:hover{transform:none;border-color:#d9ae55 !important;}
@@ -514,7 +509,7 @@ HOME_CSS = r"""
   X:not(.alto-home) #account-modal .acct-provider:not(#_){border-color:rgba(217,174,85,.5);}
   /* B: the engraved plate (Art, Luke picked B 2026-10-31): a medallion with the format symbol, a ledger line, a foot of three cells */
 
-  X.alto-home .course-tile:not(.new-tile) .tile-emblem svg rect:first-child{rx:0;ry:0}
+  X.alto-home .course-tile:not(.new-tile) .tile-emblem svg :is(rect:first-child,rect[mask]){rx:0;ry:0}
   X.alto-home .t-actions button:not(#_){position:static !important;right:auto !important;bottom:auto !important;top:auto !important;width:100% !important;height:38px !important;border:0 !important;border-radius:0 !important;background:transparent !important;color:#d9ae55;display:grid;place-items:center;margin:0;padding:0}
   X.alto-home .t-actions button+button:not(#_){border-left:1px solid rgba(217,174,85,.32) !important}
   X.alto-home .t-actions button:hover{background:rgba(217,174,85,.14) !important}
@@ -581,7 +576,7 @@ function decorate(){
     var k=slab.querySelector('.slab-kicker'), g=slab.querySelector('.course-grid'); if(!k||!g) return;
     var tiles=g.querySelectorAll('.course-tile:not(.new-tile)');
     var c=k.querySelector('.slab-count'); if(!c){ c=el('span','slab-count'); k.appendChild(c); }
-    var ct=tiles.length+(tiles.length==1?' timeline':' timelines'); if(c.textContent!==ct) c.textContent=ct;   /* (written only when it changed: a write alone wakes the observer, which drew it again, every frame) */
+    var ct=String(tiles.length); if(c.textContent!==ct) c.textContent=ct;   /* (written only when it changed: a write alone wakes the observer, which drew it again, every frame) */
     tiles.forEach(function(t,i){
       var no=t.querySelector('.t-no');
       if(no){ var nt='Nº '+two(i+1); if(no.textContent!==nt) no.textContent=nt; return; }   /* already decorated: only the number can change (a re-sort) */
@@ -636,17 +631,10 @@ var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null;
 function desk(){ return !r.classList.contains('mobile'); }
 function plain(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
 // the frame and the wordmark are the Star chart's (#sk-frame, #sk-mark): drawn on a desktop page
-// the frame's foot on a phone (Sim 1107 steps 1, 1b): how far below the page's visible bottom the screen runs on, portrait only. The page is laid out below the status strip (its top is
-// --T below the screen's), so the screen's foot is screen height - T from the page's top; the visible bottom is the VISUAL viewport's (offsetTop + height). Written as --fz-ext, 0..104 px
-// (the bar 70 + the home indicator 34: never more, so the foot can not leave the screen), on every viewport change and scroll.
-function fzFit(){ var f=document.getElementById('sk-frame'); if(!f||!(r.classList.contains('phone-whole')||(r.classList.contains('alto-home')&&Math.min(screen.width,screen.height)<=500))) return; var vv=window.visualViewport, vh=Math.round(vv ? vv.height+vv.offsetTop : window.innerHeight), w=Math.round(window.innerWidth), por=vh>=w,
-    p=document.getElementById('sk-fzp'); if(!p){ p=document.createElement('div'); p.id='sk-fzp'; p.setAttribute('aria-hidden','true'); p.style.cssText='position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)'; document.body.appendChild(p); }
-  var T=p.offsetHeight, sh=por ? Math.max(screen.width,screen.height) : Math.min(screen.width,screen.height), ext=por ? Math.max(0,Math.min(104,sh-vh-T)) : 0; f.style.setProperty('--fz-ext',ext+'px'); }
-['resize','orientationchange','scroll'].forEach(function(n){ window.addEventListener(n,fzFit,{passive:true}); }); if(window.visualViewport){ visualViewport.addEventListener('resize',fzFit); visualViewport.addEventListener('scroll',fzFit); }
 function art(){
   if(!document.body) return;
   var on=r.classList.contains('alto-retro') && desk(), fr=document.getElementById('sk-frame'), m=document.getElementById('sk-mark');
-  if(on && !fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden','true'); fr.innerHTML=FRAME; document.body.appendChild(fr); fzFit(); setTimeout(fzFit,300); }
+  if(on && !fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden','true'); fr.innerHTML=FRAME; document.body.appendChild(fr); }
   else if(!on && fr) fr.remove();
   if(on){ if(!m){ m=document.createElement('div'); m.id='sk-mark'; m.setAttribute('aria-hidden','true'); document.body.appendChild(m); }
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[—–-]\s+/)[0]; }

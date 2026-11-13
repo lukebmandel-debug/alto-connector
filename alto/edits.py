@@ -1789,7 +1789,7 @@ def fold(store, uid, tid) -> "dict | None":
                         "out. Ask the owner where they want those cards.")
     if solar_ignored:
         rep["solar_positions_ignored"] = len(solar_ignored)
-        rep["note"] += (" A solar timeline places every circle itself, so positions dragged "
+        rep["note"] += (" A System places every circle itself, so positions dragged "
                         "or sizes set on the page (solar_positions_ignored) were not kept.")
     if units_gone:
         rep["units_deleted"] = units_gone
@@ -1807,7 +1807,7 @@ def fold(store, uid, tid) -> "dict | None":
         rep["chips_removed"] = chips_gone
         rep["categories_removed"] = axes_gone
         rep["note"] += (" The owner took chips (chips_removed) or whole categories "
-                        "(categories_removed) out of the timeline: gone from every card "
+                        "(categories_removed) out of the page: gone from every card "
                         "and from the top bar, their pages with them.")
     if chips_made:
         rep["chips_added"] = chips_made

@@ -2287,9 +2287,9 @@ _HELP_D_TAIL_OLD = (
     '    </div>\n')
 _HELP_D_TAIL_NEW = (
     '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; <span class="db-name"></span></em> or Escape goes back.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge gives an overview; click a phrase to jump to its card.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this timeline (a bright picture in the light theme, a dim one in the dark). Each timeline keeps its own.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this one (a bright picture in the light theme, a dim one in the dark). Each one keeps its own.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse; tick <em>Attach my Freewrite</em> above <em>Generate Report</em> to put it in a report too.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
@@ -2303,7 +2303,7 @@ _HELP_M_HEAD_OLD = (
     "    '    <p>")
 _HELP_M_HEAD_NEW = (
     "    '    <h3>Moving between cards</h3>',\n"
-    "    '    <p>Swipe a card left or right to step through the timeline in order.</p>',\n"
+    "    '    <p>Swipe a card left or right to step through in order.</p>',\n"
     "    '    <h3>Open a card</h3>',\n"
     "    '    <p>")
 _HELP_M_TAIL_OLD = (
@@ -2323,7 +2323,7 @@ _HELP_M_TAIL_OLD = (
 _HELP_M_TAIL_NEW = (
     " Tap <strong>BACK</strong> (bottom-left) to return.</p>',\n"
     "    '    <h3>MENU</h3>',\n"
-    "    '    <p>Tap <strong>MENU</strong> (top-right) for the timeline&#8217;s groups and index pages. Tap one to open its page.</p>',\n"
+    "    '    <p>Tap <strong>MENU</strong> (top-right) for the groups and index pages. Tap one to open its page.</p>',\n"
     "    '    <h3>MAP</h3>',\n"
     "    '    <p>Tap <strong>MAP</strong> (top-left) to see every card, grouped by section. Tap one to feature it, or, from a detail page, to jump to it.</p>',\n"
     "    '    <h3>Overview</h3>',\n"
@@ -2331,13 +2331,13 @@ _HELP_M_TAIL_NEW = (
     "    '    <h3>Search and filter</h3>',\n"
     "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards; double-tap it to switch every filter off, and again to bring them back.</p>',\n"
     "    '    <h3>Background</h3>',\n"
-    "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a colour, a pattern or a photograph behind this timeline. Each timeline keeps its own.</p>',\n"
+    "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a colour, a pattern or a photograph behind this one. Each one keeps its own.</p>',\n"
     "    '    <h3>MARK and NOTES</h3>',\n"
     "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around; tick <strong>Attach my Freewrite</strong> above <strong>Generate Report</strong> to put it in a report too.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"
-    "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy of this timeline or print it.</p>',\n"
+    "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy or print it.</p>',\n"
     "    '    <h3>Making and editing</h3>',\n"
-    "    '    <p>You can build a timeline entirely by hand on a computer, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments and revisions yourself. On your own timeline, <strong>Edit this page</strong> (at the foot of a page) changes its words right here.</p>',\n")
+    "    '    <p>You can build one entirely by hand on a computer, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments and revisions yourself. <strong>Edit this page</strong> (at the foot of a page) changes its words right here.</p>',\n")
 
 # ── detail-page swipe preview matches the page it becomes ──────────────────
 # The page sliding in under the finger was painted a flat var(--bg) (near-black
@@ -2897,7 +2897,7 @@ _PV_UNSTAGE_NEW = ("function _unstagePrint(){\n"
                    "  if(window._altoInkUnstage) window._altoInkUnstage();\n")
 _PV_BTN_OLD = "      '<button class=\"print-opt\" data-print=\"all\">All detail pages</button>' +\n"
 _PV_BTN_NEW = (_PV_BTN_OLD +
-               "      '<button class=\"print-opt\" data-print=\"ink\">Timeline picture, ink-saver</button>' +\n")
+               "      '<button class=\"print-opt\" data-print=\"ink\">Picture, ink-saver</button>' +\n")
 
 PATCHES += [
     {"name": "print-views-stage", "old": _PV_STAGE_OLD, "new": _PV_STAGE_NEW, "count": 1},

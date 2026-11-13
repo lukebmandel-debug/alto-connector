@@ -150,7 +150,7 @@ def _open_sheet(pg):
 def test_the_menu_row_sits_after_print_and_opens_the_other_formats(homepage):
     ctx, pg, errors = homepage
     rows = _open_sheet(pg)
-    assert rows.index("Turn into another format…") == rows.index("Print…") + 1 < rows.index("Delete timeline…")
+    assert rows.index("Turn into another format…") == rows.index("Print…") + 1 < rows.index("Delete…")
     picks = [b.get_attribute("data-format") for b in pg.locator(".share-menu .sm-pick").all()]
     assert len(picks) == len(E.FORMATS) - 1 and set(picks) < set(E.FORMATS)             # every format but the file's own
     assert errors == []
@@ -161,7 +161,7 @@ def test_the_claude_route_copies_one_prompt_that_adds_nothing_and_needs_no_serve
     _open_sheet(pg)
     pg.locator('.share-menu .sm-pick[data-format="building"]').click()
     prompt = pg.locator(".share-menu textarea.sm-prompt").input_value()
-    assert 'Turn my Alto timeline "Contracts"' in prompt and "Memory palace (a building)" in prompt
+    assert 'Turn my Alto file "Contracts"' in prompt and "Memory palace (a building)" in prompt
     assert "leave the original as it is" in prompt and "do not add a card, fact, date or case that is not in it" in prompt
     assert "Ask me which building to use before you start." in prompt
     assert [b.inner_text() for b in pg.locator(".share-menu .sm-pick").all()] == ["Copy the prompt for Claude"]

@@ -35,12 +35,12 @@ def test_the_tile_menu_is_move_print_delete_only():
     home = fn[fn.index("function home()"):]
     assert "btn('Move to another project…'" in home
     assert "btn('Print…'" in home
-    assert "btn('Delete timeline…'" in home
+    assert "btn('Delete…'" in home
     assert "btn('Cancel'" in home
     assert "Share" not in home and "altoShareMenu" not in home
     # the tile keeps its own Share button, and the guide no longer promises a Share in the ⋯
     assert "altoShareMenu(pg, shb)" in HOME_SRC
-    assert "on your own timelines moves, prints or deletes" in HOME_SRC
+    assert "on your own tiles moves, prints or deletes" in HOME_SRC
     assert "moves, shares" not in HOME_SRC
 
 

@@ -1030,7 +1030,7 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     if stray:
         warnings.append("placement names " + ", ".join(stray[:6])
                         + (" …" if len(stray) > 6 else "")
-                        + ": not nodes in this timeline, so ignored")
+                        + ": not nodes in this one, so ignored")
 
     for n in nodes:
         if not n.parent:

@@ -2246,7 +2246,7 @@ function loadHighlights(){
         const legacyData = JSON.parse(legacy);
         if(legacyData && legacyData.length > 0){
           const choice = confirm(
-            'Found ' + legacyData.length + ' highlight(s) from a previous timeline version.\n\n' +
+            'Found ' + legacyData.length + ' highlight(s) from a previous version.\n\n' +
             'Migrate them to this version, or start fresh?\n\n' +
             'OK = Migrate highlights\nCancel = Start fresh (old highlights will be cleared)'
           );
@@ -10812,8 +10812,8 @@ function _injectShareUI(){
   if(!hdr || document.getElementById('notes-share-btn')) return;
   var btn = document.createElement('button');
   btn.id = 'notes-share-btn';
-  btn.title = 'Share this timeline';
-  btn.setAttribute('aria-label', 'Share this timeline');
+  btn.title = 'Share';
+  btn.setAttribute('aria-label', 'Share');
   btn.setAttribute('style', 'background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;line-height:1;flex-shrink:0;');
   btn.innerHTML = '<svg viewBox="0 0 20 20" width="15" height="15" style="display:block;pointer-events:none" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8 H5 V17 H15 V8 H13"/><line x1="10" y1="12" x2="10" y2="3"/><polyline points="7,6 10,3 13,6"/></svg>';
   btn.addEventListener('click', openShareDialog);
@@ -10823,7 +10823,7 @@ function _injectShareUI(){
   var dlg = document.createElement('div');
   dlg.id = 'share-dialog';
   dlg.innerHTML =
-    '<div class="share-dlg-label">SHARE THIS TIMELINE</div>' +
+    '<div class="share-dlg-label">SHARE</div>' +
     '<div class="share-desc">Send a link — they get their own copy to work on. Their changes never affect yours.</div>' +
     '<label class="share-row"><input type="checkbox" id="share-inc"><span>Include my highlights &amp; notes (<span id="share-n">0</span>)</span></label>' +
     '<input id="share-link-out" readonly spellcheck="false">' +
@@ -10834,7 +10834,7 @@ function _injectShareUI(){
     '<div class="share-sep"></div>' +
     '<div class="share-dlg-label">PRINT &nbsp;·&nbsp; INK-SAVER</div>' +
     '<div id="print-opts">' +
-      '<button class="print-opt" data-print="timeline">Main timeline</button>' +
+      '<button class="print-opt" data-print="timeline">Main page</button>' +
       '<button class="print-opt" id="print-current-btn" data-print="current">This page</button>' +
       '<button class="print-opt" data-print="all">All detail pages</button>' +
     '</div>';
@@ -10872,6 +10872,17 @@ function _applyImport(imported, mode){   // mode: 'replace' | 'merge'
   location.reload();   // boot path re-renders everything from localStorage
 }
 
+// this page's own format, named as its tile names it (the button under SAVE TO MY ACCOUNT AS)
+function _pageFmtName(){
+  var c = document.documentElement.classList;
+  if(document.getElementById('bldg-root')) return 'Memory blueprint';
+  if(c.contains('alto-palace')) return 'Memory map';
+  if(c.contains('alto-solar')) return 'System';
+  if(c.contains('alto-lanes')) return 'Horizontal';
+  if(window._ALTO_OUTLINE && window._ALTO_OUTLINE.kids) return 'Outline';
+  return 'Timeline';
+}
+
 function _showImportDialog(payload){
   var existing = _readStore();
   var n = payload.highlights.length;
@@ -10887,12 +10898,12 @@ function _showImportDialog(payload){
     ? '<div class="imp-account"><div class="imp-title">SAVE TO MY ACCOUNT AS</div>' +
       '<div class="imp-account-btns">' +
         '<button class="note-dialog-btn" data-save="project">New project</button>' +
-        '<button class="note-dialog-btn" data-save="timeline">Timeline</button>' +
+        '<button class="note-dialog-btn" data-save="timeline">' + _pageFmtName() + '</button>' +
       '</div></div>'
     : '';
   overlay.innerHTML =
     '<div id="share-import-panel">' +
-      '<div class="imp-title">SHARED TIMELINE</div>' +
+      '<div class="imp-title">SHARED</div>' +
       '<div class="imp-body">__ALTO_TOK_share_import__ — it includes <strong>' + n +
       '</strong> highlight' + (n === 1 ? '' : 's') + ' &amp; notes.' +
       (existing.length ? '<br><br>You already have ' + existing.length + ' of your own.' : '') + '</div>' +

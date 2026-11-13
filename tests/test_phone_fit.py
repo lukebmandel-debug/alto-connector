@@ -120,33 +120,14 @@ def test_the_background_layers_cover_the_screen_and_the_runway_in_both_orientati
 
 
 @pytest.mark.parametrize("size", [(390, 844), (844, 390)])
-def test_the_retro_frame_hugs_the_true_bottom_of_a_phone_screen(browser, origin, size):
+def test_the_retro_page_has_no_frame_only_the_rule_under_the_title(browser, origin, size):
+    """Art option D (Luke 2026-11-12): no gold lines, chamfers or corner diagonals, no foot measured against the screen; one plain faded line, no diamond, lowered to clear the title."""
     page = _open(browser, origin, "retro", size)
-    r = page.evaluate(RECTS)
-    f = r["frame"]
-    assert f, r
-    assert abs(f["l"] - 5) < 1.5 and abs(f["r"] - (r["vw"] - 5)) < 1.5 and abs(f["t"] - 3.75) < 1.5, f
-    assert r["vh"] - f["b"] < 6 and f["b"] <= r["vh"], f                 # (where the screen and the page agree: 3.75 px off the bottom, no safe-area lift)
-
-
-def test_the_retro_frame_runs_down_under_the_bar_by_what_the_screen_has_beyond_the_page(browser, origin):
-    """Safari's bar in portrait: the page sees 844 of a 900 pt screen (screen.height faked); the frame's foot goes 56 px lower, to the screen's foot. In landscape the bars are
-    at the top, so nothing is added."""
-    ctx = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)
-    ctx.add_init_script("window.__sw = 390; Object.defineProperty(screen,'height',{get:()=>900,configurable:true}); Object.defineProperty(screen,'width',{get:()=>window.__sw,configurable:true});")
-    page = ctx.new_page()
-    page.goto(origin + "/?view=whole")
-    page.wait_for_function("window._altoBg && document.documentElement.classList.contains('rw')", timeout=30000)
-    page.evaluate("k => localStorage.setItem(k.replace(/-bg$/, '-style'), 'retro')", page.evaluate("_altoBg.key"))
-    page.reload()
-    page.wait_for_function("document.querySelector('#sk-frame')", timeout=30000)
-    page.wait_for_timeout(800)
-    r = page.evaluate(RECTS)
-    assert abs(r["frame"]["b"] - (900 - 3.75)) < 1.5, r["frame"]
-    page.set_viewport_size({"width": 844, "height": 390})
-    page.wait_for_timeout(800)
-    r = page.evaluate(RECTS)
-    assert abs(r["frame"]["b"] - (r["vh"] - 3.75)) < 1.5, r["frame"]
+    r = page.evaluate("""() => { const f = document.getElementById('sk-frame'), b = f && f.querySelector('b'), c = f && getComputedStyle(f);
+      return {kids: f ? f.children.length : -1, i: f ? f.querySelectorAll('i').length : -1, bg: c && c.backgroundImage, ext: f ? f.style.getPropertyValue('--fz-ext') : 'x',
+              top: b && b.getBoundingClientRect().top, after: b && getComputedStyle(b, '::after').content, fzp: !!document.getElementById('sk-fzp')}; }""")
+    assert r["kids"] == 1 and r["i"] == 0 and r["bg"] == "none" and r["ext"] == "" and not r["fzp"] and r["after"] in ("none", "normal"), r          # (no diamond)
+    assert abs(r["top"] - (38 if size[0] > size[1] else 40)) < 1.5, r
 
 
 WHOLE_CHIPS = """() => { const R = e => e.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.getElementById('world')).zoom) || 1;
@@ -186,6 +167,10 @@ def test_a_short_title_changes_nothing_in_the_whole_view(browser, origin):
     assert r["hits"] == [] and max(r["hx"] or [0]) == 0 and (r["scrolled"] > 0 or r["ruleGap"] >= 6), r                                    # (no growth where nothing needs it)
 
 
+def _retro_src():
+    return [("/%s/%s" % (f, n)) for f, n, _t in palace_assets.assets() if f == "retro"][0]
+
+
 def _home_page():
     """The homepage with the hosted Retro script loaded (the Simulator pages' loader), for a phone."""
     from alto.build.pages import build_home
@@ -196,7 +181,7 @@ def _home_page():
     return html[:i] + "<script>var x=document.createElement('script');x.src=%r;x.onload=function(){setTimeout(function(){window._altoRetro&&window._altoRetro.on();},500);};document.head.appendChild(x);</script>" % src + html[i:]
 
 
-def test_the_retro_home_page_frame_reaches_the_screen_foot_and_the_top_row_has_a_solid_backing(browser, origin):
+def test_the_retro_home_page_has_a_rule_under_the_tab_and_the_top_row_has_a_solid_backing(browser, origin):
     """Sim 1107c S6: on the homepage the frame's foot sat ~100 pt above the screen's and cards showed through the top row. Page 790 tall on an 844 screen (Safari's bar up)."""
     import http.server as hs
     page_html = _home_page()
@@ -223,10 +208,47 @@ def test_the_retro_home_page_frame_reaches_the_screen_foot_and_the_top_row_has_a
         page.goto("http://127.0.0.1:%d/home.html" % srv.server_address[1])
         page.wait_for_function("document.querySelector('#sk-frame')", timeout=30000)
         page.wait_for_timeout(900)
-        r = page.evaluate("""() => { const f = document.getElementById('sk-frame').getBoundingClientRect(), b = getComputedStyle(document.documentElement, '::before');
-          return {fb: f.bottom, vh: innerHeight, pos: b.position, bg: b.backgroundColor, bi: b.backgroundImage, h: parseFloat(b.height), z: b.zIndex}; }""")
-        assert abs(r["fb"] - (844 - 3.75)) < 1.5, r                                          # (the foot on the screen's bottom edge, under the bar)
+        r = page.evaluate("""() => { const f = document.getElementById('sk-frame'), rb = f.querySelector('b').getBoundingClientRect(), b = getComputedStyle(document.documentElement, '::before');
+          return {kids: f.children.length, top: rb.top, w: rb.width, vw: innerWidth, pos: b.position, bg: b.backgroundColor, bi: b.backgroundImage, h: parseFloat(b.height), z: b.zIndex}; }""")
+        assert r["kids"] == 1 and abs(r["top"] - 54) < 1.5 and abs(r["w"] - 0.88 * r["vw"]) < 2, r                      # (Art option D: no frame, a plain rule under the HOME tab)
         assert r["pos"] == "fixed" and (r["bg"] in ("rgb(0, 0, 0)", "rgba(0, 0, 0, 1)") or "linear-gradient" in r["bi"]) and r["h"] >= 104 and int(r["z"]) < 300, r   # (solid black under the top row; 1.9.220 draws it as a black gradient that fades in the last 12 px, kept)
+    finally:
+        srv.shutdown()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_a_sideways_phone_home_has_two_wide_columns_and_clear_side_gutters(browser, origin, style):
+    """Luke 2026-11-12: sideways, Home's buttons stand in side gutters and the tiles stay wide (2 columns, 230 px or more), in every style."""
+    html = _home_page() if style != "classic" else _home_page().split("<script>var x=document.createElement")[0] + "</body></html>"
+    if style == "holo":
+        src = [("/%s/%s" % (f, n)) for f, n, _t in palace_assets.assets() if f == "holo"][0]
+        html = html.replace(_retro_src(), src).replace("_altoRetro", "_altoHolo")
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            p = self.path.partition("?")[0]
+            hit = ("text/html", html) if p == "/home.html" else (("text/javascript", "") if p == "/alto-cloud.js" else palace_assets.find(p))
+            body = (hit[1] if hit else "no").encode("utf-8")
+            self.send_response(200 if hit else 404)
+            self.send_header("Content-Type", hit[0] if hit else "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        ctx = browser.new_context(viewport={"width": 874, "height": 292}, device_scale_factor=2, is_mobile=True, has_touch=True, user_agent=UA)
+        page = ctx.new_page()
+        page.goto("http://127.0.0.1:%d/home.html" % srv.server_address[1])
+        if style != "classic":
+            page.wait_for_function("document.documentElement.classList.contains('alto-%s')" % style, timeout=30000)
+        page.wait_for_timeout(1500)
+        r = page.evaluate("""() => { const t = [].slice.call(document.querySelectorAll('.course-tile:not(.new-tile)')).map(e => e.getBoundingClientRect()), s = document.querySelector('.project-slab').getBoundingClientRect();
+          return {n: t.length, w: Math.min.apply(null, t.map(r => r.width)), cols: new Set(t.map(r => Math.round(r.left))).size, sl: s.left, sr: s.right, vw: innerWidth}; }""")
+        assert r["n"] >= 2 and r["w"] >= 230 and r["cols"] == 2, r
+        assert r["sl"] >= 90 and r["vw"] - r["sr"] >= 100, r                         # (the slab stands clear of the left buttons and the right buttons)
     finally:
         srv.shutdown()
 

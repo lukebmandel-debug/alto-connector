@@ -37,10 +37,9 @@ SYMBOLS: dict[str, tuple[str, str, int]] = {
     "palace": ("Memory Map",
                BADGE + '<path d="M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z"/>'
                '<circle cx="12" cy="11.3" r="1" fill="currentColor"/>', 24),
-    # a domed palace
+    # a solid blueprint panel with the plan cut out in light lines (the one filled badge in the family)
     "building": ("Memory Blueprint",
-                 BADGE + '<path d="M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 '
-                 '3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2"/>', 24),
+                 '<defs><mask id="alto-bp-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#fff" stroke="none"/><path d="M6.75 8.25h6v3.75h4.5v4.5H6.75zM6.75 12.75h3" stroke="#000" fill="none"/></mask></defs><rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="currentColor" stroke="none" mask="url(#alto-bp-mask)"/>', 24),
     # a globe with a route arc hopping to a stop: the Memory Atlas
     "world": ("Memory Atlas",
               BADGE + '<circle cx="11" cy="13.2" r="5.3"/><path d="M11 7.9a2.3 5.3 0 0 0 0 10.6a2.3 5.3 0 0 0 0-10.6"/>'

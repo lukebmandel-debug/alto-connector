@@ -1554,7 +1554,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // An older cached alto-cloud.js has no edit calls: no edit mode until it updates.
   function canEdit(){ var c = cloud(); return !!(c && c.user && typeof c.putEdits === 'function' && typeof c.getEdits === 'function' && /^https?:/.test(location.protocol)); }
   function whyNot(){
-    if(!/^https?:/.test(location.protocol)) return 'Manual editing works on your web timeline, not a downloaded copy.';
+    if(!/^https?:/.test(location.protocol)) return 'Manual editing works on the web version, not a downloaded copy.';
     var c = cloud(); if(!c) return 'Manual editing needs your Alto site.';
     if(!c.known) return 'Checking your sign-in…';
     if(c.user && typeof c.putEdits !== 'function') return 'Reload the page to edit here (your site has a newer Alto).';
@@ -1808,7 +1808,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function deskPill(){
     var b = document.getElementById('alto-edit-pill');
     if(!b){ b = document.createElement('div'); b.id = 'alto-edit-pill'; b.className = 'alto-edit-pill'; b.setAttribute('role', 'group');
-      b.setAttribute('aria-label', 'Edit this timeline'); b.innerHTML = pillHTML(false); document.body.appendChild(b); wire(b); }
+      b.setAttribute('aria-label', 'Edit this ' + fmtWord()); b.innerHTML = pillHTML(false); document.body.appendChild(b); wire(b); }
     return b;
   }
   // The toggle holds the corner of the row (CSS: right/bottom 30); the engine's
@@ -2034,6 +2034,7 @@ MANUAL_JS = r"""<script id="alto-manual">
      circle sits is decided by its place in the outline — so no dragging, no
      sizing, and nothing deeper than a satellite */
   function isSolar(){ return !!window._ALTO_SOLAR; }
+  function fmtWord(){ return window._ALTO_SOLAR ? 'System' : window._ALTO_OUTLINE ? 'outline' : (window._altoPalace || window._palTr) ? 'Memory Palace' : 'timeline'; }
   var SOLAR_MAX = 3;
   function depthOf(id){ var P = (OUT && OUT.parent) || {}, d = 0; while(P[id] && d < 60){ id = P[id]; d++; } return d; }
   function heightOf(id){ var h = 0; liveKids(id).forEach(function(k){ h = Math.max(h, 1 + heightOf(k)); }); return h; }
@@ -2052,7 +2053,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     root.classList.add('alto-solar-stale');
     if(!solarWarned && (MOVED.length || NEWO.length || SWAPPED.length || REORD.length || Object.keys(GONE).length)){
-      solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this timeline.'); }
+      solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this System.'); }
   }
   function addCard(p, a, sun, more){      // sun: a new top concept of the unit (a System's second sun), not a card under its first; more: the Atlas's
                                           // {spec, ops(id), toast} (palace_world.py: a card and its country, one step)
@@ -2504,7 +2505,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       K[id] = S.map(function(x){ return x === id ? p : x; }); K[id].forEach(function(x){ Q[x] = id; });
       if(Kc.length){ K[p] = Kc; Kc.forEach(function(x){ Q[x] = p; }); } else delete K[p]; });
     var kn = liveKids(id).length;
-    A.push({t: 'Trade places with ' + (numOf(p) ? numOf(p) + ' ' : '') + '“' + titleOf(p) + '”', off: !field('sx|' + id), why: 'Cards added here trade places once the timeline is built again.',
+    A.push({t: 'Trade places with ' + (numOf(p) ? numOf(p) + ' ' : '') + '“' + titleOf(p) + '”', off: !field('sx|' + id), why: 'Cards added here trade places once the ' + fmtWord() + ' is built again.',
       sub: 'It becomes ' + nx[id] + (g ? '' : ', the top of its unit') + '; “' + titleOf(p) + '” and the cards under it go under it, as ' + nx[p] +
         (kn ? '. The ' + (kn === 1 ? 'card' : kn + ' cards') + ' under this one go under “' + titleOf(p) + '”.' : '.'),
       fn: function(){ doParentSwap(id); }});
@@ -2561,10 +2562,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     var later = false;
     if(!(full[full.length - 1] === id && !same)){
       if(field('so|' + np)) L.push(['so|' + np, full]);
-      else if(same){ toast('Cards added here take a place by number once the timeline is built again.'); return; }
+      else if(same){ toast('Cards added here take a place by number once the ' + fmtWord() + ' is built again.'); return; }
       else later = true;
     }
-    if(later){ if(changes(L)) toast('Moved under “' + titleOf(np) + '” — it takes its place by number once the timeline is built again. ⌘Z puts it back.'); return; }
+    if(later){ if(changes(L)) toast('Moved under “' + titleOf(np) + '” — it takes its place by number once the ' + fmtWord() + ' is built again. ⌘Z puts it back.'); return; }
     if(changes(L)) toast('Moved to ' + (numOf(id) || '') + ' — ⌘Z puts it back.');
   }
   /* asking: a title, a line, and the answers (the last one cancels) */
@@ -2632,7 +2633,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function unitGoneOp(i){ var k = unitKeyOf(i); return typeof k === 'string' ? ['nu|' + k, null] : ['ud|' + k, 1]; }
   function deleteUnit(i){
     var ids = unitIds(i), N = ids.length, U = PHASE_META.length, nm = unitName(i);
-    var minU = isSolar() ? 1 : 2, few = U <= minU, why = 'A timeline keeps at least ' + (minU === 1 ? 'one unit' : 'two units') + '.';
+    var minU = isSolar() ? 1 : 2, few = U <= minU, why = 'A ' + fmtWord() + ' keeps at least ' + (minU === 1 ? 'one unit' : 'two units') + '.';
     var cards = N === 1 ? 'its card' : 'its ' + N + ' cards';
     var A = [{label: 'Move ' + cards + ' to'}];
     for(var j = 0; j < U; j++) if(j !== i) (function(j){ A.push({t: unitName(j), off: few, why: why, fn: function(){ moveUnit(i, j); }}); })(j);
@@ -2727,7 +2728,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     w._nid = nid; w.innerHTML = '';
     var h = document.createElement('h5'); h.textContent = 'Chips on “' + titleOf(nid) + '”'; w.appendChild(h);
     var box = chipBox(nid); if(!box) return; w.appendChild(box);
-    if(!chipKinds().length){ var none = document.createElement('p'); none.className = 'aed-chnone'; none.textContent = 'This timeline has no kinds of chip yet — add one with “+ Add” in the bar at the top.'; w.appendChild(none); }
+    if(!chipKinds().length){ var none = document.createElement('p'); none.className = 'aed-chnone'; none.textContent = 'This ' + fmtWord() + ' has no kinds of chip yet — add one with “+ Add” in the bar at the top.'; w.appendChild(none); }
     w.classList.add('show'); placeNear(w, at);
   }
   function chipPopSync(){ var w = document.getElementById('aed-chpop'); if(w && w.classList.contains('show') && w._nid){
@@ -2806,7 +2807,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var used = glyphsInUse(), html = '<h5></h5><div class="ag-grid">';
     lib.forEach(function(g, i){ var by = used[glyphKey(g.s)];
       html += '<button type="button" data-gi="' + i + '"' + (by ? ' disabled title="Already used by ' + esc(by).replace(/"/g, '&quot;') + '"' : ' title="' + esc(g.n) + '"') + '>' + g.s + '</button>'; });
-    w.innerHTML = html + '</div><p class="ag-k">Dimmed glyphs are already on this timeline’s chips.</p>';
+    w.innerHTML = html + '</div><p class="ag-k">Dimmed glyphs are already used on chips.</p>';
     w.querySelector('h5').textContent = 'A glyph for “' + name + '”';
     w.style.setProperty('--c', 'var(--text)');
     w.classList.add('show'); placeNear(w, at);
@@ -2820,7 +2821,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     id = base;
     // an entity's colour is the CSS variable named after it: never one the page already has
     var live = Object.keys(R).filter(function(x){ return !chipGone(k.r, x); }).length;
-    if(k.r === 'c' && live >= 12){ toast('A timeline has at most 12 ' + String(k.l || 'of these').toLowerCase() + '.'); return null; }
+    if(k.r === 'c' && live >= 12){ toast('At most 12 ' + String(k.l || 'of these').toLowerCase() + '.'); return null; }
     function taken(x){ if(reg('c') && reg('c')[x] || reg('env') && reg('env')[x] || reg('theme') && reg('theme')[x]) return true; try{ return k.r === 'c' && !!getComputedStyle(document.documentElement).getPropertyValue('--' + x).trim(); }catch(e){ return false; } }
     while(taken(id)) id = base.slice(0, 44) + '-' + (i++);
     var col = CHIP_COLORS[Object.keys(R).length % CHIP_COLORS.length];
@@ -2866,7 +2867,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(c.r === 'env' || c.r === 'theme'){ var kd = chipKinds().filter(function(k){ return k.r === c.r; })[0]; if(!kd) return; }
       var x = document.createElement('span'); x.className = 'aed-nx'; x.setAttribute('role', 'button'); x.setAttribute('data-x', 'navx');
       if(c.ax){ x.setAttribute('data-ax', c.ax); x.title = 'Remove this category of chips'; }
-      else { x.setAttribute('data-r', c.r); x.setAttribute('data-id', c.id); x.title = 'Remove this chip from the timeline'; }
+      else { x.setAttribute('data-r', c.r); x.setAttribute('data-id', c.id); x.title = 'Remove this chip from every card'; }
       x.setAttribute('aria-label', x.title); x.textContent = '✕'; b.appendChild(x); });
     // a visible axis: ✕ on its group's label removes the category
     nav.querySelectorAll('.nav-group-label').forEach(function(l){ if(l.classList.contains('aed-navoff')) return; var t = l.textContent.trim().toLowerCase();
@@ -2914,7 +2915,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   function newFlag(name){
     name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return null;
-    if(FLAGS.length >= 12){ toast('A timeline has at most 12 filters of its own.'); return null; }
+    if(FLAGS.length >= 12){ toast('At most 12 filters of your own.'); return null; }
     var base = slug(name) || 'filter', id = base, i = 2;
     var taken = {}; FLAGS.forEach(function(f){ taken[f.id] = 1; });
     while(taken[id]) id = base.slice(0, 44) + '-' + (i++);
@@ -3335,7 +3336,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     dc.querySelectorAll('.doc-row-t[data-sd-id]').forEach(function(t){
       var row = t.closest('.doc-row'), id = t.getAttribute('data-sd-id'); if(!row || row.querySelector('.aed-ixc')) return;
       var mine = isNewChip(X.r, id);
-      row.appendChild(ctl('aed-sc aed-ixc', (mine ? [['ixedit', '✎', 'Change this entry']] : []).concat([['ixdel', '✕', 'Remove this entry from the timeline']]), {ixr: X.r, ixid: id}));
+      row.appendChild(ctl('aed-sc aed-ixc', (mine ? [['ixedit', '✎', 'Change this entry']] : []).concat([['ixdel', '✕', 'Remove this entry']]), {ixr: X.r, ixid: id}));
     });
   }
   /* a list section (Cases, Authorities, Sources…): + Add at its foot, ↑ ↓ ✕ on each line */
@@ -3703,11 +3704,11 @@ MANUAL_JS = r"""<script id="alto-manual">
   function linkBox(){
     var b = document.getElementById('aed-link'); if(b) return b;
     b = document.createElement('div'); b.id = 'aed-link';
-    b.innerHTML = '<h5>Link to a page in this timeline</h5><input class="al-q" type="text" placeholder="Search pages…" autocomplete="off">'
+    b.innerHTML = '<h5>Link to a page</h5><input class="al-q" type="text" placeholder="Search pages…" autocomplete="off">'
       + '<div class="al-list"></div><h5>or a website</h5><input class="al-url" type="url" placeholder="https://…" autocomplete="off">'
       + '<div class="al-msg"></div><div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="url">Link website</button></div>'
       + '<h5 class="al-fh">or a file on this computer</h5><div class="al-go"><button type="button" data-a="file">Choose a file…</button></div>'
-      + '<div class="al-k al-fk">It opens from this browser on this computer. Claude also finds it in your Desktop, Documents or Downloads, so the copy of the timeline you download opens it too.</div>';
+      + '<div class="al-k al-fk">It opens from this browser on this computer. Claude also finds it in your Desktop, Documents or Downloads, so the copy you download opens it too.</div>';
     b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
     b.addEventListener('click', function(e){
       e.stopPropagation();
@@ -3804,7 +3805,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       var ready = got.handle ? Promise.resolve(rec.handle = got.handle)
         : f.size <= MAX_KEEP ? f.arrayBuffer().then(function(b){ rec.buf = b; }) : Promise.resolve();
       return ready.then(function(){ return fput(id, rec); }).catch(function(){ delete rec.buf; delete rec.handle; return fput(id, rec); }).then(function(){
-        if(!rec.handle && !rec.buf) toast('“' + f.name + '” is linked, but too big to keep in this browser — the timeline you download opens it.');
+        if(!rec.handle && !rec.buf) toast('“' + f.name + '” is linked, but too big to keep in this browser — the copy you download opens it.');
         savedRange = keep;
         var a = document.createElement('a'); a.setAttribute('href', '#'); a.className = 'note-link'; a.setAttribute('data-file', id);
         a.setAttribute('data-file-name', String(f.name).slice(0, 200)); a.setAttribute('data-file-size', String(f.size));
@@ -3823,7 +3824,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function openFile(id, name){
     var w = null; if(VIEW.test(name)){ try{ w = window.open('', '_blank'); }catch(e){} }
     fget(id).then(function(rec){
-      if(!rec){ if(w) w.close(); toast('“' + name + '” is on the computer it was linked from — open this timeline there to open it.'); return; }
+      if(!rec){ if(w) w.close(); toast('“' + name + '” is on the computer it was linked from — open Alto there to open it.'); return; }
       var got = rec.handle ? Promise.resolve(rec.handle.queryPermission ? rec.handle.queryPermission({mode: 'read'}) : 'granted').then(function(st){
           return st === 'granted' ? st : rec.handle.requestPermission({mode: 'read'}); }).then(function(st){ if(st !== 'granted') throw new Error('denied'); return rec.handle.getFile(); })
         : Promise.resolve(rec.buf ? new Blob([rec.buf], {type: rec.type || ''}) : null);
@@ -4319,8 +4320,8 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(canEdit()){
         try{ sessionStorage.removeItem('alto-edit-now'); }catch(e){}
         enter();
-        toast(structOK() ? 'Your new timeline — click any words to write them, ✎ Rename a unit, + Add a card, + Add a unit at the foot. Claude can build it out from your notes any time.'
-                         : 'Your new timeline — tap any words to write them. Cards and units are added on a computer.');
+        toast(structOK() ? 'Your new ' + fmtWord() + ' — click any words to write them, ✎ Rename a unit, + Add a card, + Add a unit at the foot. Claude can build it out from your notes any time.'
+                         : 'Your new ' + fmtWord() + ' — tap any words to write them. Cards and units are added on a computer.');
         return;
       }
       if(++tries < 60) setTimeout(go, 250);

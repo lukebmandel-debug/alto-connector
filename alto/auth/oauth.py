@@ -142,7 +142,7 @@ background:#fff;cursor:pointer}button:hover{background:#f6f6fb}
 p{color:#5a5a80;font-size:14px;line-height:1.5}</style></head>
 <body><div class="card"><h1 style="letter-spacing:.08em">Alto</h1>
 <p>Claude is asking to connect to your Alto workspace — your projects,
-timelines, and study data.</p>
+pages, and study data.</p>
 <button id="g">Continue with Google</button>
 <p id="err" style="color:#b3384f"></p></div>
 <script type="module">

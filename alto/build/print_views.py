@@ -278,8 +278,20 @@ PRINT_JS = r"""<script id="alto-print-views-js">
 
   // the select in the notes panel's PRINT list, put under the ink-saver button whenever the dialog is opened (the homepage's
   // own dialog has its own copy of this)
+  // the page's own format, named as its tile names it (the dialog says "Outline picture, ink-saver", not always "Timeline")
+  function fmtName(){
+    var de = document.documentElement, c = de.classList;
+    if(document.getElementById('bldg-root')) return 'Memory blueprint';
+    if(c.contains('alto-palace')) return 'Memory map';
+    if(c.contains('alto-solar')) return 'System';
+    if(c.contains('alto-lanes')) return 'Horizontal';
+    if(window._ALTO_OUTLINE && window._ALTO_OUTLINE.kids) return 'Outline';
+    return 'Timeline';
+  }
   function sheetsSelect(){
     var ink = document.querySelector('#share-dialog .print-opt[data-print="ink"]'); if(!ink) return;
+    var want = fmtName() + ' picture, ink-saver';
+    if(ink.textContent !== want) ink.textContent = want;
     var sel = document.getElementById('ink-sheets'), v = wantSheets();
     if(!sel){
       var o = [[0, 'as few sheets as still read'], [1, '1 sheet'], [2, '2 sheets'], [3, '3 sheets'], [4, '4 sheets'], [6, '6 sheets']];
@@ -691,7 +703,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     if(window.opener){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 250); }     // the tab the homepage opened for this
   });
   var tries = 0, lastSig = '';
-  prep.show(0.35, 'Opening your timeline…', MODE === 'ink' ? INK_HINT : '');
+  prep.show(0.35, 'Opening…', MODE === 'ink' ? INK_HINT : '');
   (function wait(){
     var w = document.getElementById('world');
     var ready = document.readyState === 'complete' && typeof window.altoPrint === 'function' && w &&
@@ -703,7 +715,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function(){ setTimeout(go, 300); });
       return;
     }
-    lastSig = sig; prep.show(Math.min(0.5, 0.35 + tries * 0.01), 'Opening your timeline…');
+    lastSig = sig; prep.show(Math.min(0.5, 0.35 + tries * 0.01), 'Opening…');
     setTimeout(wait, 150);
   })();
 })();

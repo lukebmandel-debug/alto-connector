@@ -130,11 +130,11 @@ _JS = """
   // The page puts up its own message, carrying on from here, once it has replaced this document.
   var PRINTING = /[#&]altoprint=/.test(location.hash || '');
   function printCard(){
-    show('<h1>Preparing your print\u2026</h1><p>Opening your timeline\u2026</p><div class="pbar"><i></i></div>');
+    show('<h1>Preparing your print\u2026</h1><p>Opening\u2026</p><div class="pbar"><i></i></div>');
   }
   function waiting(msg){
     if(PRINTING && /^(Opening|Checking)/.test(msg)) return;       // the print card stays up while it opens
-    show('<h1>Private timeline</h1><p>' + msg + '</p>');
+    show('<h1>Private</h1><p>' + msg + '</p>');
   }
 
   // Opening for a remembered account shows no card: a reload used to flash
@@ -408,7 +408,7 @@ _JS = """
 
   function signedOut(){
     loud();
-    show('<h1>Private timeline</h1>' +
+    show('<h1>Private</h1>' +
          '<p>This is visible only to the account that published it.</p>' +
          '<button id="si">Continue with Google</button>');
     var btn = document.getElementById('si');
@@ -441,7 +441,7 @@ _JS = """
     loud();
     show('<h1>One more step</h1>' +
          '<p>Nothing has been uploaded here yet. Choose the private.html file ' +
-         'Alto built for this timeline.</p>' +
+         'Alto built for this one.</p>' +
          '<label class="file">Choose private.html' +
          '<input type="file" id="f" accept=".html,text/html"></label>' +
          '<p class="muted" id="st"></p>');

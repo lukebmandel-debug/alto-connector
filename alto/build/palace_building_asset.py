@@ -915,13 +915,13 @@ A.mount=function(data){
   A.show();
   [150,500,1200,2500].forEach(function(t){ setTimeout(setTop,t); });
   var navEl=document.getElementById('nav'); if(navEl&&window.ResizeObserver) new ResizeObserver(function(){ if(S.root&&!S.root.hidden) setTop(); }).observe(navEl);   // the bar's rows wrap or settle: the name chip follows
-  if(A.data.none){ nomsg('No building plan yet. Ask Claude to run set_up_building for this timeline.'); A.ready=Promise.reject(new Error('no plan')); A.ready.catch(function(){}); return; }
+  if(A.data.none){ nomsg('No building plan yet. Ask Claude to run set_up_building for this Memory Blueprint.'); A.ready=Promise.reject(new Error('no plan')); A.ready.catch(function(){}); return; }
   index();
   nomsg('Loading the plan…');
   A.ready=new Promise(function(res,rej){
     if(A.data.plan){ A.load(A.data.plan); res(A.plan); return; }
     fetch(A.data.url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(function(p){ A.load(p); res(p); }).catch(function(e){ nomsg('The blueprint could not load its plan. Reload the page; if it still does not appear, ask Claude to republish this timeline.'); rej(e); });   // never the cards: this method has only the blueprint and the walk
+      .then(function(p){ A.load(p); res(p); }).catch(function(e){ nomsg('The blueprint could not load its plan. Reload the page; if it still does not appear, ask Claude to republish this Memory Blueprint.'); rej(e); });   // never the cards: this method has only the blueprint and the walk
   });
   A.ready.catch(function(){});
 };
@@ -955,7 +955,7 @@ def building_asset() -> tuple[str, str]:
 BUILDING_START = ("\n(function(){ function fail(){ var d=document.documentElement, m=document.createElement('div'); d.classList.add('bldg-open'); m.id='bldg-fail'; m.setAttribute('role','alert');"
                   " m.style.cssText='position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);max-width:min(440px,calc(100vw - 32px));padding:18px 22px;border-radius:14px;"
                   "background:#16181ddd;color:#f3f1ea;font:15px/1.45 system-ui;text-align:center;z-index:50';"
-                  " m.textContent='The blueprint could not load. Reload the page; if it still does not appear, ask Claude to republish this timeline.'; document.body.appendChild(m);"
+                  " m.textContent='The blueprint could not load. Reload the page; if it still does not appear, ask Claude to republish this Memory Blueprint.'; document.body.appendChild(m);"
                   " var w=document.getElementById('world'); if(w) w.style.visibility='hidden'; }"
                   " function go(){ try{ altoLoadBuilding(); if(window.AltoBuilding) window.AltoBuilding.mount(window._ALTO_BUILDING); }catch(e){} if(!document.getElementById('bldg-root')) fail(); }"
 " if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go); else go(); })();\n")

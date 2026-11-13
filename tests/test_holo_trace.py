@@ -4,6 +4,7 @@ rests lit and still; the corner clef keeps its turn; Reduce Motion and print dra
 The code is in the hosted Holographic script, the page holds none of it. The browser parts are skipped when Playwright is not installed."""
 import http.server
 import json
+import math
 import re
 import socketserver
 import sys
@@ -129,13 +130,15 @@ def _next_pass(pg):
     pg.wait_for_timeout(250)
 
 
-def _open(browser, site, page="t.html", phone=False, width=None, reduce=False, dark=None, style="holo", wait=900, frozen=False):
+def _open(browser, site, page="t.html", phone=False, width=None, reduce=False, dark=None, style="holo", wait=900, frozen=False, init=None):
     ctx = browser.new_context(viewport={"width": 390 if phone else (width or 1400), "height": 844 if phone else 860}, has_touch=phone, is_mobile=phone,
                               user_agent=IPHONE if phone else None, reduced_motion="reduce" if reduce else "no-preference")
     ctx.set_default_navigation_timeout(NAV_MS)
     pg = ctx.new_page()
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
+    if init:
+        pg.add_init_script(init)
     if frozen:
         pg.clock.install()
     pg.goto(site + "/" + page)
@@ -368,7 +371,46 @@ def test_the_node_trace_is_four_beads_on_transform_alone():
     assert holo_trace.NODE_MODE in ("full", "view", "walk")
     assert "@media (prefers-reduced-motion:reduce){.ho-nt{display:none !important}}" in c
     assert "@media print{.ho-nt{display:none !important}}html.printing .ho-nt{display:none !important}" in c
-    assert ".node.dimmed .ho-nt" in c and "#e8fffd" in c and "rgba(255,95,210,.55)" in c and "#12b5d6" in c
+    assert ".node.dimmed .ho-nt" in c
+
+
+def test_the_node_runner_is_one_small_light_in_one_colour():
+    """Luke, 2026-11-12: "the running outline of nodes is a bit much, make it one color of light, just like the border of it is actually lighting up in one small runner\""""
+    c = holo_trace.NODE_CSS
+    # one colour a theme, and it is the border's own light at full strength (Holographic's --ho-ac2): no white bead, no magenta ghost, no second trail
+    hexrgb = lambda h: ",".join(str(int(h[i:i + 2], 16)) for i in (1, 3, 5))
+    assert holo_trace.NODE_RGB == {k: hexrgb(holo.TOKENS[k]["ac2"]) for k in ("dark", "light")}
+    assert c.count("--hn-c:") == 2 and "--hn-c:%s}" % holo_trace.NODE_RGB["light"] in c and "html.dark .ho-nt{--hn-c:%s}" % holo_trace.NODE_RGB["dark"] in c
+    for gone in ("--hn-g", "--hn-d2", "255,95,210", "214,40,170", "#e8fffd", "#12b5d6", "#fff"):
+        assert gone not in c, gone
+    assert set(re.findall(r"rgba\((.*?\),[^)]*)\)", c)) == {"var(--hn-c),0", "var(--hn-c),1", "var(--hn-c),.4"} and c.count("rgba(") == 16 and "rgb(" not in c       # every paint on it is that one colour
+    # a short stretch of the line that fades to nothing along the line at both ends (2 px on the border, in a 4 px halo of the same light and length)
+    assert c.count("linear-gradient(var(--hn-a),rgba(var(--hn-c),0),rgba(var(--hn-c),1) 55%,rgba(var(--hn-c),1) 82%,rgba(var(--hn-c),0))") == 2
+    assert c.count("linear-gradient(var(--hn-a),rgba(var(--hn-c),0),rgba(var(--hn-c),.4) 55%,rgba(var(--hn-c),.4) 82%,rgba(var(--hn-c),0))") == 2
+    assert "/ 64px 2px no-repeat" in c and "/ 64px 4px no-repeat" in c and "/ 2px 64px no-repeat" in c and "/ 4px 64px no-repeat" in c
+    assert holo_trace.RUNNER == 64 and holo_trace.RUNNER <= holo_trace.LEAD <= 80          # small, and each strip shorter than the old one (130)
+    # calmer than the 2.8 s lap every 7 s it was, and never lit a larger share of the time
+    assert holo_trace.NODE_PASS >= 4 and holo_trace.NODE_LOOP >= 10 and holo_trace.NODE_PASS / holo_trace.NODE_LOOP <= 2.8 / 7
+    assert "v=per/4.5/1000" in holo_trace.JS and "loop=12000" in holo_trace.JS
+    # the wordmark keeps its own bead and ghost
+    assert "rgb(255,95,210)" in holo_trace.CSS and holo_trace.LOOP == 7
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_a_card_runner_paints_one_colour_and_laps_calmly(browser, site, dark):
+    pg, ctx, errors = _open(browser, site, wait=1800, phone=not dark, dark=dark)       # (Holographic is dark on a computer; a phone has the pale page too)
+    r = pg.evaluate("""(()=>{var out=[]; [...document.querySelectorAll('.ho-nt')].slice(0,6).forEach(s=>{ [...s.children].forEach(i=>{ var cs=getComputedStyle(i), a=i.getAnimations()[0];
+      out.push({k:i.className, bg:cs.backgroundImage, d:a.effect.getTiming().duration, n:i.getAnimations().length, f:cs.filter, sh:cs.boxShadow, kf:a.effect.getKeyframes().map(k=>Object.keys(k).filter(p=>!/^(offset|computedOffset|easing|composite)$/.test(p)).join())}); }); }); return out;})()""")
+    assert len(r) >= 8, r
+    want = holo_trace.NODE_RGB["dark" if dark else "light"].split(",")
+    for x in r:
+        cols = re.findall(r"rgba?\(([^)]*)\)", x["bg"])
+        assert len(cols) == 8, x                                                # two gradients of four stops, nothing else painted
+        assert all([p.strip() for p in col.split(",")][:3] == want for col in cols), x
+        assert x["d"] == 12000 and x["n"] == 1 and x["f"] == "none" and x["sh"] == "none", x
+        assert set(x["kf"]) == {"transform"}, x                                 # moved by transform alone
+    assert not errors, errors
+    ctx.close()
 
 
 NODE_BOXES = """(function(){
@@ -428,34 +470,124 @@ def test_the_node_cards_keep_their_own_phase(browser, site):
 
 
 # ── part 3: the corner glyph as a tube ──
+# Tube 2 (Luke, 2026-11-12: "tubular glyph isn't quite there yet, make it actually tubular as it spins"): a real pipe, swept from the clef's strokes and lit by a light
+# that stands still. Its 89 frames are rendered once with WebGL into a sheet, and the swing is a CSS animation stepping that sheet behind a small window (drawing it
+# live cost +10 points of a core). The slices of the first version are still built: they are what a browser without WebGL shows, and paper.
 
-def test_the_tube_is_a_stack_of_slices_in_one_turning_box_and_no_script_runs_per_frame():
-    c, j = holo_trace.TUBE_CSS, holo_trace.TUBE_JS
+def test_the_tube_is_a_rendered_pipe_stepped_from_a_sheet_and_the_slices_are_its_fallback():
+    c, p, j = holo_trace.TUBE_CSS, holo_trace.TUBE_PIPE_CSS, holo_trace.TUBE_JS
     for banned in ("filter", "blur", "box-shadow"):
-        assert banned not in c, banned
-    assert "transform-style:preserve-3d" in c and "@keyframes ho-tube{0%,100%{transform:perspective(260px) rotateY(-55deg)}50%{transform:perspective(260px) rotateY(55deg)}}" in c and "animation:ho-tube 10s ease-in-out -2.5s infinite" in c   # the clef's swing (never edge-on), the 10 s kept
-    assert "@media (prefers-reduced-motion:reduce){.ho-tube .sp{animation:none;transform:perspective(260px) rotateY(24deg)}}" in c           # and its still angle
+        assert banned not in c and banned not in p, banned
+    assert "will-change" not in p and "rotate" not in p and "perspective" not in p and "preserve-3d" not in p      # (iOS: nothing turning in 3D, promoted or shadowed in the fixed header)
+    # the fallback keeps the clef's swing (never edge-on), its 10 s and its still angle
+    assert "transform-style:preserve-3d" in c and "@keyframes ho-tube{0%,100%{transform:perspective(260px) rotateY(-55deg)}50%{transform:perspective(260px) rotateY(55deg)}}" in c and "animation:ho-tube 10s ease-in-out -2.5s infinite" in c
+    assert "@media (prefers-reduced-motion:reduce){.ho-tube .sp{animation:none;transform:perspective(260px) rotateY(24deg)}}" in c
     assert "@media print{.ho-tube .sp{animation:none;transform:none}}" in c and "html.hp-hid .ho-tube .sp{animation-play-state:paused}" in c
-    assert "requestAnimationFrame" not in j and "setInterval" not in j and "setTimeout" not in j
+    # the pipe: the same 10 s, from the same face-on start; paused in a hidden tab and off screen; still under Reduce Motion; the screen shows the sheet, paper the slices
+    assert ".ho-tube.go canvas{animation:ho-pipe 10s step-end -2.5s infinite}" in p
+    assert "html.hp-hid .ho-tube canvas,.ho-tube.off canvas{animation-play-state:paused}" in p
+    assert "@media (prefers-reduced-motion:reduce){.ho-tube:not(#_) canvas{animation:none;transform:%s}}" % holo_trace._cell(holo_trace.tube_frame(24)) in p
+    assert "@media screen{.ho-tube.g3 .sp{display:none}}" in p and "@media print{.ho-tube .cl{display:none !important}}" in p
     assert holo_trace.TUBE_RHO == 3.6 and len(holo_trace.TUBE_T) == 9
+    assert (holo_trace.TUBE_SWING, holo_trace.TUBE_PERIOD, holo_trace.TUBE_STILL, holo_trace.TUBE_FRAMES) == (55, 10, 24, 89)           # size, speed and swing kept
+    assert holo_trace.TUBE_COLS * holo_trace.TUBE_ROWS >= holo_trace.TUBE_FRAMES
+    assert "getContext('webgl'" in j and "DEPTH_TEST" in j and "isContextLost" in j and "WEBGL_lose_context" in j and "IntersectionObserver" in j
+    assert "setInterval" not in j and "setTimeout" not in j and "preserveDrawingBuffer" not in j and "drop-shadow" not in j
+    assert j.count("requestAnimationFrame") == 1                                # only while the sheet is being filled
+    assert "location.hash" not in holo_trace.JS                                # (the private-web bundler counts the page's hash reads)
+
+
+def test_the_swing_steps_one_frame_at_a_time_along_the_old_cosine():
+    k = holo_trace.tube_keyframes()
+    assert k.startswith("@keyframes ho-pipe{0%,100%{transform:translate(-0%,-0%)}") and k.count("transform:") == 2 * 88 + 1 and k.count("{") == k.count("}")
+    steps = [(float(a), holo_trace.TUBE_COLS * round(float(y) * holo_trace.TUBE_ROWS / 100) + round(float(x) * holo_trace.TUBE_COLS / 100))
+             for a, x, y in re.findall(r"(?<=\})([\d.]+)%\{transform:translate\(-([\d.]+)%,-([\d.]+)%\)\}", k)]
+    assert len(steps) == 176 and all(a < b for (a, _), (b, _) in zip(steps, steps[1:])), steps[:4]
+    frames = [0] + [f for _, f in steps]
+    assert all(abs(a - b) == 1 for a, b in zip(frames, frames[1:])) and max(frames) == 88 and frames[88] == 88 and frames[-1] == 0      # there and back, never a jump
+    # every frame is on show while the cosine is within its own 1.25 degrees
+    for (a, f), (b, _) in zip(steps, steps[1:]):
+        for t in (a + 1e-6, (a + b) / 2, b - 1e-6):
+            assert abs(-55 * math.cos(2 * math.pi * t / 100) - holo_trace.tube_angle(f)) <= 0.63, (t, f)
+    # at the animation's start (a quarter in: its -2.5 s delay) the frame is the face-on one, the one shown while the sheet is filled
+    at = lambda pct: [f for a, f in steps if a <= pct][-1]
+    assert at(25) == holo_trace.tube_frame(0) == 44 and holo_trace.tube_angle(44) == 0 and holo_trace.tube_frame(24) == 63
+    assert min(b - a for (a, _), (b, _) in zip(steps, steps[1:])) * 100 >= 33          # ms: never more than 30 steps a second
+
+
+def test_the_pipe_rides_in_the_hosted_script_and_costs_the_page_nothing():
+    pg = [_outline(), pages.build_home(HOME)]
+    for needle in ("tbMesh", "webgl", "ho-tube", "ho-pipe"):
+        assert needle in holo.ASSET, needle
+        assert all(needle not in p for p in pg), needle
 
 
 def _tube_open(browser, site, **kw):
-    pg, ctx, errors = _open(browser, site, wait=1200, **kw)
+    pg, ctx, errors = _open(browser, site, wait=1500, **kw)
+    # The sheet bakes a few frames per animation frame. Chromium headless renders WebGL in software (SwiftShader), so the 89 frames take ~4 s there against under 1.5 s in WebKit;
+    # wait for the bake to finish (or for the tube to give up the WebGL path: no GL, reduced motion, a free'd tube) instead of assuming a fixed time.
+    _baked(pg)
     return pg, ctx, errors
 
 
+def _baked(pg):
+    try:
+        pg.wait_for_function("()=>{var t=document.querySelector('.ho-tube'); return !t || !t._hoG || t.classList.contains('go') || (t._hoG.n>=2 && matchMedia('(prefers-reduced-motion: reduce)').matches);}", timeout=20000)
+    except Exception:
+        pass
+
+
+NO_GL = "(()=>{var o=HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext=function(t){ return /webgl/.test(t) ? null : o.apply(this, arguments); };})()"
 SLICES = "[...document.querySelectorAll('.ho-tube .sp > svg')]"
 BOX = "(()=>{var a=document.querySelector('svg.brand-mark').getBoundingClientRect(), o=document.querySelector('.ho-tube').getBoundingClientRect();return [[a.left,a.top,a.width,a.height],[o.left,o.top,o.width,o.height]];})()"
+G3 = "(()=>{var t=document.querySelector('.ho-tube'); return !!t && t.classList.contains('g3') && t.querySelectorAll('.cl > canvas').length===1 && t.querySelectorAll('canvas').length===1;})()"
+GO = "(()=>{var t=document.querySelector('.ho-tube'); return !!t && t.classList.contains('go') && t._hoG.n===89 && t._hoG.R===null;})()"       # every frame in, the WebGL context given back
+ANIMS = "document.querySelector('.ho-tube').getAnimations({subtree:true}).map(a=>[a.animationName, a.playState])"
+# The frame showing now: which cell of the sheet stands in the window.
+FRAME = "(()=>{var t=document.querySelector('.ho-tube'), c=t.querySelector('canvas'), w=t.querySelector('.cl').getBoundingClientRect(), b=c.getBoundingClientRect(); return Math.round((w.top-b.top)/w.height)*12+Math.round((w.left-b.left)/w.width);})()"
+# Read one frame of the pipe: {deg} renders it at that angle (any angle, the swing's or not), {cell} reads that cell of the sheet. Lengths come back in glyph units
+# (the clef is 98 tall, its widest stroke 7.2). `run`: the narrowest row of the pipe over the middle 60% of its height (each row's widest unbroken stretch); `bar`: the
+# brightness of each pixel across the left upright at a quarter of its height; `lum`: the mean brightness of the pipe; `edge`: the most alpha on the frame's outer edge.
+PIX = """(q)=>{
+  var t=document.querySelector('.ho-tube'), g=t._hoG, k, x, W=g.fw, H=g.fh, depth=null;
+  if(q.deg!==undefined){ k=t._hoShot(q.deg); depth=k._depth; x=k.getContext('2d'); }
+  else { k=document.createElement('canvas'); k.width=W; k.height=H; x=k.getContext('2d'); x.drawImage(g.cv,(q.cell%12)*W,Math.floor(q.cell/12)*H,W,H,0,0,W,H); }
+  var d=x.getImageData(0,0,W,H).data, u=(parseFloat(t.style.height)/98)*(W/parseFloat(t.querySelector('.cl').style.width));
+  var solid=function(X,Y){ var i=(Y*W+X)*4; return d[i+3]>250 && !(d[i]>d[i+1]); }, L=function(X,Y){ var i=(Y*W+X)*4; return (d[i]*.3+d[i+1]*.59+d[i+2]*.11); };
+  var x0=W,x1=-1,y0=H,y1=-1,X,Y,n=0,s=0,any=0,edge=0;
+  for(Y=0;Y<H;Y++) for(X=0;X<W;X++){ var al=d[(Y*W+X)*4+3]; if(al) any++; if((X===0||Y===0||X===W-1||Y===H-1) && al>edge) edge=al; if(solid(X,Y)){ if(X<x0)x0=X; if(X>x1)x1=X; if(Y<y0)y0=Y; if(Y>y1)y1=Y; n++; s+=L(X,Y); } }
+  if(!n) return {n:0, any:any};
+  var run=1e9, a=Math.round(y0+(y1-y0)*.2), b=Math.round(y0+(y1-y0)*.8);
+  for(Y=a;Y<=b;Y++){ var best=0, cur=0; for(X=0;X<W;X++){ if(solid(X,Y)){ cur++; if(cur>best) best=cur; } else cur=0; } if(best<run) run=best; }
+  Y=Math.round(y0+(y1-y0)*.25); X=x0; while(X<W && !solid(X,Y)) X++; var b0=X; while(X<W && solid(X,Y)) X++; var b1=X-1, bar=[];
+  for(X=b0;X<=b1;X++) bar.push(Math.round(L(X,Y)));
+  return {n:n, any:any, w:(x1-x0+1)/u, h:(y1-y0+1)/u, cx:((x0+x1)/2-W/2)/u, run:run/u, lum:s/n, bar:bar, barw:(b1-b0+1)/u, edge:edge, depth:depth};
+}"""
+
+
+def _round(bar):
+    """shaded across its width like a round pipe under a light from the upper left: brightest toward the lit side, clearly darker on the side turned away"""
+    peak = bar.index(max(bar))
+    return len(bar) >= 3 and max(bar) - bar[-1] >= 25 and peak < len(bar) - 1 and peak <= len(bar) // 2
 
 
 def test_the_tube_sits_on_the_glyph_and_the_glyph_underneath_is_hidden_not_removed(browser, site):
     pg, ctx, errors = _tube_open(browser, site)
     assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1
     assert pg.evaluate("document.querySelector('svg.brand-mark').nextElementSibling.classList.contains('ho-tube')")
-    assert pg.evaluate("document.querySelectorAll('.ho-tube .sp > svg').length") == 11        # nine depths, the glow behind and the ghost
+    assert pg.evaluate(G3) and pg.evaluate(GO)                                                 # one sheet, every frame rendered
+    assert pg.evaluate("document.querySelectorAll('.ho-tube .sp > svg').length") == 11        # the fallback's nine depths, glow and ghost: built, not displayed
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).display") == "none"
     b = pg.evaluate(BOX)
     assert all(abs(x - y) <= 0.5 for x, y in zip(*b)), b
+    # the window is the glyph's box and a small margin for the turn's perspective and the glow, in whole pixels; the sheet is 12 x 8 of it
+    cv = pg.evaluate("""(()=>{var t=document.querySelector('.ho-tube'), w=t.querySelector('.cl'), c=t.querySelector('canvas'), r=w.getBoundingClientRect(), g=t.getBoundingClientRect(), a=getComputedStyle(c), z=getComputedStyle(w);
+      var k=r.width/parseFloat(z.width); return {w:parseFloat(z.width),h:parseFloat(z.height),l:(g.left-r.left)/k,t:(g.top-r.top)/k,rr:(r.right-g.right)/k,bb:(r.bottom-g.bottom)/k,sw:parseFloat(a.width),sh:parseFloat(a.height),pw:c.width,ph:c.height,ov:z.overflow,fx:a.filter+z.filter,wc:a.willChange+z.willChange,tf:a.transform,fw:t._hoG.fw,fh:t._hoG.fh};})()""")
+    assert 3 <= cv["l"] <= 9 and 3 <= cv["t"] <= 9 and abs(cv["l"] - cv["rr"]) <= 1 and abs(cv["t"] - cv["bb"]) <= 1, cv
+    assert abs(cv["w"] - round(cv["w"])) < 0.02 and abs(cv["h"] - round(cv["h"])) < 0.02 and cv["w"] < 60 and cv["h"] < 60 and cv["ov"] == "hidden", cv
+    assert abs(cv["sw"] - 12 * cv["w"]) < 0.3 and abs(cv["sh"] - 8 * cv["h"]) < 0.3, cv
+    assert cv["pw"] == 12 * cv["fw"] and cv["ph"] == 8 * cv["fh"] and cv["fw"] in (2 * round(cv["w"]), 3 * round(cv["w"])) and cv["pw"] <= 2200 and cv["ph"] <= 1500, cv      # (a sheet of a few MB at most)
+    assert cv["fx"] == "nonenone" and cv["wc"] == "autoauto" and cv["tf"].startswith("matrix("), cv       # a flat slide of the sheet, nothing in 3D
     assert pg.evaluate("getComputedStyle(document.querySelector('svg.brand-mark')).opacity") == "0"
     assert pg.evaluate("getComputedStyle(document.querySelector('svg.brand-mark')).animationName") == "none"
     assert pg.evaluate("(()=>{var r=document.querySelector('svg.brand-mark').getBoundingClientRect(); var e=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2); return !!e && !e.closest('.ho-tube');})()")
@@ -463,8 +595,86 @@ def test_the_tube_sits_on_the_glyph_and_the_glyph_underneath_is_hidden_not_remov
     ctx.close()
 
 
-def test_the_tube_swings_and_is_never_edge_on(browser, site):
+def test_the_pipe_is_round_lit_and_as_thick_from_the_side_as_from_the_front(browser, site):
     pg, ctx, errors = _tube_open(browser, site)
+    assert pg.evaluate(G3)
+    f = pg.evaluate(PIX, {"deg": 0})
+    assert f["n"] > 300 and f["depth"] >= 16, f                                # drawn, with a depth buffer (the nearer stroke hides the farther one where they cross)
+    assert 60 < f["w"] < 80 and 84 < f["h"] < 102, f                           # face-on: the clef at its own size (78 x 98 with its strokes)
+    assert f["edge"] == 0, f                                                   # nothing behind the pipe and nothing cut off: a clear frame, never a plate
+    # a round cross-section: the upright is its stroke's width, lit from the upper left and darker on the side turned away
+    assert 5.4 < f["barw"] < 8.2, f
+    assert _round(f["bar"]), f
+    # every angle of the swing, and beyond it to edge-on: a pipe is never thinner than its own width (the flat cut-out went to a hairline, the slices to a flat bar)
+    for deg in (-55, -40, -24, 24, 40, 55, 75, 90, -90):
+        s = pg.evaluate(PIX, {"deg": deg})
+        assert s["n"] > 150 and 84 < s["h"] < 110, (deg, s)
+        assert s["run"] >= 4.2, (deg, s)                                       # (the thinner upright is 5.0 wide)
+        assert s["w"] >= max(6.0, 0.85 * f["w"] * abs(math.cos(math.radians(deg)))), (deg, s)
+        if abs(deg) <= 55:
+            assert s["edge"] == 0, (deg, s)                                    # the whole swing fits its window, glow and all
+    # the light stands still while the pipe turns: turned toward it and away from it the pipe is not lit alike (a turning drawing would be its own mirror image)
+    a, b = pg.evaluate(PIX, {"deg": -40}), pg.evaluate(PIX, {"deg": 40})
+    assert abs(a["lum"] - b["lum"]) > 4, (a["lum"], b["lum"])
+    assert abs(a["w"] - b["w"]) < 6, (a["w"], b["w"])
+    assert not errors, errors
+    ctx.close()
+
+
+def test_the_sheet_holds_every_frame_of_the_swing_and_each_is_the_pipe_at_its_angle(browser, site):
+    pg, ctx, errors = _tube_open(browser, site)
+    assert pg.evaluate(GO)
+    cells = [pg.evaluate(PIX, {"cell": i}) for i in range(96)]
+    assert all(c["n"] > 150 and c["edge"] == 0 and c["run"] >= 4.2 for c in cells[:89]), [i for i, c in enumerate(cells[:89]) if not (c["n"] > 150 and c["edge"] == 0 and c["run"] >= 4.2)]
+    assert all(c["n"] == 0 and c["any"] == 0 for c in cells[89:])              # the sheet's spare cells are clear
+    for i in (0, 20, 44, 63, 88):                                              # a cell is the pipe rendered at its own angle
+        s = pg.evaluate(PIX, {"deg": holo_trace.tube_angle(i)})
+        assert abs(s["w"] - cells[i]["w"]) < 0.8 and abs(s["lum"] - cells[i]["lum"]) < 2 and abs(s["cx"] - cells[i]["cx"]) < 0.8, (i, s, cells[i])
+    w = [c["w"] for c in cells[:89]]
+    assert w[44] == max(w) or w[44] > max(w) - 1.5, (w[44], max(w))            # widest face-on, narrowing to each end of the swing, and the pipe's thickness kept
+    assert all(a <= b + 0.9 for a, b in zip(w[:44], w[1:45])) and all(a + 0.9 >= b for a, b in zip(w[44:], w[45:])), w
+    assert min(w) > 0.5 * max(w)
+    assert not errors, errors
+    ctx.close()
+
+
+def test_the_pipe_swings_by_css_alone_and_stops_when_hidden_or_off_screen(browser, site):
+    pg, ctx, errors = _tube_open(browser, site)
+    assert pg.evaluate(GO)
+    assert pg.evaluate(ANIMS) == [["ho-pipe", "running"]]                       # one animation, on the sheet; the slices under it do not turn
+    seen = []
+    for _ in range(8):
+        pg.wait_for_timeout(250)
+        seen.append(pg.evaluate(FRAME))
+    assert all(0 <= f <= 88 for f in seen) and len(set(seen)) >= 4, seen        # it swings
+    # scrubbed: the frame on show follows the old swing, face-on at the start and 55 degrees to each side
+    at = lambda ms: pg.evaluate("(t)=>{var a=document.querySelector('.ho-tube canvas').getAnimations()[0]; a.currentTime=t; return %s;}" % FRAME, ms)
+    got = {ms: at(ms) for ms in (0, 2500, 5000, 7500, 10000, 12500)}
+    assert got == {0: 44, 2500: 88, 5000: 44, 7500: 0, 10000: 44, 12500: 88} or all(abs(got[k] - v) <= 1 for k, v in {0: 44, 2500: 88, 5000: 44, 7500: 0, 10000: 44, 12500: 88}.items()), got
+    pg.evaluate("document.documentElement.classList.add('hp-hid')")           # a hidden tab (holo.py sets the class)
+    pg.wait_for_timeout(200)
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube canvas')).animationPlayState") == "paused"
+    h0 = pg.evaluate(FRAME)
+    pg.wait_for_timeout(700)
+    assert pg.evaluate(FRAME) == h0
+    pg.evaluate("document.documentElement.classList.remove('hp-hid')")
+    pg.wait_for_timeout(200)
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube canvas')).animationPlayState") == "running"
+    pg.evaluate("document.querySelector('.ho-tube').style.left='-4000px'")      # off screen
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.querySelector('.ho-tube').classList.contains('off')") and pg.evaluate("getComputedStyle(document.querySelector('.ho-tube canvas')).animationPlayState") == "paused"
+    pg.evaluate("document.querySelector('.ho-tube').style.left=''")
+    pg.wait_for_timeout(500)
+    assert not pg.evaluate("document.querySelector('.ho-tube').classList.contains('off')") and pg.evaluate("getComputedStyle(document.querySelector('.ho-tube canvas')).animationPlayState") == "running"
+    assert not errors, errors
+    ctx.close()
+
+
+def test_without_webgl_the_slices_swing_as_before_and_are_never_edge_on(browser, site):
+    pg, ctx, errors = _tube_open(browser, site, init=NO_GL)
+    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1
+    assert pg.evaluate("document.querySelectorAll('.ho-tube canvas, .ho-tube .cl').length") == 0 and not pg.evaluate("document.querySelector('.ho-tube').classList.contains('g3')")
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).display") == "block"
     assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).animationName") == "ho-tube"
     assert pg.evaluate("document.getAnimations().filter(a=>a.animationName==='ho-tube').length") == 1
     span = """()=>{var a=document.getAnimations().find(a=>a.animationName==='ho-tube'); a.pause(); a.currentTime=%d;
@@ -473,29 +683,71 @@ def test_the_tube_swings_and_is_never_edge_on(browser, site):
     face = pg.evaluate(span % (0, SLICES))
     turns = [pg.evaluate(span % (t, SLICES)) for t in range(0, 10000, 250)]
     assert face > 0.7, face                                               # a fresh load: face-on, the glyph's width
-    # a swing of 55deg to each side (it used to turn right round, and edge-on was a bar 0.03-0.2 of the height wide): never under 40% of its face-on width
     assert min(turns) >= face * .4 and max(turns) <= face * 1.05, (face, min(turns), max(turns))
     assert abs(turns[10] - turns[30]) < face * .12 and turns[10] < face * .8, (turns[10], turns[30])      # 2.5 s and 7.5 s: the two ends of the swing, as far to each side
-    # the middle slice is the clef at its own stroke widths; the outer ones are the narrower bright ones: a round cross-section
     w = lambda q: pg.evaluate("[...new Set([...document.querySelectorAll('.ho-tube svg.q%d path')].map(p=>+p.getAttribute('stroke-width')))].sort((a,b)=>a-b).join()" % q)
-    assert w(0) == "2.90,5.00,5.80,6.60,7.20".replace(",", ",") or w(0) == "2.9,5,5.8,6.6,7.2", w(0)
+    assert w(0) == "2.9,5,5.8,6.6,7.2", w(0)
     assert max(float(x) for x in w(4).split(",")) < 4.5, w(4)
+    assert not errors, errors
+    ctx.close()
+
+
+def test_when_webgl_goes_away_the_next_sheet_falls_back_to_the_slices(browser, site):
+    pg, ctx, errors = _tube_open(browser, site, phone=True, dark=True)
+    assert pg.evaluate(GO)
+    pg.evaluate(NO_GL)                                                          # the browser stops handing out WebGL contexts
+    pg.evaluate("document.documentElement.classList.remove('dark')")           # a new theme asks for a new sheet
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1
+    assert pg.evaluate("document.querySelectorAll('.ho-tube canvas, .ho-tube .cl').length") == 0 and not pg.evaluate("document.querySelector('.ho-tube').classList.contains('g3')")
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).display") == "block"
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).animationName") == "ho-tube"
+    assert not errors, errors
+    ctx.close()
+
+
+def test_a_new_theme_renders_a_new_sheet_in_its_own_colours(browser, site):
+    pg, ctx, errors = _tube_open(browser, site, phone=True, dark=True)
+    assert pg.evaluate(GO)
+    d = pg.evaluate(PIX, {"cell": 44})
+    pg.evaluate("document.documentElement.classList.remove('dark')")
+    pg.wait_for_timeout(300); _baked(pg)
+    assert pg.evaluate(GO) and pg.evaluate(ANIMS) == [["ho-pipe", "running"]]
+    lt = pg.evaluate(PIX, {"cell": 44})
+    assert d["lum"] - lt["lum"] > 40 and abs(d["w"] - lt["w"]) < 1.5, (d["lum"], lt["lum"])       # the pale page's deep teal pipe, the same shape
+    assert _round(lt["bar"]) and _round(d["bar"])
     assert not errors, errors
     ctx.close()
 
 
 def test_the_tube_is_still_under_reduce_motion_and_shaded_the_same(browser, site):
     pg, ctx, errors = _tube_open(browser, site, reduce=True)
-    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1
+    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1 and pg.evaluate(G3)
+    assert pg.evaluate(ANIMS) == []                                         # nothing moves
+    assert pg.evaluate(FRAME) == 63                                         # standing at its 24 degrees (the nearest frame, 23.75)
+    assert pg.evaluate("[document.querySelector('.ho-tube')._hoG.n, document.querySelector('.ho-tube')._hoG.R===null, document.querySelector('.ho-tube').classList.contains('go')]") == [2, True, False]      # only it and the face-on frame were rendered
+    pg.wait_for_timeout(700)
+    assert pg.evaluate(FRAME) == 63 and pg.evaluate(ANIMS) == []
+    s = pg.evaluate(PIX, {"cell": 63})
+    assert s["n"] > 300 and s["run"] >= 4.2 and s["edge"] == 0 and _round(s["bar"]), s      # still a round, lit pipe
+    pg.emulate_media(reduced_motion="no-preference")
+    pg.wait_for_timeout(300); _baked(pg)
+    assert pg.evaluate(GO) and pg.evaluate(ANIMS) == [["ho-pipe", "running"]]      # and it swings again when the setting goes
+    pg.emulate_media(reduced_motion="reduce")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate(ANIMS) == [] and pg.evaluate(FRAME) == 63
+    assert not errors, errors
+    ctx.close()
+
+
+def test_the_fallback_is_still_under_reduce_motion(browser, site):
+    pg, ctx, errors = _tube_open(browser, site, reduce=True, init=NO_GL)
     assert pg.evaluate("document.querySelectorAll('.ho-tube .sp > svg').length") == 11
     assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).animationName") == "none"
     m = pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).transform")
-    assert m != "none", m                                                  # standing at its 24 degrees
-    pg.wait_for_timeout(900)
+    assert m != "none", m
+    pg.wait_for_timeout(600)
     assert m == pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).transform")
-    pg.emulate_media(reduced_motion="no-preference")
-    pg.wait_for_timeout(500)
-    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).animationName") == "ho-tube"
     ctx.close()
 
 
@@ -503,19 +755,62 @@ def test_the_tube_goes_with_the_style_and_gives_the_glyph_back(browser, site):
     pg, ctx, errors = _tube_open(browser, site)
     pg.evaluate("window._altoStyle.set('classic')")
     pg.wait_for_timeout(600)
-    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 0
+    assert pg.evaluate("document.querySelectorAll('.ho-tube, .ho-tube canvas, .cl').length") == 0
     assert pg.evaluate("getComputedStyle(document.querySelector('svg.brand-mark')).opacity") != "0"
     assert pg.evaluate("document.querySelector('svg.brand-mark').getAttribute('style')") in (None, "")
+    pg.evaluate("window._altoStyle.set('holo')")                              # and back: one pipe again, swinging
+    pg.wait_for_timeout(300); _baked(pg)
+    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1 and pg.evaluate(GO) and pg.evaluate(ANIMS) == [["ho-pipe", "running"]]
+    assert not errors, errors
     ctx.close()
 
 
+def test_paper_gets_the_slices_face_on(browser, site):
+    pg, ctx, errors = _tube_open(browser, site)
+    pg.emulate_media(media="print")
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .cl')).display") == "none"
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).display") == "block"
+    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).transform") == "none"
+    ctx.close()
+
+
+@pytest.mark.parametrize("dark", [True, False])
 @pytest.mark.parametrize("page", ["t.html", "h.html"])
-def test_the_phone_glyph_is_a_tube_too(browser, site, page):
-    pg, ctx, errors = _tube_open(browser, site, phone=True, page=page, dark=True)
-    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1
+def test_the_phone_glyph_is_a_tube_too(browser, site, page, dark):
+    pg, ctx, errors = _tube_open(browser, site, phone=True, page=page, dark=dark)
+    assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1 and pg.evaluate(G3) and pg.evaluate(GO)
     b = pg.evaluate(BOX)
     assert all(abs(x - y) <= 0.8 for x, y in zip(*b)), b
     assert b[0][1] >= 0 and b[0][1] + b[0][3] <= 56
-    assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).animationName") == "ho-tube"
+    assert pg.evaluate(ANIMS) == [["ho-pipe", "running"]]
+    for cell in (0, 44, 88):
+        s = pg.evaluate(PIX, {"cell": cell})
+        assert s["n"] > 300 and s["run"] >= 4.2 and s["edge"] == 0, (cell, s)
+    assert not errors, errors
+    ctx.close()
+
+
+def test_phone_landscape_the_pipe_is_a_flat_sheet_on_a_clear_ground_with_nothing_promoted(browser, site):
+    """(a past bug: iOS composited a fixed, turning, shadowed element as a black pill in Holo phone landscape; here nothing turns in 3D, and there is no filter and no will-change)"""
+    ctx = browser.new_context(viewport={"width": 844, "height": 390}, has_touch=True, is_mobile=True, user_agent=IPHONE)
+    ctx.set_default_navigation_timeout(NAV_MS)
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("document.documentElement.classList.add('dark')")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(1500)
+    if not pg.evaluate("!!document.querySelector('.ho-tube')"):
+        ctx.close()
+        pytest.skip("no glyph in this layout")
+    assert pg.evaluate(G3) and pg.evaluate(GO)
+    st = pg.evaluate("""(()=>{var t=document.querySelector('.ho-tube'), out=[]; [t, t.querySelector('.cl'), t.querySelector('canvas')].forEach(e=>{var a=getComputedStyle(e); out.push([a.filter, a.willChange, a.backgroundColor, a.boxShadow, a.transformStyle, /matrix3d/.test(a.transform)]);}); return out;})()""")
+    assert st == [["none", "auto", "rgba(0, 0, 0, 0)", "none", "flat", False]] * 3, st
+    for cell in (0, 44, 88):
+        s = pg.evaluate(PIX, {"cell": cell})
+        assert s["n"] > 300 and s["edge"] == 0, (cell, s)
     assert not errors, errors
     ctx.close()

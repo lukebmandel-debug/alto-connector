@@ -219,8 +219,8 @@ def test_the_homepage_renames_a_timeline_from_its_menu(browser, home_site):
     assert pg.inner_text(tile + " .tile-title") == "Torts"
     pg.hover(tile); pg.click(tile + " .tile-more"); pg.wait_for_timeout(200)
     assert pg.evaluate("[...document.querySelectorAll('.share-menu .sm-body button')].map(b=>b.textContent)")[:3] == \
-        ["Rename timeline…", "Move to another project…", "Print…"]
-    pg.click("text=Rename timeline…"); pg.wait_for_timeout(200)
+        ["Rename…", "Move to another project…", "Print…"]
+    pg.click("text=Rename…"); pg.wait_for_timeout(200)
     assert pg.input_value(".share-menu input.sm-link") == "Torts"
     pg.fill(".share-menu input.sm-link", "  Torts   and Remedies ")
     pg.keyboard.press("Enter"); pg.wait_for_timeout(600)
@@ -228,7 +228,7 @@ def test_the_homepage_renames_a_timeline_from_its_menu(browser, home_site):
     assert pg.evaluate("!!document.querySelector('.share-scrim')") is False
     assert pg.inner_text(tile + " .tile-title") == "Torts and Remedies"
     # an unchanged name just closes; Escape cancels
-    pg.hover(tile); pg.click(tile + " .tile-more"); pg.click("text=Rename timeline…")
+    pg.hover(tile); pg.click(tile + " .tile-more"); pg.click("text=Rename…")
     pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
     assert pg.evaluate("!!document.querySelector('.share-scrim')") is False
     assert len(pg.evaluate("window.__calls")) == 1
@@ -268,7 +268,7 @@ def test_the_bottom_right_toggles_mirror_the_account_toggle(browser, home_site):
 
 def test_the_homepage_source_carries_the_rename_and_the_mirror():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
-    assert "function altoRenameTimeline" in h and "function altoRenameProject" in h and "Rename timeline…" in h
+    assert "function altoRenameTimeline" in h and "function altoRenameProject" in h and "Rename…" in h
     assert "const GAP = 12.5, W = 35, INSET = 24;" in h and "EDIT_SLOT" not in h
     assert "renameTimeline: async (key, tid, title)" in CLOUD and "renameProject: async (from, to)" in CLOUD
 
