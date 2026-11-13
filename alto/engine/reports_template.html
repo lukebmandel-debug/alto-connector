@@ -572,10 +572,10 @@
 <div id="info-btn">
   <span id="info-icon" onclick="event.stopPropagation();toggleInfo()"><svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="5.5" r="1.8" fill="currentColor"/><rect x="8.8" y="9" width="2.4" height="8" rx="1.2" fill="currentColor"/></svg></span>
   <div id="info-content">
-    <p style="margin:0 0 8px"><strong>Report repository</strong> &#8212; every report you generate inside this timeline is saved here automatically, newest first.</p>
+    <p style="margin:0 0 8px"><strong>Report repository</strong> &#8212; every report you generate inside this one is saved here automatically, newest first.</p>
     <p style="margin:5px 0"><strong>Open &amp; delete</strong> &#8212; tap a report to open it in a new tab; the &#215; removes it for good.</p>
     <p style="margin:5px 0"><strong>Share / Print</strong> &#8212; choose one or more reports and send them as a single file, or print them together.</p>
-    <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches your timelines, so you can jump straight to any card.</p>
+    <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches what you have built, so you can jump straight to any card.</p>
     <p style="margin:5px 0"><strong>Account</strong> &#8212; the person <span class="d-only">bubble at the bottom left</span><span class="m-only">tile at the top left</span> signs you in with Google so your reports follow you.</p>
     <p style="margin:5px 0"><strong>Home</strong> &#8212; the Alto mark at the top returns you to your homepage.</p>
   </div>
@@ -607,7 +607,7 @@
 <script>
   // The symbol a project format wears instead of its name (alto/build/format_symbols.py;
   // tests/test_format_symbols.py keeps this copy the same). The name is the tooltip.
-  var FMT_SYMBOLS = {"timeline":["Timeline","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M7.5 5.5h9M7.5 18.5h9M9 6.5c0 3.4 3 4.2 3 5.5s-3 2.1-3 5.5M15 6.5c0 3.4-3 4.2-3 5.5s3 2.1 3 5.5\"/>",24],"lanes":["Timeline · Horizontal","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><g transform=\"translate(12 12) scale(.62) translate(-12 -12)\" stroke-width=\"2.4\"><path d=\"M3.5 19h3.2M12.3 19h3.2a3.5 3.5 0 0 0 0-7h-1.3M8.8 12H7.5a3.5 3.5 0 0 1 0-7h4.7M17.8 5h2.7M17.5 2.4 20.5 5l-3 2.6\"/><circle cx=\"9.5\" cy=\"19\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"11.5\" cy=\"12\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"15\" cy=\"5\" r=\"2.2\" stroke-width=\"1.25\"/></g>",24],"outline":["Outline","<path d=\"M7.5 4H17M10.5 8H15M10.5 12H15M7.5 16H17\"/><circle cx=\"3.5\" cy=\"4\" r=\"0.7\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"8\" r=\"0.7\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"12\" r=\"0.7\" fill=\"currentColor\"/><circle cx=\"3.5\" cy=\"16\" r=\"0.7\" fill=\"currentColor\"/>",20],"system":["System","<circle cx=\"10\" cy=\"10\" r=\"1.8\"/><circle cx=\"10\" cy=\"10\" r=\"7\"/><circle cx=\"5\" cy=\"5\" r=\"1.3\"/>",20],"palace":["Memory Map","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z\"/><circle cx=\"12\" cy=\"11.3\" r=\"1\" fill=\"currentColor\"/>",24],"building":["Memory Blueprint","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2\"/>",24],"world":["Memory Atlas","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><circle cx=\"11\" cy=\"13.2\" r=\"5.3\"/><path d=\"M11 7.9a2.3 5.3 0 0 0 0 10.6a2.3 5.3 0 0 0 0-10.6\"/><path d=\"M5.9 8.4Q10.6 3.4 16.6 6.4\" stroke-dasharray=\"1.5 1.7\"/><circle cx=\"17.6\" cy=\"7.1\" r=\"1.25\" fill=\"currentColor\"/>",24]};
+  var FMT_SYMBOLS = {"timeline":["Timeline","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M7.5 5.5h9M7.5 18.5h9M9 6.5c0 3.4 3 4.2 3 5.5s-3 2.1-3 5.5M15 6.5c0 3.4-3 4.2-3 5.5s3 2.1 3 5.5\"/>",24],"lanes":["Timeline · Horizontal","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><g transform=\"translate(12 12) scale(.62) translate(-12 -12)\" stroke-width=\"2.4\"><path d=\"M3.5 19h3.2M12.3 19h3.2a3.5 3.5 0 0 0 0-7h-1.3M8.8 12H7.5a3.5 3.5 0 0 1 0-7h4.7M17.8 5h2.7M17.5 2.4 20.5 5l-3 2.6\"/><circle cx=\"9.5\" cy=\"19\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"11.5\" cy=\"12\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"15\" cy=\"5\" r=\"2.2\" stroke-width=\"1.25\"/></g>",24],"outline":["Outline","<path d=\"M7.5 4H17M10.5 8H15M10.5 12H15M7.5 16H17\"/><circle cx=\"3.5\" cy=\"4\" r=\"0.7\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"8\" r=\"0.7\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"12\" r=\"0.7\" fill=\"currentColor\"/><circle cx=\"3.5\" cy=\"16\" r=\"0.7\" fill=\"currentColor\"/>",20],"system":["System","<circle cx=\"10\" cy=\"10\" r=\"1.8\"/><circle cx=\"10\" cy=\"10\" r=\"7\"/><circle cx=\"5\" cy=\"5\" r=\"1.3\"/>",20],"palace":["Memory Map","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z\"/><circle cx=\"12\" cy=\"11.3\" r=\"1\" fill=\"currentColor\"/>",24],"building":["Memory Blueprint","<defs><mask id=\"alto-bp-mask\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"24\" height=\"24\"><rect width=\"24\" height=\"24\" fill=\"#fff\" stroke=\"none\"/><path d=\"M6.75 8.25h6v3.75h4.5v4.5H6.75zM6.75 12.75h3\" stroke=\"#000\" fill=\"none\"/></mask></defs><rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\" fill=\"currentColor\" stroke=\"none\" mask=\"url(#alto-bp-mask)\"/>",24],"world":["Memory Atlas","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><circle cx=\"11\" cy=\"13.2\" r=\"5.3\"/><path d=\"M11 7.9a2.3 5.3 0 0 0 0 10.6a2.3 5.3 0 0 0 0-10.6\"/><path d=\"M5.9 8.4Q10.6 3.4 16.6 6.4\" stroke-dasharray=\"1.5 1.7\"/><circle cx=\"17.6\" cy=\"7.1\" r=\"1.25\" fill=\"currentColor\"/>",24]};
   function fmtBadge(k){
     var g = FMT_SYMBOLS[k]; if(!g) return '';
     return '<span class="fmt-sym" title="' + g[0] + '" role="img" aria-label="' + g[0] + '"><svg viewBox="0 0 ' + g[2] + ' ' + g[2] + '" width="20" height="20" fill="none" stroke="currentColor" stroke-width="' + g[2] / 16 + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + g[1] + '</svg></span>';
@@ -659,7 +659,7 @@ if(!COURSE_META[courseId]){
     if(t) document.getElementById('course-title').textContent = t;
     if(hit.project && hit.project !== t)
       document.getElementById('course-sub').textContent = hit.project + ' · ' +
-        'Every report generated inside this timeline is saved here automatically.';
+        'Every report generated inside this one is saved here automatically.';
     var strip = document.getElementById('unit-strip');
     if(hit.units && hit.units.length){
       strip.innerHTML = hit.units.filter(function(u){ return /^#[0-9a-fA-F]{3,8}$/.test(u); })
@@ -669,7 +669,7 @@ if(!COURSE_META[courseId]){
     var back = document.getElementById('home-link');
     if(back && from === 'project' && hit.key){
       back.href = '/pv/' + encodeURIComponent(hit.key) + '/';
-      back.innerHTML = '\u2190 ' + (fmtBadge(hit.fmt) || 'Timeline');
+      back.innerHTML = '\u2190 ' + (fmtBadge(hit.fmt) || 'Back');
     }
   };
   try{
@@ -899,10 +899,10 @@ alignSearch();
       const k = JSON.parse(localStorage.getItem('alto-pages-cache-v1') || 'null');
       if(!s || !s.uid || !k || k.uid !== s.uid) return [];
       return [].concat(
-        (k.pages || []).map(pg => ({ title: pg.heading || pg.title || 'Untitled timeline',
+        (k.pages || []).map(pg => ({ title: pg.heading || pg.title || 'Untitled',
           label: pg.project || '',
           href: '/pv/' + encodeURIComponent(pg.key) + '/', fmt: pg.fmt, search: pg.search || [] })),
-        (k.shared || []).map(it => ({ title: it.title || 'Shared timeline',
+        (k.shared || []).map(it => ({ title: it.title || 'Shared',
           href: '/s/' + encodeURIComponent(it.key) + '/', search: it.search || [] })));
     }catch(e){ return []; }
   }
@@ -910,11 +910,11 @@ alignSearch();
     const idx = [];
     Object.keys(COURSE_META).forEach(id => {
       const m = COURSE_META[id];
-      if(m && m.app) idx.push({kind:'Timeline', title:m.title, text:m.project || '',
+      if(m && m.app) idx.push({kind:'', title:m.title, text:m.project || '',
                                go:() => { location.href = m.app; }});
     });
     remembered().forEach(t => {
-      idx.push({kind:'Timeline', fmt:t.fmt, title:t.title, text:'', go:() => { location.href = t.href; }});
+      idx.push({kind:'', fmt:t.fmt, title:t.title, text:'', go:() => { location.href = t.href; }});
       t.search.forEach(n => {
         if(!n || !/^[\w-]+$/.test(n.id || '')) return;
         idx.push({kind:t.label || t.title, title:n.t || '', text:n.d || '',

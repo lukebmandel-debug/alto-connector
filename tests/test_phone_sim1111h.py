@@ -269,7 +269,9 @@ def test_the_pill_on_its_side_is_in_the_page_and_scrolls_away_with_the_title(sit
     assert d["drag"] == [1, 0, 1, 0, 1], f"mid-drag: one page coming in, no pill in it, the pill still in this page; let go: no preview left, one pill: {d['drag']}"
     assert d["went"] == [1, True], f"a tap goes back to the page it names: {d['went']}"
     u = d["upright"]
-    assert u["parent"] == "BODY" and u["shown"] and u["pill"][3] > 874 * .85 and u["n"] == 1, f"upright it is the floating pill at the foot: {u}"
+    # (63ff1673, Board 2026-11-12: upright it is no longer the floating pill at the foot, which sat over the lines above the nav pill: it is in the page's top margin and scrolls away
+    #  with the content, as it does on its side. Measured on 31c775ea vs 63ff1673 in Classic, Retro and Holo, upright and sideways: the NAV pill and the sideways Back-to pill did not move.)
+    assert u["parent"] == "detail-page" and u["pos"] == "absolute" and u["shown"] and u["n"] == 1 and u["pill"][1] < 874 * .15 and u["pill"][3] <= u["name"][1], f"upright it is in the page's top margin, above the title: {u}"
 
 
 # ── (f) ──
@@ -278,17 +280,20 @@ def test_holo_clef_is_whole_on_a_fresh_load_and_its_swing_never_goes_edge_on(sit
     round: 2.5 s and 7.5 s in it was edge-on, a few px wide, the "thin sliver" a still frame of sim1111h caught, which read as a broken logo. It swings now, 55deg to each
     side of facing front: a fresh load starts it facing front, whole, and no moment of the 10 s shows it under 40% of that width. Reduce Motion holds it still (test_holo)."""
     async def fn(pg):
-        return await pg.evaluate("""()=>{ const m=document.querySelector('#nav svg.brand-mark'), tb=document.querySelector('#nav .ho-tube'), sp=tb&&tb.querySelector('.sp'), el=sp||m, c=getComputedStyle(el), mr=m.getBoundingClientRect();
-          const drawn=()=>{ if(!sp) return m.getBoundingClientRect().width; let a=1e9,b=-1e9; sp.querySelectorAll('path,circle').forEach(p=>{ const r=p.getBoundingClientRect(); if(r.width||r.height){ a=Math.min(a,r.left); b=Math.max(b,r.right); } }); return b-a; };
+        return await pg.evaluate("""()=>{ const m=document.querySelector('#nav svg.brand-mark'), tb=document.querySelector('#nav .ho-tube'), sp=tb&&tb.querySelector('.sp'), cv=tb&&tb.classList.contains('go')&&tb.querySelector('canvas'), el=cv||sp||m, c=getComputedStyle(el), mr=m.getBoundingClientRect();
+          const cl=cv&&tb.querySelector('.cl'), cx=cv&&cv.getContext('2d');   // (tube2: the swing is a sheet of frames, one canvas stepped behind a cell-sized window; the width drawn is the lit pixels' columns in the cell now in the window)
+          const drawn=()=>{ if(cv){ const r=cl.getBoundingClientRect(), q=cv.getBoundingClientRect(), k=cv.width/q.width, x0=Math.round((r.left-q.left)*k), y0=Math.round((r.top-q.top)*k), w=Math.round(r.width*k), h=Math.round(r.height*k), px=cx.getImageData(x0,y0,w,h).data; let a=1e9,b=-1;
+              for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(px[(y*w+x)*4+3]>40){ if(x<a) a=x; if(x>b) b=x; } return b<0?0:(b-a+1)/k; }
+            if(!sp) return m.getBoundingClientRect().width; let a=1e9,b=-1e9; sp.querySelectorAll('path,circle').forEach(p=>{ const r=p.getBoundingClientRect(); if(r.width||r.height){ a=Math.min(a,r.left); b=Math.max(b,r.right); } }); return b-a; };
           const an=el.getAnimations(); an.forEach(a=>{ a.pause(); a.currentTime=0; }); const front=drawn(); const ws=[]; for(let t=0;t<10000;t+=125){ an.forEach(a=>{ a.currentTime=t; }); ws.push(drawn()); }
-          return {cls:document.documentElement.className, box:[mr.width, mr.height], tube:tb?[tb.getBoundingClientRect().width, tb.getBoundingClientRect().height]:null, front:front, ws:ws, name:c.animationName, dur:c.animationDuration, ease:c.animationTimingFunction}; }""")
+          return {cls:document.documentElement.className, box:[mr.width, mr.height], tube:tb?[tb.getBoundingClientRect().width, tb.getBoundingClientRect().height]:null, front:front, ws:ws, sheet:!!cv, name:c.animationName, dur:c.animationDuration, ease:c.animationTimingFunction}; }""")
     d = _run(site, fn, "/timeline.html?view=card&style=holo", 402, 874, wait=2800)
     assert "alto-holo" in d["cls"]
     assert d["box"][0] >= 20 and d["box"][0] / d["box"][1] == pytest.approx(78 / 98, abs=.06), f"the clef's own box is whole (its viewBox is 78 x 98): {d['box']}"
     if d["tube"]:
         assert d["tube"] == pytest.approx(d["box"], abs=1), "the tube stands exactly where the clef is"
     assert d["front"] >= d["box"][0] * .75, f"facing front (a fresh load) it is drawn whole: {d['front']} of {d['box'][0]} px"
-    assert d["name"] in ("ho-tube", "ho-logo-p") and d["dur"] == "10s" and d["ease"] == "ease-in-out", "the look's own 10 s motion, eased"
+    assert d["name"] in ("ho-tube", "ho-logo-p", "ho-pipe") and d["dur"] == "10s" and d["ease"] in (("step-end", "steps(1)") if d["sheet"] else ("ease-in-out",)), "the look's own 10 s motion, eased (the sheet's steps carry the ease in their keyframes)"
     # Art's call (rel-223 look), the Board's decision: a swing of about 55deg to each side, not a full turn. It was edge-on at 2.5 s and 7.5 s, about 3 px wide.
     lo = min(d["ws"])
     print("CLEF", json.dumps({"front": round(d["front"], 1), "min": round(lo, 1), "ratio": round(lo / d["front"], 3), "at_2.5s": round(d["ws"][20], 1), "at_7.5s": round(d["ws"][60], 1)}))

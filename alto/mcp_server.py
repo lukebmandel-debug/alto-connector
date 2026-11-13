@@ -3,7 +3,7 @@
 Claude drives the interview (see interview_guide.md, served as both an MCP
 prompt and the get_interview_guide tool); this server is the state machine:
 it stores answers, enforces the §0 closed-system consent gate SERVER-SIDE,
-lays out and builds the timeline, and publishes artifacts.
+lays out and builds the page, and publishes artifacts.
 
 uid resolution: production wraps this app with OAuth middleware that puts the
 authenticated uid into a contextvar (see auth/); dev mode uses ALTO_DEV_UID.
@@ -43,12 +43,12 @@ _store = None
 
 
 def store_dir() -> str:
-    """Where timelines live.
+    """Where pages live.
 
     ~/Documents/Alto, matching what the .mcpb bundle configures, so the CLI
     and the bundle agree. The old default was ~/.alto-connector-dev — hidden,
     and named for a developer: someone installing via uvx got their finished
-    timeline in a folder they would never think to open.
+    page in a folder they would never think to open.
 
     Separate from get_store() so it can be asserted on without constructing a
     LocalStore, which would mkdir the very directory under test.
@@ -211,10 +211,10 @@ _SHARE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"   # no look-alike glyphs
 
 
 def _private_key() -> str:
-    """The directory name for a private timeline — opaque all the way through.
+    """The directory name for a private page — opaque all the way through.
 
     /pv/civ-pro-jade-xxxx/ would announce its subject to anyone who saw the
-    URL, so nothing here is derived from the timeline. 22 characters
+    URL, so nothing here is derived from the page. 22 characters
     of the 32-symbol alphabet is 110 bits.
     """
     return "".join(secrets.choice(_SHARE_ALPHABET) for _ in range(22))
@@ -247,7 +247,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.224"
+__version__ = "1.9.225"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -297,12 +297,12 @@ mcp = FastMCP(
     icons=_server_icons(),
     website_url=WEBSITE_URL,
     instructions=(
-        "Alto builds interactive timelines EXCLUSIVELY from the user's own "
+        "Alto builds interactive outlines, timelines and memory palaces EXCLUSIVELY from the user's own "
         "materials — it never invents content (closed-system rule §0). Start "
         "any new session with get_interview_guide; it returns the interview "
         "to run, the user's resumable drafts and every Alto account this "
-        "computer can reach. The user may have timelines in more than one "
-        "account (Google email / site): when they name a timeline or project "
+        "computer can reach. The user may have pages in more than one "
+        "account (Google email / site): when they name a page or project "
         "you cannot see, never say it does not exist and never recreate it — "
         "list_projects(account=\"all\") searches every account, "
         "connect_account(site) adds a site from its address, and every tool "
@@ -336,7 +336,7 @@ def _page_key(ref: str) -> str:
 
 
 def _find_timeline(st, u: str, ref: str):
-    """(timeline_id, doc) for whatever the user or the Edit timeline button
+    """(timeline_id, doc) for whatever the user or the Edit button
     named: the draft's id, the id of a page published from it (the
     /pv/<key>/ in its address), or its title. None when nothing matches
     exactly once."""
@@ -361,9 +361,9 @@ def _find_timeline(st, u: str, ref: str):
 def _homepage_only(st, u: str, timelines: list | None = None,
                    pages: list | None = None) -> list:
     """Pages the account's homepage lists that no draft here belongs to — a
-    timeline published from another computer or store. [] when this store has
-    no homepage listing (a folder). `timelines` is the list the caller already
-    read: a timeline document carries its whole brief, so it is not fetched
+    page published from another computer or store. [] when this store has
+    no homepage listing (a folder). `pages` is the list the caller already
+    read: a page document carries its whole brief, so it is not fetched
     again here. A page in the homepage's Recently deleted is left out."""
     if not hasattr(st, "list_pages"):
         return []
@@ -395,10 +395,10 @@ def _pages_or_none(st):
 
 
 def _elsewhere(ref: str) -> dict:
-    """Where else a timeline that is not in this account might be: the other
+    """Where else a page that is not in this account might be: the other
     accounts this computer is signed in to, and this account's own homepage.
     Added to every not_found so a chat that starts on its own (not from the
-    Edit timeline button) is never told "it does not exist"."""
+    Edit button) is never told "it does not exist"."""
     from .cloud import accounts as A
     from .cloud.session import CloudError, SignInRequired
     out: dict = {}
@@ -455,14 +455,14 @@ def _timeline_or_error(tid: str):
     ref = tid
     tid, err = _check_ref(ref, "timeline_id")
     if err:
-        err["message"] += (". That is not a draft id: pass the timeline's id "
+        err["message"] += (". That is not a draft id: pass the page's id "
                            "(list_projects shows them), the address of its "
                            "published page, or its title")
         return None, {**err, **_elsewhere(str(ref or ""))}
     doc = migrate_doc(get_store().get_timeline(uid(), tid))
     if not doc:
         return None, {"error": "not_found",
-                      "message": f"timeline {tid!r} not found — list_projects "
+                      "message": f"page {tid!r} not found — list_projects "
                                  "shows existing drafts",
                       **_elsewhere(tid)}
     return doc, None
@@ -484,7 +484,7 @@ def accounted(fn):
     (cloud/accounts.py), and puts them back. Nothing is remembered between
     calls: a connector process can serve several chats.
     It also lets `timeline_id` be the address of a published page or a title:
-    the Edit timeline button and a person's own words both name a timeline
+    the Edit button and a person's own words both name a page
     that way, and neither is a draft id.
     """
     sig = inspect.signature(fn)
@@ -573,7 +573,7 @@ def get_interview_guide() -> dict:
     """START HERE in any Alto session. Returns the interview/build guide
     (including the non-negotiable closed-system rule §0) plus the user's
     resumable drafts, and every Alto account this computer can reach — a
-    timeline the user names that is not in the first list is often in
+    page the user names that is not in the first list is often in
     another account, which `accounts` shows."""
     guide = (ROOT / "interview_guide.md").read_text(encoding="utf-8")
     drafts = []
@@ -607,9 +607,9 @@ def _where_am_i() -> dict:
 
 
 def _accounts_overview() -> dict:
-    """What a chat that starts on its own needs before it decides a timeline
+    """What a chat that starts on its own needs before it decides a page
     is missing: where this connector is looking, and every other place the
-    user's timelines can be. Nothing here is a chore for the user."""
+    user's pages can be. Nothing here is a chore for the user."""
     from .cloud import accounts as A
     if _require_auth:           # a hosted server has no one's accounts but its caller's
         return {}
@@ -623,8 +623,8 @@ def _accounts_overview() -> dict:
         out["timelines_in_accounts"] = _list_all_accounts(only=others)
     out["known"] = [A.summary(a) for a in A.known()]
     if others:
-        out["next"] = ("The user has timelines in the account(s) above. When "
-                       "they name an existing timeline or project, find it "
+        out["next"] = ("The user has pages in the account(s) above. When "
+                       "they name an existing page or project, find it "
                        "there and pass account=<account> on every call that "
                        "follows — never create it again and never say it "
                        "does not exist.")
@@ -748,7 +748,7 @@ def sign_in() -> dict:
         return {"status": "not_needed",
                 "message": ("This Alto keeps projects in a folder on this "
                             "computer, so there is nothing to sign in to."),
-                "next": ("If the user's timelines are on an Alto site, "
+                "next": ("If the user's pages are on an Alto site, "
                          "list_accounts shows the ones this computer knows; "
                          "connect_account(site) adds one from its address.")}
     from .cloud.session import SignInRequired, get_session
@@ -807,7 +807,7 @@ def sign_in() -> dict:
 def list_accounts() -> dict:
     """Every Alto account (site) this computer can reach: the default one,
     any added with connect_account, and any other sign-in kept here. Shows the
-    email each belongs to and whether it is signed in. A timeline the user
+    email each belongs to and whether it is signed in. A page the user
     names that is not in one account may be in another."""
     from .cloud import accounts as A
     if _require_auth:
@@ -826,7 +826,7 @@ def connect_account(site: str, email: str = "") -> dict:
     """Add an Alto site the user already has — from its address alone (e.g.
     luke-alto.web.app); nothing is pasted. Opens its sign-in page, where the
     user clicks Continue with Google as the account that site belongs to
-    (`email`, if they said which). Use it when a timeline or project the user
+    (`email`, if they said which). Use it when a page or project the user
     names is not in any account list_accounts shows, or to work in a second
     Google account's site. If it returns status 'waiting', tell the user to
     click Continue with Google, then call it again with the same site."""
@@ -838,7 +838,7 @@ def connect_account(site: str, email: str = "") -> dict:
 
 
 def _projects_listing() -> dict:
-    """The projects and timelines in the store the current call points at."""
+    """The projects and pages in the store the current call points at."""
     st = get_store()
     timelines = st.list_timelines(uid())
     pages = _pages_or_none(st)
@@ -862,7 +862,7 @@ def _projects_listing() -> dict:
     out: dict = {"projects": projects}
     if binned and any(t.get("private_key") in binned for t in timelines):
         out["recently_deleted_note"] = (
-            "Timelines with in_recently_deleted were deleted by the user on "
+            "Pages with in_recently_deleted were deleted by the user on "
             "their homepage (that date). They are removed for good 30 days "
             "later. Do not open, build or publish one unless the user asks; "
             "to bring one back they press Restore under Recently deleted on "
@@ -886,7 +886,7 @@ def _projects_listing() -> dict:
 
 
 def _list_all_accounts(only: list | None = None) -> list:
-    """Projects and timelines in every account this computer is signed in to,
+    """Projects and pages in every account this computer is signed in to,
     plus the local folder when that is where this connector keeps drafts.
     One account being unreachable never hides the others."""
     from .cloud import accounts as A
@@ -922,10 +922,10 @@ def _list_all_accounts(only: list | None = None) -> list:
 @mcp.tool(title="List projects", annotations=RO)
 @accounted
 def list_projects(account: str = "") -> dict:
-    """List the user's Alto projects and the timelines inside them, in the
+    """List the user's Alto projects and the pages inside them, in the
     account in use. account="all" lists every account this computer can reach
     (and the local folder), each labelled — use it first when the user names a
-    timeline or project you cannot see, or starts a chat on their own."""
+    page or project you cannot see, or starts a chat on their own."""
     if (account or "").strip().lower() == "all":
         return {"accounts": _list_all_accounts(),
                 "next": ("Pass account=<account> to the other tools to work "
@@ -946,7 +946,7 @@ def list_projects(account: str = "") -> dict:
                    "this computer does not know. Only if it is in none of "
                    "them, it was published from another device or store: "
                    "create it here with exactly that name (the homepage "
-                   "groups timelines by project name), ask only for its "
+                   "groups pages by project name), ask only for its "
                    "purpose, and continue.")
     others = [A.summary(a) for a in A.known()]
     if others:
@@ -957,7 +957,7 @@ def list_projects(account: str = "") -> dict:
 def _project_in_other_account(name: str):
     """A refusal when the user's other Alto accounts already hold a project by
     this name. A chat that cannot see a project the homepage shows must not
-    create an empty copy of it here (and, worse, rebuild its timelines): it
+    create an empty copy of it here (and, worse, rebuild its pages): it
     belongs to the account that has it."""
     from .cloud import accounts as A
     from .cloud.session import CloudError, SignInRequired
@@ -1006,10 +1006,10 @@ def create_project(name: str, purpose: str = "",
     return {"project_id": pid}
 
 
-@mcp.tool(title="Create timeline draft", annotations=RW)
+@mcp.tool(title="Create draft", annotations=RW)
 @accounted
 def create_timeline(project_id: str, brief: dict) -> dict:
-    """Create a timeline draft from the build brief (Flow 2 §B–§I). brief:
+    """Create a page draft from the build brief (Flow 2 §B–§I). brief:
     {title, subject?, timeline_id?, columns?: 3|5, node_noun?, period_noun?,
      accent?, entity_axis_label?, entity_axis_singular?,
      acts: [{label, short?, color?, summary?}] (2-7; `summary` = that section's
@@ -1053,7 +1053,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       viewer sees FIRST. Every System page carries both views of the same
       content and the same orbit layout, and one switch in the page (System |
       Star chart) flips them instantly, with no rebuild (the viewer's choice is
-      remembered for that timeline; Retro and Holographic are looks in Scene > Style): HUB = System (concentric orbit rings,
+      remembered for that page; Retro and Holographic are looks in Scene > Style): HUB = System (concentric orbit rings,
       spokes, circles with number and title in Alto's usual glass look) and
       STARS = the Star chart (the same rings with realistic space graphics and
       spaceflight-style travel between bodies). In both the planets, moons and
@@ -1106,7 +1106,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       just follow characters),
      card_on_detail?: bool (default true: every node's detail page opens with
       its card's number and summary, so a page never shows less than its card;
-      false only for a timeline whose sections already restate each card),
+      false only for a page whose sections already restate each card),
      overview_html?, owner_name?, owner_email?}.
     Filters add canvas filter chips that dim non-matching nodes (they never
     navigate). Derived sources (entity/axis1/axis2/acts) mirror that
@@ -1132,7 +1132,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
         return {"error": "not_found", "message": f"project {project_id!r} not found"}
     existing = {t["timeline_id"] for t in st.list_timelines(uid())}
     if len(existing) >= MAX_TIMELINES:
-        return {"error": "quota", "message": f"max {MAX_TIMELINES} timelines"}
+        return {"error": "quota", "message": f"max {MAX_TIMELINES} pages"}
     # A caller-supplied timeline_id becomes a store directory and a published
     # URL segment, so it is checked here; a derived one is already a slug.
     if brief.get("timeline_id"):
@@ -1182,7 +1182,7 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
     of it on this computer: its full path, or just its file name (e.g.
     'Torts Notes 9_22_26.docx') and Alto finds it in Downloads, Desktop or
     Documents — the reply's `local_files` says what was found. In a copy of
-    the timeline downloaded for offline use (only there: the web timeline
+    the page downloaded for offline use (only there: the web page
     needs internet to open at all), every link to that source then offers
     the local file, and opens it in place of the web copy when there is no
     internet. Section text links a source by its web url or
@@ -1412,7 +1412,7 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
 @mcp.tool(title="Add or update nodes", annotations=RW)
 @accounted
 def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
-    """Batch-add/update timeline nodes (idempotent upsert by id). Each:
+    """Batch-add/update page nodes (idempotent upsert by id). Each:
     {id, act (0-based), tag, title, desc, col?, parent?, entity_ids?,
      axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
      flags?: [flag id] (several allowed; declared with set_flags),
@@ -1447,7 +1447,7 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     (`t` may then be empty): `tree: {nodes: [{id, title, parent?, text?,
     tag?, edge?, tone?, link?, sections?}], layout?, open?, fold_below?,
     label?}` — one step without a parent, `edge` = the answer on the line
-    from its parent, `link` = a page of this timeline the step opens,
+    from its parent, `link` = a page of this one the step opens,
     `sections` = a small page of its own; see the guide's "Decision trees
     inside a page". Only when the student wants one.
     The same `tree` with `layout: "timeline"` is a MINI HORIZONTAL TIMELINE
@@ -1658,9 +1658,9 @@ def set_flags(timeline_id: str, flags: list[dict],
 @accounted
 def set_units(timeline_id: str, add: list[dict] | None = None,
               update: list[dict] | None = None) -> dict:
-    """Add units (sections / acts / bands) to an existing timeline, or change a
+    """Add units (sections / acts / bands) to an existing page, or change a
     unit's label, short name, colour or Overview summary. No limit on how many
-    units a timeline has. Nodes are never touched: existing nodes keep their
+    units a page has. Nodes are never touched: existing nodes keep their
     `act` index, so new units are always appended at the end.
 
     add: [{label, short?, color?, summary?}] — appended in order; the reply
@@ -1704,8 +1704,8 @@ def set_units(timeline_id: str, add: list[dict] | None = None,
 @mcp.tool(title="Add sources to the materials list", annotations=RW)
 @accounted
 def add_sources(timeline_id: str, sources: list[dict]) -> dict:
-    """Append new materials (notes, readings) to a timeline's existing source
-    list — a list update, not a new consent: it works only on a timeline whose
+    """Append new materials (notes, readings) to a page's existing source
+    list — a list update, not a new consent: it works only on a page whose
     materials consent was already recorded, and leaves that consent as it is.
     Entries are upserted by `id` (same fields as record_materials_consent:
     id, name, kind, url?, local?); entries not sent are kept unchanged."""
@@ -1740,7 +1740,7 @@ def add_sources(timeline_id: str, sources: list[dict]) -> dict:
 @accounted
 def get_nodes(timeline_id: str, ids: list[str] | None = None,
               act: int | None = None, fields: list[str] | None = None) -> dict:
-    """The stored content of a timeline's nodes (title, desc, tag, parent,
+    """The stored content of a page's nodes (title, desc, tag, parent,
     act, sections, filters, axis values, sources ...), so an incremental
     session can follow the existing cards' conventions. ids: only these nodes;
     act: only the nodes in that unit; fields: only these keys (id is always
@@ -1778,7 +1778,7 @@ def _feature_gate(feature: str):
 @mcp.tool(title="Study signals", annotations=RO)
 @accounted
 def get_study_signals(timeline_id: str) -> dict:
-    """What a study plan can be built from, in this timeline: its nodes (id, title, act, parent, flags, whether a page has flash
+    """What a study plan can be built from, in this page: its nodes (id, title, act, parent, flags, whether a page has flash
     cards or a quiz) and the plan it already has. Card marks ("Still learning") and quiz scores are the student's own study state
     in their browser and account, not held here: ASK the student which topics they are weak on, when their exam is and how much
     time they have. A plan names only these nodes and quotes only what the student said or marked (§0)."""
@@ -1805,11 +1805,11 @@ def get_study_signals(timeline_id: str) -> dict:
 @accounted
 def set_study_plan(timeline_id: str, items: list[dict], exam_date: str = "", days_per_week: int | None = None,
                    minutes_per_day: int | None = None, replace: bool = True) -> dict:
-    """Store the student's study plan on this timeline: which nodes to study on which days. The student decides; ASK them (exam
-    date, time per day, what they know they are weak on) and propose only nodes of THIS timeline, each with why quoting the
+    """Store the student's study plan on this page: which nodes to study on which days. The student decides; ASK them (exam
+    date, time per day, what they know they are weak on) and propose only nodes of THIS page, each with why quoting the
     student's own signal. items: [{node, day: 'YYYY-MM-DD', why (<= 200 characters, the student's words), signal: 'marks' |
     'quiz' | 'exam' | 'told' | 'syllabus'}], at most 120. replace=True (default) swaps the whole plan; False adds these items to
-    it. The plan is refused whole, with every problem named, when a node is not in the timeline, a day is not a date or is over a
+    it. The plan is refused whole, with every problem named, when a node is not in the page, a day is not a date or is over a
     year away, a node is planned twice for one day, or a why is missing or long. Then build_timeline to put it on the page."""
     err = _feature_gate("study_plan")
     if err:
@@ -2003,14 +2003,14 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     """The city a Memory Palace (mode 'palace', §D-Palace) is drawn on: fetches
     its streets, rivers, parks, railways, stations and landmarks from
     OpenStreetMap, finds its blocks and building lots, and stores them with the
-    timeline (nothing is fetched again at build). Run it once the timeline
+    page (nothing is fetched again at build). Run it once the page
     exists; run it again to change the city or its districts.
 
     place: the city or town the user named ("Philadelphia"). area: the part of
     it in their words ("Front St to 49th St, South St to Spring Garden St").
     bbox: [south, west, north, east] in degrees for that area — work it out
     from the streets they name; omitted, the place is looked up and a box sized
-    to the timeline is taken around its centre. districts: one per section,
+    to the page is taken around its centre. districts: one per section,
     [{unit: section index, name: neighborhood, bounds: [s, w, n, e]}] — real
     neighborhoods inside the box, in reading order along a walk through the
     city, sized to how many buildings each section has; omitted, the box is
@@ -2027,7 +2027,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     ground — they may be hypothetical: [{name, color?, stops: [station or
     landmark names in order]}]. landmark_buildings: the city's few major
     landmark buildings, [{name, page?}] — each takes a whole block and, with
-    `page`, opens one of the timeline's own pages ("index:<key>" an Index
+    `page`, opens one of the page's own pages ("index:<key>" an Index
     list such as cases or statutes, "char:<entity id>", "node:<node id>"):
     the place to keep a list the outline points into. Big Center City
     skyscrapers are landmark buildings with their own art (One Liberty Place,
@@ -2064,11 +2064,11 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     (`gate.message`: tell the user exactly that); a city that does not pass is kept as a draft. auto=False: no preset and no
     worked-out fields (only what is passed). transit: the real networks to draw, [{id, name, colour, kind,
     network, operator, route, refs}] (omitted: the preset's, or the box's own route relations).
-    subject: what the timeline studies; "law" (also read from the title, purpose and section names: law,
+    subject: what the page studies; "law" (also read from the title, purpose and section names: law,
     courts, civil procedure, torts ...) makes the city's real courthouses landmark buildings, by level —
     federal (U.S. courthouses, courts of appeals, the Supreme Court), state (state supreme / appellate / trial
     courts) and city (municipal, county, family, superior / district courts, a City Hall with courts) — each
-    opening the timeline's own matching Index (federal law, state law / cases, local rules) when it has one.
+    opening the page's own matching Index (federal law, state law / cases, local rules) when it has one.
     A building the user claimed from the city's simulated buildings in edit
     mode carries a `shape` in its placement hint ({x, y, a, w, h, r}: the real
     footprint's centre, angle, box and ring, 3-40 whole-number points) next to
@@ -2083,7 +2083,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         return err
     brief = doc["brief"]
     if brief.get("mode") != "palace":
-        return {"error": "not_a_palace", "message": "this timeline's mode is "
+        return {"error": "not_a_palace", "message": "this page's mode is "
                 f"{brief.get('mode') or 'linear'!r}; a Memory Palace is created with mode 'palace'"}
     from .build import palace as pal_mod
     from . import palace_map
@@ -2267,7 +2267,7 @@ def invent_city(timeline_id: str, spec: dict | None = None, template: str = "", 
         return err
     brief = doc["brief"]
     if brief.get("mode") != "palace":
-        return {"error": "not_a_palace", "message": "this timeline's mode is "
+        return {"error": "not_a_palace", "message": "this page's mode is "
                 f"{brief.get('mode') or 'linear'!r}; a Memory Palace is created with mode 'palace'"}
     from .build import city_invent
     try:
@@ -2317,9 +2317,9 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
                     demo: bool = False, building: str = "") -> dict:
     """The building a Memory Blueprint (mode 'palace', palace_view 'building',
     §D-Building) is drawn in: stores a checked PLAN of ONE building with the
-    timeline, hands the timeline's nodes to its rooms (or to the art slots and
+    page, hands the page's nodes to its rooms (or to the art slots and
     fixtures in them) and tells the user nothing to do. Run it once the
-    timeline exists; run it again to change the plan, the way nodes are handed
+    page exists; run it again to change the plan, the way nodes are handed
     out, or one node's place. Nothing is fetched or hosted here: the plan is
     published with the page (publish_timeline).
 
@@ -2373,7 +2373,7 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
         return err
     brief = doc["brief"]
     if brief.get("mode") != "palace":
-        return {"error": "not_a_palace", "message": "this timeline's mode is "
+        return {"error": "not_a_palace", "message": "this page's mode is "
                 f"{brief.get('mode') or 'linear'!r}; a Memory Blueprint is created with mode 'palace' and palace_view 'building'"}
     from .build import building_schema as bs
     old = brief.get("building") or {}
@@ -2437,7 +2437,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     """Where the cards of a Memory Atlas (mode 'palace', palace_view 'world',
     §D-World) stand on the world map: a unit is a region, each of its concepts
     a country, and the cards under a concept cluster round it. Run it once the
-    timeline has its nodes; run it again to move cards. Nothing is fetched: the
+    page has its nodes; run it again to move cards. Nothing is fetched: the
     map is Alto's own (Natural Earth, hosted with the site).
     places: [{node, place, notes}] — a card the user's NOTES tie to a place
     (Pennoyer v. Neff → "Oregon"; notes: true) or that the user wants somewhere
@@ -2465,7 +2465,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     scope: 'world' (the whole map, the default) or 'country' (a map of A country,
     with its states or regions and major cities as the places; needs `country`).
     The map offers two choices, World and A country; cards outside the chosen
-    country stay in the timeline and show again in World. '' keeps the stored one.
+    country stay in the page and show again in World. '' keeps the stored one.
     country: name or code of the country (United States, USA, US …). Only the
     countries Art has signed are offered (world_plan.ATLAS_OFFERED): the United
     States, Australia, Brazil, China, Indonesia, Russia, South Africa.
@@ -2478,7 +2478,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
         return err
     brief = doc["brief"]
     if brief.get("mode") != "palace":
-        return {"error": "not_a_palace", "message": "this timeline's mode is "
+        return {"error": "not_a_palace", "message": "this page's mode is "
                 f"{brief.get('mode') or 'linear'!r}; a Memory Atlas is created with mode 'palace' and palace_view 'world'"}
     from .build import world_plan as wp
     old = dict(brief.get("world") or {})
@@ -2493,7 +2493,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     for item in places or []:
         nid, text = (item or {}).get("node"), (item or {}).get("place")
         if nid not in ids:
-            problems.append({"node": nid, "problem": "no card with this id in the timeline"})
+            problems.append({"node": nid, "problem": "no card with this id in the page"})
             continue
         try:
             given[nid] = {**wp.resolve(text), **({"r": 1} if item.get("notes") else {})}
@@ -2533,7 +2533,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
 
 def _courthouses(doc, brief, place, pid, bbox, cache, subject, given):
     """A law palace's courthouses (city_courts) merged into the landmark buildings: {buildings, courts: [{name,
-    level, page?, on_osm?}], source} or None when the timeline is not about law."""
+    level, page?, on_osm?}], source} or None when the page is not about law."""
     import re as _re
     from .build import city_courts, city_presets
     texts = city_courts.brief_texts(brief) + [doc.get(k) for k in ("title", "name") if doc.get(k)]
@@ -2863,7 +2863,7 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     shows every card, which is how to find room. Fix overlaps before building.
     Hints are kept in the brief and used by every later build; build_timeline
     (then publish_timeline) shows them on the page. A unit you did not name is
-    never touched. Needs an outline timeline. Placement only shapes the tree
+    never touched. Needs an outline. Placement only shapes the tree
     layout: with layout 'auto' it is chosen once any card is placed ('flow'
     ignores everything but `order`; so does 'solar', where the system draws
     itself and `order` is a card's ring / orbit turn among its siblings)."""
@@ -2886,7 +2886,7 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     unknown = sorted(set(placements) - known)
     if unknown:
         return {"error": "unknown_nodes", "unknown": unknown,
-                "message": "not nodes in this timeline: " + ", ".join(unknown),
+                "message": "not nodes in this page: " + ", ".join(unknown),
                 "node_ids": sorted(known)}
     pl = {} if reset else {k: dict(v) for k, v in (brief.get("placement") or {}).items()}
     for nid in clear or []:
@@ -2930,12 +2930,12 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     return out
 
 
-@mcp.tool(title="Build timeline", annotations=RW)
+@mcp.tool(title="Build", annotations=RW)
 @update_noted
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
                    tree_lines: str = "", hub_look: str = "", palace_view: str = "") -> dict:
-    """Emit the timeline from the engine template, verify it (structure,
+    """Emit the page from the engine template, verify it (structure,
     geometry, no invented slots, and a JS parse check of every emitted script),
     and store the artifacts (hosted page + offline single-file). Fails with the
     exact check list on any violation.
@@ -3028,24 +3028,24 @@ def build_timeline(timeline_id: str, layout: str = "",
     return {"verify": "passed", **report,
             **({"manual_edits": edits} if edits else {}),
             "offline_path": offline_path,
-            "note": ("That file IS the finished timeline — self-contained, "
+            "note": ("That file IS the finished page — self-contained, "
                      "opens in any browser, no server or account needed. "
                      "Give the user the path. publish_timeline is only "
                      "needed for a shareable web link."),
             "next": "publish_timeline, if they want a link as well"}
 
 
-@mcp.tool(title="Preview timeline as an Artifact", annotations=RW)
+@mcp.tool(title="Preview as an Artifact", annotations=RW)
 @update_noted
 @accounted
 def preview_timeline(timeline_id: str) -> dict:
     """Build the current draft into ONE self-contained HTML page for showing
     the user as a Claude Artifact before anything is published (and whether
     or not it ever will be). Same engine, content, layout, filters, map,
-    search and detail pages as the live site; it opens on the timeline.
+    search and detail pages as the live site; it opens on the page.
 
     Runs the full build and every check, but publishes nothing and leaves the
-    timeline's status and live pages alone, so it is safe to call after every
+    page's status and live pages alone, so it is safe to call after every
     round of edits. Returns `preview_path`: publish that file with the
     Artifact tool, updating the same Artifact on each later preview."""
     doc, err = _timeline_or_error(timeline_id)
@@ -3078,7 +3078,7 @@ def preview_timeline(timeline_id: str) -> dict:
                 "publish, file_path=preview_path, icon 'timeline', "
                 "capabilities {downloads: true} — the Notes report and the "
                 "offline copy are saved through it). On later "
-                "previews of this timeline, republish the same file path so "
+                "previews of this page, republish the same file path so "
                 "the same Artifact URL updates. An Artifact is private to the "
                 "user until they share it; it is not an Alto publish. Where "
                 "the client has no Artifact tool, give the user the path to "
@@ -3090,7 +3090,7 @@ def preview_timeline(timeline_id: str) -> dict:
 
 
 def _added_epoch(doc) -> int:
-    """When the project this timeline lives in was added, in epoch seconds —
+    """When the project this page lives in was added, in epoch seconds —
     the homepage's "recently added" order. 0 when unknown."""
     from datetime import datetime
     try:
@@ -3104,7 +3104,7 @@ def _added_epoch(doc) -> int:
 def _refuse_downgrade_early(timeline_id: str, doc: dict, visibility: str = "private-web",
                             folder: bool = False):
     """Before anything is rebuilt or deployed: if the page already published
-    under this timeline's key was built by a newer Alto, stop (raises
+    under this page's key was built by a newer Alto, stop (raises
     StaleEngineError). put_page repeats the check at the moment of writing
     (store/cloud.py), which is the one that cannot be skipped; this one keeps an
     older shell from being deployed first.
@@ -3217,19 +3217,19 @@ def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
 
 
 def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
-    """Publish the built timeline.
+    """Publish the built page.
 
     visibility:
       'private'     — not on the web at all (the default). Without Firebase
                       publishing configured, this is also where the offline
                       file comes from.
       'private-web' — a page only the publishing Google account can open. The
-                      site gets a sign-in shell carrying no timeline content;
+                      site gets a sign-in shell carrying no page content;
                       the page itself lives in Firestore under the owner's
-                      uid. This is the only way a timeline goes on the web.
+                      uid. This is the only way a page goes on the web.
 
     There is no public visibility. Nothing Alto publishes is readable without
-    signing in as its owner; to show a timeline to someone else, the owner
+    signing in as its owner; to show a page to someone else, the owner
     opens it from their homepage and creates a share link there (a snapshot at
     /s/{key}/ they can revoke at any time). The old 'link' value is refused.
 
@@ -3286,7 +3286,7 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
             urls = {"offline_path": offline_path,
                     "note": ("There is no web page yet because this Alto has "
                              "no site of its own — the offline file above IS "
-                             "the full timeline (double-click to open). Call "
+                             "the full page (double-click to open). Call "
                              "set_up_site: it gives the user their own private "
                              "site with nothing to do but click Allow in the "
                              "browser, then publish again. "
@@ -3314,10 +3314,10 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         stale = list(LAST_STALE)
         if stale and not allow_stale:
             return {"error": "stale_build", "stale": stale,
-                    "message": ("these timelines could not be re-emitted from "
+                    "message": ("these pages could not be re-emitted from "
                                 "their stored nodes, so publishing them would "
                                 "ship a page older than the current engine. "
-                                "Fix the listed timelines, or set "
+                                "Fix the listed pages, or set "
                                 "ALTO_ALLOW_STALE=1 to publish anyway.")}
         drift = verify_live(site, live)
         if drift and not allow_stale:
@@ -3420,7 +3420,7 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
             st.get_artifact(uid(), timeline_id, "offline.html") or "")
         urls = {
             "offline_path": offline_path,
-            "note": ("Done — that file IS the complete timeline. Open it in "
+            "note": ("Done — that file IS the complete page. Open it in "
                      "any browser (double-click it), or send it to someone: "
                      "it is fully self-contained and needs no server, no "
                      "account and no internet. Tell the user the path. "
@@ -3440,7 +3440,7 @@ def _doc_of(src):
     return d
 
 
-@mcp.tool(title="Publish timeline", annotations=RW)
+@mcp.tool(title="Publish", annotations=RW)
 @update_noted
 @accounted
 @_doc_of(_publish_timeline)
@@ -3458,13 +3458,13 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         _edits_published(timeline_id)        # the page now carries the folded edits
     return r
 
-@mcp.tool(title="Get timeline state", annotations=RO)
+@mcp.tool(title="Get state", annotations=RO)
 @accounted
 def get_timeline(timeline_id: str, compact: bool = False) -> dict:
     """Full draft state for resuming: brief, consent, node ids, connection
     count, status, urls. compact=true trims the brief to a summary (each axis
     value as {id, name}, overview_html as its length) — use it to look around
-    a large timeline; get_nodes gives the nodes' content."""
+    a large page; get_nodes gives the nodes' content."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -3524,22 +3524,22 @@ def _brief_out(brief):
     return brief
 
 
-@mcp.tool(title="Restore a published timeline's draft", annotations=RW)
+@mcp.tool(title="Restore a published draft", annotations=RW)
 @update_noted
 @accounted
 def import_timeline(published: str) -> dict:
-    """Bring back the editable draft of a timeline that is on the user's
+    """Bring back the editable draft of a page that is on the user's
     homepage but has none in this account — it was published from another
     computer or store. `published` is its published_key (list_projects shows
     it under published_without_draft), the address of its page, or its title.
-    Restores the project, the timeline, every card and connection exactly as
+    Restores the project, the page, every card and connection exactly as
     published; nothing is rewritten. Then continue with get_timeline."""
     st = get_store()
     if not hasattr(st, "get_snapshot"):
         return {"error": "needs_account",
                 "message": ("Drafts here are kept in a folder on this computer, "
                             "so there is nothing to restore from an account."),
-                "next": ("If the timeline is in one of the user's Alto "
+                "next": ("If the page is in one of the user's Alto "
                          "accounts, list_projects(account=\"all\") finds it.")}
     u = uid()
     pages = _homepage_only(st, u)
@@ -3551,7 +3551,7 @@ def import_timeline(published: str) -> dict:
         found = _find_timeline(st, u, ref)
         if found:
             return {"error": "already_here", "timeline_id": found[0],
-                    "message": "That timeline already has a draft in this account.",
+                    "message": "That page already has a draft in this account.",
                     "next": f"get_timeline({found[0]!r})"}
         return {"error": "not_found",
                 "message": ("No published page without a draft matches that."
@@ -3570,7 +3570,7 @@ def import_timeline(published: str) -> dict:
                          "to change it, Alto needs either that computer (open "
                          "Claude there with the account and publish once — that "
                          "saves the copy) or their notes to build it again, "
-                         "which is a new timeline, not an edit. Ask which they "
+                         "which is a new page, not an edit. Ask which they "
                          "want.")}
     tl = snap["timeline"]
     tid = tl["timeline_id"]
@@ -3651,7 +3651,7 @@ def _confirm_token(kind: str, ident: str, facts: list) -> str:
 
 
 def _remove_timeline(st, tid: str, doc: dict) -> bool:
-    """Delete one timeline and everything published from it. Returns whether a
+    """Delete one page and everything published from it. Returns whether a
     web page may still be live and the site needs redeploying."""
     on_web = doc.get("visibility") in ("link", "private-web")
     key = doc.get("private_key")
@@ -3664,7 +3664,7 @@ def _remove_timeline(st, tid: str, doc: dict) -> bool:
 
 def _redeploy_without() -> dict:
     """Regenerate and redeploy the site from what is left, which is what takes
-    a deleted timeline's web page down."""
+    its web page down."""
     from .publish_static import (firebase_configured, regenerate_site,
                                  deploy_site, PublishError)
     if not firebase_configured():
@@ -3674,7 +3674,7 @@ def _redeploy_without() -> dict:
     except PublishError as e:
         return {"site_warning": ("deleted, but the site could not be redeployed, "
                                  f"so its web page may still be live: {e}")}
-    return {"site": "redeployed; the deleted timeline's links are gone"}
+    return {"site": "redeployed; the deleted page's links are gone"}
 
 
 def _timeline_summary(st, doc: dict) -> dict:
@@ -3687,8 +3687,8 @@ def _timeline_summary(st, doc: dict) -> dict:
             "urls": doc.get("urls", {})}
 
 
-@mcp.tool(title="Delete timeline", annotations=DESTRUCTIVE,
-          description=("Delete a timeline: its nodes, connections, built files, "
+@mcp.tool(title="Delete", annotations=DESTRUCTIVE,
+          description=("Delete a page: its nodes, connections, built files, "
                        "and any page published from it (its web page stops "
                        "working). " + _DELETE_RULES))
 @accounted
@@ -3711,9 +3711,9 @@ def delete_timeline(timeline_id: str, confirm_token: str = "") -> dict:
 
 
 @mcp.tool(title="Delete project", annotations=DESTRUCTIVE,
-          description=("Delete a project. A project that still holds timelines "
+          description=("Delete a project. A project that still holds pages "
                        "is refused unless delete_timelines=true, which deletes "
-                       "every timeline in it too (each with its published "
+                       "every page in it too (each with its published "
                        "pages). " + _DELETE_RULES))
 @accounted
 def delete_project(project_id: str, delete_timelines: bool = False,
@@ -3733,7 +3733,7 @@ def delete_project(project_id: str, delete_timelines: bool = False,
     inside = [t for t in st.list_timelines(uid()) if t.get("project_id") == pid]
     if inside and not delete_timelines:
         return {"error": "not_empty",
-                "message": ("this project still holds timelines; nothing was "
+                "message": ("this project still holds pages; nothing was "
                             "deleted. To delete them along with it, call again "
                             "with delete_timelines=true (that only previews)."),
                 "timelines": [{"timeline_id": t["timeline_id"],
@@ -3764,7 +3764,7 @@ def alto_interview() -> str:
     return (ROOT / "interview_guide.md").read_text(encoding="utf-8")
 
 
-USAGE = f"""alto-connector {__version__} — build interactive timelines from
+USAGE = f"""alto-connector {__version__} — build interactive outlines, timelines and memory palaces from
 your own materials. An MCP server; it never invents content.
 
   alto-connector              speak MCP over stdio (what a client runs)
@@ -3785,7 +3785,7 @@ Claude Desktop users can install the one-click bundle instead — see
 {WEBSITE_URL}
 
 Environment:
-  ALTO_STORE_DIR         where timelines are kept (default ~/Documents/Alto)
+  ALTO_STORE_DIR         where pages are kept (default ~/Documents/Alto)
   ALTO_STORE             local (default) or cloud: keep projects in your own
                          Firebase account, so every computer you sign in on
                          sees them (needs ALTO_FIREBASE_*; sign in once)

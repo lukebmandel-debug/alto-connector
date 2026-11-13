@@ -13,9 +13,9 @@ COVERED — the software in this repository:
   in engine/, the packaging scripts and the tests.
 
 NOT COVERED — anything a user puts into Alto:
-  Alto is a closed knowledge container (rule §0). Timelines are built from
+  Alto is a closed knowledge container (rule §0). Pages are built from
   material the user supplies. Their source documents, their node text and the
-  timelines they build are their own work and are not licensed by this file.
+  pages they build are their own work and are not licensed by this file.
   Nothing a user creates with Alto is subject to these terms.
 
 NOT INCLUDED — the author's own content:

@@ -200,7 +200,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # publish something no one, including the owner, can ever open.
     if private and not load_config().get("apiKey"):
         raise PublishError(
-            f"{len(private)} timeline(s) are published as 'private-web', but "
+            f"{len(private)} page(s) are published as 'private-web', but "
             "this site has no Firebase project configured, so Google sign-in "
             "is off and nobody could ever open them. Call set_up_site: it "
             "reads the project's web config itself (never ask the user to "
@@ -341,7 +341,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # A page names a city file the cache does not have: its map would not load. Say so (publish_timeline refuses a stale build unless ALTO_ALLOW_STALE).
     for name in palace_tiles.LAST_MISSING:
         if name not in _on_site(site / palace_tiles.FOLDER):
-            stale_notes.append(f"city data {name}: a published palace names it, but it is not in {palace_tiles.blob_dir()} — rebuild that timeline "
+            stale_notes.append(f"city data {name}: a published palace names it, but it is not in {palace_tiles.blob_dir()} — rebuild that page "
                                "(or restore the folder) before publishing, or its map does not load")
     for key, text in legal.pages().items():              # /privacy/ /terms/ /credits/: the words are alto/legal/*.md
         ldir = site / key

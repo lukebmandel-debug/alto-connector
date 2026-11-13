@@ -118,6 +118,20 @@ HOLO_CSS = r"""
   X #search-input:not(#_){color:var(--ho-tx) !important;}
   X ::placeholder{color:var(--ho-mu);opacity:1;}
   X :focus-visible{outline:2px solid var(--ho-ac) !important;outline-offset:2px !important;}   /* (Art's rule 3: both themes) */
+  /* the search is ONE glass field (Luke, 2026-11-12: "see the problem with search bar?  problem in mini version as well, only in holo"): the field's rim is its only
+     outline; the input, the hint and the grow/shrink control sit in it with no box, ring or plate of their own (the rule above and the toggles' rim had drawn a box round
+     each). Keyboard focus lights the field's rim and glow, and the control's ink; the control's name shows inside the field in place of the hint (big) or just left of
+     it (compact) instead of the browser's title bubble, which spilled over the rim (search.py drops the title in Holo) */
+  X :is(#search-btn,#m-search) input:not(#_):not(#__):not(#___){outline:none !important;border:0 !important;box-shadow:none !important;background:transparent !important;}
+  X #search-btn #sx-toggle:not(#_):not(#__):not(#___){outline:none !important;border:0 !important;box-shadow:none !important;background:transparent !important;color:var(--ho-ac2) !important;position:relative;}
+  X #search-btn #sx-toggle:is(:hover,:focus-visible):not(#_):not(#__):not(#___){color:var(--ho-ac) !important;}
+  X #search-btn #sx-toggle:focus-visible svg{filter:drop-shadow(0 0 4px var(--ho-ac));}
+  X :is(#search-btn,#m-search):focus-within:not(#_):not(#__):not(#___){box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}
+  X #search-btn #sx-toggle::before{content:attr(aria-label);display:none;white-space:nowrap;font-size:11.5px;color:var(--ho-ac);pointer-events:none;}
+  X.sx-big #search-btn #sx-toggle:is(:hover,:focus-visible) .sx-hint:not(#_){display:none !important;}
+  X.sx-big #search-btn #sx-toggle:is(:hover,:focus-visible)::before{display:inline;font-size:calc(11.5px * var(--sx-k,1));}
+  X:not(.sx-big) #search-btn #sx-toggle:is(:hover,:focus-visible)::before{display:block;position:absolute;right:calc(100% + 4px);top:50%;transform:translateY(-50%);padding:2px 6px;background:rgb(var(--ho-bgrgb));}
+  X.sx-big #search-btn.expanded{--ho-frost:.86;}   /* (the big field floats over the cards: their text must not read through the search's own) */
   /* the picker's style row (backgrounds_import.py): square, the chosen one filled */
   X #bg-panel .bg-seg{border-radius:0;border-color:rgba(var(--ho-rgb),.6);}
   X #bg-panel .bg-segb{text-transform:none;}
@@ -191,6 +205,8 @@ PROJ_CSS = r"""
   X .hp-stage .hp-l1{stroke:var(--hp-mg);color:var(--hp-mg);opacity:.55;transform:translateZ(-5px);}
   X .hp-stage .hp-l2{stroke:var(--ho-ac);color:var(--ho-ac);transform:translateZ(0);}
   X .hp-stage .hp-l3{stroke:var(--ho-ac);color:var(--ho-ac);opacity:.45;transform:translateZ(5px);}
+  X.alto-home .tile-emblem.hp-on .hp-l rect[mask]{fill-opacity:.62;stroke:currentColor;stroke-width:.9}
+  X.alto-home .tile-emblem.hp-on :is(.hp-l2,.hp-l3) rect[mask]{fill-opacity:.16}
   X .hp-beam{position:absolute;left:50%;bottom:22px;width:62px;height:58px;transform:translateX(-50%);background:linear-gradient(to top,rgba(var(--ho-rgb),var(--hp-cone)),transparent);clip-path:polygon(24% 0,76% 0,100% 100%,0 100%);}
   X .hp-base{position:absolute;left:50%;bottom:12px;width:64px;height:14px;transform:translateX(-50%);}
   X .hp-base i{position:absolute;inset:0;border:1px solid var(--ho-ac);border-radius:50%;}
@@ -292,21 +308,38 @@ FORMAT_CSS = r"""
   X.dark:not(.mobile) #title-bar #title-text:not(#_):not(#__){--tt-i:var(--tt-syk) !important;}
   }
   /* the New timeline and Start new project tiles: a lit glass pane that shows the grid through it (Luke, 2026-11-05, "2, A": no dashed outline); the Import tile in the Scene panel the same */
-  X.alto-home .course-tile.new-tile:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;
-    border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;box-shadow:0 0 14px rgba(var(--ho-rgb),.22),inset 0 0 22px rgba(var(--ho-rgb),.12) !important;color:var(--ho-ac2);}
+  /* ONE glass for the Start new project box AND every timeline card (Luke, 2026-11-12: "getting home page project boxes to be more transparent in holo ... make them all like the new project
+     box"): the fill, the rim, the glow and the blur are these four variables, read by both, so they cannot drift apart. The blur is none (the box has none: large panes and Safari's costly paint).
+     The outer panels stay clear (Luke picked C) */
+  X.alto-home{--ho-glass-bg:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04));--ho-glass-bd:1px solid rgba(var(--ho-rgb),.6);
+    --ho-glass-sh:0 0 14px rgba(var(--ho-rgb),.22),inset 0 0 22px rgba(var(--ho-rgb),.12);--ho-glass-bf:none;}
+  X.alto-home :is(.course-tile.new-tile,.project-slab.new-project-slab):not(#_):not(#__){background:var(--ho-glass-bg) !important;
+    border:var(--ho-glass-bd) !important;border-radius:0 !important;box-shadow:var(--ho-glass-sh) !important;-webkit-backdrop-filter:var(--ho-glass-bf) !important;backdrop-filter:var(--ho-glass-bf) !important;}
+  X.alto-home :is(.course-tile.new-tile,.project-slab.new-project-slab):not(#_):not(#__){color:var(--ho-ac2);}
   X.alto-home .course-tile.new-tile:hover:not(#_):not(#__),X.alto-home .project-slab.new-project-slab:hover:not(#_):not(#__){border-color:var(--ho-ac) !important;
     box-shadow:0 0 18px rgba(var(--ho-rgb),.4),inset 0 0 26px rgba(var(--ho-rgb),.2) !important;color:var(--ho-ac2);}
   X #bg-panel .bg-tile.bg-add:not(#_):not(#__){background:linear-gradient(180deg,rgba(var(--ho-rgb),.16),rgba(var(--ho-rgb),.04)) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;
     box-shadow:0 0 12px rgba(var(--ho-rgb),.22),inset 0 0 18px rgba(var(--ho-rgb),.12) !important;}
   X #bg-panel .bg-tile.bg-add:hover:not(#_):not(#__),X #bg-panel .bg-tile.bg-add:focus-visible:not(#_):not(#__){border-color:var(--ho-ac) !important;box-shadow:0 0 16px rgba(var(--ho-rgb),.4),inset 0 0 22px rgba(var(--ho-rgb),.2) !important;}
   /* the homepage is see-through (Luke, 2026-11-05: "should be able to see the background on home page through the project boxes and toggle boxes", "this is for holo
-     specifically"; his pick L-1105-185607 = Art's rec on ORG/option-sheets/see-through-home): the PROJECT PANELS are B, clear (16% of the page colour, no blur, a brighter
-     rim, a dark keyline and a glow; the panel's name and count sit on a scrim pill), the TOGGLE BOXES are A, frost (46% and a 10px blur; glyphs keep a dark halo).
+     specifically"; his pick L-1105-185607 = Art's rec on ORG/option-sheets/see-through-home): the PROJECT PANELS were B, clear (restored: clear; the labels wear a halo, below), the TOGGLE BOXES are A, frost (46% and a 10px blur; glyphs keep a dark halo).
      The tiles stay solid (Luke: "no"). Phones too (L-1105-160112). No backdrop blur on the panels: they are large, and blur is Safari's costly paint */
   X.alto-home .project-slab:not(.new-project-slab):not(#_):not(#__):not(#___){background:rgba(var(--ho-bgrgb),.16) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;
     border:1px solid rgba(var(--ho-rgb),.75) !important;box-shadow:0 0 0 1px rgba(var(--ho-bgrgb),.6),0 0 16px rgba(var(--ho-rgb),.2),inset 0 0 28px rgba(var(--ho-bgrgb),.4) !important;}
-  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__){background:rgba(var(--ho-bgrgb),.88);padding:3px 9px;width:fit-content;
-    text-shadow:0 0 8px rgba(var(--ho-bgrgb),.95),0 0 3px rgba(var(--ho-bgrgb),.95),0 1px 1px rgba(var(--ho-bgrgb),.9) !important;}
+  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__){padding:3px 9px;width:fit-content;}
+  /* C final (Luke 2026-11-12, "C is good", "holo looks good"): every timeline card wears the New tile's glass (the --ho-glass-* variables: body, icon cell; the button row is clear), the outer panels stay as clear as before, no label backings:
+     one shared halo in the ground colour (1px, 2px and 3px axis rings are load-bearing: Grid horizon's count is 4.50 without the 3px layer 3.34), the full text colour on the small labels, a keyline on the unit bars over a thin solid track */
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___){background:var(--ho-glass-bg) !important;border:var(--ho-glass-bd) !important;box-shadow:var(--ho-glass-sh) !important;-webkit-backdrop-filter:var(--ho-glass-bf) !important;backdrop-filter:var(--ho-glass-bf) !important;}
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .tile-emblem{background-color:transparent !important;}
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) :is(.tile-title,.t-units,.tile-sub,.t-top,.t-top *,.sp-card,.sp-card *){text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) :is(.tile-sub,.t-units,.t-top,.t-top *){color:var(--text) !important;}
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .unit-strip{background:rgb(var(--ho-bgrgb)) !important;box-shadow:0 0 0 1px rgb(var(--ho-bgrgb)),0 0 5px 1px rgba(var(--ho-bgrgb),.9) !important;}
+  X:not(.dark).alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .unit-strip{box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 40%,#000),0 0 5px 1px rgba(var(--ho-bgrgb),.9) !important;}   /* (light: a 1px ink keyline (the text colour darkened: at .55 it measured 2.7 against the bar, red bars included), so the bars hold 3:1 against their surround) */
+  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__):not(#___){background:transparent !important;text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
+  X.alto-home .home-section-label :is(.hs-t,.home-sort):not(#_):not(#__):not(#___){background:transparent !important;text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
+  X:not(.dark).alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__):not(#___),X:not(.dark).alto-home .home-section-label :is(.hs-t,.home-sort):not(#_):not(#__):not(#___){color:var(--text) !important;}
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .tile-sub,X.alto-home .home-section-label :is(.hs-t,.home-sort,.home-sort *):not(#_):not(#__):not(#___){opacity:1 !important;}
+  X.alto-home .project-slab:not(.new-project-slab) .slab-count:not(#_):not(#__):not(#___){color:var(--text) !important;}
   X.alto-home .bin-group .bin-toggle:not(#_):not(#__){text-shadow:0 0 8px rgba(var(--ho-bgrgb),.95),0 0 3px rgba(var(--ho-bgrgb),.95),0 1px 1px rgba(var(--ho-bgrgb),.9) !important;}
   X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn,#m-search,#mode-toggle,.slab-share,.slab-download):not(#_):not(#__):not(#___){
     background:rgba(var(--ho-bgrgb),var(--ho-frost)) !important;-webkit-backdrop-filter:blur(10px) saturate(1.25) !important;backdrop-filter:blur(10px) saturate(1.25) !important;}
@@ -315,6 +348,12 @@ FORMAT_CSS = r"""
   /* one frost for the toggles AND the top label tab (Luke, 2026-11-11: "the top label tab is too strong, make it the same opacity as toggles so it doesn't instantly draw the eye
      there"): --ho-frost is the plate's share of the page colour, 46%, and 60% on a short window; the tab reads the same variable and the same blur, so the two cannot drift apart */
   X.alto-home{--ho-frost:.46;}
+  /* row B under HOME: square outlined chips on the same frost as the corner toggles */
+  X.alto-home #home-row :is(.hr-chip,.hr-switch):not(#_):not(#__){background:rgba(var(--ho-bgrgb),var(--ho-frost)) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;color:var(--ho-ac) !important;-webkit-backdrop-filter:blur(10px) saturate(1.25) !important;backdrop-filter:blur(10px) saturate(1.25) !important;}
+  /* light: the ink of the chips is the page text, not the accent (Lightspeed light measured 4.0 with the accent), like the labels above */
+  X:not(.dark).alto-home #home-row :is(.hr-chip,.hr-switch):not(#_):not(#__):not(#___){color:var(--text) !important;}
+  X.alto-home #home-row .hr-switch .hr-chip:not(#_):not(#__){border:0 !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X.alto-home #home-row .hr-switch .hr-chip[aria-checked="true"]:not(#_):not(#__){background:rgba(var(--ho-rgb),.18) !important;box-shadow:inset 0 -2px 0 var(--ho-ac) !important;}
   @media (max-height:500px){ X.alto-home{--ho-frost:.60;} }
   X.alto-home #title-bar #title-text:not(#_):not(#__):not(#___){background:rgba(var(--ho-bgrgb),var(--ho-frost)) !important;-webkit-backdrop-filter:blur(10px) saturate(1.25) !important;backdrop-filter:blur(10px) saturate(1.25) !important;}
   X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn,#m-search,#mode-toggle,.slab-share,.slab-download) :is(svg,#search-glyph,#info-icon):not(#_):not(#__){

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the pip-installed `alto-connector` the way a non-Claude-Desktop
-MCP client would: launch the console script, speak stdio, build a timeline.
+MCP client would: launch the console script, speak stdio, build a page.
 
 This is a different risk surface from the .mcpb bundle. The bundle carries its
 own interpreter and every dependency, so it fails on packaging faults; the
@@ -90,7 +90,7 @@ def build_a_timeline() -> dict:
         r = subprocess.run([sys.executable, "-c", script, str(BRIEF)],
                            capture_output=True, text=True, cwd=cwd)
     if r.returncode != 0:
-        fail("the installed package could not build a timeline — usually "
+        fail("the installed package could not build a page — usually "
              f"missing package data:\n{r.stderr[-2000:]}")
     return json.loads(r.stdout.strip().splitlines()[-1])
 
@@ -113,11 +113,11 @@ def main() -> None:
         fail("no icons advertised")
 
     built = build_a_timeline()
-    print(f"built     : timeline {built['html']:,} B, "
+    print(f"built     : page {built['html']:,} B, "
           f"offline {built['offline']:,} B, {built['nodes']} nodes")
 
     print("\nPASS — the installed CLI serves MCP over stdio and builds a real "
-          "timeline, with no Claude Desktop involved.")
+          "page, with no Claude Desktop involved.")
 
 
 if __name__ == "__main__":

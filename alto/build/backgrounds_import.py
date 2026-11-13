@@ -214,7 +214,7 @@ LIB_JS = r"""(function(){
   function why(e, ctx){
     var m=String(e && (e.code || e.message) || e || '');
     if(!navigator.onLine || /offline|unavailable|network/i.test(m)) return {t:"You're offline, so your account can't be reached. Connect to the internet, then "+(ctx||'try again')+'.'};
-    if(/not-configured/.test(m)) return {t:"This page isn't connected to an Alto account, so there's nowhere private to keep a picture. Open this timeline from your Alto homepage and import it there."};
+    if(/not-configured/.test(m)) return {t:"This page isn't connected to an Alto account, so there's nowhere private to keep a picture. Open this from your Alto homepage and import it there."};
     if(/signed-out|unauthenticated/.test(m)) return {t:'Sign in to keep your own backgrounds. They are saved privately in your account, so every device of yours has them.', signIn:true};
     if(/timeout|deadline/i.test(m)) return {t:"Your account didn't answer in time. Check your connection, then "+(ctx||'try again')+'.'};
     if(/permission/i.test(m)) return {t:'Your account refused the change. Sign out and back in (account menu), then '+(ctx||'try again')+'.', signIn:true};
@@ -276,7 +276,7 @@ LIB_JS = r"""(function(){
     var note=el('div', 'bg-note'); note.hidden=true;
     function done(){ mng.hidden=true; mng.textContent=''; }
     if(what==='remove'){
-      mng.appendChild(el('div', null, 'Remove \u201c'+e.n+'\u201d from your backgrounds? It goes from every device of yours, and any timeline using it goes back to the Alto wallpaper.'));
+      mng.appendChild(el('div', null, 'Remove \u201c'+e.n+'\u201d from your backgrounds? It goes from every device of yours, and anything using it goes back to the Alto wallpaper.'));
       var row=el('div', 'bg-row'), yes=btn('Remove', 'bg-go', function(){
         yes.disabled=true; note.hidden=false; note.className='bg-note'; note.textContent='Removing\u2026';
         authed().then(function(c){ return within(c.bgLib.remove(id), 20000); }).then(function(){

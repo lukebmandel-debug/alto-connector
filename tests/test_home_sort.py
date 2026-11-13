@@ -21,8 +21,9 @@ def test_the_homepage_sorts_private_projects_by_the_chosen_order():
     assert "const SORT_KEY = 'alto-home-sort-v1'" in h
     assert "[['viewed', 'Recently viewed'], ['added', 'Recently added'], ['alpha', 'Alphabetical']]" in h
     assert "sortProjects(byProject(pages" in h
-    # one quiet control, only worth showing when there is something to order
-    assert "if(projects.length > 1) group.firstChild.appendChild(sortControl())" in h
+    # one chip in row B under HOME, only worth showing when there is something to order
+    assert "homeSortable = projects.length > 1" in h
+    assert "if(homeSortable){" in h and "const sc = sortControl();" in h and "sc.classList.add('hr-ghost')" in h
     # a choice made elsewhere (another device or tab) redraws the list
     assert "window.addEventListener('alto-home-sort', redrawPrivate)" in h
     assert "e.key === SORT_KEY" in h

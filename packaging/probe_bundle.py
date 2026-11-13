@@ -3,7 +3,7 @@
 
 Reads the bundle's own manifest, launches the interpreter it names with the
 environment it declares, speaks JSON-RPC over stdio, then builds a real
-timeline inside the bundle. The point is to test the *shipped artifact* rather
+page inside the bundle. The point is to test the *shipped artifact* rather
 than the source tree — a bundle can be wrong in ways the source is not
 (missing files, the wrong architecture's wheels, a PYTHONPATH separator that
 is right on one platform and wrong on another).
@@ -185,11 +185,11 @@ def main() -> None:
             raise ProbeFailure(f"expected {expected_tools()} tools, got {len(tools)}")
 
         built = build_a_timeline(ext, brief)
-        print(f"built     : timeline {built['html']:,} B, "
+        print(f"built     : page {built['html']:,} B, "
               f"offline {built['offline']:,} B, "
               f"{built['nodes']} nodes, {built['warnings']} warnings")
 
-    print("\nPASS — the bundle is self-contained and builds a real timeline "
+    print("\nPASS — the bundle is self-contained and builds a real page "
           "with no system Python on PATH.")
 
 

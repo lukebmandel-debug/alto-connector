@@ -913,7 +913,7 @@
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
     const kind = (o.kind === 'timeline' || o.kind === 'lanes' || o.kind === 'solar') ? o.kind : 'outline';
-    const title = _cleanTitle(o.title) || 'Untitled timeline';
+    const title = _cleanTitle(o.title) || 'Untitled';
     const pname = String(o.project || '').replace(/\s+/g, ' ').trim().slice(0, 120) || title;
     const [hr, jr] = await Promise.all([fetch('/new/' + kind + '.html', { cache: 'no-cache' }),
                                         fetch('/new/' + kind + '.json', { cache: 'no-cache' })]);
@@ -1074,7 +1074,7 @@
       else if (lc(p) === lc(pname)) clash = true;
     });
     if (clash) throw new Error('There is already a project called “' + pname + '”.');
-    if (!mine.length) throw new Error('That project has no timelines to rename.');
+    if (!mine.length) throw new Error('That project has nothing to rename.');
     // the project records first, so each move below finds the renamed one
     const recs = [];
     (await getDocs(collection(db, 'users', uid, 'alto_projects'))).forEach((d) => {
@@ -1212,7 +1212,7 @@
   const LOCAL_EMPTY = '<script id="alto-local-src">window._ALTO_LOCAL={};</script>';
   function _reidentify(html, shareKey) {
     const m = /var COURSE_ID = '([^']*)';/.exec(html || '');
-    if (!m) throw new Error('not an Alto timeline page');
+    if (!m) throw new Error('not an Alto page');
     const oldId = m[1], newId = 's-' + shareKey;
     // The owner's own file paths (reidentify.LOCAL_BLOCK) never leave with a
     // share: other people's computers do not have those files.
@@ -1795,7 +1795,7 @@
   function _editsRef(tid) {
     if (!cloud.user) throw new Error('not signed in');
     tid = String(tid || '');
-    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(tid)) throw new Error('bad timeline id');
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(tid)) throw new Error('bad id');
     return doc(db, 'users', cloud.user.uid, 'edits', tid);
   }
   const _decodeEdits = (snap) => {

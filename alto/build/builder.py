@@ -174,6 +174,12 @@ def _placement_warnings(pl: dict = None) -> list[str]:
     return out
 
 
+def _bg_noun(brief) -> str:
+    """The format's own name, for the Background tab's "This ..." label."""
+    k = format_symbols.key_of(brief)
+    return "timeline" if k in ("timeline", "lanes") else format_symbols.name(k)
+
+
 def build_timeline(brief: Brief, nodes: list[Node], connections: list,
                    *, reports_href: str = None) -> tuple[str, dict]:
     """Returns (html, report). Raises VerifyError/BriefError on any failure."""
@@ -330,7 +336,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {})))
             + study_plan_block(brief, nodes)
             + manual_edit(brief, nodes) + print_views()
-            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
+            + backgrounds.ui_block("This " + _bg_noun(brief), rail=True) + hover_lines.block()
             + (focus_branch.block() if brief.mode != "palace" and not solar_style(brief) else "")   # focus on a branch: timelines, outlines, the horizontal timeline
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief), hl_key=ID_PATTERNS["hl_key"].format(tid=brief.timeline_id))
             + select_guard.block()

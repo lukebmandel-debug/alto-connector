@@ -46,7 +46,7 @@ def test_the_image_of_every_symbol_is_a_self_contained_css_url_in_its_own_ink():
         assert u.startswith('url("data:image/svg+xml,') and u.endswith('")')
         body = u[len('url("data:image/svg+xml,'):-2]
         assert '"' not in body and "<" not in body and "#" not in body.replace("%23", "") and "currentColor" not in body
-        assert "mask" not in u
+        assert "mask-image" not in u and "-webkit-mask" not in u   # (the ban is on the CSS mask on the tab, c46cd5f0 "Safari-safe, mask-free CSS"; the Blueprint glyph's SVG <mask> is inside the image, drawn by the image renderer, not a CSS mask)
 
 
 def test_a_timeline_page_carries_the_tab_and_its_own_symbol_and_a_system_its_dark_sheet():

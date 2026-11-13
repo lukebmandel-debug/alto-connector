@@ -49,7 +49,7 @@ def test_every_page_carries_the_print_views_and_the_dialog_button():
     html, _ = _build()
     assert 'id="alto-print-views-js"' in html
     assert "window._altoInkStage = function" in html
-    assert 'data-print="ink">Timeline picture, ink-saver</button>' in html
+    assert 'data-print="ink">Picture, ink-saver</button>' in html
     assert "if(mode === 'full'){" in html
 
 
@@ -70,7 +70,7 @@ def test_the_homepage_offers_print_with_three_named_choices():
     assert "function altoPrintMenu(pg)" in h
     assert "['outline', 'Outline'," in h
     assert "['full', 'Outline + all detail pages'," in h
-    assert "['ink', 'Timeline picture, ink-saver'," in h
+    assert "['ink', 'Picture, ink-saver'," in h
     assert "privateHref(pg) + '#altoprint=' + mode" in h
     assert """<button data-a="print">Print…</button>""" in h          # in the share dialog
     assert "btn('Print…', ''" in h                                    # and in the ⋯ menu
@@ -259,7 +259,7 @@ def test_the_notes_panel_dialog_offers_the_picture(browser, built):
     pg = _open(browser, f)
     pg.evaluate("window.AltoShare.open()")
     btn = pg.locator('#share-dialog .print-opt[data-print="ink"]')
-    assert btn.inner_text() == "Timeline picture, ink-saver"
+    assert btn.inner_text() == "Outline picture, ink-saver"
     btn.click()
     pg.wait_for_function("window.__printed > 0")
     assert "print-ink" in pg.evaluate("window.__at")
@@ -486,14 +486,14 @@ def homepage(browser):
 
 @pytest.mark.parametrize("label,cls", [("Outline", "print-timeline"),
                                        ("Outline + all detail pages", "print-full"),
-                                       ("Timeline picture, ink-saver", "print-ink")])
+                                       ("Picture, ink-saver", "print-ink")])
 def test_the_homepage_prints_a_private_timeline_through_the_shell(homepage, label, cls):
     ctx, pg, errors = homepage
     pg.locator("a.course-tile.live .tile-share").click()
     pg.locator('.share-menu button[data-a="print"]').click()
     assert pg.locator(".share-menu .sm-title").inner_text() == "Contracts"
     labels = [b.inner_text().split("\n")[0] for b in pg.locator(".share-menu .sm-pick").all()]
-    assert labels == ["Outline", "Outline + all detail pages", "Timeline picture, ink-saver"]
+    assert labels == ["Outline", "Outline + all detail pages", "Picture, ink-saver"]
     with ctx.expect_page() as popup:
         pg.locator(".share-menu .sm-pick", has_text=label).first.click()
     tab = popup.value
@@ -520,7 +520,7 @@ def test_the_homepage_dialog_passes_the_sheet_choice_to_the_page(homepage):
     pg.locator('.share-menu button[data-a="print"]').click()
     pg.locator(".share-menu .sm-sheets select").select_option("2")
     with ctx.expect_page() as popup:
-        pg.locator(".share-menu .sm-pick", has_text="Timeline picture, ink-saver").first.click()
+        pg.locator(".share-menu .sm-pick", has_text="Picture, ink-saver").first.click()
     tab = popup.value
     tab.wait_for_function("window.__printed > 0", timeout=30000)
     assert tab.evaluate("window._altoInkLast.sheets") == 2
@@ -567,7 +567,7 @@ def test_a_link_that_prints_shows_how_far_it_has_got_while_it_waits(browser, bui
     pg.wait_for_function("window.__printed > 0", timeout=20000)
     seen = pg.evaluate("window.__seen")
     steps = {s.split("|")[0] for s in seen}
-    assert {"Opening your timeline\u2026", "Fitting the cards to the sheets\u2026", "Opening the print window\u2026"} <= steps
+    assert {"Opening\u2026", "Fitting the cards to the sheets\u2026", "Opening the print window\u2026"} <= steps
     bars = [float(re.search(r"scaleX\(([\d.]+)\)", s.split("|")[1]).group(1)) for s in seen if "scaleX" in s]
     assert bars[0] < bars[-1] and min(bars) >= 0.03 and max(bars) <= 0.88           # it only goes forward
     ctx.close()

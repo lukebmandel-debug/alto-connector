@@ -267,9 +267,11 @@ def test_holo_card_view_names_strip_is_the_headers_own_bar(site, theme):
                                  " bd:c($('timeline-label-bar')).borderBottomColor, nav:c($('nav')).backgroundColor, navbd:c($('nav')).borderBottomColor}}")
     d = _run(site, fn, "/timeline.html?view=card&style=holo", 402, 874, 0, wait=2800, theme=theme)
     assert "alto-holo" in d["cls"] and ("dark" in d["cls"].split()) == (theme == "dark"), d["cls"]
-    assert d["strip"] and d["strip"][3] - d["strip"][1] > 20, f"the strip is on screen: {d['strip']}"
-    print("strip", theme, d["bg"], d["bd"], "header", d["nav"])
-    assert d["bg"] == d["nav"], f"the names strip {d['bg']} is not the header's bar {d['nav']} (Classic's unit tint: rgba(74, 158, 255, ...))"
+    assert d["strip"] and d["strip"][3] - d["strip"][1] > 20, f"the names are on screen: {d['strip']}"
+    # phone navbar B: the strip is now the glass pill at the foot, in Holo's own ground (its --ho-bgrgb at .86), never Classic's unit tint (rgba(74, 158, 255, ...))
+    assert d["strip"][1] > 874 * .8, f"the pill is at the foot: {d['strip']}"
+    assert "74, 158, 255" not in d["bg"] and d["bg"] != d["nav"], f"Holo's pill carries Holo's ground, not the unit tint: {d['bg']}"
+    assert d["bg"].startswith("rgba(") and float(d["bg"].rstrip(")").split(",")[-1]) in (.86, 0.86), d["bg"]
 
 
 def test_retro_back_to_pill_is_retros(site):
@@ -288,5 +290,6 @@ def test_detail_page_on_its_side_no_strip_between_the_header_row_and_the_names(s
         return await pg.evaluate("()=>{" + R + "return {nav:R($('nav')), names:R($('node-nav-bar')), page:R($('detail-page'))}}")
     d = _run(site, fn, "/timeline.html?view=card" + ("" if style == "classic" else f"&style={style}"), wait=2800 if style != "classic" else 1500)
     print("strip", style, d)
-    assert abs(d["names"][1] - d["nav"][3]) <= .5, f"{style}: {d['names'][1] - d['nav'][3]} px of bare ground between the header row {d['nav']} and the names strip {d['names']}"
-    assert d["page"][1] <= d["names"][3] and d["page"][1] >= d["names"][3] - 3, f"{style}: the page {d['page']} hangs from the names strip {d['names']}"
+    # phone navbar B: the names join the 44 pt title row (as the card view's do), and the page hangs from the row
+    assert d["names"][1] <= .5 and abs(d["names"][3] - d["nav"][3]) <= .5, f"{style}: the names {d['names']} are in the header row {d['nav']}"
+    assert abs(d["page"][1] - d["nav"][3]) <= 1.5, f"{style}: the page {d['page']} hangs from the row {d['nav']}"

@@ -4,13 +4,13 @@ mcp-name: io.github.lukebmandel-debug/alto-connector
 
 A Claude connector that interviews you about **your own materials** — a course,
 a novel, a research project — and builds you an interactive, filterable
-"liquid-glass" **Alto timeline**: glass cards on colored act bands, entity
+"liquid-glass" **Alto page**: glass cards on colored act bands, entity
 chips, routed connection lines, detail pages with your own schema, highlights
 and notes, mobile layout, and a self-contained offline file you can share.
 
 **The one rule (§0):** Alto is a closed knowledge container. It connects and
 organizes what *you* provide — it never invents facts, events, holdings, or
-descriptions. Sparse notes make a sparse timeline, on purpose. The connector
+descriptions. Sparse notes make a sparse page, on purpose. The connector
 enforces this server-side: authoring tools stay locked until your materials
 and explicit consent are recorded.
 
@@ -69,12 +69,12 @@ Everything works the same way — the interview, the build, the offline file —
 because the bundle and this are the same server; the bundle just carries its
 own Python so Claude Desktop users need not install one.
 
-Timelines land in `~/Documents/Alto`. Each is a single self-contained HTML
+Everything you build lands in `~/Documents/Alto`. Each is a single self-contained HTML
 file you open in any browser — no server, no account, no internet. Shareable
 web links are optional (see Publishing below); without them, that file is the
 finished product.
 
-Then tell your client: *"I want to build a timeline in Alto — interview me."*
+Then tell your client: *"I want to build something in Alto — interview me."*
 
 ### From a checkout
 
@@ -84,7 +84,7 @@ one of the two methods above pointed at your checkout.
 
 ## Using it — what a new user actually does
 
-1. Open a chat and say something like *"I want to build a timeline in Alto —
+1. Open a chat and say something like *"I want to build something in Alto —
    interview me."*
 2. Claude calls `get_interview_guide` and runs a short warm interview:
    - **Flow 1** — name the project container and what it's for.
@@ -98,7 +98,7 @@ one of the two methods above pointed at your checkout.
 3. Claude authors nodes **verbatim from your materials**, wires connections,
    runs a layout preview, builds (a verifier gates every build), and
    publishes.
-4. You get your timeline two ways:
+4. You get your page two ways:
    - **Offline file** (always): one self-contained HTML — double-click to
      open, send to a friend, works forever with no server.
    - **Web page** (free, set up for you — see Publishing): a page at
@@ -110,7 +110,7 @@ one of the two methods above pointed at your checkout.
 
 ## Publishing — your own private site, set up for you
 
-Every timeline is private. It goes on **your own** Alto site — a free Firebase
+Every page is private. It goes on **your own** Alto site — a free Firebase
 project (Spark plan, no card) in *your* Google account, never one of ours — at
 `https://<your-project>.web.app/pv/<key>/`, which opens only for the Google
 account that published it. There is no public option.
@@ -129,9 +129,9 @@ account that published it. There is no public option.
 
 From then on your projects live in your account (**Keep projects in:
 auto**), so every computer you sign in on sees the same ones, and
-`publish_timeline` puts a timeline on your site with nothing to upload.
+`publish_timeline` puts a page on your site with nothing to upload.
 
-**Sharing is a share link.** To show a timeline to someone, use "Create share
+**Sharing is a share link.** To show a page to someone, use "Create share
 link" in its menu on your homepage. It is a snapshot of that one page at
 `/s/<key>/`, readable by anyone with the link without an install or an Alto
 account, and you can revoke it from the same place at any time.
@@ -164,20 +164,20 @@ It copies, never deletes, and skips anything already in your account.
 ### More than one site, and chats that start on their own
 
 A person can have an Alto site for each Google account they use. Every
-timeline tool takes an optional `account` (a site name like `luke-alto`, its
+tool takes an optional `account` (a site name like `luke-alto`, its
 address, or the Google email), and nothing is remembered between calls — one
 connector process can serve several chats.
 
 - `get_interview_guide` lists every account this computer is signed in to and
-  what is in each, so a chat opened on its own (not from a timeline's
-  **Edit timeline** button) finds a timeline the user names. `list_projects`
+  what is in each, so a chat opened on its own (not from a page's
+  **Edit** button) finds a page the user names. `list_projects`
   with `account="all"` does the same on demand.
 - `connect_account(site)` adds a site the user already has, from its address
   alone: Alto reads the site's public web config (`/__/firebase/init.json`),
   and the user clicks Continue with Google on the site's own sign-in page.
   Accounts are kept in `~/.config/alto/accounts.json` (no tokens; each
   sign-in is its own `session-<project>.json`, mode 0600).
-- A timeline can be named by its id, its published page address
+- A page can be named by its id, its published page address
   (`…/pv/<key>/`) or its title. A `not_found` says where it is: another
   account (`found_in_accounts`), or the homepage with no draft behind it
   (`published_without_draft`).
@@ -189,7 +189,7 @@ connector process can serve several chats.
   that Google account, which this computer may not be. A sign-in whose site
   address Alto does not know is never given a guessed one (a project's default
   site can be somebody else's); the site is learned from the account's own
-  published timelines.
+  published pages.
 
 ## Repo layout
 

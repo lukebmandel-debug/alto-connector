@@ -83,11 +83,7 @@ _HOME_COPY = [
     ("Sign in to keep your courses, reports, and highlights with you.",
      "Sign in to keep your highlights, notes, and reports with you on every device.",
      "home account blurb"),
-    ("kind:'Course'", "kind:'Timeline'", "home search result label"),
-    # The sign-in glyph is a fixed point. INFO's expansion slid it 324px left in
-    # step with the search pill — a leftover from when account sat beside
-    # search; from its bottom-left slot that throws it off the screen.
-    ("    slideAside('account-btn', expanded);\n", "", "account glyph stays put"),
+    ("kind:'Course'", "kind:'', fmt:'generic'", "home search result label (no word: the generic symbol shows)"),
     # A failed sign-in only reached the console, so the button just did nothing.
     # Say why in the modal; an unauthorized domain is the common, fixable case.
     (".catch(e => { console.warn('sign-in failed', e); })",
@@ -95,12 +91,12 @@ _HOME_COPY = [
      "home sign-in error shown"),
 ]
 _REPORTS_COPY = [
-    ("'← Course'", "'← Timeline'", "reports back label"),
+    ("'← Course'", "'← Back'", "reports back label"),
     ("'Every report generated inside the course is saved here automatically.'",
-     "'Every report generated inside this timeline is saved here automatically.'",
+     "'Every report you generate is saved here automatically.'",
      "reports subtitle"),
     ("Generate one from inside the course &#8212;",
-     "Generate one from inside the timeline &#8212;", "reports empty state"),
+     "Generate one from inside a page &#8212;", "reports empty state"),
 ]
 # Shared by every page that carries the account modal.
 SIGN_IN_FAILED_FN = """function _altoSignInFailed(e){

@@ -122,3 +122,31 @@ def test_the_back_control_names_the_actual_format(kw, label):
 
 def test_the_format_names_say_memory():
     assert [F.name(k) for k in ("palace", "building", "world")] == ["Memory Map", "Memory Blueprint", "Memory Atlas"]
+
+
+# ── Blueprint glyph R2 and the picker pictures (home label B, 12 Nov) ──
+
+def test_the_blueprint_glyph_is_the_solid_panel_with_the_plan_cut_out():
+    d = F.SYMBOLS["building"][1]
+    assert "<mask" in d and 'id="alto-bp-mask"' in d and 'mask="url(#alto-bp-mask)"' in d
+    assert 'fill="currentColor"' in d and 'stroke="none"' in d
+    assert F.SYMBOLS["palace"][1].count("M12 16.5s-3") == 1          # Memory Map keeps the pin
+
+
+def test_the_title_tab_ink_of_the_blueprint_keeps_its_mask_and_escapes_the_markup():
+    u = F.ink_uri("building", "#112233")
+    assert u.startswith('url("data:image/svg+xml,') and "<" not in u and "#" not in u.split(",", 1)[1]
+    assert "%3Cmask" in u and "%23112233" in u
+
+
+def test_the_picker_wears_the_table_drawings():
+    h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
+    chip = h[h.index('data-mode="building" aria-pressed="false"><svg'):]
+    chip = chip[:chip.index("</svg>")]
+    assert F.SYMBOLS["building"][1] in chip                              # the chip is drawn from the table
+    # the Memory Palace tile shows the domed building; Blueprint a light plan on a solid panel
+    i = h.index('data-for="city" viewBox'); city = h[i:h.index("</svg>", i)]
+    assert "M100 26V14" in city and "pv-hub" in city
+    i = h.index('data-for="building" viewBox'); bp = h[i:h.index("</svg>", i)]
+    assert 'class="pv-hub" x="24" y="14"' in bp and "pv-acc" in bp and "pv-inv" in bp
+    assert (ROOT / "engine" / "home_template.html").read_text(encoding="utf-8") == h

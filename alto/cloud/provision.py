@@ -107,11 +107,11 @@ NEXT = {
     FAILED: ("Tell the user in one plain sentence that setting up their site "
              "hit a snag and that you are retrying, then call set_up_site "
              "again — it resumes where it stopped. Keep building their "
-             "timeline meanwhile; it publishes once the site is ready. "
+             "page meanwhile; it publishes once the site is ready. "
              "`details` is the diagnostic record (for you, not for them). "
              + _NO_CHORES),
     "stuck": ("Stop calling set_up_site. Tell the user plainly what `message` "
-              "says, that their timeline still works as an offline file and "
+              "says, that their page still works as an offline file and "
               "will publish once this is resolved, and that the diagnostics "
               "are saved at `log` for whoever maintains Alto. " + _NO_CHORES),
 }
@@ -349,7 +349,7 @@ class Provisioner:
             site_rec.apply(self.state)
             self._set(status=READY, step="", url="", log="", site_url=self._site_url(),
                       message=("Your private Alto site is ready at "
-                               f"{self._site_url()} — timelines publish there, "
+                               f"{self._site_url()} — pages publish there, "
                                "and only your Google account can open them."))
         except StepError as e:
             self._fail(e.status, str(e), e.url)

@@ -59,7 +59,7 @@ MSEARCH_PANEL_GLUE = """
       pageRes.forEach(function(o,i){
         frag+='<button type="button" class="search-result" data-pg="'+i+'"><span class="sr-kind">'+esc(o.where)+'</span><span class="sr-snip">'+o.snip+'</span></button>';
       });
-      frag+='<div class="msp-h">Whole timeline</div>';
+      frag+='<div class="msp-h">Whole view</div>';
       if(core){
         var res=core.search(q); lastRes=res; var ql=q.toLowerCase();
         if(!res.length) frag+='<div class="search-empty">No matches.</div>';

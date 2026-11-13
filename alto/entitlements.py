@@ -22,7 +22,7 @@ LABELS = {
     "timeline": "Timeline (sketch)",
     "outline": "Outline",
     "system": "System",
-    "lanes": "Horizontal timeline",
+    "lanes": "Horizontal",
     "palace": "Mind Palace (a city)",
     "world": "World-map palace",
     "building": "Memory palace (a building)",

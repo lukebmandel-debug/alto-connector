@@ -198,7 +198,7 @@ def sanitize_tree(tree, link_types: dict, sources, what: str) -> list[str]:
                 n["link"] = [typ, link]
             else:
                 warnings.append(f"{what} tree step {n['id']}: link {link!r} is not a "
-                                "page of this timeline — the card shows without it")
+                                "page of this one — the card shows without it")
                 n.pop("link", None)
         for i, s in enumerate(n.get("sections") or []):
             s["h"] = plain_text(s.get("h") or "")

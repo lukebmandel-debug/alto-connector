@@ -400,7 +400,7 @@ def connect(site_ref: str, email: str = "") -> dict:
     except CloudError as e:
         return {"error": "site_not_found", "message": str(e),
                 "next": ("Ask the user to check the address of their Alto "
-                         "site (the one they open to see their timelines).")}
+                         "site (the one they open to see their pages).")}
     if probe(base + "/connect/") != 200:
         return {"error": "not_an_alto_site",
                 "message": (f"{base} is a Firebase site but has no Alto "

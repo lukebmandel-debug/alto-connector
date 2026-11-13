@@ -113,7 +113,7 @@ _JS = """
 
   function show(h){ body.innerHTML = h; }
   function waiting(msg, head){
-    show('<h1>' + (head || 'Shared timeline') + '</h1><p>' + msg + '</p>');
+    show('<h1>' + (head || 'Shared') + '</h1><p>' + msg + '</p>');
   }
 
   // The shared page is someone else's HTML, so it runs in a sandboxed frame
@@ -187,10 +187,10 @@ _JS = """
     hidePill();
     var items = man.items || [];
     var h = '<h1>' + esc(man.title || 'Shared project') + '</h1>' +
-            '<p>' + items.length + ' timeline' + (items.length === 1 ? '' : 's') +
+            '<p>' + items.length +
             ' shared with you. No account needed.</p>';
     items.forEach(function(it, i){
-      h += '<button class="item" data-i="' + i + '"><b>' + esc(it.title || 'Timeline') +
+      h += '<button class="item" data-i="' + i + '"><b>' + esc(it.title || 'Untitled') +
            '</b><span>Open</span></button>';
     });
     h += saveBlock();
@@ -206,8 +206,8 @@ _JS = """
     waiting('Opening\\u2026');
     window.AltoCloud.getShare(it.shareKey).then(function(d){
       if(d && d.html){ render(d.html); savePill((MANIFEST && MANIFEST.title) || ''); }
-      else waiting('That timeline is no longer shared.');
-    }).catch(function(){ waiting('That timeline is no longer shared.'); });
+      else waiting('That is no longer shared.');
+    }).catch(function(){ waiting('That is no longer shared.'); });
   }
 
   function esc(s){

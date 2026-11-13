@@ -40,7 +40,7 @@ SHARE_PREFIX = "s-"
 def identity_of(page_html: str) -> str:
     m = _COURSE_ID.search(page_html)
     if not m:
-        raise ReidentifyError("no COURSE_ID in this page — not an Alto timeline")
+        raise ReidentifyError("no COURSE_ID in this page — not an Alto page")
     return m.group(1)
 
 

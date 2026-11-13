@@ -114,7 +114,7 @@ def test_the_prompt_names_the_timeline_and_how_to_edit_it():
     assert len(went) == 1 and went[0].startswith("claude://claude.ai/new?q=")
     from urllib.parse import unquote
     q = unquote(went[0].split("?q=", 1)[1])
-    for must in ('"Torts" (timeline id: torts)', "https://alto-get.web.app",
+    for must in ('"Torts" in Alto (id: torts)', "https://alto-get.web.app",
                  "get_timeline", "new notes to add, sources to link",
                  "rebuild and republish"):
         assert must in q, must
@@ -127,7 +127,7 @@ def test_the_prompt_carries_the_page_so_any_chat_can_find_the_timeline():
     page = "https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/?x=1#top"
     went = _prompt("Torts", "alto-doc-torts", page=page)
     q = unquote(went[0].split("?q=", 1)[1])
-    assert '(timeline id: torts, page: https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/)' in q
+    assert '(id: torts, page: https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/)' in q
     assert "?x=1" not in q and "#top" not in q
     assert 'list_projects(account="all")' in q
     assert "connect_account" in q and "(luke-alto.web.app)" in q
@@ -147,7 +147,7 @@ def test_a_phone_gets_no_tile():
 def test_the_guide_explains_the_button():
     g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     sec = g[g.index("## Changes go through Claude"):g.index("## What the user gets")]
-    assert "Edit timeline" in sec and "get_timeline(<id>)" in sec and "list_projects" in sec
+    assert "The edit toggle (Edit)" in sec and "get_timeline(<id>)" in sec and "list_projects" in sec
 
 
 def test_the_tile_sits_inside_the_last_band(built):

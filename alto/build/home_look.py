@@ -7,7 +7,7 @@ What this builds, on top of home_template.html (which is frozen, so everything i
   Q7A  a phone shows the cards two to a row (three on a tablet), smaller: the title, the symbol and the same buttons;
   Q8A  the Classic | Retro switch: the page keeps the choice (backgrounds.head_block(..., retro=True)) and the Retro look
        for this page is retro.HOME_CSS, carried by the hosted Retro script like every other format's.
-Left as they were: the card buttons and the ⋯ (Q1C), the corner controls on a computer (Q4C), the New timeline / project
+Left as they were: the card buttons and the ⋯ (Q1C), the corner controls on a computer (Q4C), the New / project
 flow (Q5C). Q6A (a bin icon) is held and not built.
 """
 from __future__ import annotations
@@ -67,6 +67,9 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .course-tile :is(.tile-reports, .tile-share, .tile-download)::after{ content:''; position:absolute; inset:-8px -3px; }
   .course-tile .tile-more::after{ content:''; position:absolute; inset:-11px -8px; }
 }
+/* a phone held sideways: the account and download buttons (bottom left) and the Scene button (right edge) stand in side gutters, not over the first tile, the panel's border or the last tile */
+@media (min-width:641px) and (max-height:500px){ #projects-wrap:not(#_){ padding-left:100px; padding-right:112px; } }
+@media (min-width:641px) and (max-width:932px) and (max-height:500px){ .course-grid:not(#_){ grid-template-columns:repeat(2, minmax(0, 1fr)); } }   /* (three columns would squeeze into the narrowed panel; a short desktop window wider than a phone keeps its own grid) */
 @media (max-width:600px){
   .course-tile{ --em:72px; }
   .course-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
@@ -99,7 +102,7 @@ BIN_JS = r"""function drawBin(pages){
   items.forEach(pg => {
     const r = document.createElement('div'); r.className = 'bin-row';
     const tx = document.createElement('div'); tx.className = 'br-t';
-    const b = document.createElement('b'); b.textContent = pg.heading || pg.title || 'Untitled timeline';
+    const b = document.createElement('b'); b.textContent = pg.heading || pg.title || 'Untitled';
     b.insertAdjacentHTML('afterbegin', fmtBadge(pg.fmt));
     const left = Math.max(0, Math.ceil(days - (Date.now() / 1000 - pg.binned) / 86400));
     const sm = document.createElement('small');
@@ -133,7 +136,7 @@ _DASH = r".replace(/ ([\u2014\u2013-]) /g, '\u00a0$1 ')"
 _SHY = (r".replace(/[A-Za-z\u00c0-\u024f]{11,}/g, w => w.slice(0,3) + w.slice(3,-3).replace(/([aeiouy])(?=[^aeiouy][aeiouy])/gi, '$1\u00ad') + w.slice(-3))")
 TITLE_OLD = (
     ".tile-title').textContent = c.title;",
-    ".tile-title').textContent = it.heading || it.title || 'Shared timeline';",
+    ".tile-title').textContent = it.heading || it.title || 'Shared';",
     ".tile-title').textContent = heading;",
 )
 
