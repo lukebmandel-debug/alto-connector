@@ -1637,7 +1637,8 @@ def _retro_cards() -> str:
     import re
     body = re.sub(r"/\*.*?\*/", "", retro.COMMON_CSS, flags=re.S)
     rows = [r.strip() for r in re.findall(r"[^{}]+\{[^{}]*\}", body) if "#world .node" in r.split("{")[0] and "phase" not in r.split("{")[0]]
-    return retro._slim(retro.scoped("\n".join(rows).replace("#world .node", "#wpal-root .wp-enl .node"), "html.alto-retro"))
+    out = "\n".join(rows).replace(":where(:not(.sk-retro))", "").replace("#world .node", "#wpal-root .wp-enl .node")   # (retro.py keeps its card plates off the System's Retro poster, html.sk-retro; an Atlas has none)
+    return retro._slim(retro.scoped(out, "html.alto-retro"))
 
 
 def _countries() -> dict:

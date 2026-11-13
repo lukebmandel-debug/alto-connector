@@ -157,13 +157,15 @@ def test_scene_has_the_style_row_and_retro_and_holo_work_in_both_modes(browser, 
     assert _scene_style(pg, "Retro") == ["Classic", "Retro", "Holographic"]
     c = _cls(pg)
     assert "alto-retro" in c and ("sk-real" in c) == (look == "stars") and "alto-holo" not in c
+    assert ("sk-retro" in c) == (look == "hub"), "System in Retro is the Retro poster; the Star chart in Retro stays the 3D scene"
     assert pg.evaluate("localStorage.getItem(%r)" % STYLE) == "retro"
     if look == "stars":      # the frame is drawn round the 3D scene, the 3D scene is still there
         assert pg.evaluate("getComputedStyle(document.getElementById('sk-frame')).display") == "block"
         assert pg.evaluate("!!document.getElementById('sk3d')") and "sk-3d" in c
     _scene_style(pg, "Holographic")
     c = _cls(pg)
-    assert "alto-holo" in c and "alto-retro" not in c and ("sk-real" in c) == (look == "stars")
+    assert "alto-holo" in c and "alto-retro" not in c and "sk-retro" not in c and ("sk-real" in c) == (look == "stars")
+    assert ("alto-solar-hub" in c) == (look == "hub")
     _scene_style(pg, "Classic")
     c = _cls(pg)
     assert "alto-holo" not in c and "alto-retro" not in c
@@ -179,14 +181,72 @@ def test_a_saved_flat_star_chart_becomes_the_star_chart(browser, site):
     ctx.close()
 
 
-def test_a_saved_retro_chart_becomes_system_in_retro(browser, site):
-    pg, ctx, errors = _open(browser, site, { "alto-solar-look:page": "stars", "alto-solar-style:page": "retro"})
+# ── Retro on the System is the Retro poster it always was (Luke, 2026-11-12: "retro in its previous form was eliminated to make a weird boxy situation,
+#    BRING IT BACK! Keep the new control format though"): the bands, the cut-paper discs, the cream sun, the gold beams and the ship, under the two-button bar ──
+POSTER = """(function(){ var q=function(s){ return document.querySelector(s); }, cs=function(e){ return e ? getComputedStyle(e) : {}; },
+  sun=q('#world .node[data-solar=sun] .node-card'), pl=q('#world .node[data-solar=planet] .node-card') || q('#world .node[data-solar]:not([data-solar=sun]) .node-card'),
+  bands=[].filter.call(document.querySelectorAll('#solar-svg .sol-hit.sol-oband'), function(e){ return cs(e).display!=='none' && parseFloat(cs(e).strokeWidth)>8; }),
+  beams=[].filter.call(document.querySelectorAll('#solar-svg .sol-bun'), function(e){ return cs(e).display!=='none'; }), ship=q('#sol-craft');
+  return {sunBg:cs(sun).backgroundColor, sunR:cs(sun).borderRadius, plR:cs(pl).borderRadius, plBg:cs(pl).backgroundImage, plFilter:cs(pl).filter, bands:bands.length, beams:beams.length,
+    sig:cs(q('#solar-svg .sol-sig')).display, ship:!!ship && !ship.hidden, three:!!q('#sk3d') && cs(q('#sk3d')).display!=='none', mark:!!q('#sk-mark'),
+    lbl:cs(q('#world .node[data-solar]>.sol-lbl')).textTransform}; })()"""
+
+
+def _is_the_poster(pg):
+    c, p = _cls(pg), pg.evaluate(POSTER)
+    assert {"sk-retro", "alto-retro", "alto-stars", "alto-solar-stars", "dark"} <= c and not c & {"sk-real", "sk-3d", "alto-solar-hub", "alto-holo"}, c
+    assert p["sunBg"] == "rgb(245, 230, 189)" and p["sunR"] == "50%", "the cream sun, a disc: %r" % p
+    assert p["plR"] == "50%" and "linear-gradient" in p["plBg"] and "saturate" in p["plFilter"], "a planet is a cut-paper disc, never a square black plate: %r" % p
+    assert p["bands"] >= 3 and p["beams"] >= 1 and p["sig"] != "none", "the orbits are the blue bands, the spokes the gold beams, the sun wears its sigil: %r" % p
+    assert p["ship"] and not p["three"] and p["mark"] and p["lbl"] == "uppercase", p
+    assert _bar(pg) == ["System*", "Star chart"], "the new bar stays, with System lit"
+
+
+def test_system_in_retro_is_the_retro_poster_under_the_new_controls(browser, site):
+    pg, ctx, errors = _open(browser, site, {"alto-solar-look:page": "hub"})
+    assert _bar(pg) == ["System*", "Star chart"] and "alto-solar-hub" in _cls(pg)
+    assert _scene_style(pg, "Retro") == ["Classic", "Retro", "Holographic"], "Scene > Style stays the way to choose Retro"
+    _is_the_poster(pg)
+    pg.click("#sol-sty button:last-child")          # the bar's Star chart, still in Retro: the 3D scene in Retro's bars
+    pg.wait_for_timeout(1200)
     c = _cls(pg)
-    assert _bar(pg) == ["System*", "Star chart"] and "alto-retro" in c and "alto-solar-hub" in c and "sk-retro" not in c and "sk-real" not in c
-    assert pg.evaluate("localStorage.getItem(%r)" % STYLE) == "retro"
-    assert pg.evaluate("localStorage.getItem('alto-solar-look:page')") == "hub"
+    assert _bar(pg) == ["System", "Star chart*"] and {"alto-retro", "sk-real"} <= c and "sk-retro" not in c
+    pg.click("#sol-sty button:first-child")         # and back to System: the poster again
+    pg.wait_for_timeout(1200)
+    _is_the_poster(pg)
+    pg.reload()                                     # kept
+    pg.wait_for_timeout(2200)
+    _is_the_poster(pg)
+    _scene_style(pg, "Classic")                     # Classic: the glass System again, nothing of the poster left on
+    c = _cls(pg)
+    assert _bar(pg) == ["System*", "Star chart"] and "alto-solar-hub" in c and not c & {"sk-retro", "alto-retro", "sk-real"}
+    assert pg.evaluate("getComputedStyle(document.querySelector('#world .node[data-solar=sun] .node-card')).backgroundColor") != "rgb(245, 230, 189)"
     assert not _real(errors), errors
     ctx.close()
+
+
+def test_a_page_left_as_system_in_retro_opens_as_the_poster(browser, site):
+    """What 1.9.220 to 1.9.222 saved for a Retro chart (System + the page's Retro): it is the poster again."""
+    pg, ctx, errors = _open(browser, site, {STYLE: "retro", "alto-solar-look:page": "hub", "alto-solar-style:page": "real"})
+    _is_the_poster(pg)
+    assert not _real(errors), errors
+    ctx.close()
+
+
+def test_a_saved_retro_chart_stays_the_retro_poster(browser, site):
+    pg, ctx, errors = _open(browser, site, {"alto-solar-look:page": "stars", "alto-solar-style:page": "retro"})
+    _is_the_poster(pg)
+    assert pg.evaluate("localStorage.getItem(%r)" % STYLE) == "retro"
+    assert not _real(errors), errors
+    ctx.close()
+
+
+def test_the_page_styles_card_plate_leaves_the_poster_alone():
+    css = retro.css()
+    assert "html.alto-retro:where(:not(.sk-retro)) #world .node-card:not(#_){background:#05070b" in css
+    assert "html.alto-retro #world .node-card:not(#_){background:#05070b" not in css
+    from alto.build import palace_world
+    assert not [r for r in (holo.css() + palace_world.WORLD_ASSET).split("}") if "#wpal-root .wp-enl" in r and "sk-retro" in r], "the Atlas card copies carry none of the poster guard (as in 1.9.223)"
 
 
 def test_a_saved_holographic_stays_holographic(browser, site):
