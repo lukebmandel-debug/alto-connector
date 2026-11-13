@@ -1,6 +1,9 @@
 """Testing seat alto-testing-1111-basslive2: the Firestore adapter's nested-array encoding (alto_array_v1) under every ledger path.
 A stricter stand-in than tests/test_bass_live_fixes.py's StrictFirestore: it ALSO refuses what real Firestore refuses on write: an array
 directly inside an array, and a field name that starts and ends with "__". Not the emulator. Copy into <worktree>/tests/ and run there."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import copy
 import json
 

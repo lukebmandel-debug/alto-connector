@@ -1,4 +1,7 @@
 """The action layer the UI calls: contract shapes, every state, and that docs/bass-api.md matches the code."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 import re
 import sys

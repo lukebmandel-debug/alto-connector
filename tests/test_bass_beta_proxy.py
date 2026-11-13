@@ -1,6 +1,9 @@
 """The Bass beta proxy handler, in-process: Firebase token -> email -> allowlist, the server-side live_go flag (default off ->
 mock transport), Secret Manager behind an interface (fake), response with no upstream headers, the guards behind it, and the
 dry-run deploy script. No network, no key, nothing deployed."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import importlib.util
 import json
 import sys

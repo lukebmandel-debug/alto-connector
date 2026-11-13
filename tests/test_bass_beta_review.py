@@ -1,6 +1,9 @@
 """IT's review of the beta (ORG/it/bass-beta-review.md) as tests: the function's cold start, the Firestore adapter's retry mapping, a settle
 that cannot be booked, input 400s that must not stop Bass for everyone, the org-level limit wordings, trusted proxy hops, limiter memory.
 No network, no key, nothing deployed. The Google libraries are stood in for."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import importlib.util
 import json
 import sys

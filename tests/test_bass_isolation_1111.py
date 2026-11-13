@@ -21,6 +21,9 @@ Contracts these tests pin (for the builder):
       on its own explicit throw-away store with ZERO reads of ~/.config/alto and ZERO non-loopback attempts, or refuses (exit != 0) when
       it would fall back to the default store (ToolBox with no store).
 """
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 import os
 import subprocess

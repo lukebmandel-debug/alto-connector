@@ -14,7 +14,7 @@ import contextlib
 import os
 from pathlib import Path
 
-import anthropic
+from ._sdk import anthropic   # lazy: only the gated live/mock client construction needs the SDK
 
 from . import keys
 from .errors import LiveNotEnabled

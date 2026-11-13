@@ -28,7 +28,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-import httpx2 as httpx
+from ._sdk import httpx2 as httpx   # lazy: the SDK's HTTP library is not needed to import this module
 
 from . import net_guard
 
@@ -715,15 +715,16 @@ class MockAnthropic:
         return httpx.Response(200, headers=headers, content=payload)
 
 
-class _DroppingStream(httpx.SyncByteStream):
-    """Delivers the bytes, then fails like a dropped connection."""
+def _DroppingStream(payload: bytes):
+    """Delivers the bytes, then fails like a dropped connection. Built on call so httpx2 is only needed when a fault is simulated."""
+    class _Stream(httpx.SyncByteStream):
+        def __init__(self, payload: bytes):
+            self.payload = payload
 
-    def __init__(self, payload: bytes):
-        self.payload = payload
-
-    def __iter__(self):
-        yield self.payload
-        raise httpx.ReadError("simulated dropped connection")
+        def __iter__(self):
+            yield self.payload
+            raise httpx.ReadError("simulated dropped connection")
+    return _Stream(payload)
 
 
 def _chunks(s: str, n: int):

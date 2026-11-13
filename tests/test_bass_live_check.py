@@ -1,5 +1,8 @@
 """tools/bass_live_check.py, the LOCAL live check: prepared and tested only against the mock. It must refuse without both gates,
 make zero requests when refusing, run end to end in dry-run, stop on the first error, respect its own cap, and write metadata only."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import csv
 import importlib.util
 import json

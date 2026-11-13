@@ -2,6 +2,9 @@
 
 Nothing is saved unless the check passes (every node theirs, every signal one they gave, every why quoting it, every day in the
 window); a failure refunds the call. The entitlement check runs first. No network, no key, no count_tokens."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import datetime as dt
 import json
 import sys

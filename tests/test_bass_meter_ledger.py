@@ -1,4 +1,7 @@
 """usage -> credits arithmetic (meter.py) and the credits ledger (ledger.py)."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import datetime as dt
 import json
 from pathlib import Path

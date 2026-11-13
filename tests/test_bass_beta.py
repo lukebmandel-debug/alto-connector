@@ -2,6 +2,9 @@
 installed and ALTO_NO_NETWORK=1. ZERO Anthropic requests: the mock is the only wire. G11 (Stripe) and the sales-history half of
 G7 are post-beta. Numbers are the beta's config defaults: 9,000 per credit period, floor(9000/N) per tester, 300 per tester per
 day, 1,500 per day for all, 300 per action; tests that need small numbers override the config, never the logic."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import concurrent.futures as cf
 import datetime as dt
 import json

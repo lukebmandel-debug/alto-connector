@@ -116,13 +116,16 @@ def test_any_one_gate_alone_never_looks_up_the_key_or_builds_a_live_client(tmp_p
         (tmp_path / "home").mkdir(exist_ok=True)
         (tmp_path / "home" / "no-live-go").write_text("")
     r = _run("""
-        import anthropic
         built = []
-        _init = anthropic.Anthropic.__init__
-        def spy(self, *a, **k):
-            built.append(str(k.get("base_url")))
-            return _init(self, *a, **k)
-        anthropic.Anthropic.__init__ = spy
+        try:                                          # with the SDK installed, spy on every client it builds; without it (public CI) none can be built at all
+            import anthropic
+            _init = anthropic.Anthropic.__init__
+            def spy(self, *a, **k):
+                built.append(str(k.get("base_url")))
+                return _init(self, *a, **k)
+            anthropic.Anthropic.__init__ = spy
+        except ImportError:
+            pass
         from alto.bass import studio_key, client as C, keys, errors
         out = {}
         try:
@@ -147,6 +150,7 @@ def test_any_one_gate_alone_never_looks_up_the_key_or_builds_a_live_client(tmp_p
 def test_the_beta_proxy_without_the_server_flag_serves_only_the_mock(tmp_path):
     """The server side (deploy/bass-proxy) goes live only on its own store flag plus a secret read; with the flag absent it serves the mock,
     reads no secret, and its client is the mock transport. Nothing in the shipped app starts it."""
+    pytest.importorskip("anthropic")      # builds the mock-transport SDK client: runs in the SDK env (venv-studio), skips in public CI
     r = _run("""
         sys.path.insert(0, os.path.join(%r, "tests"))
         import bass_beta_support as S

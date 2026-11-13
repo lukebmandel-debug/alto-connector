@@ -1,6 +1,9 @@
 """The fixes from the pre-live review of 11 Nov 2026 (ORG/notes-bass-review-1111.md, decision L-1111-161625), one group per finding id.
 MOCK ONLY: every model call goes to the MockTransport, every store is in memory or under tmp_path, no key and no Keychain.
 Each group holds at least one test that FAILS on the code as it was before the fix (alto-bass-drive-r2 + main + local + paste)."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import copy
 import datetime as dt
 import importlib.util

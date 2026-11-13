@@ -1,5 +1,7 @@
 """Every Anthropic failure mode, through the real SDK exceptions: right user message, right retries (fake clock, no real
 sleep), right refund, right kill-switch flags. A failed turn never costs the student anything."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: skip, never fail
 import anthropic
 import pytest
 

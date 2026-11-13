@@ -1,6 +1,9 @@
 """Opt-in conversation sharing (alto-bass-optin; IT design it/bass-conversation-storage-paper.md): the isolation matrix, mock only.
 Invented text only. No network, no key, never the cloud env. A tester's conversation is stored ONLY with a current opt-in, with the server-side
 switch on; every other path stores nothing."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 import logging
 import re

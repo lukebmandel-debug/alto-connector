@@ -1,5 +1,8 @@
 """The loud-fail guards: real network attempts, stray client construction, live mode without Luke's go, and the
 refusal to run against the cloud."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import re
 import socket
 from pathlib import Path

@@ -21,8 +21,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Callable
 
-import anthropic
-import httpx2
+from ._sdk import anthropic, httpx2   # lazy: the SDK is only needed when a request is made
 
 from . import meter
 from . import shapes

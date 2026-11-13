@@ -1,5 +1,8 @@
 """The Firestore-emulator money check (tests/security/bass_money_emulator_check.py, CI only) runs its cases on the real Firestore client.
 Here the SAME cases run on FakeStore, locally and with no emulator, so a case that is wrong in itself is caught before CI."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import importlib.util
 
 import pytest

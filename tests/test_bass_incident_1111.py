@@ -11,6 +11,9 @@ site.json, and Session._load() read the real refresh token into memory before th
 
 Zero network: every host check raises before any real DNS or socket; the subprocesses get ALTO_NO_NETWORK=1 except the one that proves
 the app path unchanged, which only reads its own fake files and never asks for a token."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 import os
 import subprocess

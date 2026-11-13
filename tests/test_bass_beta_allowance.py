@@ -2,6 +2,9 @@
 in beta testing, make sure the Bass stuff will work for them at that point"). A fresh allowlisted tester with no payment method of any kind
 uses every Bass path on the free allowance from Luke's pool (floor(9,000 / N) credits per period); a used-up share or pool answers with the
 friendly message and sends nothing upstream; a non-allowlisted account is refused at the proxy for every action. No network, no key."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 
 import pytest

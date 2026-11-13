@@ -1,5 +1,7 @@
 """The simulated Anthropic API, seen through the REAL anthropic SDK: response shapes, SSE streaming, count_tokens,
 the request validators (what the real API would 400), and the injected errors."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: skip, never fail
 import anthropic
 import pytest
 

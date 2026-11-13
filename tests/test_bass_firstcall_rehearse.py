@@ -1,5 +1,8 @@
 """tools/bass_firstcall_rehearse.py: the rehearsal of the first live call, mock only. It must run the whole path against the mock, show the key
 as <keychain>, refuse (zero requests) if a real key lookup could happen, trip on any key read, and compute the caps of CAPS.md."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import importlib.util
 import json
 import subprocess

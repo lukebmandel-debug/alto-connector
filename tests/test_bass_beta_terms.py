@@ -1,6 +1,9 @@
 """The Beta Terms gate (IT, privacy-inventory sec 5; bench-tl-1 T1): Bass refuses a uid with no acceptance of the CURRENT terms version.
 The record is Firestore terms_acceptance/<uid>_<version>, read with one get through the store interface, fail closed. Refusal = reason code
 terms_required, zero upstream requests, no hold, no grant. Mock only, no network, no key."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 import sys
 from dataclasses import replace

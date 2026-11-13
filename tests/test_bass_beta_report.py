@@ -1,5 +1,8 @@
 """tools/bass_beta_report.py on mock data: real stack (mock engine, FakeStore), two testers over two days. The report's numbers match the
 ledger's own counters, it carries no content (materials, document text, titles, prompts, emails), and it never writes."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 import sys
 

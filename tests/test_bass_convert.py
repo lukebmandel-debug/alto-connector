@@ -2,6 +2,9 @@
 
 The grounding check fails closed: nothing is kept and nothing is charged. The entitlement check runs first, on the format being
 made, before any read, hold or upstream call. No network, no key, no count_tokens (the mock counts)."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import copy
 import json
 import sys

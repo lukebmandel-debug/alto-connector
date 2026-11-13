@@ -1,4 +1,7 @@
 """Bass tools: the connector's own functions, offered to the model and run in-process against a TEMP local store."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import json
 from pathlib import Path
 

@@ -1,5 +1,8 @@
 """The LOCAL-ONLY Bass server (tools/bass_local_server.py): mock only, no network, no key. The server stays MOCK unless every live gate is open; these tests never
 open one. It binds 127.0.0.1 only, accepts one per-run token, keeps two 500-credit ledgers apart, never re-grants on a restart, and logs metadata only."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import datetime as dt
 import http.client
 import importlib.util

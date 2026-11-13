@@ -1,4 +1,7 @@
 """alto-bass-parity: the shape texts (System, Atlas, Blueprint), the plain 'cannot yet' lines, and where each rides (mock only)."""
+import pytest as _pytest_sdk
+_pytest_sdk.importorskip("anthropic")   # public CI has no SDK: these skip there (listed in test_bass_sdk_free.py) and run in the SDK env
+_pytest_sdk.importorskip("httpx2")
 import sys
 from pathlib import Path
 
