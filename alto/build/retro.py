@@ -221,21 +221,21 @@ BOARD_CSS = r"""
   X #world .phase-numeral:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:0 0 0 4px #000 !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-family:"Didot","Bodoni 72","Bodoni MT",Georgia,serif !important;font-style:normal !important;font-weight:400 !important;letter-spacing:.06em;}
   X #world :is(.unit-dots,.ud-base,.ud-sheen){filter:sepia(1) saturate(2) hue-rotate(-8deg) brightness(.85);}
-  /* the cards: a black plate, a fine gold rim, the unit's hue on its top edge, poster letters */
-  X #world .node-card:not(#_){background:#05070b !important;border-radius:2px !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;filter:none !important;
+  /* the cards: a black plate, a fine gold rim, the unit's hue on its top edge, poster letters (not the System's Retro poster, html.sk-retro: its bodies are solar_stars.py RETRO_CSS's own discs) */
+  X:where(:not(.sk-retro)) #world .node-card:not(#_){background:#05070b !important;border-radius:2px !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;filter:none !important;
     border-left-color:rgba(217,174,85,.4) !important;border-right-color:rgba(217,174,85,.4) !important;border-bottom-color:rgba(217,174,85,.4) !important;}
-  X #world .node-card::before,X #world .node-card::after{display:none !important;}
-  X #world .node:not(.dimmed):is(:hover:not([data-solar]),.sol-hov) .node-card:not(#_){border-left-color:#d9ae55 !important;border-right-color:#d9ae55 !important;border-bottom-color:#d9ae55 !important;}
-  X #world .node-tag:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.24em !important;font-weight:400 !important;}
-  X #world .node-title:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.07em;font-weight:500 !important;}
-  X #world .node-desc:not(#_){color:#b9b2a0 !important;font-family:var(--rt-f) !important;}
-  X #world .node-order:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.1em;}
-  X #world .node-unit:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.22em;}
-  X #world .node-footer :is(button,.chip,.csym-btn,.esym-btn,.tsym-btn,a):not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
+  X:where(:not(.sk-retro)) #world .node-card::before,X:where(:not(.sk-retro)) #world .node-card::after{display:none !important;}
+  X:where(:not(.sk-retro)) #world .node:not(.dimmed):is(:hover:not([data-solar]),.sol-hov) .node-card:not(#_){border-left-color:#d9ae55 !important;border-right-color:#d9ae55 !important;border-bottom-color:#d9ae55 !important;}
+  X:where(:not(.sk-retro)) #world .node-tag:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.24em !important;font-weight:400 !important;}
+  X:where(:not(.sk-retro)) #world .node-title:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.07em;font-weight:500 !important;}
+  X:where(:not(.sk-retro)) #world .node-desc:not(#_){color:#b9b2a0 !important;font-family:var(--rt-f) !important;}
+  X:where(:not(.sk-retro)) #world .node-order:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.1em;}
+  X:where(:not(.sk-retro)) #world .node-unit:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.22em;}
+  X:where(:not(.sk-retro)) #world .node-footer :is(button,.chip,.csym-btn,.esym-btn,.tsym-btn,a):not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
     box-shadow:inset 0 0 0 1px rgba(217,174,85,.55) !important;font-family:var(--rt-f) !important;}
-  X #world .footer-sep{background:rgba(217,174,85,.4) !important;}
-  X #world .node.focused .node-card:not(#_){background:#0a1b34 !important;border-color:#d9ae55 !important;box-shadow:0 0 0 6px #000,0 0 0 7px rgba(217,174,85,.55) !important;}
-  X .alto-fshadow{display:none !important;}
+  X:where(:not(.sk-retro)) #world .footer-sep{background:rgba(217,174,85,.4) !important;}
+  X:where(:not(.sk-retro)) #world .node.focused .node-card:not(#_){background:#0a1b34 !important;border-color:#d9ae55 !important;box-shadow:0 0 0 6px #000,0 0 0 7px rgba(217,174,85,.55) !important;}
+  X:where(:not(.sk-retro)) .alto-fshadow{display:none !important;}
   /* the lines: gold linework; a line of a named kind keeps its own hue, drawn flat */
   X #river-svg path[data-edge]:not(#_){stroke-width:1.6px !important;stroke-opacity:.95 !important;filter:none !important;}
   X #river-svg path[data-edge]:is([stroke="rgb(60,64,84)"],[stroke="rgb(208,212,226)"]){stroke:#d9ae55 !important;}
@@ -425,8 +425,8 @@ FORMAT_CSS = r"""
   X #aed-bar:not(#_){background:#000 !important;border-radius:0 !important;border:1px solid rgba(217,174,85,.6) !important;color:#efe6cf !important;}
   X #aed-bar button:not(#_){border-radius:0 !important;color:#d9ae55 !important;}
   X #aed-bar .ab-done:not(#_){background:#d9ae55 !important;color:#000 !important;}
-  X :where(#canvas .node-card){outline-color:rgba(217,174,85,.5);}
-  X :where(#canvas .node:hover .node-card){outline-color:#d9ae55;}
+  X:where(:not(.sk-retro)) :where(#canvas .node-card){outline-color:rgba(217,174,85,.5);}
+  X:where(:not(.sk-retro)) :where(#canvas .node:hover .node-card){outline-color:#d9ae55;}
   X :is(.aed-flags,.aed-chips,.aed-add):not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.5) !important;}
   /* the System (solar_draw.py), in either look (Style C: Retro is the page's style, the frame, labels and bars; the bodies keep their own light): the bottom row of
      switches, the 3D scene's labels and pills, and the line labels in the poster's lettering */

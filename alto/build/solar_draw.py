@@ -1878,9 +1878,11 @@ window._altoSolarNavApi={ok:tourOK, home:home, num:function(id){ var b=B[id], f=
    plainer name), and Retro and Holographic are the page's Style in the Scene panel (the hosted retro.py / holo.py layers, as on every other format): the frame,
    labels and bars change, the 3D bodies keep their own light. On: the plan's "stylec" (solar.STYLE_C) or localStorage alto-style-c=1 (0 turns it off). */
 var FC=(function(){ var f=null; try{ f=localStorage.getItem('alto-style-c'); }catch(e){} return f==='1' || (f!=='0' && !!R.stylec); })();
-function styOf(v){ return FC ? 'real' : v==='retro' || v==='real' ? v : 'classic'; }
+function styOf(v){ return FC ? (v==='retro' ? v : 'real') : v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
-function stySync(){ if(FC){ de.classList.remove('sk-retro'); de.classList.toggle('sk-real', LOOK==='stars' && desk()); return; }   /* (a phone draws the engine's cards: unchanged) */
+function stySync(){ if(FC && STY!=='retro'){   /* (a phone draws the engine's cards: unchanged; STY 'retro' is the Retro poster, drawn below as it always was) */
+    if(RETRO){ RETRO=false; if(!de.classList.contains('alto-retro')){ window._altoRetroDark(false); ['sk-mark', 'sk-frame'].forEach(function(i){ var e=document.getElementById(i); if(e) e.remove(); }); } }
+    de.classList.remove('sk-retro'); de.classList.toggle('sk-real', LOOK==='stars' && desk()); return; }
   var st=LOOK==='stars'; RETRO=STY==='retro' && st; de.classList.toggle('sk-retro', RETRO); de.classList.toggle('sk-real', st && STY==='real');
   window._altoRetroDark(RETRO && desk());   /* Retro wears the dark theme, whatever the toggle says (retro.DARK_JS) */
   var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
@@ -1903,9 +1905,19 @@ var STYLES=FC ? [['system', 'System', 'System: the orbits in Alto\u2019s own gla
   ['holo', 'Holographic', 'Holographic: the System in one cyan light, square wireframe chrome, a faint grid (holo.py)']];
 /* Holographic (holo.py) is the System's look with the hosted Holographic layer on (the page's head script, window._altoHoloLayer) */
 function holoOn(){ var H=window._altoHoloLayer; return !!(H && H.get()); }
-function styleOf(){ if(FC) return LOOK==='hub' ? 'system' : '3d'; return holoOn() ? 'holo' : LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
+function styleOf(){ if(FC) return LOOK==='hub' || STY==='retro' ? 'system' : '3d'; return holoOn() ? 'holo' : LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
+/* Retro under Style C (Luke, 2026-11-12: "retro in its previous form was eliminated to make a weird boxy situation, BRING IT BACK! Keep the new control format"):
+   System in the page's Retro style is the Retro poster it always was (the look 'stars' + the style 'retro': html.sk-retro, solar_stars.py RETRO_CSS, the bands, the
+   gold lanes, the poster's ships), never the glass System in square black plates. The bar still reads System | Star chart and Scene > Style still Classic | Retro |
+   Holographic; the Star chart in Retro stays the 3D scene in Retro's frame and bars. */
+function rtOn(){ var X=window._altoStyleC; return !!(X && X.get()==='retro'); }
+function poster(on){ var t=on ? 'retro' : 'real'; chips.forEach(function(c){ c._wh=null; });
+  if(on && LOOK==='stars'){ if(STY!==t) setSty(t); return; }
+  STY=t; keep('style', t); if(LOOK===(on ? 'stars' : 'hub')) stySync(); else setLook(on ? 'stars' : 'hub'); }
 function setStyle(v){
-  if(FC){ if(v==='system') setLook('hub'); else if(v==='3d' || v==='chart'){ STY='real'; keep('style', 'real'); setLook('stars'); } return styleOf(); }
+  if(FC){ if(v==='system'){ if(rtOn()) poster(1); else if(STY==='retro') poster(0); else setLook('hub'); }
+    else if(v==='3d' || v==='chart'){ if(LOOK==='stars'){ if(STY!=='real') setSty('real'); } else { STY='real'; keep('style', 'real'); setLook('stars'); } }
+    return styleOf(); }
   var H=window._altoHoloLayer;
   if(v==='holo'){ if(H){ H.set(true); setLook('hub'); if(ready) ctl(); } return styleOf(); }
   if(H && H.get()){ H.set(false); if(ready) ctl(); }
@@ -1920,10 +1932,11 @@ window._altoSolarStyles={get:styleOf, set:setStyle, list:function(){ return STYL
    a saved flat Star chart becomes the Star chart, a saved Retro chart System in Retro, a saved Holographic stays (the page's own style key) */
 if(FC){ var SX=window._altoStyleC, sv0=pref('style');
   delete window._altoSolarStyles; window._altoSolarBar={get:styleOf, set:setStyle, list:function(){ return STYLES.map(function(x){ return x[0]; }); }};
-  if(SX){ window._altoStyle=SX; var _ss=SX.set; SX.set=function(v){ var r=_ss(v); if(ready) ctl(); return r; }; }
-  if(sv0==='retro' && LOOK==='stars' && SX){ SX.set('retro'); setLook('hub'); }
-  if(sv0!=='real') keep('style', 'real');
-  if(SX && SX.get()==='retro') SX.set('retro'); }
+  if(SX){ window._altoStyle=SX; var _ss=SX.set; SX.set=function(v){ var r=_ss(v), t=SX.get()==='retro';   /* (Retro on the System look is the poster; off it, the poster steps back to the System) */
+      if(t && LOOK==='hub') poster(1); else if(!t && STY==='retro') poster(0); if(ready) ctl(); return r; }; }
+  if(STY==='retro' && !(LOOK==='stars' && SX)) STY='real';   /* (a saved Retro chart stays the Retro poster, with the page's style set to Retro) */
+  if(STY!=='retro' && sv0!=='real') keep('style', 'real');
+  if(SX && (STY==='retro' || SX.get()==='retro')) SX.set('retro'); }
 stySync();
 if(!FC && holoOn() && LOOK!=='hub') setLook('hub');   /* (a page kept in Holographic opens on the System look) */
 /* normal mode: a scroll pans, an enlarged card or not (Luke's one way of moving: the engine's focus mode would step to a

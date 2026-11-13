@@ -390,7 +390,7 @@ def atlas_cards(css: str) -> str:
     round planets and the phase rows are not part of it."""
     css = _re.sub(r"/\*.*?\*/", "", css, flags=_re.S)
     rows = [c for c in _chunks(css) if "#world .node" in c.split("{")[0] and "phase" not in c.split("{")[0] and "solar" not in c.split("{")[0]]
-    return "\n".join(rows).replace("#world .node", "#wpal-root .wp-enl .node")
+    return "\n".join(rows).replace(":where(:not(.sk-retro))", "").replace("#world .node", "#wpal-root .wp-enl .node")   # (retro.py keeps its card plates off the System's Retro poster, html.sk-retro; an Atlas has none)
 
 
 def css() -> str:
