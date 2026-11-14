@@ -560,14 +560,16 @@ function labels(){
   items.sort(function(a,b){ return b.pri-a.pri; });
   var placed=[], lh=px*1.18;
   if(S.chips&&S.chips.length){ var sc=scr();                       // the numbered chips are in the way too: a label never sits under one
-    S.chips.forEach(function(p){ var x=p._a[0]*sc.s+sc.x+(p._o?p._o[0]:0), y=p._a[1]*sc.s+sc.y+(p._o?p._o[1]:0), w=(p._wF||32); if(S.level==='all'){ if(p.classList.contains('bl-off')) return; var hh=p._dot?DOT/2+2:14; w=p._dot?DOT:(p._tOn?p._wT:w); placed.push([x-(p._dot?DOT:(p._wF||32))/2-3,y-hh,x-(p._dot?DOT:(p._wF||32))/2+w+3,y+hh]); return; }
+    S.chips.forEach(function(p){ var x=p._a[0]*sc.s+sc.x+(p._o?p._o[0]:0), y=p._a[1]*sc.s+sc.y+(p._o?p._o[1]:0), w=(p._wF||32); if(S.level==='all'){ if(p.classList.contains('bl-off')) return; var hh=p._dot?DOT/2+6:18;   /* (a name's real ink is a little taller than its measured lines) */ w=p._dot?DOT:(p._tOn?p._wT:w); placed.push([x-(p._dot?DOT:(p._wF||32))/2-3,y-hh,x-(p._dot?DOT:(p._wF||32))/2+w+3,y+hh]); return; }
       placed.push([x-w/2-3,y-3,x+w/2+3,y+25]); }); }
+  var nChip=placed.length;
   items.forEach(function(it){
     var r=it.r, maxW=it.w-8, lines=labWrap(dec(r.n),maxW,px), num=r.no?String(r.no):null;
     if(!lines||lines.length*lh>it.h-4){ lines=num&&labWidth(num,px)<=maxW&&lh<=it.h-4?[num]:null; }
     if(!lines) return;
     var tw=0; lines.forEach(function(l){ tw=Math.max(tw,labWidth(l,px)); });
-    var cx=it.c[0]*sc0.s+sc0.x, cy=it.c[1]*sc0.s+sc0.y-(it.many?px*1.6:0), th=lines.length*lh, box=[cx-tw/2-2,cy-th/2-1,cx+tw/2+2,cy+th/2+1];
+    var zz=S.level==='all'?(S.root.clientWidth||rw)/rw:1;   // (All floors: under a page zoom the names are measured in screen px and the chips in the root's css px; one measure for both)
+    var cx=it.c[0]*sc0.s+sc0.x, cy=it.c[1]*sc0.s+sc0.y-(it.many?px*1.6*zz:0), th=lines.length*lh*zz, twz=tw*zz, box=[cx-twz/2-2,cy-th/2-1,cx+twz/2+2,cy+th/2+1];
     for(var i=0;i<placed.length;i++){ var q=placed[i]; if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]) return; }
     placed.push(box);
     var ty=it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2;
@@ -576,6 +578,9 @@ function labels(){
     var t=el('text',{x:f2(it.c[0]),y:f2(ty),'class':'bl-lab','text-anchor':'middle','data-lab':r.id},it.g);
     t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth='0';
     lines.forEach(function(l,i){ var ts=el('tspan',{x:f2(it.c[0]),dy:i?f2(lh/k):0},t); ts.textContent=l; });
+    if(nChip&&S.level==='all'){ var bb=null; try{ bb=t.getBBox(); }catch(x){}   // (All floors: the name as it is really drawn, in Retro's and Holographic's wider letters too, never under a tag)
+      if(bb&&bb.width){ var b=[bb.x*sc0.s+sc0.x-2,bb.y*sc0.s+sc0.y-2,(bb.x+bb.width)*sc0.s+sc0.x+2,(bb.y+bb.height)*sc0.s+sc0.y+2];
+        for(var j=0;j<nChip;j++){ var c=placed[j]; if(b[0]<c[2]&&b[2]>c[0]&&b[1]<c[3]&&b[3]>c[1]){ var pl=t.previousSibling; t.remove(); if(pl) pl.remove(); break; } } } }
   });
   applyDim();
 }

@@ -556,7 +556,7 @@ def test_all_floors_is_absent_by_default(browser, site):
 
 
 # ── All floors fills the safe box, and a tag with no room is a dot (brief bp-allfloors-fable-1114) ──
-TAGS = r"""()=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0; }, R=e=>e.getBoundingClientRect();
+ALL_TAGS = r"""()=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0; }, R=e=>e.getBoundingClientRect();
  const meet=(q,r)=>Math.min(q.right,r.right)-Math.max(q.left,r.left)>0.5&&Math.min(q.bottom,r.bottom)-Math.max(q.top,r.top)>0.5;
  const all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(R), out=[];
  for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) if(meet(q[i],q[j])) out.push(P[i].textContent+' on '+P[j].textContent);
@@ -583,7 +583,7 @@ def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, st
     try:
         pg.evaluate("AltoBuilding.selectLevel('all')")
         pg.wait_for_timeout(1500)
-        r = pg.evaluate(TAGS)
+        r = pg.evaluate(ALL_TAGS)
         shots = os.environ.get("ALTO_SHOT_DIR")
         if shots:
             pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-AFTER.png"))
@@ -609,9 +609,9 @@ def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, st
             pg.wait_for_timeout(500)
             # zoomed in on the dots' own floor, their numbers have room
             pg.evaluate("""()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), d=document.querySelector('#bldg-root .bl-pill.bl-dot').getBoundingClientRect();
-              for(let i=0;i<40;i++) s.dispatchEvent(new WheelEvent('wheel',{deltaY:-8,ctrlKey:true,clientX:d.left+5,clientY:d.top+5,bubbles:true,cancelable:true})); }""")
+              for(let i=0;i<14;i++) s.dispatchEvent(new WheelEvent('wheel',{deltaY:-8,ctrlKey:true,clientX:d.left+5,clientY:d.top+5,bubbles:true,cancelable:true})); }""")
             pg.wait_for_timeout(1500)
-            z = pg.evaluate(TAGS)
+            z = pg.evaluate(ALL_TAGS)
             if shots:
                 pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-zoomed-AFTER.png"))
             assert z["out"] == [] and z["dots"] < r["dots"], (r["dots"], z)
