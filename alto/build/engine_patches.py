@@ -151,7 +151,27 @@ html:not(.mobile) #world .alto-fshadow{
   border-radius:calc(14px * 1.7); box-shadow:0 calc(38px * 1.7) calc(84px * 1.7) var(--node-hover-shadow);
 }
 @media print{ #world .alto-fshadow{ display:none !important; } }
+/* a fitted enlarged card (enlarge-safe-box): its text scrolls inside it */
+#world .node .node-card.alto-sf:not(#_){ overflow-x:hidden !important; overflow-y:auto !important; overscroll-behavior:contain; }
 """
+
+# ── enlarge-safe-box (Luke, 2026-11-13) ─────────────────────────────────────
+# An enlarged card ran up under the title tab and a second, wrapped row of
+# filter chips ("find a solution so this can't happen"). The card is enlarged
+# by the same zoom as ever (text at today's size), centred as ever, and left
+# untouched when it fits. Only when today's enlarged box would cross the
+# chrome (measured: every positioned element outside #canvas that is not a
+# full-window layer, so however many rows the chips wrap to) is its BOX made
+# smaller, width and height together (the small card's shape), until it fits
+# between the chrome with SAFE_M px to spare, and it is moved into that space;
+# the text re-flows and scrolls inside the card. Never transform:scale (that
+# shrinks text), never narrower than the small card (a phone on its side: the
+# height gives there). Re-fitted on resize and when the bars change size.
+# card._sf = {w,h: small card's box, f: box factor at full zoom, hmax};
+# el._sfs = the aim shift in board px that flyTo/_flyPlanMs add. Skipped for
+# Memory Palace and solar cards, which place their own enlarged card.
+# tests/test_enlarge_safe_box.py.
+_SAFE_BOX_NOTE = None
 
 _FOCUS_JS_OLD = """  function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
@@ -243,7 +263,101 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   function _flyMs(dist){ return Math.round(Math.max(420, Math.min(560, 400+0.1*dist))); }
   var FOCUS_MS=420, UNFOCUS_MS=340;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
-  function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _shadowSync(card.parentNode); }
+  function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _sfBox(card,k); _shadowSync(card.parentNode); }
+  /* enlarge-safe-box: see engine_patches.py (_SAFE_BOX_NOTE) */
+  var SAFE_M=20;
+  function _sfG(sf,k){ var t=Math.max(0,Math.min(1,(k-1)/(FOCUS_K-1))); return 1+(sf.f-1)*t; }
+  function _sfClear(card){
+    card._sf=null; card.classList.remove('alto-sf'); card.scrollTop=0;
+    ['width','height','max-width','min-width','box-sizing'].forEach(function(p){ card.style.removeProperty(p); });
+  }
+  function _sfBox(card,k){
+    var sf=card._sf, n=card.parentNode;
+    if(!sf) return;
+    if(k<=1.0005 && !(n && n.classList.contains('focused'))){ _sfClear(card); return; }
+    var g=_sfG(sf,k);
+    card.classList.add('alto-sf');
+    card.style.setProperty('box-sizing','border-box','important');
+    card.style.setProperty('min-width','0','important'); card.style.setProperty('max-width','none','important');
+    card.style.setProperty('width',(sf.w*g).toFixed(2)+'px','important');
+    card.style.setProperty('height',(Math.min(sf.h*g, sf.hmax||1e9)).toFixed(2)+'px','important');
+  }
+  function _chromeRects(){
+    var vw=innerWidth, vh=innerHeight, out=[];
+    (function walk(e){
+      for(var c=e.firstElementChild;c;c=c.nextElementSibling){
+        if(c===canvas || c.tagName==='SCRIPT' || c.tagName==='STYLE' || c.hasAttribute('data-not-chrome')) continue;
+        var cs=getComputedStyle(c);
+        if(cs.display==='none' || cs.visibility==='hidden' || parseFloat(cs.opacity)===0) continue;
+        var r=c.getBoundingClientRect(), pos=/^(fixed|absolute|sticky)$/.test(cs.position);
+        var iw=Math.min(r.right,vw)-Math.max(r.left,0), ih=Math.min(r.bottom,vh)-Math.max(r.top,0);
+        var inV=iw>1 && ih>1, big=iw*ih>=0.4*vw*vh;
+        if(pos && inV && !big && !c.contains(canvas)){ out.push(r); continue; }
+        if(c.contains(canvas) || !pos || big) walk(c);
+      }
+    })(document.body);
+    return out;
+  }
+  function _safeBox(x0,x1){
+    var vw=innerWidth, vh=innerHeight, cr=canvas.getBoundingClientRect();
+    var S={l:Math.max(0,cr.left), t:Math.max(0,cr.top), r:Math.min(vw,cr.right), b:Math.min(vh,cr.bottom)};
+    _chromeRects().forEach(function(r){
+      var w=r.right-r.left, h=r.bottom-r.top, cy=(r.top+r.bottom)/2;
+      if(h>2*w && (r.right>=vw-2 || r.left<=2)){
+        if(r.left>vw/2) S.r=Math.min(S.r,r.left); else S.l=Math.max(S.l,r.right); return; }
+      if(r.right<=x0 || r.left>=x1) return;
+      if(cy<vh/2) S.t=Math.max(S.t,r.bottom); else S.b=Math.min(S.b,r.top);
+    });
+    S.l+=SAFE_M; S.t+=SAFE_M; S.r-=SAFE_M; S.b-=SAFE_M;
+    return S;
+  }
+  function _safeFit(el){
+    var card=_cardOf(el); el._sfs=null; if(!card || document.documentElement.classList.contains('mobile') && !document.documentElement.classList.contains('phone-whole')) return;
+    if(el.hasAttribute('data-solar') || document.documentElement.classList.contains('alto-palace')) return;
+    var old=card._sf; card._sf=null;
+    var hadF=el.classList.contains('focused'), z0=card.style.zoom, st=card.getAttribute('style')||'';
+    ['width','height','max-width','min-width','box-sizing'].forEach(function(p){ card.style.removeProperty(p); });
+    if(!hadF) el.classList.add('focused');
+    card.style.zoom='';            var w0=card.offsetWidth, h0=card.offsetHeight;
+    card.style.zoom=String(FOCUS_K); var hK=card.offsetHeight;
+    if(!hadF) el.classList.remove('focused');
+    card.setAttribute('style',st); card.style.zoom=z0;
+    if(!w0 || !h0){ card._sf=old; return; }
+    var de=document.documentElement, Z=(parseFloat(getComputedStyle(de).zoom)||1)*(parseFloat(getComputedStyle(document.body).zoom)||1);
+    var K=FOCUS_K*Z, cr=canvas.getBoundingClientRect(), cx=(cr.left+cr.right)/2, cy=(cr.top+cr.bottom)/2;
+    var W=w0*K, H=hK*K, S=_safeBox(cx-W/2, cx+W/2), sw=S.r-S.l, sh=S.b-S.t;
+    if(cx-W/2>=S.l && cx+W/2<=S.r && cy-H/2>=S.t && cy+H/2<=S.b){ if(old) _sfClear(card); return; }
+    var f=1;
+    if(H>sh || W>sw){
+      f=Math.min(1, sh/(h0*K), sw/(w0*K), H>sh ? sh/H*(hK/h0) : 1);
+      f=Math.max(f, 1/FOCUS_K);
+    }
+    var nw=w0*f*K, nh=Math.min(f<1?h0*f*K:H, sh);
+    card._sf = f<1 ? {w:w0, h:h0, f:f, hmax:sh/K} : null;
+    if(!card._sf && old) _sfClear(card);
+    var tx = nw>=sw ? (S.l+S.r)/2 : Math.max(S.l+nw/2, Math.min(S.r-nw/2, cx));
+    var ty = nh>=sh ? (S.t+S.b)/2 : Math.max(S.t+nh/2, Math.min(S.b-nh/2, cy));
+    if(Math.abs(tx-cx)>0.5 || Math.abs(ty-cy)>0.5) el._sfs=[-(tx-cx)/Z, -(ty-cy)/Z];
+    if(card._sf && hadF) _sfBox(card,parseFloat(card.style.zoom)||1);
+  }
+  var _sfT=null;
+  function _safeRefit(){
+    clearTimeout(_sfT);
+    _sfT=setTimeout(function(){
+      var id=window._focusedNodeId, el=id&&nodeEl(id); if(!el) return;
+      var card=_cardOf(el), a=el._sfs, f=card&&card._sf&&card._sf.f;
+      _safeFit(el);
+      var b=el._sfs, g=card&&card._sf&&card._sf.f;
+      if(String(a)!==String(b) || f!==g){ _focusShadow(el,true); flyTo(el); }
+    },140);
+  }
+  window._altoSafeRefit=_safeRefit;
+  window.addEventListener('resize',_safeRefit);
+  (function(){
+    if(typeof ResizeObserver!=='function') return;
+    var ro=new ResizeObserver(function(){ if(window._focusedNodeId) _safeRefit(); });
+    ['title-bar','nav','node-nav-bar','tab-rail'].forEach(function(id){ var e=document.getElementById(id); if(e) ro.observe(e); });
+  })();
   function _zoomRamp(el,to,dur){
     var card=_cardOf(el); if(!card) return;
     if(_zw){
@@ -315,6 +429,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     var ax=parseFloat(el.style.left), ay=parseFloat(el.style.top); if(isNaN(ax)||isNaN(ay)) return;
     if(!sh){ sh=document.createElement('div'); sh.className='alto-fshadow'; world.appendChild(sh); el._fsh=sh; }
     sh._leaving=false;
+    var sf=card._sf; if(sf){ w=sf.w*sf.f; h=Math.min(sf.h*sf.f, sf.hmax||1e9); }
     var W=w*FOCUS_K, H=h*FOCUS_K, key=[W,H,ax,ay].join();
     if(sh._key!==key){                                // unchanged: never re-drawn
       sh._key=key; sh._g=[ax-W/2, ay-H/2];
@@ -336,7 +451,8 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
        shrinking, by a transform off its full-size spot */
     var g=sh._g, fx=n._fx||0, fy=n._fy||0, full=Math.abs(z-FOCUS_K)<1e-4;
     sh.style.left=(g[0]+(full?fx:0))+'px'; sh.style.top=(g[1]+(full?fy:0))+'px';
-    sh.style.transform=full?'none':'translate('+fx+'px,'+fy+'px) scale('+(z/FOCUS_K)+')';
+    var sf=card&&card._sf, gr=sf?_sfG(sf,z)/sf.f:1;
+    sh.style.transform=full?'none':'translate('+fx+'px,'+fy+'px) scale('+(z*gr/FOCUS_K)+')';
   }
 
 
@@ -347,6 +463,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   function _flyPlanMs(el){
     var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);
     if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }   // a Memory Palace: centre the card and its building together
+    if(el._sfs) a={x:a.x+el._sfs[0], y:a.y+el._sfs[1]};
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -356,6 +473,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   }
   function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
+    _safeFit(el);
     _fadeClock(FOCUS_MS=window._altoFlyMs=_flyPlanMs(el));
     if(el._rel){ cancelAnimationFrame(el._rel); el._rel=null; }
     el._hov=null;                                       // enlarged: centred, not grown from its top
@@ -374,7 +492,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
 
 _FOCUS_EXIT_OLD = """      el.classList.remove('focused');
       flyBack(el);"""
-_FOCUS_EXIT_NEW = """      el.classList.remove('focused');
+_FOCUS_EXIT_NEW = """      el.classList.remove('focused'); el._sfs=null;
       _quietShadow(_cardOf(el),UNFOCUS_MS); _focusShadow(el,null);
       _zoomRamp(el,1,UNFOCUS_MS);
       flyBack(el);"""
@@ -721,6 +839,7 @@ _FLY_SCROLL_NEW = """    // Where the card sits on the board at rest (_canvasXY 
     // the pan's transform does not change).
     var ax=a.x, ay=a.y;
     if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }   // a Memory Palace: centre the card and its building together (palace.py, RISE)
+    if(el._sfs && el.classList.contains('focused')){ ax+=el._sfs[0]; ay+=el._sfs[1]; }
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(ax-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(ay-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));

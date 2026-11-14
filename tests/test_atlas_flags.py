@@ -27,7 +27,7 @@ try:
 except ImportError:
     pw = None
 
-PAGE_BYTES_BEFORE = 1507032  # the same sample page built without flags (re-measured 2026-11-12 on alto-rel-225-int 0d96c819: 1,507,032 B raw, 414,479 B stored (gzip) of the 1,000,000 cap; the 1.9.225 batch adds 1,117 B raw over 1.9.223/224's 1,505,915)
+PAGE_BYTES_BEFORE = 1513698  # the same sample page built without flags (re-measured 2026-11-13 on alto-rel-226-int after Bass + simfix: 1,513,698 B raw, 416,573 B gzip -9 / 418,284 B stored_bytes of the 1,000,000 cap; simfix +637 B raw; before that, after the 3 merges: 1,513,061 B raw, 416,322 B gzip of the 1,000,000 cap; before that on alto-enlarge-safe: +5,726 B raw for enlarge-safe-box, 416,218 B gzip; before that, 2026-11-12 on alto-rel-225-int 0d96c819: 1,507,032 B raw, 414,479 B stored (gzip) of the 1,000,000 cap; the 1.9.225 batch adds 1,117 B raw over 1.9.223/224's 1,505,915)
 
 
 # ── the data ──────────────────────────────────────────────────────────────────────────────────────────────────────────

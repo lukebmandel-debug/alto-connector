@@ -51,7 +51,7 @@ var BAD=/^#(ffc98a|ffc59e)$/i;
 function day(){return Math.floor(Date.now()/864e5);}
 function far(a,b){var d=0;for(var i=1;i<7;i+=2)d=Math.max(d,Math.abs(parseInt(a.substr(i,2),16)-parseInt(b.substr(i,2),16)));return d;}
 function store(){try{var o=JSON.parse(localStorage.getItem('alto-sh-root')||'{}');return o&&typeof o==='object'&&!o.pop?o:{};}catch(e){return {};}}
-function known(g){return g.st==='holo'?HG[g.dk?'dark':'light']:g.st==='retro'?'#000000':
+function known(g){return g.st==='holo'?HG.dark:g.st==='retro'?'#000000':
  !g.st&&g.w&&!g.bg?'#b4d6ff':      // (Classic's board top: the page's first stop under the glass)
  // (sim1112a R7) Classic's homepage on its side: its header glass over the page's gradient at the screen's top (homeTop() below measures the same)
  g.home?(g.dk?'__HOME_D__':'__HOME_L__'):null;}

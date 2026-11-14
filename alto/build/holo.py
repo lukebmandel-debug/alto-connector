@@ -2,9 +2,10 @@
 "On holographic style, i like B, but make sure that text is not blending into the background too much.").
 
 The look is the sheet's "Projector": one cyan light, square wireframe cards, a faint grid and scan lines, as if projected into the air.
-It is square like Retro (the square-vs-round rule). On a computer it is dark only, like Retro (Luke, 2026-11-01: "Eliminate light mode on
-holographic, just like retro"): the light/dark button is hidden and html.dark held on while the style is, and the reader's own theme comes back
-with the style off. On a phone nothing changes (the button stays, html.dark picks the dark tokens and the light theme the light ones).
+It is square like Retro (the square-vs-round rule). It is dark only, like Retro (Luke, 2026-11-01: "Eliminate light mode on
+holographic, just like retro"; on a phone too since 2026-11-13: "light mode is still available incorrectly on mobile holo"): the light/dark
+button is hidden and html.dark held on while the style is, and the reader's own theme comes back with the style off (the saved choice is never
+written, so Classic keeps it).
 
 THE CONTRAST FLOOR. Every colour a rule uses for text or for the plate under it is one of the tokens below (TOKENS), and every pair
 that can meet (PAIRS) is held to WCAG AA by tests/test_holo.py (4.5:1 for text, 3:1 for a line or an outline), light and dark. The
@@ -143,8 +144,8 @@ HOLO_CSS = r"""
   /* light/dark: a square chip with the same rim as its neighbours, not the engine's glowing circle (Art, alto-art-1029-0033, fix 1) */
   X #mode-toggle:not(#_):not(#__){background:var(--ho-bg) !important;color:var(--ho-ac) !important;border:0 !important;border-radius:0 !important;
     box-shadow:0 0 0 1px var(--ho-ac),var(--ho-glow) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  /* dark only on a computer (Luke, 2026-11-01): no light/dark button; a phone keeps its own (JS: hdark) */
-  @media (min-width:641px){ X:not(.mobile) #mode-toggle:not(#_):not(#__){display:none !important;} }
+  /* dark only (Luke, 2026-11-01, on a computer; 2026-11-13 on a phone too: "light mode is still available incorrectly on mobile holo"): no light/dark button anywhere (JS: hdark) */
+  X #mode-toggle:not(#_):not(#__){display:none !important;}
   /* the Alto marks (Luke, 2026-11-01: "the alto logo and glyph in holographic style ... the glyph should rotate like the glyphs for file type"):
      the clef and the wordmark in the light, on every page that has them, a phone's too; the clef turns on Y on the homepage's motion budget, the phone timeline's clef in #nav too (CEO 2026-11-05)
      (transform only, 10 s, still under reduced motion and while the tab is hidden) */
@@ -412,7 +413,8 @@ def ink(css: str) -> str:
     css = _re.sub(r"(background:#d9ae55(?: !important)?;\s*color:)#000", r"\1var(--ho-on)", css)
     css = _re.sub(r"(background:#f0c15e(?: !important)?;\s*color:)#000", r"\1var(--ho-on)", css)
     css = css.replace("rgba(217,174,85,", "rgba(var(--ho-rgb),").replace("rgba(3,4,7,", "rgba(var(--ho-sfrgb),").replace("rgba(0,0,0,", "rgba(var(--ho-bgrgb),")
-    for a, b in (("#f0c15e", "var(--ho-ac2)"), ("#d9ae55", "var(--ho-ac)"), ("#efe6cf", "var(--ho-tx)"), ("#b9b2a0", "var(--ho-mu)"), ("#7f9cc4", "var(--ho-mu)"),
+    # (sim1113 #3) #f6d98a, Retro's brighter gold for a focused search field's rim, was never re-inked: Holo's focused field kept a gold inner line inside its teal ring
+    for a, b in (("#f6d98a", "var(--ho-ac)"), ("#f0c15e", "var(--ho-ac2)"), ("#d9ae55", "var(--ho-ac)"), ("#efe6cf", "var(--ho-tx)"), ("#b9b2a0", "var(--ho-mu)"), ("#7f9cc4", "var(--ho-mu)"),
                  ("#0a1b34", "var(--ho-sf2)"), ("#e3dccb", "var(--ho-tx)")):
         css = css.replace(a, b)
     css = _re.sub(r"#(?:030407|05070a|05070b|06080c|070a0f|090c11|0b0d12|0d1016)(?![0-9a-fA-F])", "var(--ho-sf)", css)
@@ -451,7 +453,7 @@ HOMEB
 var PN={timeline:'Timeline',lanes:'Timeline · Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Memory Blueprint',world:'Memory Atlas'}, MAXT=40, pmo=null, praf=0, pio=null, rz=0;
 function pel(c,t){ var e=document.createElement(t||'div'); if(c) e.className=c; return e; }
 function desk(){ return !r.classList.contains('mobile') && window.innerWidth>640; }   // (the home page's phone layout is the media query's, 640 and under)
-function phone(){ return Math.min(screen.width,screen.height)<=500; }   // (a phone, either way up: its own light/dark button, no moving projector)
+function phone(){ return Math.min(screen.width,screen.height)<=500; }   // (a phone, either way up: no moving projector)
 function plive(){ return r.classList.contains('alto-holo') && r.classList.contains('alto-home') && desk() && !phone(); }
 function pun(t){
   var em=t.querySelector('.tile-emblem');
@@ -491,7 +493,7 @@ function pwatch(){
   }
 }
 function punwatch(){ if(pmo){ pmo.disconnect(); pmo=null; } if(pio){ pio.disconnect(); pio=null; } }
-// dark only on a computer (a phone keeps its light/dark button): html.dark is held on while the style is, the reader's own theme comes back with it off
+// dark only, on a computer and a phone: html.dark is held on while the style is, the reader's own theme comes back with it off
 var hd={was:null,mo:null};
 function hdark(on){
   if(on){ if(hd.was==null) hd.was=r.classList.contains('dark'); r.classList.add('dark');
@@ -501,7 +503,7 @@ function hdark(on){
 }
 function hsync(){
   if(!r.classList.contains('alto-holo')) return;
-  hdark(desk() && !phone());   // (turning a phone must not flip its theme: dark in landscape, light in portrait, was Luke's "loses the dark theme and the background" after a rotation)
+  hdark(1);   // dark on every screen, a phone's too (2026-11-13); the saved light/dark choice is left as it is, for Classic
   var H=window._altoRetroHome;
   if(r.classList.contains('alto-home')){ if(H) H.on(); }   // (the plate's markup on a phone too: the skin's padding and grid are written for it)
   else if(H && !r.classList.contains('alto-retro')) H.off();

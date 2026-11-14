@@ -266,7 +266,7 @@ def test_holo_card_view_names_strip_is_the_headers_own_bar(site, theme):
         return await pg.evaluate("()=>{" + R + "const c=e=>getComputedStyle(e); return {cls:document.documentElement.className, strip:R($('timeline-label-bar')), bg:c($('timeline-label-bar')).backgroundColor,"
                                  " bd:c($('timeline-label-bar')).borderBottomColor, nav:c($('nav')).backgroundColor, navbd:c($('nav')).borderBottomColor}}")
     d = _run(site, fn, "/timeline.html?view=card&style=holo", 402, 874, 0, wait=2800, theme=theme)
-    assert "alto-holo" in d["cls"] and ("dark" in d["cls"].split()) == (theme == "dark"), d["cls"]
+    assert "alto-holo" in d["cls"] and "dark" in d["cls"].split(), d["cls"]          # (dark only whatever the saved theme, a phone's too: 2026-11-13)
     assert d["strip"] and d["strip"][3] - d["strip"][1] > 20, f"the names are on screen: {d['strip']}"
     # phone navbar B: the strip is now the glass pill at the foot, in Holo's own ground (its --ho-bgrgb at .86), never Classic's unit tint (rgba(74, 158, 255, ...))
     assert d["strip"][1] > 874 * .8, f"the pill is at the foot: {d['strip']}"

@@ -69,7 +69,7 @@ def test_the_sheet_is_retro_re_inked_with_no_gold_and_no_frame():
                    "#title-bar", "#nav .nav-btn", "#pmin-find"):
         assert anchor in c, anchor
     assert not re.search(r"#[0-9a-fA-F]{3,6}\b", holo.ink(retro.HOME_CSS))   # the homepage's Retro plates are all re-inked
-    assert "#mode-toggle" in c and "#mode-toggle{display:none" not in c     # unlike Retro, the light/dark toggle stays: a square chip (Art, fix 1)
+    assert "#mode-toggle" in c and "X #mode-toggle:not(#_):not(#__){display:none !important;}" in holo.HOLO_CSS   # dark only like Retro, a phone's too (2026-11-13); the chip keeps its square look (Art, fix 1)
     assert re.search(r"#mode-toggle[^{]*\{[^}]*border-radius:0", c)
 
 
@@ -736,15 +736,21 @@ def test_holographic_is_dark_only_on_a_computer_and_the_readers_theme_comes_back
     ctx.close()
 
 
-def test_holographic_on_a_phone_keeps_its_light_dark_button_and_its_theme(browser, site):
+def test_holographic_on_a_phone_is_dark_only_too_and_the_saved_choice_is_kept(browser, site):
+    # Luke 2026-11-13: "also i noticed light mode is still available incorrectly on mobile holo"
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
     pg = ctx.new_page()
     pg.goto(site + "/t.html")
     pg.wait_for_timeout(400)
-    pg.evaluate("localStorage.clear(); document.documentElement.classList.remove('dark')")
+    pg.evaluate("localStorage.clear(); localStorage.setItem('alto-theme-v1','light'); document.documentElement.classList.remove('dark')")
     pg.evaluate("window._altoStyle.set('holo')")
     pg.wait_for_timeout(600)
-    assert not pg.evaluate("document.documentElement.classList.contains('dark')")
+    assert pg.evaluate("document.documentElement.classList.contains('dark')")
+    assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") == "none"
+    assert pg.evaluate("localStorage.getItem('alto-theme-v1')") == "light"
+    pg.evaluate("window._altoStyle.set('classic')")
+    pg.wait_for_timeout(300)
+    assert not pg.evaluate("document.documentElement.classList.contains('dark')")   # Classic: the saved light theme and its button
     assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") != "none"
     ctx.close()
 

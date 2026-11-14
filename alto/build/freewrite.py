@@ -25,10 +25,11 @@ timeline and moving between detail pages.
 from __future__ import annotations
 
 FREEWRITE = r"""<style id="alto-freewrite-css">
-  #fw-seg{display:flex;gap:2px;margin:10px 12px 0;padding:2px;border:1px solid var(--border);border-radius:9px;
+  #fw-seg{display:flex;gap:2px;margin:10px 12px 0;padding:2px;box-sizing:border-box;min-width:0;max-width:calc(100% - 24px);border:1px solid var(--border);border-radius:9px;
     background:var(--surface);flex-shrink:0;}
-  #fw-seg button{flex:1;font:inherit;font-size:11.5px;letter-spacing:.03em;padding:6px 6px;border:0;border-radius:7px;
-    background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+  #fw-seg button{flex:1 1 0;min-width:0;box-sizing:border-box;font:inherit;font-size:11.5px;letter-spacing:.03em;padding:6px 6px;border:0;border-radius:7px;
+    background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:normal;overflow-wrap:normal;line-height:1.25;}
+  #fw-seg button[data-m=fw]{min-width:min-content;}   /* the row always fits the panel: Notes & highlights wraps to two lines, Freewrite is never clipped or cut with an ellipsis */
   #fw-seg button[aria-selected="true"]{background:var(--card-glass-bg,var(--bg));color:var(--text);
     box-shadow:0 1px 3px var(--card-shadow,rgba(0,0,0,.12));}
   html.mobile #fw-seg button{font-size:13px;padding:9px 6px;}

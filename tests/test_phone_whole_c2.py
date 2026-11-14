@@ -311,6 +311,9 @@ def test_classic_retro_holo_light_and_dark(site, browser, style, dark):
     cls = {"classic": "", "retro": "alto-retro", "holo": "alto-holo"}[style]
     pg = _open(site, browser, query="view=whole" + ("" if style == "classic" else "&style=" + style),
                until=UP + (" && document.documentElement.classList.contains('%s')" % cls if cls else ""))
+    if style == "holo" and not dark:
+        pg.context.close()
+        pytest.skip("Holo is dark-only on phones (alto-picker-scroll af5764eb: test_holo_phone_dark)")
     was = pg.evaluate("document.documentElement.classList.contains('dark')")
     if was != dark and not (style == "retro"):
         pg.evaluate("toggleMode()")
