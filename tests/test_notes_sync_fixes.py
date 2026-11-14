@@ -34,7 +34,7 @@ def test_a_later_edit_wins_so_shortening_a_note_sticks():
     assert "out.push(r && newerNote(h, r) ? r : h)" in JS
     assert "String(r.note || '').length > String(h.note || '').length" not in JS
     page = _page()
-    assert "hl.note = text; hl.mod = Date.now();" in page
+    assert "hl.note = text; hl.fmt = 'text'; hl.mod = Date.now();" in page
 
 
 def test_a_note_being_typed_is_not_shared_until_it_is_saved():

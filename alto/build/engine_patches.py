@@ -3095,10 +3095,10 @@ _FWR_CSS_NEW = ("  .fw-body{font-size:15px;line-height:1.7;}\n"
                 "  @media print{.fw-body h1,.fw-body h2{break-after:avoid;} .fw-body li{break-inside:avoid;}}\n"
                 + _FWR_CSS_OLD)
 _FWR_TEXT_OLD = ("      'HIGHLIGHTS & NOTES:',\n"
-                 "      highlights.map(function(h){ return '\"' + h.quote + '\"' + (h.note ? ', ' + h.note : ''); }).join('\\n\\n')\n"
+                 "      highlights.map(function(h){ return '\"' + window._altoCapText(h.quote, 2000) + '\"' + (h.note ? ', ' + window._altoNoteText(h) : ''); }).join('\\n\\n')\n"
                  "    ];\n")
 _FWR_TEXT_NEW = ("      (highlights.length ? 'HIGHLIGHTS & NOTES:' : ''),\n"
-                 "      highlights.map(function(h){ return '\"' + h.quote + '\"' + (h.note ? ', ' + h.note : ''); }).join('\\n\\n')\n"
+                 "      highlights.map(function(h){ return '\"' + window._altoCapText(h.quote, 2000) + '\"' + (h.note ? ', ' + window._altoNoteText(h) : ''); }).join('\\n\\n')\n"
                  "    ].concat(_fw ? ['', 'FREEWRITE:', _fw.text] : []);\n")
 _FWR_BODY_OLD = ("<div class=\"section-header\">Your Highlights &amp; Notes</div>\n"
                  "${hlHtml}\n")

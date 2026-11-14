@@ -704,12 +704,38 @@ function fmtDate(iso){
       { month:'long', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
   }catch(e){ return iso || ''; }
 }
+// A saved report is stored HTML and may hold markup it should not (notes that came from someone else).
+// Parse it inertly, drop everything that can run, keep the look. The Print button's own click is kept
+// as a data attribute and re-bound by a fixed script that this page, not the report, supplies.
+function _cleanReportDoc(fullHtml){
+  const doc = new DOMParser().parseFromString(fullHtml || '', 'text/html');
+  Array.prototype.forEach.call(doc.querySelectorAll('script,iframe,frame,frameset,object,embed,applet,base,link,form,template,noscript,meta[http-equiv]'), n => n.remove());
+  Array.prototype.forEach.call(doc.querySelectorAll('*'), el => {
+    Array.prototype.slice.call(el.attributes).forEach(a => {
+      const nm = a.name.toLowerCase(), v = String(a.value || '');
+      if(nm.indexOf('on') === 0){
+        if(nm === 'onclick' && /^\s*window\.print\(\)\s*;?\s*$/.test(v)) el.setAttribute('data-alto-print', '1');
+        el.removeAttribute(a.name); return;
+      }
+      if(/^(href|src|xlink:href|action|formaction|poster|background|srcset|data)$/.test(nm)){
+        const u = v.replace(/[\s\u0000-\u001f]/g, '').toLowerCase();
+        if(/^(javascript|vbscript|data):/.test(u) && !/^data:image\/(png|jpe?g|gif|webp);/.test(u)) el.removeAttribute(a.name);
+      }
+    });
+  });
+  return doc;
+}
 function openReport(item){
-  // Runs inside a click gesture — popup-safe.
-  const w = window.open('', '_blank');
-  if(!w) return;
-  w.document.write(item.html);
-  w.document.close();
+  // Runs inside a click gesture — popup-safe. A blob opened with noopener: it cannot reach this page.
+  let html;
+  try{
+    const doc = _cleanReportDoc(item.html);
+    html = '<!DOCTYPE html>' + doc.documentElement.outerHTML.replace(/<\/body>\s*<\/html>\s*$/i,
+      '<script>document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("[data-alto-print]");if(t)window.print();});<\/script></body></html>');
+  }catch(e){ return; }
+  const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => { try{ URL.revokeObjectURL(url); }catch(e){} }, 60000);
 }
 const RR_GLYPH = '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="10" height="14" rx="1.5"/><line x1="8" y1="8" x2="12" y2="8"/><line x1="8" y1="11" x2="12" y2="11"/></svg>';
 let selectMode = false;
@@ -759,11 +785,11 @@ function renderList(){
     const row = document.createElement('div');
     row.className = 'report-row' + (on ? ' selected' : '');
     row.innerHTML =
-      (selectMode ? '<input type="checkbox" class="rr-check"' + (on ? ' checked' : '') + '>' : '') +
       '<span class="rr-glyph">' + RR_GLYPH + '</span>' +
       '<span class="rr-main"><span class="rr-title"></span><div class="rr-date"></div></span>' +
       '<button class="rr-open">Open</button>' +
       '<button class="rr-del" aria-label="Delete report">&#215;</button>';
+    if(selectMode){ const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'rr-check'; cb.checked = !!on; row.insertBefore(cb, row.firstChild); }
     row.querySelector('.rr-title').textContent = item.title || 'Study Report';
     row.querySelector('.rr-date').textContent = fmtDate(item.dateISO);
     if(selectMode){
@@ -787,18 +813,25 @@ function renderList(){
 // Extract a report's own <style> + <body> so it renders faithfully inside a print/share section.
 function _reportForPrint(fullHtml){
   try{
-    const doc = new DOMParser().parseFromString(fullHtml || '', 'text/html');
+    const doc = _cleanReportDoc(fullHtml);
     const styles = Array.prototype.map.call(doc.querySelectorAll('style'), s => s.outerHTML).join('');
     return styles + (doc.body ? doc.body.innerHTML : '');
-  }catch(e){ return fullHtml || ''; }
+  }catch(e){ return ''; }
 }
 function printReports(reports){
   if(!reports.length){ showToast('Select at least one report'); return; }
   let host = document.getElementById('repo-print-host');
   if(!host){ host = document.createElement('div'); host.id = 'repo-print-host'; document.body.appendChild(host); }
-  host.innerHTML = reports.map(r => '<section class="repo-print-doc">' + _reportForPrint(r.html) + '</section>').join('');
+  while(host.firstChild) host.removeChild(host.firstChild);
+  reports.forEach(r => {
+    const sec = document.createElement('section'); sec.className = 'repo-print-doc';
+    const doc = _cleanReportDoc(r.html);
+    Array.prototype.forEach.call(doc.querySelectorAll('style'), st => sec.appendChild(document.importNode(st, true)));
+    if(doc.body) Array.prototype.forEach.call(doc.body.childNodes, ch => sec.appendChild(document.importNode(ch, true)));
+    host.appendChild(sec);
+  });
   const root = document.documentElement; root.classList.add('printing');
-  const cleanup = () => { root.classList.remove('printing'); host.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
+  const cleanup = () => { root.classList.remove('printing'); while(host.firstChild) host.removeChild(host.firstChild); window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
   setTimeout(() => { try{ window.print(); }catch(e){} setTimeout(cleanup, 1500); }, 80);
 }
