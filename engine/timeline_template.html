@@ -2419,7 +2419,7 @@ function saveNote(){
   const text = document.getElementById('note-input').value.trim();
   if(pendingSelection){
     const hl = highlights.find(h=>h.id===pendingSelection);
-    if(hl){ hl.note = text; hl.mod = Date.now(); delete hl.pending; }   // when the note was last edited — sync keeps the later edit
+    if(hl){ hl.note = text; hl.fmt = 'text'; hl.mod = Date.now(); delete hl.pending; }   // when the note was last edited — sync keeps the later edit
   }
   pendingSelection = null;
   document.getElementById('note-dialog').classList.remove('visible');
@@ -2501,6 +2501,93 @@ function findAndMarkText(hl){
   }
 }
 
+// ── Notes text is PLAIN TEXT, always. Old notes may hold stray markup (or arrive in a #share= link):
+// fold line breaks and bullets into text, drop every tag, cap the length. Never reaches innerHTML.
+/* The walks below read every node property through the prototype getters, cached once: a note that carries a form or
+   an image named "nextSibling" or "nodeName" (DOM clobbering) must not be able to steer them. */
+window._altoNodeAPI = window._altoNodeAPI || (function(){
+  function g(proto, name){ var d = Object.getOwnPropertyDescriptor(proto, name); return d && d.get ? d.get : null; }
+  var N = Node.prototype, D = Document.prototype;
+  return { first: g(N, 'firstChild'), next: g(N, 'nextSibling'), type: g(N, 'nodeType'), name: g(N, 'nodeName'), val: g(N, 'nodeValue'),
+           body: g(D, 'body'), root: g(D, 'documentElement') };
+})();
+window._altoNoteBudget = 3000;                  // nodes one note may cost; past it the note falls back to plain text
+window._altoPlainNote = function(v, max, force){
+  var t = (v == null ? '' : String(v));
+  if(force ? /[<&]/.test(t) : /[<][a-zA-Z!/]/.test(t)){
+    try {
+      var A = window._altoNodeAPI, budget = window._altoNoteBudget;
+      var doc = new DOMParser().parseFromString(t, 'text/html'), out = '';
+      var root = A.body.call(doc) || A.root.call(doc);
+      (function walk(n){
+        for(var c = A.first.call(n); c; c = A.next.call(c)){
+          if(--budget < 0) throw 0;
+          var ty = A.type.call(c);
+          if(ty === 3){ out += A.val.call(c); continue; }
+          if(ty !== 1) continue;
+          var g = String(A.name.call(c)).toLowerCase();
+          if(g === 'script' || g === 'style' || g === 'template' || g === 'noscript') continue;
+          if(g === 'br'){ out += '\n'; continue; }
+          if(g === 'li') out += (out && out.slice(-1) !== '\n' ? '\n' : '') + '• ';
+          else if(/^(p|div|ul|ol|h[1-6]|blockquote|tr)$/.test(g) && out && out.slice(-1) !== '\n') out += '\n';
+          walk(c);
+        }
+      })(root);
+      t = out.replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n');
+    } catch(e){ t = t.replace(/<[^>]*>/g, ''); }
+  }
+  t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ');
+  return t.length > (max || 4000) ? t.slice(0, max || 4000) : t;
+};
+// Old notes may carry light formatting. Parse inertly (DOMParser runs nothing), then REBUILD only the
+// allowlisted tags with no attributes; every other tag is dropped and its text kept.
+// A note's FORM is carried by its fmt field, never guessed from its characters: fmt 'text' is plain text, drawn as
+// text and never parsed. Only a note with no fmt (stored before the field existed) or fmt 'html' is old-format
+// rich text and goes through the allowlist rebuild below.
+window._altoCapText = function(v, max){
+  var t = (v == null ? '' : String(v)); if(t.length > (max || 4000)) t = t.slice(0, max || 4000);
+  return t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ');
+};
+window._altoNoteFrag = function(v, max, fmt){
+  var t = (v == null ? '' : String(v)); if(t.length > (max || 4000)) t = t.slice(0, max || 4000);
+  var frag = document.createDocumentFragment();
+  if(fmt === 'text'){ frag.appendChild(document.createTextNode(window._altoCapText(t, max))); return frag; }
+  if(!/[<&]/.test(t)){ frag.appendChild(document.createTextNode(t)); return frag; }   // no markup, no entity: plain text as it is
+  var OK = {b:1, strong:1, i:1, em:1, u:1, br:1, p:1, ul:1, ol:1, li:1};
+  var A = window._altoNodeAPI, budget = window._altoNoteBudget;
+  try {
+    var doc = new DOMParser().parseFromString(t, 'text/html');
+    (function walk(src, dst, depth){
+      for(var c = A.first.call(src); c; c = A.next.call(c)){
+        if(--budget < 0) throw 0;
+        var ty = A.type.call(c);
+        if(ty === 3){ dst.appendChild(document.createTextNode(A.val.call(c))); continue; }
+        if(ty !== 1) continue;
+        var g = String(A.name.call(c)).toLowerCase();
+        if(g === 'script' || g === 'style' || g === 'template' || g === 'noscript') continue;
+        if(OK[g] === 1 && depth < 20){
+          var e = document.createElement(g); dst.appendChild(e);
+          if(g !== 'br') walk(c, e, depth + 1);
+        } else walk(c, dst, depth);
+      }
+    })(A.body.call(doc) || A.root.call(doc), frag, 0);
+  } catch(e){      // over budget, or an odd document: the note as plain text, markup removed
+    frag = document.createDocumentFragment();
+    frag.appendChild(document.createTextNode(window._altoPlainNote(t, max, true)));
+  }
+  return frag;
+};
+window._altoNoteStr = function(v, max, fmt){    // the same, as a string: text escaped exactly once; rich notes keep attribute-free allowlisted tags
+  if(fmt === 'text') return window._altoEscHtml(window._altoCapText(v, max));
+  var d = document.createElement('div'); d.appendChild(window._altoNoteFrag(v, max, fmt)); return d.innerHTML;
+};
+window._altoNoteText = function(h){             // a note as plain text (the mail body)
+  return h.fmt === 'text' ? window._altoCapText(h.note, 4000) : window._altoPlainNote(h.note);
+};
+window._altoEscHtml = function(v){
+  return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+};
+
 function renderNotesList(){
   const list = document.getElementById('notes-list');
   const empty = document.getElementById('notes-empty');
@@ -2516,11 +2603,20 @@ function renderNotesList(){
     const item = document.createElement('div');
     item.className = 'note-item';
     const colorDot = hl.color==='yellow'?'rgba(255,220,50,0.7)':hl.color==='blue'?'rgba(74,158,255,0.5)':'rgba(232,100,130,0.55)';
-    item.innerHTML = `
-      <div class="note-quote" style="border-color:${colorDot}">"${hl.quote.length>80?hl.quote.slice(0,80)+'…':hl.quote}"</div>
-      ${hl.note ? `<div class="note-text">${hl.note}</div>` : '<div class="note-text" style="color:var(--muted);font-style:italic">No note — click to add</div>'}
-      <button class="note-del" onclick="deleteHighlight('${hl.id}')">✕</button>
-    `;
+    const _q = window._altoCapText(hl.quote, 2000);
+    const qEl = document.createElement('div');
+    qEl.className = 'note-quote'; qEl.style.borderColor = colorDot;
+    qEl.textContent = '"' + (_q.length>80 ? _q.slice(0,80)+'…' : _q) + '"';
+    item.appendChild(qEl);
+    const nEl = document.createElement('div');
+    nEl.className = 'note-text'; nEl.style.whiteSpace = 'pre-wrap';
+    if(hl.note){ nEl.appendChild(window._altoNoteFrag(hl.note, 4000, hl.fmt)); }
+    else { nEl.style.color = 'var(--muted)'; nEl.style.fontStyle = 'italic'; nEl.textContent = 'No note — click to add'; }
+    item.appendChild(nEl);
+    const dEl = document.createElement('button');
+    dEl.className = 'note-del'; dEl.textContent = '✕';
+    dEl.addEventListener('click', function(){ deleteHighlight(hl.id); });
+    item.appendChild(dEl);
     item.querySelector('.note-quote').onclick = () => openNoteForHighlight(hl.id);
     list.appendChild(item);
   });
@@ -2592,13 +2688,13 @@ async function generateNotesReport(){
   try {
     const dateStr = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
     const _hlColorMap = {yellow:'#F59E0B',pink:'#EC4899',green:'#22C55E',blue:'#3B82F6',orange:'#F97316'};
-    const hlHtml = highlights.map(h=>`<div class="hl-block" style="border-color:${_hlColorMap[h.color]||'#ccc'}"><div class="hl-quote">"${h.quote}"</div>${h.note?`<div class="hl-note">${h.note}</div>`:''}</div>`).join('');
+    const hlHtml = highlights.map(h=>`<div class="hl-block" style="border-color:${_hlColorMap[h.color]||'#ccc'}"><div class="hl-quote">"${window._altoEscHtml(window._altoCapText(h.quote, 2000))}"</div>${h.note?`<div class="hl-note">${window._altoNoteStr(h.note, 4000, h.fmt)}</div>`:''}</div>`).join('');
     const _plainLines = [
       '__ALTO_TOK_report_title__',
       'Generated: ' + dateStr,
       '',
       'HIGHLIGHTS & NOTES:',
-      highlights.map(function(h){ return '"' + h.quote + '"' + (h.note ? ', ' + h.note : ''); }).join('\n\n')
+      highlights.map(function(h){ return '"' + window._altoCapText(h.quote, 2000) + '"' + (h.note ? ', ' + window._altoNoteText(h) : ''); }).join('\n\n')
     ];
     const _mailtoHref = '__ALTO_TOK_mailto_href__' + encodeURIComponent(_plainLines.join('\n'));
 
@@ -2616,8 +2712,8 @@ async function generateNotesReport(){
   h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#555;margin:28px 0 10px;font-weight:700;}
   p{font-size:15px;line-height:1.85;margin-bottom:16px;}
   .hl-block{border-left:3px solid;padding:10px 16px;margin:16px 0;border-radius:0 6px 6px 0;background:rgba(0,0,0,0.025);}
-  .hl-quote{font-style:italic;color:#555;font-size:14px;}
-  .hl-note{color:#1a1a2e;margin-top:6px;font-size:14px;}
+  .hl-quote{font-style:italic;color:#555;font-size:14px;white-space:pre-wrap;}
+  .hl-note{color:#1a1a2e;margin-top:6px;font-size:14px;white-space:pre-wrap;}
   .hl-note::before{content:"Note — ";font-weight:700;color:#999;}
   .footer{font-size:10px;color:#bbb;margin-top:60px;border-top:1px solid #eee;padding-top:18px;letter-spacing:.06em;}
 </style></head><body>
@@ -2649,15 +2745,11 @@ ${hlHtml}
       }
     }catch(_e){}
 
-    const win = window.open('','_blank');
-    if(win){
-      win.document.write(reportHtml);
-      win.document.close();
-    } else {
-      const blob = new Blob([reportHtml],{type:'text/html'});
-      const url = URL.createObjectURL(blob);
-      window.open(url,'_blank');
-    }
+    // A blob, opened with noopener: the report can never reach this page through window.opener.
+    const blob = new Blob([reportHtml],{type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    window.open(url,'_blank','noopener,noreferrer');
+    setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(_e){} }, 60000);
   } catch(e){
     alert('Error generating report: ' + e.message);
   }
@@ -10638,7 +10730,7 @@ function buildPayload(includeNotes){
   var p = { v:1, course:COURSE_ID, notes: !!includeNotes };
   if(includeNotes){
     p.highlights = _readStore().map(function(h){
-      return { quote:h.quote, color:h.color, note:h.note || '', kind:h.kind || 'highlight', ts:h.ts || 0 };
+      return { quote:h.quote, color:h.color, note:h.note || '', fmt: h.fmt === 'text' ? 'text' : 'rich', kind:h.kind || 'highlight', ts:h.ts || 0 };
     });
   }
   return p;
@@ -10858,11 +10950,23 @@ function _stripShareParam(){
   try { history.replaceState(null, '', location.pathname + location.search + hash); } catch(e){}
 }
 
+/* Notes that arrive from a link are TEXT ONLY: plain text, length-capped, known colours and kinds, a number for ts. */
+function _cleanImported(h, i, stamp){
+  h = h || {};
+  var color = ['yellow','pink','green','blue','orange'].indexOf(h.color) >= 0 ? h.color : 'yellow';
+  var kind = h.kind === 'freeform' ? 'freeform' : 'highlight';
+  var ts = (typeof h.ts === 'number' && isFinite(h.ts)) ? h.ts : (Date.now() + i);
+  /* Plain unless the payload says 'rich'; rich goes through the allowlist rebuild once, here, and is stored in that
+     canonical form (fmt 'html'); plain is stored as the exact text (fmt 'text'). Escaping happens only at display. */
+  var rich = h.fmt === 'rich' || h.fmt === 'html';
+  return { id: stamp + i, quote: window._altoCapText(h.quote, 2000), color: color,
+           note: rich ? window._altoNoteStr(h.note, 4000, 'html') : window._altoCapText(h.note, 4000),
+           fmt: rich ? 'html' : 'text', kind: kind, ts: ts };
+}
 function _reIdImported(arr){
   var stamp = 'hl-s' + Date.now().toString(36) + '-';
   return arr.map(function(h, i){
-    return { id: stamp + i, quote: h.quote, color: h.color || 'yellow', note: h.note || '',
-             kind: h.kind || 'highlight', ts: h.ts || (Date.now() + i) };
+    return _cleanImported(h, i, stamp);
   });
 }
 
@@ -10888,27 +10992,42 @@ function _showImportDialog(payload){
   var n = payload.highlights.length;
   var overlay = document.createElement('div');
   overlay.id = 'share-import-overlay';
-  var btns = existing.length === 0
-    ? '<button class="note-dialog-btn primary" data-act="replace">Start with their notes</button>' +
-      '<button class="note-dialog-btn" data-act="close">Start fresh</button>'
-    : '<button class="note-dialog-btn primary" data-act="merge">Add to mine</button>' +
-      '<button class="note-dialog-btn" data-act="replace">Replace mine</button>' +
-      '<button class="note-dialog-btn" data-act="close">Keep mine</button>';
-  var account = AltoAuth.currentUser()
-    ? '<div class="imp-account"><div class="imp-title">SAVE TO MY ACCOUNT AS</div>' +
-      '<div class="imp-account-btns">' +
-        '<button class="note-dialog-btn" data-save="project">New project</button>' +
-        '<button class="note-dialog-btn" data-save="timeline">' + _pageFmtName() + '</button>' +
-      '</div></div>'
-    : '';
-  overlay.innerHTML =
-    '<div id="share-import-panel">' +
-      '<div class="imp-title">SHARED</div>' +
-      '<div class="imp-body">__ALTO_TOK_share_import__ — it includes <strong>' + n +
-      '</strong> highlight' + (n === 1 ? '' : 's') + ' &amp; notes.' +
-      (existing.length ? '<br><br>You already have ' + existing.length + ' of your own.' : '') + '</div>' +
-      '<div class="imp-btns">' + btns + '</div>' + account +
-    '</div>';
+  function mk(tag, cls, text, attrs){
+    var n = document.createElement(tag); if(cls) n.className = cls; if(text != null) n.textContent = text;
+    if(attrs) Object.keys(attrs).forEach(function(k){ n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+  function btn(label, k, v, primary){ return mk('button', 'note-dialog-btn' + (primary ? ' primary' : ''), label, (function(o){ o[k] = v; return o; })({})); }
+  var panel = mk('div'); panel.id = 'share-import-panel';
+  panel.appendChild(mk('div', 'imp-title', 'SHARED'));
+  var body = mk('div', 'imp-body');
+  body.appendChild(document.createTextNode('__ALTO_TOK_share_import__ \u2014 it includes '));
+  body.appendChild(mk('strong', null, String(n)));
+  body.appendChild(document.createTextNode(' highlight' + (n === 1 ? '' : 's') + ' & notes.'));
+  if(existing.length){
+    body.appendChild(mk('br')); body.appendChild(mk('br'));
+    body.appendChild(document.createTextNode('You already have ' + existing.length + ' of your own.'));
+  }
+  panel.appendChild(body);
+  var row = mk('div', 'imp-btns');
+  if(existing.length === 0){
+    row.appendChild(btn('Start with their notes', 'data-act', 'replace', true));
+    row.appendChild(btn('Start fresh', 'data-act', 'close'));
+  } else {
+    row.appendChild(btn('Add to mine', 'data-act', 'merge', true));
+    row.appendChild(btn('Replace mine', 'data-act', 'replace'));
+    row.appendChild(btn('Keep mine', 'data-act', 'close'));
+  }
+  panel.appendChild(row);
+  if(AltoAuth.currentUser()){
+    var acct = mk('div', 'imp-account');
+    acct.appendChild(mk('div', 'imp-title', 'SAVE TO MY ACCOUNT AS'));
+    var ab = mk('div', 'imp-account-btns');
+    ab.appendChild(btn('New project', 'data-save', 'project'));
+    ab.appendChild(btn(_pageFmtName(), 'data-save', 'timeline'));
+    acct.appendChild(ab); panel.appendChild(acct);
+  }
+  overlay.appendChild(panel);
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e){
     var act = e.target.getAttribute && e.target.getAttribute('data-act');
@@ -10928,6 +11047,7 @@ function _runImportFromHash(){
     _stripShareParam();
     if(!payload || payload.v !== 1 || !payload.notes || !Array.isArray(payload.highlights) || payload.highlights.length === 0)
       return;   // bare invite (or notes excluded) — just open the app
+    payload.highlights = payload.highlights.slice(0, 500).map(function(h, i){ var c = _cleanImported(h, i, ''); delete c.id; return c; });
     _showImportDialog(payload);
   }).catch(function(e){
     console.warn('share: could not read shared link payload', e);

@@ -240,7 +240,7 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
 
   /* ── histories ───────────────────────────────────────────────────────── */
   function snapshot(){ return items().filter(function(h){ return h && h.id && !h.pending; }); }
-  function pick(h){ return {note: h.note || '', color: h.color || 'yellow'}; }
+  function pick(h){ return {note: h.note || '', color: h.color || 'yellow', fmt: h.fmt}; }
   function diff(a, b){
     var A = {}, B = {}, add = [], del = [], chg = [];
     a.forEach(function(h){ A[h.id] = h; }); b.forEach(function(h){ B[h.id] = h; });
@@ -298,7 +298,7 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
   }
   function setFields(id, f){
     var arr = items(), h = byId(arr, id); if(!h) return false;
-    h.note = f.note; h.color = f.color; h.mod = Date.now(); put(arr); return true;
+    h.note = f.note; h.color = f.color; if(f.fmt) h.fmt = f.fmt; else delete h.fmt; h.mod = Date.now(); put(arr); return true;
   }
   function apply(o, back){
     replaying = true;
@@ -545,10 +545,17 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
     if(!h) return;
     if(S && S.id === id){ try { ta().focus(); } catch(e){} return; }
     var hs = histFor(h);
-    S = {id:id, v:hs.v, p:hs.p, saved:h.note || '', fresh:!!h.pending};
+    var rich = !!(h.note && h.fmt !== 'text' && window._altoPlainNote), plain = '';
+    if(rich){ plain = window._altoPlainNote(h.note, Math.max(4000, h.note.length), true); hs = {v:[plain], p:0}; }   // an old rich note is edited as plain text (tags never shown); saved untouched it keeps its formatting
+    S = {id:id, v:hs.v, p:hs.p, saved:rich ? plain : (h.note || ''), fresh:!!h.pending, richOrig:rich, richPlain:plain.trim()};
     var d = box(), a = ta();
     a.value = S.v[S.p];
     var lab = d.querySelector('.nd-label'); if(lab) lab.textContent = h.note ? 'EDIT NOTE' : 'ADD NOTE';
+    var nt = d.querySelector('.nd-notice');                       // an old formatted note: say so before anything is lost; Cancel leaves it untouched
+    if(!nt){ nt = el('div', 'nd-notice'); nt.style.cssText = 'font-size:11px;line-height:1.4;margin:0 0 6px;opacity:.75;'; a.parentNode.insertBefore(nt, a); }
+    nt.textContent = 'Editing will save this note as plain text'; var formatted = false;
+    if(S.richOrig){ try { formatted = !!window._altoNoteFrag(h.note, Math.max(4000, h.note.length), h.fmt).querySelector('*'); } catch(e){ formatted = true; } }
+    nt.style.display = formatted ? '' : 'none';      // only a note that really has formatting gets the notice
     d.style.top = '200px'; d.style.left = '50%'; d.style.transform = 'translateX(-50%)';
     d.classList.add('visible');
     buttons();
@@ -560,8 +567,9 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
     checkpoint();
     var text = ta().value.trim(), before = snapshot(), arr = items(), h = byId(arr, S.id);
     if(!h) return false;
+    if(S.richOrig && text === S.richPlain){ delete h.pending; return true; }   // untouched: the old formatting stays as stored
     var changed = (h.note || '') !== text;
-    h.note = text; if(changed || h.pending) h.mod = Date.now();
+    h.note = text; h.fmt = 'text'; if(changed || h.pending) h.mod = Date.now();
     delete h.pending; if(!h.ts) h.ts = Date.now();
     put(arr); keepHist(S.id, text);
     try { record(before, snapshot()); } catch(e){}
@@ -707,6 +715,7 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
       }
       var has = !!(h.note && h.note.length);
       var t = el('div', 'note-text', has ? h.note : (h.kind === 'freeform' ? 'Empty note — tap the pencil to edit' : 'No note — tap the pencil to add'));
+      if(has && window._altoNoteFrag){ t.textContent = ''; t.appendChild(window._altoNoteFrag(h.note, 4000, h.fmt)); t.style.whiteSpace = 'pre-wrap'; }   // old notes keep line breaks, bullets and light formatting (allowlist rebuild)
       if(!has){ t.style.color = 'var(--muted)'; t.style.fontStyle = 'italic'; }
       item.appendChild(t);
       var where = placeName(h.src);

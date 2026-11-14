@@ -56,7 +56,7 @@ def test_unknown_search_kind_shows_no_word():
 
 def test_save_to_account_button_names_the_format():
     assert 'data-save="timeline">Timeline</button>' not in TIMELINE
-    assert "_pageFmtName() + '</button>'" in TIMELINE
+    assert "btn(_pageFmtName(), 'data-save', 'timeline')" in TIMELINE
 
 
 def test_lanes_reads_horizontal_wherever_users_see_it():

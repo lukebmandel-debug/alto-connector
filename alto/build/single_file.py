@@ -225,15 +225,11 @@ _HOME_SAVE_OLD = """    const blob = new Blob([html], { type: 'text/html' });
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 """
 _HOME_SAVE_NEW = "    await parent.__altoSave(filename, html);\n"
-_REPORT_OPEN_OLD = """    const win = window.open('','_blank');
-    if(win){
-      win.document.write(reportHtml);
-      win.document.close();
-    } else {
-      const blob = new Blob([reportHtml],{type:'text/html'});
-      const url = URL.createObjectURL(blob);
-      window.open(url,'_blank');
-    }
+_REPORT_OPEN_OLD = """    // A blob, opened with noopener: the report can never reach this page through window.opener.
+    const blob = new Blob([reportHtml],{type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    window.open(url,'_blank','noopener,noreferrer');
+    setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(_e){} }, 60000);
 """
 _REPORT_OPEN_NEW = ("    parent.__altoSave('Notes report.html', reportHtml)"
                     ".catch(function(){});\n")
