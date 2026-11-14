@@ -23,10 +23,11 @@ The file holds numbers only: period ids, source names, hold ids, milli-credits, 
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
-import fcntl
 import json
 import os
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -37,6 +38,46 @@ MC = 1000
 RESERVE_FILE = Path.home() / "Library" / "Application Support" / "Alto-bass-local" / "reserve.json"
 CAP_CREDITS = 1000                    # $10 per credit period, every local spender together
 TTL_S = 900
+
+
+@contextlib.contextmanager
+def _file_lock(path: Path, stale_s: float = 60.0, wait_s: float = 30.0):
+    """An exclusive cross-process lock on `path`. POSIX: flock (the original). Without fcntl (Windows): an exclusively-created lock file, spun
+    on until free; a lock file older than stale_s (a crashed holder) is taken over."""
+    try:
+        import fcntl
+    except ImportError:
+        fcntl = None
+    if fcntl is not None:
+        with open(path, "a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+        return
+    mine, deadline = Path(str(path) + ".x"), time.time() + wait_s
+    while True:
+        try:
+            os.close(os.open(mine, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            try:
+                if time.time() - mine.stat().st_mtime > stale_s:
+                    mine.unlink()
+                    continue
+            except OSError:
+                pass
+            if time.time() > deadline:
+                raise TimeoutError(f"the reserve lock {mine} stayed held for {wait_s} s")
+            time.sleep(0.02)
+    try:
+        yield
+    finally:
+        try:
+            mine.unlink()
+        except OSError:
+            pass
 
 
 class WrongReserve(BassError):
@@ -67,9 +108,8 @@ class LocalReserve:
 
     def _locked(self, fn):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path.with_suffix(".lock"), "a+") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            try:
+        with _file_lock(self.path.with_suffix(".lock")):
+            if True:
                 fresh = not self.path.is_file()
                 doc = {"periods": {}} if fresh else json.loads(self.path.read_text("utf-8"))
                 if fresh:                                   # the first period is opened with the file, and never again by itself
@@ -86,8 +126,6 @@ class LocalReserve:
                 tmp.write_text(json.dumps(doc, sort_keys=True, indent=1), "utf-8")
                 os.replace(tmp, self.path)
                 return out
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def _new_period(self, why: str) -> dict:
         return {"opened": self.clock().isoformat(), "why": why, "cap_mc": self.cap_mc, "spent": {}, "holds": {}}

@@ -100,7 +100,7 @@ def test_log_write_failure_never_stops_the_block(monkeypatch, tmp_path):
 
 
 def test_default_log_path_is_fixed_under_the_real_home_not_HOME(monkeypatch, tmp_path):
-    import pwd
+    pwd = pytest.importorskip("pwd")             # POSIX only: the account database; Windows uses the home from the environment
     monkeypatch.delenv("ALTO_NET_GUARD_LOG")
     monkeypatch.setenv("HOME", str(tmp_path))                         # a private temp HOME (isolate.py) must not move the log
     assert net_guard.log_path() == os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "Library", "Logs", "Alto", "net_guard.log")

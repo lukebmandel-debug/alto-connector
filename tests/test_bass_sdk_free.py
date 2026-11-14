@@ -21,6 +21,10 @@ _BLOCK = textwrap.dedent('''
     sys.meta_path.insert(0, _Block())
 ''')
 
+# POSIX-only stdlib modules, blocked the way a Windows interpreter lacks them (an import raises ImportError). `posix` itself is not blocked:
+# os needs it on POSIX; the product never imports it directly (scanned: none).
+POSIX_ONLY = ("pwd", "grp", "fcntl", "termios", "resource", "pty", "tty", "syslog", "crypt", "spwd", "nis")
+
 # Needs fastapi (the hosted-web extra), not the SDK; unrelated to Bass and absent from the plain install at 1.9.225 too.
 NEEDS_FASTAPI = {"alto.auth.oauth", "alto.web"}
 
@@ -59,14 +63,18 @@ EXPECTED_SKIPPED_WITHOUT_SDK = {
 }
 
 
-def _env(tmp):
+def _env(tmp, posix=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith("ANTHROPIC_") and k != "ALTO_LIVE_ANTHROPIC"}
     env.update(ALTO_NO_NETWORK="1", HOME=str(tmp), PYTHONPATH=str(tmp) + os.pathsep + os.environ.get("PYTHONPATH", ""))
-    Path(tmp, "sitecustomize.py").write_text(_BLOCK)
+    Path(tmp, "sitecustomize.py").write_text(_BLOCK + ("\nfor _m in %r:\n    sys.modules[_m] = None\n" % (POSIX_ONLY,) if posix else ""))
     return env
 
 
-def test_every_alto_module_imports_and_a_page_builds_with_the_sdk_blocked():
+import pytest
+
+
+@pytest.mark.parametrize("posix", [False, True], ids=["posix", "no-posix"])
+def test_every_alto_module_imports_and_a_page_builds_with_the_sdk_blocked(posix):
     with tempfile.TemporaryDirectory() as tmp:
         code = textwrap.dedent('''
             import asyncio, importlib, json, pkgutil, sys
@@ -91,7 +99,7 @@ def test_every_alto_module_imports_and_a_page_builds_with_the_sdk_blocked():
             print(json.dumps({"bad": bad, "tools": len(tools), "page": len(page), "home": len(home),
                               "sdk": [k for k in sys.modules if k.split(".")[0] in ("anthropic", "httpx2")]}))
         ''' % (str(ROOT), sorted(NEEDS_FASTAPI), str(ROOT / "samples" / "outline_brief.json")))
-        r = subprocess.run([sys.executable, "-c", code], cwd=tmp, env=_env(tmp), capture_output=True, text=True, timeout=300)
+        r = subprocess.run([sys.executable, "-c", code], cwd=tmp, env=_env(tmp, posix), capture_output=True, text=True, timeout=300)
         assert r.returncode == 0, r.stderr[-1500:]
         out = json.loads(r.stdout.strip().splitlines()[-1])
     assert out["bad"] == [], out["bad"]
@@ -99,14 +107,23 @@ def test_every_alto_module_imports_and_a_page_builds_with_the_sdk_blocked():
     assert out["sdk"] == [], "the SDK got imported while loading the product: " + str(out["sdk"])
 
 
-def test_the_bass_tests_that_skip_without_the_sdk_are_exactly_the_expected_list():
+def test_the_whole_tests_folder_collects_with_the_posix_modules_blocked():
+    with tempfile.TemporaryDirectory() as tmp:
+        r = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", "--ignore=tests/security"],
+                           cwd=ROOT, env=_env(tmp, True), capture_output=True, text=True, timeout=600)
+    last = r.stdout.strip().splitlines()[-1]
+    assert r.returncode == 0 and "error" not in last, (last, [l for l in r.stdout.splitlines() if l.startswith("ERROR")][:10])
+
+
+@pytest.mark.parametrize("posix", [False, True], ids=["posix", "no-posix"])
+def test_the_bass_tests_that_skip_without_the_sdk_are_exactly_the_expected_list(posix):
     with tempfile.TemporaryDirectory() as tmp:
         files = sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tests").glob("test_bass_*.py"))
         files = [f for f in files if "browser" not in f and not f.endswith("test_bass_sdk_free.py")] + ["tests/test_stale_guard.py"]
         r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-rs", "-p", "no:cacheprovider", *files],
-                           cwd=ROOT, env=_env(tmp), capture_output=True, text=True, timeout=900)
+                           cwd=ROOT, env=_env(tmp, posix), capture_output=True, text=True, timeout=900)
     last = r.stdout.strip().splitlines()[-1]
-    assert " failed" not in last and " error" not in last, last
+    assert " failed" not in last and " error" not in last, (last, [l for l in r.stdout.splitlines() if l.startswith(("FAILED", "ERROR"))][:10])
     skipped, per_file = set(), {}
     for line in r.stdout.splitlines():
         m = re.match(r"SKIPPED \[(\d+)\] (tests/\S+?):\d+: could not import '(anthropic|httpx2)'", line)

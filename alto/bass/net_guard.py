@@ -10,9 +10,13 @@ INSTALL.md) and from the mock layer's constructor.
 """
 import datetime
 import os
-import pwd
 import socket
 import sys
+
+try:
+    import pwd                     # POSIX only; Windows falls back to the user's home from the environment
+except ImportError:
+    pwd = None
 
 BLOCKED_SUFFIXES = ("anthropic.com", "claude.ai", "claude.com")
 _LOOPBACK = {"localhost", "127.0.0.1", "::1", "0.0.0.0", ""}
@@ -21,6 +25,11 @@ _installed = False
 
 class RealNetworkBlocked(RuntimeError):
     pass
+
+
+class GuardUnavailable(RuntimeError):
+    """The guard cannot establish where it logs (no account database and no home in the environment): FAIL CLOSED. install() raises this,
+    so Bass (whose mock layer installs the guard) refuses to start rather than running with a guard it cannot account for."""
 
 
 # -- the block log (incident 11 Nov): one line per block, so a blocked attempt is never known only from a transcript ------------------
@@ -39,8 +48,10 @@ def log_path() -> str:
         return override
     try:
         home = pwd.getpwuid(os.getuid()).pw_dir
-    except (KeyError, OSError):
+    except (AttributeError, KeyError, OSError):      # AttributeError: no pwd (Windows)
         home = os.path.expanduser("~")
+    if not home or home.startswith("~"):             # expanduser leaves '~' alone when it cannot resolve a home
+        raise GuardUnavailable("net_guard cannot establish the user's home directory, so it cannot establish its log path")
     return os.path.join(home, "Library", "Logs", "Alto", "net_guard.log")
 
 
@@ -86,6 +97,7 @@ def install():
     global _installed
     if _installed:
         return
+    log_path()                                       # raises GuardUnavailable (fail closed) before anything is patched or marked installed
     _installed = True
     real_gai, real_connect, real_cc = socket.getaddrinfo, socket.socket.connect, socket.create_connection
 
