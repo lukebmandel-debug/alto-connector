@@ -2296,6 +2296,9 @@ _HELP_D_TAIL_NEW = (
     '      <p class="info-desktop" style="margin:5px 0"><strong>Controls</strong> &#8212; bottom right: search, this &#9432;, light or dark, Edit. Bottom left signs you in; the Alto clef or wordmark opens your homepage.</p>\n'
     '    </div>\n')
 
+from . import bass_ui as _bass_ui                                       # Bass (bass_ui.py): its Info lines, only in a build made with ALTO_BASS_UI=1
+_HELP_D_TAIL_NEW = _bass_ui.info_desktop(_HELP_D_TAIL_NEW)
+
 _HELP_M_HEAD_OLD = (
     "    '    <h3>Moving between scenes</h3>',\n"
     "    '    <p>Swipe a card left or right to step through the story in order.</p>',\n"
@@ -2338,6 +2341,8 @@ _HELP_M_TAIL_NEW = (
     "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy or print it.</p>',\n"
     "    '    <h3>Making and editing</h3>',\n"
     "    '    <p>You can build one entirely by hand on a computer, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments and revisions yourself. <strong>Edit this page</strong> (at the foot of a page) changes its words right here.</p>',\n")
+
+_HELP_M_TAIL_NEW = _bass_ui.info_phone(_HELP_M_TAIL_NEW)
 
 # ── detail-page swipe preview matches the page it becomes ──────────────────
 # The page sliding in under the finger was painted a flat var(--bg) (near-black

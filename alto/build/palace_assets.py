@@ -41,6 +41,9 @@ ASSETS = (
     ("phone", "phone_minimal", "phone_min_asset"),
     ("world", "palace_world", "world_asset"),
 )
+from .bass_ui import enabled as _bass_on                      # Bass (bass_ui.py): its hosted bundle exists only in a build made with ALTO_BASS_UI=1
+if _bass_on():
+    ASSETS += (("bass", "bass_ui", "bass_asset"),)
 
 
 BLOB_FOLDERS = ("cmap",)

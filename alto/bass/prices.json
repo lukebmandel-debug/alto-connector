@@ -1,0 +1,13 @@
+{
+  "_note": "USD per million tokens. ONE table for IT's pool ledger AND the Bass credits meter. Filled 2026-10-28 by bench-tl-1 from the claude-api skill's model table (cached 2026-10-06, per Anthropic first-party rates). STATUS: TO CONFIRM against the Console pricing page before the first live run. cache_read for Sonnet 5.5 and Opus 5.5 is stated in the skill; every other cache_read/cache_write is DERIVED (read = 0.1x input, 5-minute write = 1.25x input) and marked in _derived. long_prompt: Haiku 5.5 is $0.50 in / $2.50 out for prompts over 100K tokens. null = unpriced (ledger records tokens, flags cost as unknown, and refuses to count it as free).",
+  "pool_usd": 100,
+  "credits_per_usd": 100,
+  "_credits_note": "1 credit = 1 cent of Alto's real API cost (memo section 4.4).",
+  "_derived": ["claude-haiku-5-5.cache_read", "claude-haiku-5-5.cache_write", "claude-sonnet-5-5.cache_write", "claude-opus-5-5.cache_write"],
+  "models": {
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_write": 2.50, "cache_read": 0.10},
+    "claude-opus-5-5":   {"input": 4.00, "output": 20.00, "cache_write": 5.00, "cache_read": 0.20},
+    "claude-haiku-5-5":  {"input": 0.10, "output": 0.50, "cache_write": 0.125, "cache_read": 0.01,
+                          "long_prompt": {"over_input_tokens": 100000, "input": 0.50, "output": 2.50}}
+  }
+}

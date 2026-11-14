@@ -98,6 +98,9 @@ class Session:
 
     # ── stored session ───────────────────────────────────────────────────────
     def _load(self) -> dict:
+        from . import offline
+        if not offline.may_read(self.path):   # offline process: never open a real sign-in file
+            return {}
         try:
             d = json.loads(self.path.read_text(encoding="utf-8"))
             return d if isinstance(d, dict) and d.get("refresh_token") else {}
@@ -288,6 +291,8 @@ def get_session() -> Session:
         return scoped
     global _SESSION
     if _SESSION is None:
+        from . import offline
+        offline.refuse("the default sign-in", config_dir())
         _SESSION = Session()
     return _SESSION
 

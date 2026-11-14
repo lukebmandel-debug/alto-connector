@@ -49,6 +49,7 @@ def cloud(fake, tmp_path):
 def check(monkeypatch):
     """The update check switched on, GitHub replaced: set check.latest to what the 'release' says."""
     monkeypatch.delenv("ALTO_UPDATE_CHECK", raising=False)
+    monkeypatch.setattr(update_check, "_TEST_ALLOW_OFFLINE", True)       # the fetch below is a stub: run even when a Bass suite made us offline
     monkeypatch.setattr(E, "running_version", lambda: "1.9.187")
     monkeypatch.setattr(update_check, "running_version", lambda: "1.9.187")
 

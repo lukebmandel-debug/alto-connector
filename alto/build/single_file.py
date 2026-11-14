@@ -21,6 +21,12 @@ class BundleError(ValueError):
     pass
 
 
+def _bass_hash_reads() -> int:
+    """The Bass loader's own `location.hash` reads (0 unless built with ALTO_BASS_UI=1); they are swapped for __altoHash() with the rest."""
+    from .bass_ui import hash_reads
+    return hash_reads()
+
+
 def _rep(html, old, new, n, label):
     c = html.count(old)
     if c != n:
@@ -82,7 +88,7 @@ def _prepare_timeline(tl: str, tid: str, label: str) -> str:
               1, f"{label} reports btn (hidden: no reports in bundle)")
     tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
               2, f"{label} mobile brand (js)")
-    tl = _rep(tl, "location.hash", "__altoHash()", 4, f"{label} hash reads")
+    tl = _rep(tl, "location.hash", "__altoHash()", 4 + _bass_hash_reads(), f"{label} hash reads")
     return _inject_shim(tl, label)
 
 
@@ -131,7 +137,7 @@ def _prepare_private(tl: str, tid: str) -> str:
               1, "private reports btn")
     tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
               2, "private mobile brand (js)")
-    tl = _rep(tl, "location.hash", "__altoHash()", 4, "private hash reads")
+    tl = _rep(tl, "location.hash", "__altoHash()", 4 + _bass_hash_reads(), "private hash reads")
     return _inject_shim(tl, "private")
 
 

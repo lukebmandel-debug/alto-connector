@@ -1,0 +1,10 @@
+# The tested set: Python 3.12, anthropic as in the test venv. build_bundle.py appends the connector's own requirements.txt
+# (mcp, jsonschema, ...) and keeps the pins below when a package appears twice.
+functions-framework==3.8.2
+firebase-admin==6.6.0
+google-cloud-firestore==2.19.0
+google-cloud-secret-manager==2.21.1
+google-cloud-storage==2.18.2
+anthropic==2.3.0
+tzdata==2024.2        # BetaConfig uses ZoneInfo("America/New_York") at cold start; a slim image may have no zone database
+pypdf==6.21.4           # PDF text for uploads (alto/bass/extract_worker.py); pure Python, no dependencies, text only (no native PDF blocks go to Claude)

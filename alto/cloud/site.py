@@ -32,6 +32,9 @@ def path() -> Path:
 
 
 def load() -> dict:
+    from . import offline
+    if not offline.may_read(path()):          # offline process: never open the real site record
+        return {}
     try:
         d = json.loads(path().read_text(encoding="utf-8"))
         return d if isinstance(d, dict) else {}

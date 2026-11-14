@@ -78,6 +78,11 @@ def store_mode() -> str:
     admin store). Anything unrecognised — including an .mcpb placeholder that
     was never filled in — is local, the one mode that needs no setup."""
     from .cloud import accounts
+    if _offline_blocked():
+        # Incident 11 Nov: a no-network process never answers 'cloud' or 'firestore', and decides it from the
+        # environment alone: site.json is not opened. get_store() then refuses anything but an explicit
+        # ALTO_STORE=local or a store handed in with set_store().
+        return "local"
     if accounts.current() is not None:      # a call scoped to an account
         return "cloud"
     m = os.environ.get("ALTO_STORE", "").strip().lower()
@@ -89,6 +94,25 @@ def store_mode() -> str:
     return "cloud" if site_rec.ready() else "local"
 
 
+def _offline_blocked() -> bool:
+    """True in a no-network process (ALTO_NO_NETWORK=1, or the Bass mock's network guard installed) whose
+    config dir is not a registered test fake (alto/cloud/offline.py). Reads only the environment. Always
+    False in a normal app process."""
+    from .cloud import offline
+    if offline.reason() is None:
+        return False
+    from .cloud.session import config_dir
+    return offline.blocks(config_dir())
+
+
+def _refuse_offline_store(what: str) -> None:
+    """Raise CloudStoreRefused for `what` in a blocked offline process, BEFORE site.json, a sign-in file or
+    Session._load() is touched."""
+    from .cloud import offline
+    from .cloud.session import config_dir
+    offline.refuse(f"the {what} store", config_dir())
+
+
 _account_stores: dict = {}
 
 
@@ -97,6 +121,7 @@ def get_store():
     from .cloud import accounts
     scoped = accounts.current()
     if scoped is not None:
+        _refuse_offline_store("an account-scoped call")
         # One store per account, each on its own sign-in. Built files still
         # land under this computer's store dir, keyed by the account's uid.
         st = _account_stores.get(scoped["id"])
@@ -106,6 +131,9 @@ def get_store():
                 accounts.session_for(scoped), LocalStore(store_dir()))
         return st
     if _store is None:
+        m = os.environ.get("ALTO_STORE", "").strip().lower()
+        if m != "local" and _offline_blocked():
+            _refuse_offline_store(m if m in ("cloud", "firestore") else "default ('auto')")
         mode = store_mode()
         if mode == "firestore":
             from .store.firestore import FirestoreStore
@@ -247,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.225"
+__version__ = "1.9.226"
 WEBSITE_URL = "https://alto-get.web.app"
 
 

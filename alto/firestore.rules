@@ -190,5 +190,17 @@ service cloud.firestore {
     match /bass_beta/{document=**} {
       allow read, write: if false;
     }
+
+    // Opt-in conversation sharing (alto/bass/research_share.py): the switch, the consent record and the purge tickets are written and read
+    // by the Bass proxy only. No client rule matches them (default deny), and this block makes the intent visible.
+    match /bass_research/{document=**} {
+      allow read, write: if false;
+    }
+    match /bass_research_consent/{document=**} {
+      allow read, write: if false;
+    }
+    match /bass_research_purge/{document=**} {
+      allow read, write: if false;
+    }
   }
 }
