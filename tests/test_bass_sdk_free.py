@@ -115,21 +115,58 @@ def test_the_whole_tests_folder_collects_with_the_posix_modules_blocked():
     assert r.returncode == 0 and "error" not in last, (last, [l for l in r.stdout.splitlines() if l.startswith("ERROR")][:10])
 
 
+def parse_sdk_skips(stdout: str):
+    """-> (last summary line, {file: count}) from a pytest -rs run, whatever the platform: CRLF line ends and backslash paths are normalised."""
+    lines = [l.rstrip("\r") for l in stdout.replace("\r\n", "\n").split("\n")]
+    lines = [l for l in lines if l.strip()]
+    per_file = {}
+    for line in lines:
+        m = re.match(r"SKIPPED \[(\d+)\] (\S+?):\d+: could not import '(?:anthropic|httpx2)'", line)
+        if m:
+            per_file[m.group(2).replace("\\", "/")] = int(m.group(1))
+    return (lines[-1] if lines else ""), per_file
+
+
+def check_pinned(stdout: str, expected=None):
+    """Fail-loud: zero parsed skips, or any set other than the pinned one (more OR fewer), raises AssertionError."""
+    expected = EXPECTED_SKIPPED_WITHOUT_SDK if expected is None else expected
+    last, per_file = parse_sdk_skips(stdout)
+    assert " failed" not in last and " error" not in last, (last, [l for l in stdout.splitlines() if l.startswith(("FAILED", "ERROR"))][:10])
+    assert per_file, "the parser found NO SDK skips at all: the output format changed or the run did not happen"
+    skipped = set(per_file)
+    assert skipped == set(expected), sorted(skipped ^ set(expected))
+    assert per_file.get("tests/test_bass_inert_public.py") == 1     # only the beta-proxy mock-transport test
+    assert not any("proxy_not_started" in f or "stale_guard" in f for f in skipped)
+
+
+def test_the_pin_fails_loudly_on_empty_extra_or_missing_skips():
+    def out(files, tail="1 passed in 1s"):
+        return "".join(f"SKIPPED [1] {f}:4: could not import 'anthropic': No module named 'anthropic'\n" for f in files) + tail + "\n"
+    exp = {"tests/test_bass_wire.py", "tests/test_bass_inert_public.py"}
+    check_pinned(out(sorted(exp)), exp)
+    check_pinned(out(sorted(exp)).replace("tests/", "tests\\").replace("\n", "\r\n"), {e.replace("/", "/") for e in exp})
+    for bad in ("", out([]), out(["tests/test_bass_wire.py"]), out(sorted(exp | {"tests/test_bass_new.py"})),
+                out(sorted(exp), "1 failed, 1 passed in 1s")):
+        with pytest.raises(AssertionError):
+            check_pinned(bad, exp)
+
+
+def test_the_skip_parser_reads_posix_and_windows_output_the_same():
+    posix = ("SKIPPED [1] tests/test_bass_wire.py:4: could not import 'anthropic': No module named 'anthropic'\n"
+             "SKIPPED [4] tests/test_bass_beta_upload.py:16: could not import 'pypdf': No module named 'pypdf'\n"
+             "SKIPPED [1] tests/test_bass_inert_public.py:153: could not import 'httpx2': No module named 'httpx2'\n"
+             "295 passed, 31 skipped in 30.13s\n")
+    windows = posix.replace("tests/", "tests\\").replace("\n", "\r\n")
+    assert "\\" in windows and "\r\n" in windows
+    a, b = parse_sdk_skips(posix), parse_sdk_skips(windows)
+    assert a == b == ("295 passed, 31 skipped in 30.13s", {"tests/test_bass_wire.py": 1, "tests/test_bass_inert_public.py": 1})
+
+
 @pytest.mark.parametrize("posix", [False, True], ids=["posix", "no-posix"])
 def test_the_bass_tests_that_skip_without_the_sdk_are_exactly_the_expected_list(posix):
     with tempfile.TemporaryDirectory() as tmp:
-        files = sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tests").glob("test_bass_*.py"))
+        files = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "tests").glob("test_bass_*.py"))
         files = [f for f in files if "browser" not in f and not f.endswith("test_bass_sdk_free.py")] + ["tests/test_stale_guard.py"]
         r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-rs", "-p", "no:cacheprovider", *files],
                            cwd=ROOT, env=_env(tmp, posix), capture_output=True, text=True, timeout=900)
-    last = r.stdout.strip().splitlines()[-1]
-    assert " failed" not in last and " error" not in last, (last, [l for l in r.stdout.splitlines() if l.startswith(("FAILED", "ERROR"))][:10])
-    skipped, per_file = set(), {}
-    for line in r.stdout.splitlines():
-        m = re.match(r"SKIPPED \[(\d+)\] (tests/\S+?):\d+: could not import '(anthropic|httpx2)'", line)
-        if m:
-            skipped.add(m.group(2))
-            per_file[m.group(2)] = int(m.group(1))
-    assert skipped == EXPECTED_SKIPPED_WITHOUT_SDK, sorted(skipped ^ EXPECTED_SKIPPED_WITHOUT_SDK)
-    assert per_file["tests/test_bass_inert_public.py"] == 1     # only the beta-proxy mock-transport test
-    assert not any("proxy_not_started" in f or "stale_guard" in f for f in skipped)
+    check_pinned(r.stdout)
