@@ -553,3 +553,68 @@ def test_all_floors_is_absent_by_default(browser, site):
         finally:
             ctx.close()
         assert not errors, errors
+
+
+# ── All floors fills the safe box, and a tag with no room is a dot (brief bp-allfloors-fable-1114) ──
+TAGS = r"""()=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0; }, R=e=>e.getBoundingClientRect();
+ const meet=(q,r)=>Math.min(q.right,r.right)-Math.max(q.left,r.left)>0.5&&Math.min(q.bottom,r.bottom)-Math.max(q.top,r.top)>0.5;
+ const all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(R), out=[];
+ for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) if(meet(q[i],q[j])) out.push(P[i].textContent+' on '+P[j].textContent);
+ const names=[...document.querySelectorAll('#bldg-root .bl-lab,#bldg-root .bl-celltitle,#bldg-root .bl-lit')].filter(vis);
+ names.forEach(n=>{ const r=R(n); if(r.width<1) return; q.forEach((c,i)=>{ if(meet(c,r)) out.push(P[i].textContent+' over the name '+n.textContent.slice(0,14)); }); });
+ const cells=[...document.querySelectorAll('#bldg-root .bl-cellbg')].map(R), rr=R(document.getElementById('bldg-root')), B=AltoBuilding.allBox();
+ const u={l:Math.min(...cells.map(c=>c.left))-rr.left, t:Math.min(...cells.map(c=>c.top))-rr.top, r:Math.max(...cells.map(c=>c.right))-rr.left, b:Math.max(...cells.map(c=>c.bottom))-rr.top};
+ const off=all.filter(e=>!vis(e)).map(e=>{ const m=/translate3d\(([-\d.]+)px, ?([-\d.]+)px/.exec(e.style.transform)||[]; return e.firstChild.textContent+'@'+Math.round(m[1])+','+Math.round(m[2])+' '+e.className.replace(/bl-pill|alto-mk/g,'').trim(); });
+ return {off, cells:cells.map(c=>[c.left,c.top,c.right,c.bottom].map(Math.round)), box:B, n:all.length, vis:P.length, dots:P.filter(e=>e.classList.contains('bl-dot')).length, names:names.filter(n=>n.classList.contains('bl-lab')).length, out,
+         fill:[(u.r-u.l)/B.w,(u.b-u.t)/B.h], inside:u.l>=B.l-1&&u.t>=B.t-1&&u.r<=B.r+1&&u.b<=B.b+1}; }"""
+ALL_SIZES = {"d1440": {"viewport": {"width": 1440, "height": 900}}, "d1280": {"viewport": {"width": 1280, "height": 800}},
+             "phone": PHONE, "phone-land": dict(PHONE, viewport={"width": 844, "height": 390})}
+
+
+@needs_all
+@pytest.mark.parametrize("style", STYLES)
+@pytest.mark.parametrize("size", list(ALL_SIZES))
+def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, style, size, request):
+    """No two visible tags overlap and none covers a room's name; the panels fill the safe box; a crowded tag is a dot whose number shows on hover or a tap,
+    or once zoomed in."""
+    import os
+    ctx, pg, errors = _open(browser, site, style, ALL_SIZES[size])
+    phone = size.startswith("phone")
+    try:
+        pg.evaluate("AltoBuilding.selectLevel('all')")
+        pg.wait_for_timeout(1500)
+        r = pg.evaluate(TAGS)
+        shots = os.environ.get("ALTO_SHOT_DIR")
+        if shots:
+            pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-AFTER.png"))
+        assert r["out"] == [], r
+        assert r["vis"] == r["n"] == 92, r                             # every card has its tag or its dot, on screen
+        assert r["inside"] and max(r["fill"]) > .97 and min(r["fill"]) > .5, r            # the grid fills the safe box (one way to the edge)
+        if r["dots"]:
+            dot = pg.locator("#bldg-root .bl-pill.bl-dot").first
+            nid = dot.get_attribute("data-node")
+            if phone:
+                dot.tap(force=True)
+                pg.wait_for_timeout(300)
+                assert pg.evaluate("AltoBuilding.enlarged()") is None                     # a tap: the number first
+            else:
+                dot.hover(force=True)
+                pg.wait_for_timeout(300)
+            shown = pg.evaluate("id=>{ const p=document.querySelector('#bldg-root .bl-pill[data-node=\"'+id+'\"]'), b=p.firstChild.getBoundingClientRect(); return [p.getBoundingClientRect().width, b.width, p.firstChild.textContent]; }", nid)
+            assert shown[0] >= 30 and shown[1] > 4 and shown[2], shown
+            (dot.tap if phone else dot.click)(force=True)
+            pg.wait_for_timeout(700)
+            assert pg.evaluate("AltoBuilding.enlarged()") == nid
+            pg.evaluate("AltoBuilding.shrink()")
+            pg.wait_for_timeout(500)
+            # zoomed in on the dots' own floor, their numbers have room
+            pg.evaluate("""()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), d=document.querySelector('#bldg-root .bl-pill.bl-dot').getBoundingClientRect();
+              for(let i=0;i<40;i++) s.dispatchEvent(new WheelEvent('wheel',{deltaY:-8,ctrlKey:true,clientX:d.left+5,clientY:d.top+5,bubbles:true,cancelable:true})); }""")
+            pg.wait_for_timeout(1500)
+            z = pg.evaluate(TAGS)
+            if shots:
+                pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-zoomed-AFTER.png"))
+            assert z["out"] == [] and z["dots"] < r["dots"], (r["dots"], z)
+    finally:
+        ctx.close()
+    assert not errors, errors

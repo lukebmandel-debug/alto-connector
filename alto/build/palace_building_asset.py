@@ -103,6 +103,15 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-pill.bl-dim{opacity:.28;}
 #bldg-root .bl-cards button.bl-dim{opacity:.35;}
 #bldg-root .bl-room.bl-dim,#bldg-root .bl-lab.bl-dim,#bldg-root .bl-labplate.bl-dim{opacity:.35;}
+/* All floors: a tag with no free place by its room is a small dot there; its number shows on hover, on a tap (a second tap enlarges), or once zoomed in far enough for it to fit */
+#bldg-root .bl-pill.bl-dot{width:10px !important;height:10px;margin-top:-5px;padding:0;border-radius:50%;border-width:1px;overflow:visible;font-size:0;line-height:0;}
+#bldg-root .bl-pill.bl-dot>*{display:none;}
+#bldg-root .bl-pill.bl-dot::before{content:'';position:absolute;inset:-5px;border-radius:50%;}
+#bldg-root .bl-pill.bl-dot.bl-peek{width:auto !important;min-width:32px;height:22px;margin:-11px 0 0 -11px;padding:0 10px;border-radius:11px;border-width:1.2px;font-size:12px;line-height:19.6px;text-align:center;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.35);}
+#bldg-root .bl-pill.bl-dot.bl-peek>b{display:inline;}
+#bldg-root .bl-pill.bl-dot.bl-peek::before{display:none;}
+@media (hover:hover){#bldg-root .bl-pill.bl-dot:hover{width:auto !important;min-width:32px;height:22px;margin:-11px 0 0 -11px;padding:0 10px;border-radius:11px;border-width:1.2px;font-size:12px;line-height:19.6px;text-align:center;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.35);}
+#bldg-root .bl-pill.bl-dot:hover>b{display:inline;}#bldg-root .bl-pill.bl-dot:hover::before{display:none;}}
 #bldg-root .bl-pill>span{margin-left:6px;opacity:0;transition:opacity .22s ease;}
 #bldg-root .bl-mk.bl-near .bl-pill.bl-t>span{opacity:1;}
 #bldg-root .bl-gapfill{stroke:none;pointer-events:none;}
@@ -279,18 +288,28 @@ function orient(plan){
 }
 /* All floors (Art, alto-art 2026-11-01): every level laid out together, the top floor first, 2 by 2 on a desktop (1 by n on a phone); each cell carries its own plan, its name and,
    under a filter, how many of its cards are lit. */
-function gridOf(){ var lv=(A.plan.lv||[]).slice().sort(function(a,b){ return b.e-a.e; }), b0=screenBounds('outside'), n=lv.length, cols=S.root.clientWidth<700?1:(n<=2?n:2), rows=Math.ceil(n/cols);
-  var cw=b0[2]-b0[0], ch=b0[3]-b0[1], fs=Math.max(.4,Math.min(.9,Math.sqrt(A.plan._area||200)/30)), th=fs*4.4, pad=fs*1.4, gap=Math.max(cw,ch)*.06+pad, off={};
+function gridOf(){ var lv=(A.plan.lv||[]).slice().sort(function(a,b){ return b.e-a.e; }), b0=null, n=lv.length, cols=1, rows, best=0;
+  lv.forEach(function(l){ var q=screenBounds(l.id); b0=b0?[Math.min(b0[0],q[0]),Math.min(b0[1],q[1]),Math.max(b0[2],q[2]),Math.max(b0[3],q[3])]:q.slice(); });   // (a cell is as large as the floors themselves, not the grounds)
+  b0=b0||screenBounds('outside');
+  var cw=b0[2]-b0[0], ch=b0[3]-b0[1], fs=Math.max(.4,Math.min(.9,Math.sqrt(A.plan._area||200)/30)), th=fs*4.4, pad=fs*1.4, gap=Math.max(cw,ch)*.03+pad, off={}, sb=allBox();
+  for(var pass=0;pass<2;pass++){ best=0;
+    for(var c=1;c<=n;c++){ var rw=Math.ceil(n/c), k=Math.min(sb.w/(c*(cw+2*pad)+(c-1)*gap), sb.h/(rw*(ch+th+2*pad)+(rw-1)*gap)); if(k>best*1.001){ best=k; cols=c; } }   // (the columns that draw the floors largest in the safe box)
+    th=Math.max(th,20/best); }                                                      // (a floor's name is never smaller than about 11 px at the fit)
+  rows=Math.ceil(n/cols);
   lv.forEach(function(l,i){ off[l.id]=[(i%cols)*(cw+2*pad+gap), Math.floor(i/cols)*(ch+th+2*pad+gap)]; });
   var x0=b0[0]-pad, y0=b0[1]-th-pad;
   return {lv:lv, cols:cols, rows:rows, b0:b0, cw:cw, ch:ch, fs:fs, th:th, pad:pad, gap:gap, off:off, box:[x0, y0, x0+cols*(cw+2*pad)+(cols-1)*gap, y0+rows*(ch+th+2*pad)+(rows-1)*gap]}; }
+/* All floors fills the measured safe box (the enlarge's: window._altoSafeBox, or the phone's measure of the same bars), in the root's px */
+function allBox(){ var r=S.root.getBoundingClientRect(), B=sBox(0,innerWidth), l=Math.max(0,B.l-r.left), t=Math.max(0,B.t-r.top), rt=Math.min(r.width,B.r-r.left), b=Math.min(r.height,B.b-r.top);
+  if(rt-l<r.width*.3||b-t<r.height*.3){ l=8; t=8; rt=r.width-8; b=r.height-8; } return {l:l,t:t,r:rt,b:b,w:Math.max(1,rt-l),h:Math.max(1,b-t)}; }
+A.allBox=function(){ return allBox(); };   // tests
 function drawAll(g){ var G=S.grid=gridOf(); S.labelSets=[]; var cells=el('g',{},g), tops;
   G.lv.forEach(function(l){ var o=G.off[l.id], x=G.b0[0]-G.pad+o[0], y=G.b0[1]-G.th-G.pad+o[1];
     el('rect',{x:f2(x),y:f2(y),width:f2(G.cw+2*G.pad),height:f2(G.ch+G.th+2*G.pad),rx:f2(G.fs*1.6),'class':'bl-cellbg','data-fade':l.id},cells); });
   G.lv.forEach(function(l){ var o=G.off[l.id]; var lg=el('g',{transform:'translate('+f2(o[0])+','+f2(o[1])+')'+(S.rot?' rotate('+f2(S.rot)+')':''),'data-fade':l.id},g); drawLevel(lg,l.id,o); });
   tops=el('g',{},g);
-  G.lv.forEach(function(l){ var o=G.off[l.id], c=el('g',{'class':'bl-cell','data-level':l.id},tops), tx=G.b0[0]+o[0], ty=G.b0[1]-G.th*.42+o[1];
-    var t=el('text',{x:f2(tx),y:f2(ty),'class':'bl-celltitle'},c); t.style.fontSize=f2(G.th*.46)+'px'; t.textContent='LEVEL '+dec(l.lb||l.n); t.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); A.selectLevel(l.id); });
+  G.lv.forEach(function(l){ var o=G.off[l.id], c=el('g',{'class':'bl-cell','data-level':l.id},tops), tx=G.b0[0]+o[0], ty=G.b0[1]-G.th*.36+o[1];
+    var t=el('text',{x:f2(tx),y:f2(ty),'class':'bl-celltitle'},c); t.style.fontSize=f2(G.th*.55)+'px'; t.textContent='LEVEL '+dec(l.lb||l.n); t.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); A.selectLevel(l.id); });
     var pw=G.th*2.7, ph=G.th*.62, lx=G.b0[2]+o[0]-pw, ly=G.b0[1]-G.th*.9+o[1], lit=el('g',{'class':'bl-lit'},c);
     el('rect',{x:f2(lx),y:f2(ly),width:f2(pw),height:f2(ph),rx:f2(ph/2)},lit); var lt=el('text',{x:f2(lx+pw/2),y:f2(ly+ph*.7),'class':'bl-litt'},lit); lt.style.fontSize=f2(G.th*.34)+'px'; });
   labels(); }
@@ -541,7 +560,8 @@ function labels(){
   items.sort(function(a,b){ return b.pri-a.pri; });
   var placed=[], lh=px*1.18;
   if(S.chips&&S.chips.length){ var sc=scr();                       // the numbered chips are in the way too: a label never sits under one
-    S.chips.forEach(function(p){ var x=p._a[0]*sc.s+sc.x+(p._o?p._o[0]:0), y=p._a[1]*sc.s+sc.y+(p._o?p._o[1]:0), w=(p._wF||32); placed.push([x-w/2-3,y-3,x+w/2+3,y+25]); }); }
+    S.chips.forEach(function(p){ var x=p._a[0]*sc.s+sc.x+(p._o?p._o[0]:0), y=p._a[1]*sc.s+sc.y+(p._o?p._o[1]:0), w=(p._wF||32); if(S.level==='all'){ if(p.classList.contains('bl-off')) return; var hh=p._dot?DOT/2+2:14; w=p._dot?DOT:(p._tOn?p._wT:w); placed.push([x-(p._dot?DOT:(p._wF||32))/2-3,y-hh,x-(p._dot?DOT:(p._wF||32))/2+w+3,y+hh]); return; }
+      placed.push([x-w/2-3,y-3,x+w/2+3,y+25]); }); }
   items.forEach(function(it){
     var r=it.r, maxW=it.w-8, lines=labWrap(dec(r.n),maxW,px), num=r.no?String(r.no):null;
     if(!lines||lines.length*lh>it.h-4){ lines=num&&labWidth(num,px)<=maxW&&lh<=it.h-4?[num]:null; }
@@ -599,11 +619,16 @@ function drawPills(levelId){
       h('b',null,pill,String(n.n)); h('span',null,pill,title);
       var col=A.data.acts&&A.data.acts[n.a]&&A.data.acts[n.a].c; if(col) pill.style.setProperty('--bl-tint',col);
       pill._n=n; pill._a=q; pill._o=[0,0]; pill._lv=r.l; S.chips.push(pill);
-      pill.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); A.enlarge(n.id); });
+      pill.addEventListener('pointerdown',function(e){ pill._pt=e.pointerType; });
+      pill.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation();
+        if(pill._dot&&pill._pt!=='mouse'&&!pill.classList.contains('bl-peek')){ unpeek(); pill.classList.add('bl-peek'); return; }   // a dot tapped: its number first
+        unpeek(); A.enlarge(n.id); });
     });
   });
   S.mkLay=null; layoutPills(false);
 }
+function unpeek(){ (S.chips||[]).forEach(function(p){ if(p.classList.contains('bl-peek')) p.classList.remove('bl-peek'); }); }
+var DOT=10;
 function measurePills(){ // each chip's width with the number alone and with its title (once, while the blueprint shows)
   if(!S.chips.length||S.chips[0]._wF||!S.root.clientWidth) return;
   S.chips.forEach(function(p){ p.style.width='auto'; });
@@ -613,7 +638,7 @@ function measurePills(){ // each chip's width with the number alone and with its
 function scr(){ var W=S.root.clientWidth||1, s=W/S.vb[2]; return {s:s, x:-S.vb[0]*s, y:-S.vb[1]*s}; }   // drawing units -> the root's px
 function movePills(){ // every frame of a zoom or pan: each chip follows its anchor, nothing else changes (its left edge is the number's, so a title only grows rightwards)
   if(!S.chips||!S.vb) return; var t=scr();
-  S.chips.forEach(function(p){ AltoMarkers.at(p, p._a[0]*t.s+t.x+p._o[0]-(p._wF||32)/2, p._a[1]*t.s+t.y+p._o[1]); });
+  S.chips.forEach(function(p){ AltoMarkers.at(p, p._a[0]*t.s+t.x+p._o[0]-(p._dot?DOT:(p._wF||32))/2, p._a[1]*t.s+t.y+p._o[1]); });
 }
 function layoutPills(glide){ // once a gesture settles: the places of the numbers (held), then which titles have room, then a glide to them
   if(!S.chips||!S.vb||!S.root.clientWidth) return; measurePills();
@@ -624,34 +649,49 @@ function layoutPills(glide){ // once a gesture settles: the places of the number
   S.mk.classList.toggle('bl-near', near);
   var rr=S.root.getBoundingClientRect(), dq=docked()&&S.dock.getBoundingClientRect(), dk=dq&&[dq.left-rr.left-gap, dq.top-rr.top-gap, dq.right-rr.left+gap, dq.bottom-rr.top+gap];
   // placed by the number alone, so a title showing or not never moves a chip (titles once widened every chip and re-laid the lot: up to 233 px)
-  var items=S.chips.map(function(p){ var w=p._wF||32, W=w+gap, c=[[0,0]];
-    for(var r=1;r<7;r++) c.push([0,r*H],[0,-r*H],[W,0],[-W,0],[W,r*H],[-W,-r*H],[W,-r*H],[-W,r*H]);
+  var all=S.level==='all', items=S.chips.map(function(p){ var w=p._wF||32, W=w+gap, c=[[0,0]];
+    for(var r=1;r<(all?2:7);r++) c.push([0,r*H],[0,-r*H],[W,0],[-W,0],[W,r*H],[-W,-r*H],[W,-r*H],[-W,r*H]);
     if(dk) for(r=7;r<13;r++) c.push([0,-r*H],[W,-r*H],[-W,-r*H],[2*W,-r*H],[-2*W,-r*H]);   // (with the dock drawn, a chip crowded down onto it has places further up, tried last)
     return {id:p._n.id, x:p._a[0]*t.s+t.x, y:p._a[1]*t.s+t.y, w:w, h:H-2, c:c, lv:p._lv}; });
   S.mkSt=S.mkSt||{};
   // All floors (Art, 2026-11-14): a chip stays inside its own floor's plate and off every bar; the plates and bars measured once per layout, in root px
   var pan=null, bars=[], hit=function(x,y,w,h,q){ return x-w/2<q[2]&&x+w/2>q[0]&&y-h/2<q[3]&&y+h/2>q[1]; };
   if(S.level==='all'){ pan={}; var Zp=pageZ(), rp=function(q,m){ return [(q.left-rr.left)/Zp+m,(q.top-rr.top)/Zp+m,(q.right-rr.left)/Zp-m,(q.bottom-rr.top)/Zp-m]; };   // (screen px to the root's css px)
-    [].forEach.call(S.svg.querySelectorAll('.bl-cellbg[data-fade]'),function(e){ pan[e.getAttribute('data-fade')]=rp(e.getBoundingClientRect(),2); });
+    var thp=S.grid?S.grid.th*t.s:0;   // (the plate's title strip, its name and lit count, is not a tag's place)
+    [].forEach.call(S.svg.querySelectorAll('.bl-cellbg[data-fade]'),function(e){ var q=rp(e.getBoundingClientRect(),2); q[1]+=thp; pan[e.getAttribute('data-fade')]=q; });
     chromeEls().forEach(function(e){ bars.push(rp(e.getBoundingClientRect(),-gap)); }); }
   var inPan=function(x,y,w,h,lv){ var q=pan&&pan[lv]; return !q||(x-w/2>=q[0]&&x+w/2<=q[2]&&y-h/2>=q[1]&&y+h/2<=q[3]); };
-  var at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w,h,m){ if(pan) return inPan(x,y,w,h,m&&m.lv)&&!bars.some(function(q){ return hit(x,y,w,h,q); });
-    return (!hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]))&&!(dk&&hit(x,y,w,h,dk)); }});   // pushed aside, a chip stays over the building's width, and never under the dock
-  if(pan) items.forEach(function(m){ var o=at[m.id], q=pan[m.lv]; if(!q) return; var x=m.x+o.dx, y=m.y+o.dy;   // (no free place on its plate: held to the plate's edge all the same)
-    x=Math.max(q[0]+m.w/2,Math.min(q[2]-m.w/2,x)); y=Math.max(q[1]+m.h/2,Math.min(q[3]-m.h/2,y)); o.dx=x-m.x; o.dy=y-m.y;
-    o.off=bars.some(function(b){ return hit(x,y,m.w,m.h,b); }); });   // (a plate gone under a bar after a zoom or pan: its chips there wait, hidden, until it comes out)
+  var at;
+  if(pan){   // All floors: every tag is first a dot by its room (a cluster of them for a full room); then, in order, each takes its number's chip where one stands clear of every other chip and dot.
+    // A dot with no place at all (its plate under a bar after a zoom or pan) waits, hidden.
+    var dc=[], P=DOT+3, okAt=function(x,y,w,h,m){ return inPan(x,y,w,h,m.lv)&&!bars.some(function(q){ return hit(x,y,w,h,q); }); };
+    for(var gx=-10;gx<=10;gx++) for(var gy=-10;gy<=10;gy++) dc.push([gx*P,gy*P]);
+    dc.sort(function(a,b){ return (a[0]*a[0]+a[1]*a[1]+(a[1]<0?1:0)+(a[0]<0?2:0))-(b[0]*b[0]+b[1]*b[1]+(b[1]<0?1:0)+(b[0]<0?2:0)); });
+    var dots=items.map(function(m){ var q=pan[m.lv]||[0,0], o=DOT/2+1;   // (dots stand on their plate's own lattice, so a full plate packs: 60 of them fit a phone's)
+      return {id:m.id, x:q[0]+o+Math.round((m.x-q[0]-o)/P)*P, y:q[1]+o+Math.round((m.y-q[1]-o)/P)*P, w:DOT, h:DOT, c:dc, lv:m.lv, ax:m.x, ay:m.y}; });
+    S.mkDot=S.mkDot||{}; var dat=AltoMarkers.place(dots, S.mkDot, {gap:3, hide:true, ok:okAt});
+    var cur=dots.map(function(d){ var o=dat[d.id]; return o.on?[d.x+o.dx,d.y+o.dy,DOT,DOT]:null; });   // what stands where: [centre x, centre y, w, h]
+    var freeC=function(i,x,y,w,h,s){ if(!okAt(x,y,w,h,items[i])) return false;
+      for(var j=0;j<cur.length;j++){ var b=cur[j]; if(j!==i&&b&&Math.abs(x-b[0])<(w+b[2])/2+gap-s&&Math.abs(y-b[1])<(h+b[3])/2+gap-s) return false; } return true; };
+    at={}; items.forEach(function(m,i){ var d=dat[m.id], st=S.mkSt[m.id]||(S.mkSt[m.id]={i:0}), pick=-1, c=m.c, k;
+      if(d.on){ if(st.chip&&freeC(i,m.x+c[st.i][0],m.y+c[st.i][1],m.w,m.h,sl)) pick=st.i;                 // the chip it had is kept while free within the slack
+        for(k=0;k<c.length&&pick<0;k++) if(freeC(i,m.x+c[k][0],m.y+c[k][1],m.w,m.h,st.chip?0:-sl)) pick=k; }
+      st.chip=pick>=0; if(pick>=0){ st.i=pick; cur[i]=[m.x+c[pick][0],m.y+c[pick][1],m.w,m.h]; at[m.id]={dx:c[pick][0],dy:c[pick][1],on:true}; }
+      else { m.w=m.h=DOT; at[m.id]={dx:d.dx+dots[i].x-m.x,dy:d.dy+dots[i].y-m.y,on:true,dot:true,off:!d.on}; } }); }
+  else at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w,h,m){ return (!hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]))&&!(dk&&hit(x,y,w,h,dk)); }});   // pushed aside, a chip stays over the building's width, and never under the dock
   var box=items.map(function(m){ var o=at[m.id]; return [m.x+o.dx-m.w/2, m.y+o.dy, m.w, m.h]; });   // [left, centre y, w, h]
   function clear(i, x, w, s){ var b=box[i]; for(var j=0;j<box.length;j++){ if(j===i) continue; var c=box[j];
     if(x<c[0]+c[2]+gap-s && c[0]<x+w+gap-s && Math.abs(b[1]-c[1])<(b[3]+c[3])/2+gap-s) return false; } return true; }
   S.chips.forEach(function(p, i){ var o=at[p._n.id], wF=p._wF||32, wT=Math.max(wF, p._wT||wF), on=near&&wT>wF&&clear(i, box[i][0], wT, p._tOn?sl:-sl)&&inPan(box[i][0]+wT/2,box[i][1],wT,box[i][3],p._lv);   // a title shown keeps its room within the slack
     if(p.classList.contains('bl-off')!==!!o.off) p.classList.toggle('bl-off',!!o.off);
+    if(!!p._dot!==!!o.dot){ p._dot=!!o.dot; p.classList.toggle('bl-dot',p._dot); if(!p._dot) p.classList.remove('bl-peek'); } if(p._dot) on=false;
     p._tOn=on; if(on) box[i][2]=wT; p._o1=[o.dx,o.dy]; p._w1=on?wT:wF; p._o0=p._o; p._w0=p._w||p._w1; p.classList.toggle('bl-t', on); });
   if(!glide){ step(1); return; }
   AltoMarkers.glide(S.mk, step);
   function step(k){ // where each chip is k of the way from where it stood to its new place (and width); its anchor read afresh each frame
     S.chips.forEach(function(p){ var w=p._w0+(p._w1-p._w0)*k; p._o=[p._o0[0]+(p._o1[0]-p._o0[0])*k, p._o0[1]+(p._o1[1]-p._o0[1])*k];
       w=Math.round(w*10)/10; if(w!==p._w){ p._w=w; p.style.width=w+'px'; } });
-    movePills(); enlPlace(); }
+    movePills(); enlPlace(); if(k===1&&S.level==='all') labelsSoon(); }   // (All floors: the room names take what the settled tags leave)
 }
 function anchorPoint(id){ var s=(A.plan.sl||[]).concat(A.plan.fx||[]); for(var i=0;i<s.length;i++) if(s[i].id===id) return s[i].p; return null; }
 
@@ -678,7 +718,7 @@ function render(){
   S.geo=el('g',S.rot&&lv!=='all'?{transform:'rotate('+f2(S.rot)+')'}:{},view);   // (All floors: each floor's own group turns, inside its place in the grid)
   if(lv==='outside') drawOutside(S.geo); else if(lv==='all') drawAll(S.geo); else drawLevel(S.geo,lv);
   var bb=screenBounds(lv);
-  if(!S.home){ var m=Math.max(bb[2]-bb[0],bb[3]-bb[1])*(S.root.clientWidth<700?.06:.12)+2; S.home=[bb[0]-m,bb[1]-m,(bb[2]-bb[0])+2*m,(bb[3]-bb[1])+2*m]; }
+  if(!S.home){ var m=lv==='all'?0:Math.max(bb[2]-bb[0],bb[3]-bb[1])*(S.root.clientWidth<700?.06:.12)+2; S.home=[bb[0]-m,bb[1]-m,(bb[2]-bb[0])+2*m,(bb[3]-bb[1])+2*m]; }
   if(!S.vb) fit();
   if(lv==='outside'){ S.chips=[]; while(S.mk.firstChild) S.mk.removeChild(S.mk.firstChild); }
   applyVB(); if(lv!=='outside') drawPills(lv);
@@ -689,6 +729,7 @@ function render(){
 }
 function fit(){ // the home box centred in the free part of the screen: on a phone the header card spans the top, the tool bar the bottom, the side rail the right (an equal gutter left keeps it centred)
   var h0=S.home, r=S.root.getBoundingClientRect(), W=r.width, H=r.height; S.vb=h0.slice(); if(W<1||H<1) return;
+  if(S.level==='all'){ var ab=allBox(), as=Math.min(ab.w/h0[2],ab.h/h0[3]); S.vb=[h0[0]+h0[2]/2-(ab.l+ab.r)/2/as, h0[1]+h0[3]/2-(ab.t+ab.b)/2/as, W/as, H/as]; S.fitAll=S.vb.slice(); return; }   // (All floors: the grid fills the safe box)
   var top=0, bot=H, side=0, hb=S.head&&S.head.getBoundingClientRect();
   if(hb&&hb.height&&hb.width>W*.6) top=Math.max(0,hb.bottom-r.top+6);
   if(W<700){ bot=H-58; side=30; }
@@ -700,7 +741,8 @@ function fit(){ // the home box centred in the free part of the screen: on a pho
 }
 function clampPan(){ // the drawing can be pushed off by a drag, never out of reach: at least a margin of the floor stays in view
   var h=S.home, v=S.vb; if(!h||!v) return;
-  [[0,2],[1,3]].forEach(function(a){ var i=a[0], j=a[1], m=v[j]*.4, lo=h[i]-m, hi=h[i]+h[j]-v[j]+m; v[i]=hi<lo?(lo+hi)/2:Math.max(lo,Math.min(hi,v[i])); });
+  var fa=S.level==='all'&&S.fitAll;   // (All floors: where the fit put the grid, between the bars, is always within reach)
+  [[0,2],[1,3]].forEach(function(a){ var i=a[0], j=a[1], m=v[j]*.4, lo=h[i]-m, hi=h[i]+h[j]-v[j]+m; if(fa){ lo=Math.min(lo,fa[i]); hi=Math.max(hi,fa[i]); } v[i]=hi<lo?(lo+hi)/2:Math.max(lo,Math.min(hi,v[i])); });
 }
 function applyVB(){ // keep the drawing's aspect equal to the viewport's
   if(!S.vb||!S.svg) return;
@@ -1178,7 +1220,9 @@ function wire(){
   svg.addEventListener('click',function(){ if(S.moved) return; A.shrink(); closeSheets(); S.sel=null; info(null); [].forEach.call(svg.querySelectorAll('.bl-sel'),function(n){ n.classList.remove('bl-sel'); }); });
   function pinch(){ var k=Object.keys(pts); if(k.length<2) return 0; return Math.hypot(pts[k[0]].x-pts[k[1]].x,pts[k[0]].y-pts[k[1]].y); }
   function mid(){ var k=Object.keys(pts); return {x:(pts[k[0]].x+pts[k[1]].x)/2,y:(pts[k[0]].y+pts[k[1]].y)/2}; }
-  window.addEventListener('resize',function(){ if(S.root&&!S.root.hidden){ setTop(); if(S.vb) applyVB(); clearTimeout(S.enT); S.enT=setTimeout(enlFit,140); [120,500].forEach(function(t){ setTimeout(hClamp,t); }); } });
+  document.addEventListener('pointerdown',function(e){ var t=e.target; if(!(t&&t.closest&&t.closest('.bl-pill.bl-peek'))) unpeek(); },true);   // a tap anywhere else puts a dot's number away
+  window.addEventListener('resize',function(){ if(S.root&&!S.root.hidden&&S.level==='all'){ clearTimeout(S.allT); S.allT=setTimeout(function(){ if(S.level==='all'&&S.grid&&!S.enl&&gridOf().cols!==S.grid.cols){ S.home=null; S.vb=null; render(); } },260); }
+    if(S.root&&!S.root.hidden){ setTop(); if(S.vb) applyVB(); clearTimeout(S.enT); S.enT=setTimeout(enlFit,140); [120,500].forEach(function(t){ setTimeout(hClamp,t); }); } });
   window.addEventListener('orientationchange',function(){ [120,500,1000].forEach(function(t){ setTimeout(function(){ if(S.root&&!S.root.hidden){ setTop(); hClamp(); } },t); }); });
 }
 
