@@ -221,8 +221,10 @@ def test_the_page_that_slides_in_is_the_page_that_stays(site, swipes, style, the
     o, m = _cell(site, swipes, (style, theme, w, h))
     if style != "classic":
         assert f"alto-{style}" in o["cls"], o["cls"]
-    if style != "retro":          # (Retro is one look, its own dark)
+    if style == "classic":          # (Retro and Holographic are dark only: 2026-11-13 for Holo on a phone)
         assert ("dark" in o["cls"].split()) == (theme == "dark"), o["cls"]
+    else:
+        assert "dark" in o["cls"].split(), o["cls"]
     assert o["after"][7] == o["i"] + 1, "the swipe went to the next page"
     tag = f"{style} {theme} {w}x{h}: {{}} (landed {m['land_ms']} ms after the lift, {m['frames']} frames)"
     assert m["title_post"] <= 1, tag.format(f"the title moved {m['title_post']} px after landing")

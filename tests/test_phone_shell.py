@@ -114,7 +114,7 @@ PEACH = ("rgb(255, 201, 138)", "#ffc59e")
 
 
 @pytest.mark.parametrize("page,query,want", [("timeline", "view=card&style=retro", "rgb(0, 0, 0)"),
-                                             ("timeline", "view=whole&style=holo", "rgb(233, 247, 250)"),
+                                             ("timeline", "view=whole&style=holo", "rgb(1, 10, 14)"),
                                              ("home", "style=retro", "rgb(0, 0, 0)")])
 def test_edges_take_the_pages_own_ground(site, page, query, want):
     m = _load(site, page, query)
@@ -173,7 +173,7 @@ def test_classic_card_view_root_is_untouched(site):
 def test_holo_home_landscape_takes_the_ground(site):
     """S8: the homepage in landscape is its desktop layout (no runway), so the shell never ran there and theme-color stayed Classic's peach."""
     m = _load(site, "home", "style=holo", 874, 402, until=SETTLED + " && document.documentElement.classList.contains('alto-holo') && (window._altoShell||{}).top")
-    assert m["theme"] == "#e9f7fa" and m["html"] == "rgb(233, 247, 250)", m
+    assert m["theme"] == "#010a0e" and m["html"] == "rgb(1, 10, 14)", m          # (Holographic is dark only, a phone's too: 2026-11-13)
     assert m["top"] is None and m["foot"] is None, m          # no runway there: no strips
 
 
@@ -251,7 +251,7 @@ def test_the_chosen_looks_root_colour_is_there_before_first_layout(site):
     init = ("try{localStorage.setItem(%r,'holo');localStorage.removeItem('alto-sh-root');}catch(e){}"
             "document.addEventListener('DOMContentLoaded',function(){window.__dcl=getComputedStyle(document.documentElement).backgroundColor;},{once:true});") % sk
     m = _load(site, "home", "", 874, 292, init=init, until="document.readyState==='complete'", js="window.__dcl")
-    assert m == "rgb(233, 247, 250)", m              # (a stored Holo look: already so on the homepage, which turns Holo on in <head>; a guard)
+    assert m == "rgb(1, 10, 14)", m              # (dark only since 2026-11-13; a stored Holo look: already so on the homepage, which turns Holo on in <head>; a guard)
     m = _load(site, "home", "", 402, 714, init=init.replace("'holo'", "'retro'"), until="document.readyState==='complete'", js="window.__dcl")
     assert m == "rgb(0, 0, 0)", m
 
@@ -331,7 +331,7 @@ def test_the_stored_look_colours_the_root_inside_head(site):
     sk = HOME_BG_KEY[:-3] + "-style" if HOME_BG_KEY.endswith("-bg") else HOME_BG_KEY + "-style"
     init = "try{localStorage.setItem(%r,'holo');localStorage.removeItem('alto-sh-root');}catch(e){}" % sk
     m = _load(site, "home", "", 874, 292, init=init, until="document.readyState==='complete'", js="(window._altoShell||{}).early")
-    assert m == "#e9f7fa", m
+    assert m == "#010a0e", m          # (Holographic is dark only, a phone's too: 2026-11-13)
 
 
 # (ix=0: the board; the unit index over it has its own band check, tests/test_phone_whole_c2.py)

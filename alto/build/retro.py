@@ -35,7 +35,9 @@ FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-
 # ── shared with the Star chart (solar_stars.RETRO_CSS splices these in; `X ` is the style's own selector) ──
 FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo", "bottom
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:0;right:0;top:0;bottom:0;}
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:0;right:0;top:0;height:0;}
+  /* (sim1113 #1) only as tall as its rule (its <b> hangs from the top): a fixed layer over the content down to the screen's foot is what Safari keys its toolbar's
+     flat tint on. The homepage on its side has it fixed (no runway there), and turned upright Safari kept a flat black band behind its toolbar over the list */
   /* (Luke 2026-11-12, Art option D: no frame round the page, only one plain gold line, faded at both ends, under the title (Luke: no diamond); the rule is lowered to clear the title,
      and on the homepage it is a plain rule under the HOME tab) */
   X #sk-frame b{position:absolute;left:50%;top:40px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,#d9ae55 14%,#d9ae55 86%,transparent);opacity:.7;}
@@ -158,7 +160,7 @@ opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), t
   X :is(#notes-panel button,.nt-btn):is(.active,[aria-pressed=true]):not(#fw-seg button):not(#_){background:#d9ae55 !important;color:#000 !important;}
   /* the panel's two tabs (Notes & highlights | Freewrite, freewrite.py): one square segmented bar, the chosen half in gold */
   X #fw-seg:not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.55) !important;background:#000 !important;}
-  X #fw-seg button:not(#_){border-radius:0 !important;background:transparent !important;color:#b9b2a0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
+  X #fw-seg button:not(#_){border-radius:0 !important;background:transparent !important;color:#b9b2a0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px !important;flex:1 1 auto !important;padding-left:4px !important;padding-right:4px !important;}   /* both tabs on one line down to a 237 px panel (they share the bar by their lettering); only the narrow floor wraps */
   X #fw-seg button[aria-selected="true"]:not(#_){background:#d9ae55 !important;color:#000 !important;}
   /* the filter's chips: square tabs, gold when on */
   X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.5) !important;box-shadow:none !important;

@@ -213,7 +213,7 @@ def test_holographics_picker_lists_only_holographic_backgrounds(browser, site, s
 
 
 def test_the_phone_rules_are_in_the_scripts():
-    assert "function phone()" in holo.JS and "hdark(desk() && !phone())" in holo.JS
+    assert "function phone()" in holo.JS and "hdark(1)" in holo.JS          # (dark only on a phone too since 2026-11-13: no flip on a turn)
     assert ':has(.bg-tile[data-bg^="h-"],.bg-def)' not in holo.css()
     assert "em._rhMade" in retro.HOME_B_JS
     c = retro.HOME_CSS

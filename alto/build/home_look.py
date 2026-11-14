@@ -176,11 +176,16 @@ ALIGN_LOOP_NEW = (
 
 ALIGN_GUARD_OLD = "  if(!mt || !mt.offsetWidth) return;\n"
 ALIGN_GUARD_NEW = "  if(!mt) return;   // (Retro hides the moon: the cluster is laid out all the same, the moon's slot stays empty as before)\n"
+# a phone on its side in a dark-only style (Holographic, Retro: no light/dark button): info and search close up into its place, no hole in
+# the row (Luke 2026-11-13, "light mode is still available incorrectly on mobile holo"); a computer keeps the empty slot as before
+ALIGN_SLOT_OLD = "  mt.style.right = right + 'px'; mt.style.bottom = INSET + 'px';\n  right += W + GAP;\n"
+ALIGN_SLOT_NEW = ("  if(mt.offsetWidth || !document.documentElement.classList.contains('sh-ph')){\n"
+                  "    mt.style.right = right + 'px'; mt.style.bottom = INSET + 'px';\n    right += W + GAP;\n  }\n")
 
 
 def swap_align(template: str) -> str:
     """On a computer the corner bin joins the bottom-right cluster, just right of the search toggle (search moves one place left)."""
-    for old, new in ((ALIGN_GUARD_OLD, ALIGN_GUARD_NEW), (ALIGN_PHONE_OLD, ALIGN_PHONE_NEW), (ALIGN_LOOP_OLD, ALIGN_LOOP_NEW)):
+    for old, new in ((ALIGN_GUARD_OLD, ALIGN_GUARD_NEW), (ALIGN_PHONE_OLD, ALIGN_PHONE_NEW), (ALIGN_LOOP_OLD, ALIGN_LOOP_NEW), (ALIGN_SLOT_OLD, ALIGN_SLOT_NEW)):
         assert template.count(old) == 1, old
         template = template.replace(old, new)
     return template

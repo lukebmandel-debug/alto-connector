@@ -876,7 +876,7 @@ UNIT_GLUE = """
     var u = el && el.querySelector('.node-unit');
     if(!u || !document.documentElement.classList.contains('mobile')) return;
     if(u.classList.contains('in-card')){
-      u.classList.remove('in-card'); el.insertBefore(u, el.firstChild);
+      u.classList.remove('in-card'); u.style.paddingRight = ''; el.insertBefore(u, el.firstChild);
     }
     var top = u.getBoundingClientRect().top, lim = 0;
     ['m-search','minimap-toggle','hamburger-tab','mobile-filter-bar'].forEach(function(id){
@@ -886,7 +886,14 @@ UNIT_GLUE = """
       if(r.height && r.bottom > lim) lim = r.bottom;
     });
     var card = el.querySelector('.node-card');
-    if(card && top < lim + 4){ u.classList.add('in-card'); card.insertBefore(u, card.firstChild); }
+    if(card && top < lim + 4){ u.classList.add('in-card'); card.insertBefore(u, card.firstChild); room(u, card); }
+  }
+  /* (sim1113) in the card the kicker stops 10px short of the number laid over its corner, and wraps */
+  function room(u, card){
+    var o = card.querySelector(':scope > .node-order'), c = o && getComputedStyle(o), O = o && o.getBoundingClientRect();
+    if(!o || c.display === 'none' || c.visibility === 'hidden' || !/absolute|fixed/.test(c.position) || !O.width){ u.style.paddingRight = ''; return; }
+    var C = card.getBoundingClientRect(), pr = parseFloat(getComputedStyle(card).paddingRight) || 0;
+    u.style.paddingRight = Math.max(0, Math.ceil(C.right - O.left - pr + 10)) + 'px';
   }
   /* The cards the glue first sees are the pre-rendered ones; engine init
      rebuilds them once, sweeping early injections away. So: keep re-injecting
