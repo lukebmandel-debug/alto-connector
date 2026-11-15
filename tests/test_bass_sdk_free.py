@@ -47,6 +47,7 @@ EXPECTED_SKIPPED_WITHOUT_SDK = {
     "tests/test_bass_errors.py",
     "tests/test_bass_firstcall_rehearse.py",
     "tests/test_bass_guard.py",
+    "tests/test_bass_hosted_mock_e2e.py",
     "tests/test_bass_incident_1111.py",
     "tests/test_bass_inert_public.py",
     "tests/test_bass_isolation_1111.py",

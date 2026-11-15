@@ -16,7 +16,7 @@ from pathlib import Path
 
 from ._sdk import anthropic   # lazy: only the gated live/mock client construction needs the SDK
 
-from . import keys
+from . import keys, promo
 from .errors import LiveNotEnabled
 from .mock_anthropic import BASE_URL, MockAnthropic
 
@@ -47,7 +47,7 @@ def live_enabled() -> bool:
 
 def make_client(mode: str = "mock", *, mock: MockAnthropic | None = None,
                 key_provider: keys.KeyProvider | None = None,
-                go_check=None) -> "anthropic.Anthropic":
+                go_check=None, clock=None) -> "anthropic.Anthropic":
     if mode == "mock":
         mock = mock or MockAnthropic()
         provider = key_provider or keys.MockKeyProvider()
@@ -56,6 +56,7 @@ def make_client(mode: str = "mock", *, mock: MockAnthropic | None = None,
                                        timeout=TIMEOUT_S,
                                        http_client=anthropic.DefaultHttpxClient(transport=mock.transport()))
     if mode == "live":
+        promo.check(clock)                                                  # the free credit's end: refuses before the flag, the key or the SDK
         if not (go_check() if go_check is not None else live_enabled()):     # go_check: the server's own flag (bass_beta/live_go)
             raise LiveNotEnabled("Bass is not switched on for real traffic yet (no go flag).")
         provider = key_provider or keys.KeychainKeyProvider()

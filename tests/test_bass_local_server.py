@@ -327,7 +327,7 @@ def test_the_first_upstream_error_stops_use_with_no_retry(run):
 # -- nothing else changed -----------------------------------------------------------------------------------------------------
 def test_the_page_build_is_untouched_by_the_local_server(monkeypatch):
     from alto.build import bass_ui
-    assert bass_ui.V == "2e8f69d9cc"                                            # the Bass bundle of alto-bass-live (alto-bass-final + main 1.9.222 + the paste box): the local server changes none of it
+    assert bass_ui.V == "01573b82cc"                                            # the Bass bundle of alto-bass-live (alto-bass-final + main 1.9.222 + the paste box + the promo_ended message + the hosted XSS fix: tame/put/num, STAMP-hosted row 3): the local server changes none of it
     monkeypatch.delenv("ALTO_BASS_BASE", raising=False)
     assert "127.0.0.1" not in bass_ui.ASSET and "bassdev" not in bass_ui.ASSET and "bassdev" not in bass_ui.loader_js("panel")
     from alto import publish_static

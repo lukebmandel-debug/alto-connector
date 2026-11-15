@@ -323,6 +323,32 @@ test('no client, not even the owner, can read, list, query or write a Bass serve
   }
 });
 
+// Hosted Bass for one account (alto/bass/hosted.py): every document the gate and the Proxy read or write is server only, the uid's own included.
+// The listed uid (alice here) can neither read the list nor add, remove or change anyone (herself included), nor flip live_go, the kill
+// switch, the period marker or the ledger.
+const BASS_HOSTED_DOCS = ['bass_beta/hosted', 'bass_beta/live_go', 'bass_beta/kill', 'bass_beta/disabled', 'bass_beta/bass_testers',
+  'bass_beta_periods/2026-11-01', 'bass_beta_period_counters/2026-11-01', 'bass_beta_days/2026-11-15', 'bass_credits/alice',
+  'bass_beta_meta/alice_2026-11-15'];
+
+test('hosted Bass: no client can read, list or write the hosted uid list, live_go, kill, the period marker or the ledger', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    for (const d of BASS_HOSTED_DOCS) await db.doc(d).set({ uids: ['alice'], emails: ['alice@example.com'], on: false, confirmed: true });
+  });
+  for (const w of [...OTHERS, 'alice']) {
+    const db = who[w];
+    for (const d of BASS_HOSTED_DOCS) {
+      await assertFails(db.doc(d).get());
+      await assertFails(db.doc(d).set({ uids: [w], on: true, confirmed: true }));
+      await assertFails(db.doc(d).set({ on: true }, { merge: true }));
+      await assertFails(db.doc(d).update({ uids: firebase.firestore.FieldValue.arrayUnion(w) }));
+      await assertFails(db.doc(d).delete());
+      await assertFails(db.collection(d.split('/')[0]).get());
+    }
+    await assertFails(db.doc('bass_beta/hosted2').set({ uids: [w] }));
+  }
+});
+
 // ── terms acceptance ────────────────────────────────────────────────────────
 
 test('terms: own record created once; no second write, update, delete, list or reading others', async () => {

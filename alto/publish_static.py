@@ -513,9 +513,15 @@ def _bass_src() -> str:
     the CSP is byte-identical to a build without Bass. One https origin, no wildcard; a Cloud Run (<svc>-<hash>-uc.a.run.app or <svc>-<projectnumber>.<region>.run.app) or Cloud Functions host only, https, lowercase, no port (a
     same-site path needs nothing: 'self' covers it). Anything else adds nothing, so the page's own connect-src stays closed."""
     from .build import bass_ui
+    from .cloud import ext_hook                  # the generic extension hook's origin (cloud/ext_hook.py): "" unless ALTO_EXT_URL is set
+    ext = ext_hook.origin()
     if not bass_ui.enabled():
-        return ""
+        if not ext:
+            return ""
+        return " " + ext
     m = re.fullmatch(r"(https://[a-z0-9][a-z0-9.-]*\.(?:run\.app|cloudfunctions\.net))(?:/.*)?", bass_ui.base_url())
+    if ext and not (m and m.group(1) == ext):
+        return " " + ext + ((" " + m.group(1)) if m else "")
     return (" " + m.group(1)) if m else ""
 
 

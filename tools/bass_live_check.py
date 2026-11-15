@@ -47,6 +47,8 @@ from alto.bass import client as C                      # noqa: E402
 from alto.bass import config as P                      # noqa: E402
 from alto.bass import engine as E                      # noqa: E402
 from alto.bass import meter                            # noqa: E402
+from alto.bass import promo                            # noqa: E402
+from alto.bass.errors import BassError                 # noqa: E402
 from alto.bass import mock_anthropic as M              # noqa: E402
 from alto.bass.actions import Actions                  # noqa: E402
 from alto.bass.errors import Flags                     # noqa: E402
@@ -246,6 +248,11 @@ def main(argv=None, *, env=None, mock=None, monotonic=time.monotonic) -> int:
         res = run_check(client, a.out, builds=a.builds, cap_credits=a.cap_credits, dry=True, mock=mock, monotonic=monotonic, reserve=reserve,
                         scenario=lambda: M.build("Contracts", brief["brief"], brief["nodes"], brief["connections"]))
     else:
+        try:
+            promo.check()
+        except BassError as e:
+            print("refused: " + e.user_message + " (promo_ended: live Bass stops at " + promo.CUTOFF_UTC.isoformat() + ")", file=sys.stderr)
+            return 2
         if not C.live_enabled():
             print("refused: no go flag (" + str(C.go_flag_path()) + "). Live check starts only after Luke says go for the first live call.", file=sys.stderr)
             return 2

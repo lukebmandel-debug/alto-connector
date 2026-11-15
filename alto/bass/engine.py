@@ -239,7 +239,7 @@ class Engine:
                   "monthly_cap": "capped", "bass_paused": "paused", "busy": "busy", "beta_daily_full": "paused",
                   "beta_credits_used": "no_credits", "bass_off": "paused", "bass_disabled": "paused",
                   "beta_tester_daily": "capped", "workspace_limit": "paused", "time_limit": "capped",
-                  "refused": "refused", "max_tokens": "max_tokens"}.get(code, "error")
+                  "promo_ended": "paused", "refused": "refused", "max_tokens": "max_tokens"}.get(code, "error")
         self._stop(res, status, code, e.detail)
         # an action that produced nothing is refunded whole when it failed on Alto's or Anthropic's side
         if pol.refund and status in ("error", "refused") and not res.wrote and not res.text:

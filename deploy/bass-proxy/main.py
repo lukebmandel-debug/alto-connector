@@ -9,6 +9,7 @@ the Firebase Storage bucket that holds Bass Documents originals under users/<uid
 unset, the original stays but storage.rules refuse it to everyone once the index no longer lists it)."""
 import datetime as dt
 import os
+import time
 
 try:
     import functions_framework
@@ -23,22 +24,16 @@ DRIVE_ENV = ("ALTO_DRIVE_CLIENT_ID", "ALTO_DRIVE_API_KEY", "ALTO_DRIVE_APP_ID") 
 _proxy = None
 
 
-def _build():
-    missing = [k for k in REQUIRED_ENV if not os.environ.get(k)]
-    if missing:
-        raise RuntimeError("bass-proxy is missing environment: " + ", ".join(missing))
-    part = [k for k in DRIVE_ENV if not os.environ.get(k)]
-    if 0 < len(part) < len(DRIVE_ENV):                            # fail closed, loudly: a half-set Drive config is a deploy mistake, not "off"
-        raise RuntimeError("bass-proxy: Add from Drive is partly configured, missing environment: " + ", ".join(part) + " (set all three or none)")
+def _adapters(project, strict=False):
+    """Google's adapters (imported here so a test can stand in for them): the token verifier, Secret Manager, the guard store's client.
+    strict (the hosted function): the app is initialised with THIS project id, so verify_id_token checks the signature (Google's keys), the
+    audience (= the project), the issuer and the expiry; the verifier then checks aud, iss and exp again itself. Only the token's claims name
+    the account: nothing in the request body is ever used for who is asking."""
     import firebase_admin
     from firebase_admin import auth as fb_auth
     from google.cloud import firestore, secretmanager
 
-    from alto.bass.beta_config import BetaConfig
-    from alto.bass.beta_proxy import AuthError, Proxy, SecretReader, TokenVerifier
-    from alto.bass.tools import ToolBox
-    from alto.store.firestore import FirestoreStore as AltoStore       # the Alto store the build tools write to (ALTO_BUCKET names its bucket)
-    from firestore_store import FirestoreStore as GuardStore
+    from alto.bass.beta_proxy import AuthError, SecretReader, TokenVerifier
 
     class _Verifier(TokenVerifier):
         def verify(self, id_token):
@@ -51,7 +46,21 @@ def _build():
             fb = d.get("firebase") if isinstance(d, dict) else None
             if not isinstance(fb, dict) or fb.get("sign_in_provider") != "google.com":
                 raise AuthError
+            if strict:
+                exp = d.get("exp")
+                if (d.get("aud") != project or d.get("iss") != "https://securetoken.google.com/" + project
+                        or not isinstance(exp, (int, float)) or isinstance(exp, bool) or exp <= time.time()):
+                    raise AuthError
             return {"uid": d["uid"], "email": d.get("email", ""), "email_verified": d.get("email_verified") is True}
+
+        if strict:
+            def confirm(self, id_token):
+                """Called by the hosted gate only AFTER the pin and the lists hold: a revoked token or a disabled account is refused
+                (STAMP-hosted F4). Returns the uid, or raises."""
+                try:
+                    return fb_auth.verify_id_token(id_token, check_revoked=True)["uid"]
+                except Exception:
+                    raise AuthError
 
     class _Secrets(SecretReader):
         def __init__(self, project):
@@ -61,13 +70,33 @@ def _build():
             r = self.c.access_secret_version(name=f"projects/{self.project}/secrets/{name}/versions/latest")
             return r.payload.data.decode("utf-8")
 
-    firebase_admin.initialize_app()
+    if not firebase_admin._apps:
+        if strict:
+            firebase_admin.initialize_app(options={"projectId": project})
+        else:
+            firebase_admin.initialize_app()
+    return _Verifier(), _Secrets(project), firestore.Client()
+
+
+def _build():
+    missing = [k for k in REQUIRED_ENV if not os.environ.get(k)]
+    if missing:
+        raise RuntimeError("bass-proxy is missing environment: " + ", ".join(missing))
+    part = [k for k in DRIVE_ENV if not os.environ.get(k)]
+    if 0 < len(part) < len(DRIVE_ENV):                            # fail closed, loudly: a half-set Drive config is a deploy mistake, not "off"
+        raise RuntimeError("bass-proxy: Add from Drive is partly configured, missing environment: " + ", ".join(part) + " (set all three or none)")
+    from alto.bass.beta_config import BetaConfig
+    from alto.bass.beta_proxy import Proxy
+    from alto.bass.tools import ToolBox
+    from alto.store.firestore import FirestoreStore as AltoStore       # the Alto store the build tools write to (ALTO_BUCKET names its bucket)
+    from firestore_store import FirestoreStore as GuardStore
+
     project = os.environ["GCP_PROJECT"]                           # a project id, not a secret
+    verifier, secrets, db = _adapters(project)
     kw = {}
     if os.environ.get("BASS_ALLOWED_ORIGINS"):
         kw["allowed_origins"] = tuple(o for o in os.environ["BASS_ALLOWED_ORIGINS"].split(",") if o)
     cfg = BetaConfig(testers=int(os.environ["BASS_BETA_TESTERS"]), allowlist=frozenset(), **kw)   # the allowlist lives in Firestore
-    db = firestore.Client()
     blobs = None
     if os.environ.get("BASS_DOCS_BUCKET"):
         from firebase_admin import storage as fb_storage
@@ -87,13 +116,54 @@ def _build():
 
         from gcs_object_store import CreateOnly
         from alto.bass.research_share import ResearchShare
-        secrets = _Secrets(project)
         hmac_name = f"projects/{project}/secrets/bass-research-hmac/versions/latest"
         research = ResearchShare(GuardStore(db), CreateOnly(gcs.Client().bucket(os.environ["BASS_RESEARCH_BUCKET"])),
                                  lambda: secrets.c.access_secret_version(name=hmac_name, timeout=10).payload.data.decode("utf-8"),   # 10 s, not the function's
                                  lambda: dt.datetime.now(dt.timezone.utc))
-    return Proxy(cfg, GuardStore(db), _Verifier(), _Secrets(project), ToolBox(AltoStore()),
+    return Proxy(cfg, GuardStore(db), verifier, secrets, ToolBox(AltoStore()),
                  clock=lambda: dt.datetime.now(dt.timezone.utc), blobs=blobs, research=research)
+
+
+# -- hosted Bass for ONE account (alto/bass/hosted.py): the gate in front of the Proxy. NOT DEPLOYED; deploy/bass-proxy/fb_main.py is its
+# Firebase CLI entry (function id `altoext`). Environment (functions/.env, written at deploy, never in the repo):
+#   ALTO_EXT_PROJECT  the project id (GCP_PROJECT is reserved by the Firebase CLI)
+#   ALTO_EXT_UIDS     the allowlisted uid(s), at most 1; anything malformed = nobody
+# No Drive, no Documents bucket, no research sharing: those stay off for the hosted path. No bucket at all: the timelines go into the pinned account's
+# own Firestore exactly as luke-alto's CloudStore reads them (alto/store/admin_cloud.py), built files in a scratch dir.
+HOSTED_ENV = ("ALTO_EXT_PROJECT", "ALTO_EXT_UIDS")
+
+
+def build_hosted(adapters=None):
+    missing = [k for k in HOSTED_ENV if not os.environ.get(k)]
+    if missing:
+        raise RuntimeError("the hosted function is missing environment: " + ", ".join(missing))
+    from alto.bass.beta_proxy import Proxy
+    from alto.bass.hosted import HostedGate, hosted_config, hosted_problems, pinned_uids
+    from alto.bass.hosted_publish import HostedToolBox
+    from alto.store.admin_cloud import AdminCloudStore
+    from alto.store.local import LocalStore
+    from firestore_store import FirestoreStore as GuardStore
+
+    clock = lambda: dt.datetime.now(dt.timezone.utc)
+    cfg = hosted_config()
+    bad = hosted_problems(cfg, clock())
+    if bad:
+        raise RuntimeError("the hosted config is not safe to serve: " + "; ".join(bad))
+    pins = pinned_uids(os.environ["ALTO_EXT_UIDS"])
+    if len(pins) != 1:
+        raise RuntimeError("ALTO_EXT_UIDS must name exactly one uid of the accepted shape")
+    verifier, secrets, db = (adapters or (lambda p: _adapters(p, strict=True)))(os.environ["ALTO_EXT_PROJECT"])
+    store = GuardStore(db)
+    (uid,) = pins
+    import tempfile
+    if adapters is None:                                    # the deployed path: the real sentinels, no fallback
+        from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
+    else:                                                   # a test's fake db brings its own
+        DELETE_FIELD, SERVER_TIMESTAMP = getattr(db, "DELETE_FIELD", None), getattr(db, "SERVER_TIMESTAMP", None)
+    alto_store = AdminCloudStore(db, uid, LocalStore(tempfile.mkdtemp(prefix="altoext-")), os.environ["ALTO_EXT_PROJECT"],
+                                 delete_field=DELETE_FIELD, server_timestamp=SERVER_TIMESTAMP)
+    proxy = Proxy(cfg, store, verifier, secrets, HostedToolBox(alto_store, uid), clock=clock)
+    return HostedGate(proxy, store, verifier, cfg=cfg, pins=pins, clock=clock)
 
 
 @_http

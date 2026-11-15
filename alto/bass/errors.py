@@ -43,6 +43,7 @@ POLICIES = {p.code: p for p in (
     Policy("busy", "You have a lot going on at once. Give it a moment and try again.", refund=True),
     Policy("bass_paused", "Bass is taking a short break. Nothing was charged. Please try again later.",
            refund=True),
+    Policy("promo_ended", "The free Bass credit has ended."),
     Policy("bass_off", "Bass is not switched on for this account yet."),
     Policy("needs_plan", "That is in a plan you do not have yet. Nothing was charged."),
     Policy("conversion_failed", "Bass could not turn that file into the new format using only its own cards, so nothing was saved. Nothing was charged."),

@@ -59,7 +59,7 @@ PLATFORMS = {
 # (fastapi, uvicorn, firebase-admin, …) would add tens of megabytes.
 # quickjs: the JS syntax gate's parser where no node is installed (every
 # Claude Desktop user) — ~2 MB, prebuilt for all three targets.
-REQUIREMENTS = ["mcp>=1.28,<2", "quickjs>=1.19,<2"]
+REQUIREMENTS = ["mcp>=1.28,<2", "quickjs>=1.19,<2", "tzdata; sys_platform == 'win32'"]
 
 PACKAGE_INCLUDE = [
     ("alto", "*.py"),
