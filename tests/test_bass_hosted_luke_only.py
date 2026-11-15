@@ -166,7 +166,7 @@ def test_the_allowlisted_uid_gets_the_bundle_with_the_beta_button():
     st, h, b = post(gate, "ext", "tok-luke")
     j = json.loads(b)
     assert st == 200 and set(j) == {"x"} and proxy.calls == []
-    assert "Bass (beta)" in j["x"] and "window._altoBass=" in j["x"] and "window._ALTO_BASS_BASE=u" in j["x"]
+    assert "nt-bass" in j["x"] and "_altoStudyPlanMake" in j["x"] and "(beta)" not in j["x"] and "alto-bass-beta" not in j["x"] and "window._altoBass=" in j["x"] and "window._ALTO_BASS_BASE=u" in j["x"]
     assert "__ID__" not in j["x"] and "__LABEL__" not in j["x"] and "__GLYPH__" not in j["x"]
     assert h["Cache-Control"] == "no-store" and h["Access-Control-Allow-Origin"] == ORIGIN
 
@@ -391,7 +391,7 @@ def test_pages_and_hosted_assets_are_byte_identical_with_the_hook_on(monkeypatch
     on = build()
     assert on == off
     for page in on[:2]:
-        assert "_altoBass" not in page and "alto-bass" not in page and "Bass (beta)" not in page
+        assert "_altoBass" not in page and "alto-bass" not in page and "nt-bass" not in page
     assert not any(a.startswith("bass") or "/bass/" in a for a in on[2])                              # /bass/ is never published
 
 
@@ -453,7 +453,7 @@ def test_the_firebase_entry_builds_the_gate_and_serves_through_it(firebase_fakes
 
         def get_data(self):
             return b'{"action":"ext","args":{}}'
-    assert "Bass (beta)" in json.loads(fb.altoext(Req("tok-luke")).body)["x"]
+    assert "nt-bass" in json.loads(fb.altoext(Req("tok-luke")).body)["x"]
     r = fb.altoext(Req("tok-other"))
     assert r.status == 200 and r.body == b"{}"
 
@@ -794,7 +794,7 @@ def test_build_bundle_refuses_a_folder_whose_bundle_and_pin_drift(tmp_path):
     fn = out / "functions"
     assert bb.check_pin(fn) == (ROOT / "alto" / "cloud" / "ext_pin.txt").read_text().strip()
     p = fn / "alto" / "build" / "bass_hosted_ext.py"
-    p.write_text(p.read_text().replace('LABEL = "Bass (beta)"', 'LABEL = "Bass (beta) "'))
+    p.write_text(p.read_text().replace("Build it with Bass from my notes", "Build it with Bass from my notes "))
     with pytest.raises(SystemExit, match="does not match"):
         bb.check_pin(fn)
 
@@ -875,7 +875,7 @@ def test_lint_the_bundle_sets_no_markup_from_anything_but_a_literal():
 @pytest.mark.parametrize("snippet,caught", [("el.innerHTML=x;", True), ("el.innerHTML = a+'<b>';", True), ("el.outerHTML=meter();", True),
                                             ("el.innerHTML+='<i>';", True), ("el['innerHTML']=v;", True), ("el.insertAdjacentHTML('beforeend','<b>');", True),
                                             ("document.write(x);", True), ("D.write('<p>');", True), ("el.innerHTML='<input type=\"text\">';", False),
-                                            ("el.innerHTML=\"<svg></svg><span>Bass (beta)</span>\";", False), ("var h=k.outerHTML;", False),
+                                            ("el.innerHTML=\"<svg></svg><span>Bass</span>\";", False), ("var h=k.outerHTML;", False),
                                             ("if(a.innerHTML==b)x();", False)])
 def test_the_lint_bites(snippet, caught):
     assert bool(_sinks(snippet)) is caught
