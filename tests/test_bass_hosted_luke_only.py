@@ -272,9 +272,9 @@ def test_the_hosted_config_is_clean_with_one_tester_and_fits_the_console_limit()
     from alto.bass.hosted import hosted_config, hosted_problems
     cfg = hosted_config()
     assert cfg.testers == 1 and cfg.problems() == [] and hosted_problems(cfg, NOW) == []
-    assert cfg.pool_credits == 500 and cfg.server_ceiling_credits == 400 and cfg.per_action_cap_credits == 100
+    assert cfg.pool_credits == 500 and cfg.server_ceiling_credits == 400 and cfg.per_action_cap_credits == 300
     assert cfg.tester_period_credits == 400 and cfg.tester_daily_credits <= 400 and cfg.global_daily_credits <= 400
-    assert cfg.server_ceiling_credits + cfg.per_action_cap_credits <= 500           # a whole missed turn still stays under $5
+    assert cfg.server_ceiling_credits <= 400 and cfg.per_action_cap_credits <= cfg.server_ceiling_credits   # the 400 total is hard; one action's 300 sits inside it
     assert set(cfg.allowed_origins) == {"https://luke-alto.web.app", "https://luke-alto.firebaseapp.com"}
 
 
@@ -288,7 +288,7 @@ def test_no_new_credit_period_opens_between_any_deploy_day_and_the_cutoff():
     assert hosted_problems(hosted_config(start_day=17), NOW)                       # the beta's own 17th would reset the ceiling
 
 
-@pytest.mark.parametrize("kw", [dict(testers=2), dict(pool_credits=600), dict(server_ceiling_credits=450), dict(per_action_cap_credits=150),
+@pytest.mark.parametrize("kw", [dict(testers=2), dict(pool_credits=600), dict(server_ceiling_credits=450), dict(per_action_cap_credits=350),
                                 dict(tester_daily_credits=450), dict(global_daily_credits=450)])
 def test_hosted_problems_catch_every_cap_above_the_limit(kw):
     from alto.bass.hosted import hosted_config, hosted_problems
@@ -313,12 +313,12 @@ def test_the_ledger_never_books_past_the_ceiling(tmp_path):
             break
         led.settle(LUKE, f"h{i}", cfg.per_action_cap_mc)
         booked += cfg.per_action_cap_mc
-    assert booked == 400_000 and refused in ("beta_credits_used", "beta_tester_daily", "beta_daily_full")
+    assert booked == 300_000 and refused in ("beta_credits_used", "beta_tester_daily", "beta_daily_full")
 
 
-def test_the_proxy_built_on_the_hosted_config_caps_each_action_at_one_dollar(tmp_path):
+def test_the_proxy_built_on_the_hosted_config_caps_each_action_at_three_dollars(tmp_path):
     p, _, _ = _real_proxy(tmp_path, at(NOW), live=False)
-    assert p.cfg.per_action_cap_mc == 100_000 and p.cfg.ceiling_mc == 400_000
+    assert p.cfg.per_action_cap_mc == 300_000 and p.cfg.ceiling_mc == 400_000
 
 
 # ── 5. the key ───────────────────────────────────────────────────────────────────────────────────────────────────────

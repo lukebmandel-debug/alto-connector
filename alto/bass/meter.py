@@ -129,7 +129,7 @@ class Estimate:
 
 
 def estimate_action(model: str, first_input_tokens: int, output_per_turn: int, turns: int = 1,
-                    growth_per_turn: int | None = None) -> Estimate:
+                    growth_per_turn: int | None = None, cap_mc: int | None = None) -> Estimate:
     """A planned multi-turn action: every turn re-sends the history, so input grows by what each turn added
     (its output plus the tool results; `growth_per_turn` defaults to 2x the output).
 
@@ -149,7 +149,7 @@ def estimate_action(model: str, first_input_tokens: int, output_per_turn: int, t
         else:
             inp = first_input_tokens * r.cache_read + (n - first_input_tokens) * r.inp
         total += _mc((inp + output_per_turn * r.out) / 1_000_000)
-    total = min(total, P.PER_ACTION_CAP_CREDITS * P.MC)
+    total = min(total, P.PER_ACTION_CAP_CREDITS * P.MC if cap_mc is None else cap_mc)
     return Estimate(total, max(1, turns), total > P.ESTIMATE_THRESHOLD_CREDITS * P.MC)
 
 

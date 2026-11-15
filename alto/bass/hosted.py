@@ -32,21 +32,21 @@ EMPTY = b"{}"
 _UID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _HEADERS = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
 
-# Money (Board B-1114-b): the Console's org and workspace limits are $5 (500 credits). The books stop at 400; the other 100 (one whole
-# per-action cap) is never booked, so even a turn the books miss entirely stays under the $5 limit, and all spend happens before the promo
-# cutoff. Whether Anthropic draws the promo or the purchased credit first is outside this code: it keeps spend under $5 and before the
+# Money (Board B-1114-b): the Console's org and workspace limits are $5 (500 credits). The books stop at 400 (a hard total; the 300 per-action
+# cap is inside it, so an action after a 300 one is capped by the 100 left); the other 100 is never booked, so the books miss by up to 100 and
+# it stays under the $5 limit, and all spend happens before the promo cutoff. Whether Anthropic draws the promo or the purchased credit first is outside this code: it keeps spend under $5 and before the
 # promo's end, and does NOT promise which credit pays. The period starts on the 1st
 # (like the Console's own month), so no new period (and no fresh ceiling) opens between the deploy and the cutoff.
 TOTAL_CREDITS = 500
 CEILING_CREDITS = 400
-PER_ACTION_CREDITS = 100
+PER_ACTION_CREDITS = 300
 ORIGINS = ("https://luke-alto.web.app", "https://luke-alto.firebaseapp.com")
 
 
 def hosted_config(**kw) -> BetaConfig:
     base = dict(testers=1, allowlist=frozenset(), pool_credits=TOTAL_CREDITS, server_ceiling_credits=CEILING_CREDITS,
                 per_action_cap_credits=PER_ACTION_CREDITS, tester_daily_credits=CEILING_CREDITS, global_daily_credits=CEILING_CREDITS,
-                spike_credits=PER_ACTION_CREDITS, spike_alert_credits=PER_ACTION_CREDITS * 2, start_day=1, allowed_origins=ORIGINS, zone_optional=True)
+                spike_credits=100, spike_alert_credits=200, start_day=1, allowed_origins=ORIGINS, zone_optional=True)
     base.update(kw)
     return BetaConfig(**base)
 
@@ -58,10 +58,10 @@ def hosted_problems(cfg: BetaConfig, now=None) -> list:
         out.append("hosted Bass is for one account: testers must be 1")
     if cfg.pool_credits > TOTAL_CREDITS:
         out.append(f"the pool is above the {TOTAL_CREDITS}-credit Console limit")
-    if cfg.server_ceiling_credits + cfg.per_action_cap_credits > TOTAL_CREDITS:
-        out.append("the ceiling plus one action's cap could pass the Console limit")
+    if cfg.server_ceiling_credits > CEILING_CREDITS:
+        out.append(f"the ceiling is above the {CEILING_CREDITS}-credit hard total")
     if cfg.per_action_cap_credits > PER_ACTION_CREDITS:
-        out.append(f"the per-action cap is above {PER_ACTION_CREDITS} credits ($1)")
+        out.append(f"the per-action cap is above {PER_ACTION_CREDITS} credits ($3)")
     if cfg.tester_daily_credits > cfg.server_ceiling_credits or cfg.global_daily_credits > cfg.server_ceiling_credits:
         out.append("a daily limit is above the ceiling")
     if now is not None and cfg.zone_ok and cfg.period_id(now) != cfg.period_id(promo.CUTOFF_UTC):
