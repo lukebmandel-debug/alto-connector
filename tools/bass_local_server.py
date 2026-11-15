@@ -47,6 +47,8 @@ sys.path.insert(0, str(ROOT))
 
 from alto.bass import client as C                                       # noqa: E402
 from alto.bass import studio_key                                        # noqa: E402
+from alto.bass import promo                                             # noqa: E402
+from alto.bass.errors import BassError                                  # noqa: E402
 from alto.bass.beta_config import BetaConfig                            # noqa: E402
 from alto.bass.beta_ledger import LIVE_GO_KEY, confirm_key              # noqa: E402
 from alto.bass.beta_proxy import AuthError, Proxy, SecretReader, TokenVerifier   # noqa: E402
@@ -161,6 +163,7 @@ def build_proxy(purpose: str, root: Path, port: int, token: str, live: bool, per
     clock = clock or (lambda: dt.datetime.now(dt.timezone.utc))
     cfg = make_config(purpose, port, per_action)
     if live:
+        promo.check(clock)
         if check_root(root) != DEFAULT_ROOT.expanduser().resolve():
             raise Refused(f"a live server uses the one fixed store root ({DEFAULT_ROOT}); another root would be a fresh grant")
         reserve = LocalReserve(clock=clock, cfg=cfg)                    # the fixed file, whatever was passed in
@@ -295,6 +298,11 @@ def main(argv=None) -> int:
     ap.add_argument("--per-action-credits", type=int, default=None)
     ap.add_argument("--store-root", type=Path, default=DEFAULT_ROOT)
     a = ap.parse_args(argv)
+    if a.live:
+        try:
+            promo.check()                                   # before any gate lookup: past the cutoff the Keychain is not even asked
+        except BassError as e:
+            raise Refused(f"refusing to start live: {e.user_message} (promo_ended)")
     g = gates()
     if a.live and not all(g.values()):
         raise Refused("refusing to start live: missing " + ", ".join(k for k, v in g.items() if not v))

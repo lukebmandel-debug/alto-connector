@@ -68,17 +68,51 @@ def plan(project: str, region: str, testers: int, bucket: str) -> list:
     ]
 
 
+HOSTED_FUNCTION = "altoext"
+
+
+def hosted_plan(project: str, sa=None) -> list:
+    """Hosted Bass for ONE account (alto/bass/hosted.py) with the firebase CLI only (no gcloud on Home). Printed, never run."""
+    fb = "~/.local/node/bin/firebase"
+    url = f"https://us-central1-{project}.cloudfunctions.net/{HOSTED_FUNCTION}"
+    return [
+        "# 0. Console (no gcloud): Secret Manager > alto-bass-beta-key exists with Luke's NEW key named `bass-proxy` (he makes it and puts it there himself; he disables it in the Anthropic Console after the promo);",
+        "#    its Permissions: the function's runtime service account gets Secret Manager Secret Accessor on THIS secret only.",
+        f"~/.local/share/alto/venv/bin/python deploy/bass-proxy/build_bundle.py --firebase <bundle> --service-account {sa}   # <bundle> outside ~/Desktop; refuses without the account",
+        "cd <bundle>/functions && ~/.local/bin/python3.12 -m venv venv && venv/bin/pip install -r requirements.txt   # the firebase CLI needs this venv",
+        f"printf 'ALTO_EXT_PROJECT={project}\\nALTO_EXT_UIDS=<LUKE_UID>\\n' > <bundle>/functions/.env",
+        f"cd <bundle> && {fb} deploy --only functions:{HOSTED_FUNCTION}:{HOSTED_FUNCTION} --project {project}",
+        f"# then CHECK in the Console (Cloud Run > {HOSTED_FUNCTION} > Security): the service account is {sa}, not <number>-compute@developer.gserviceaccount.com",
+        f"# the function URL: {url}  (generic: it is in the CSP and the hook of every luke-alto visitor)",
+        "# Firestore docs (Console, by hand; bass_beta/** is server-only in firestore.rules):",
+        "#   bass_beta/hosted        {uids: ['<LUKE_UID>']}",
+        "#   bass_beta/bass_testers  {emails: ['<LUKE_EMAIL>']}      (one entry: N = 1, a longer list admits nobody)",
+        "#   bass_beta_periods/2026-11-01 {confirmed: true}           (the hosted period starts on the 1st)",
+        "#   bass_beta/live_go       {on: false}  -> mock;  {on: true} only on the Board's GO",
+        f"# then publish luke-alto as usual with ALTO_EXT_URL={url} in the publish environment (ALTO_BASS_UI stays UNSET)",
+    ]
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--project", default=os.environ.get("ALTO_BASS_PROJECT", ""), help="the Firebase project id (or ALTO_BASS_PROJECT); never written in the repo")
     ap.add_argument("--region", default="us-central1")
     ap.add_argument("--testers", type=int, default=0, help="N, up to 15; config, no default")
     ap.add_argument("--bucket", default=os.environ.get("ALTO_BASS_BUCKET", ""), help="the Cloud Storage bucket the Alto store writes to (or ALTO_BASS_BUCKET; IT names it; nothing is created here)")
+    ap.add_argument("--hosted", action="store_true", help="print the firebase-CLI plan for hosted Bass (one account)")
+    ap.add_argument("--service-account", default="", help="--hosted: the function's dedicated service account (required)")
     ap.add_argument("--apply", action="store_true", help="REFUSED: there is no apply mode")
     a = ap.parse_args(argv)
     if a.apply:
         print("refused: this script only prints. Blaze is off and nothing is deployed until Luke says go.", file=sys.stderr)
         return 2
+    if a.hosted:
+        if not a.project or not a.service_account:
+            print("refused: give --project and --service-account (never the default compute account).", file=sys.stderr)
+            return 2
+        print("DRY RUN. Nothing was executed.\n")
+        print("\n".join("  " + c for c in hosted_plan(a.project, a.service_account or None)))
+        return 0
     if a.testers <= 0 or not a.bucket or not a.project:
         print("refused: give --project, --testers (N) and --bucket (IT names it); they are config, not defaults.", file=sys.stderr)
         return 2

@@ -19,6 +19,7 @@ Auth "user deleted" trigger removes all of it:
   bass_drive/{uid}                the Add-from-Drive token record, and bass_drive_tok/{hash} entries that name the uid
   bass_beta/allowlist             the account's EMAIL is removed from the list (pass `email`)
   bass_beta/bass_testers          ... and from Bass's own tester list
+  bass_beta/hosted                the account's UID is removed from hosted Bass's list (alto/bass/hosted.py)
 Every collection the Bass proxy keeps (deploy/bass-proxy/firestore_store.py) is classified in BASS_COLLECTIONS below; a test keeps the
 two equal, so a new Bass collection cannot be added without saying what an account erase does with it.
   Storage (pass `bucket`)
@@ -66,7 +67,7 @@ BASS_COLLECTIONS = {
     "bass_beta_meta": "erase: by uid prefix", "bass_research_consent": "erase: by uid",
     "bass_drive": "erase: by uid", "bass_drive_tok": "erase: by its uid field",
     "terms_acceptance": "erase: by its uid field",
-    "bass_beta": "erase: the email from allowlist and bass_testers; kill, disabled, live_go, badinput hold no account data",
+    "bass_beta": "erase: the email from allowlist and bass_testers, the uid from hosted; kill, disabled, live_go, badinput hold no account data",
     "bass_beta_days": "none: one counter per day for everyone",
     "bass_beta_period_counters": "none: one counter per period; open reservations name a uid for at most 15 minutes and are then booked",
     "bass_beta_periods": "none: the period confirmation",
@@ -124,6 +125,14 @@ def _erase_bass(db, uid: str) -> int:
     for coll in SERVER_BY_UID_FIELD:
         for snap in list(db.collection(coll).where("uid", "==", uid).stream()):
             snap.reference.delete()
+            n += 1
+    ref = db.collection("bass_beta").document("hosted")    # hosted Bass's uid list (alto/bass/hosted.py): the uid comes off it
+    snap = ref.get()
+    if snap.exists:
+        uids = list((snap.to_dict() or {}).get("uids") or [])
+        keep = [u for u in uids if u != uid]
+        if len(keep) != len(uids):
+            ref.update({"uids": keep})
             n += 1
     return n
 

@@ -88,20 +88,20 @@ function sw(on,attrs,label,dis){ return '<button type="button" class="bs-sw'+(on
 function navView(lib,sel){
   var d=dk(), h='<p class="bs-dk">Classes</p>';
   scopesOf(lib,'class').forEach(function(c){ var o=!!d.open[c.id], kids=lib.scopes.filter(function(x){ return x.class_id===c.id; }), n=count(lib,c.id);
-    h+='<button type="button" class="bs-sc'+(sel===c.id?' sel':'')+'" data-a="d-sel" data-v="'+c.id+'" aria-expanded="'+o+'"><span class="bs-car" data-a="d-tog" data-v="'+c.id+'" aria-hidden="true">'+(o?'▾':'▸')+'</span><span class="bs-scn">'+esc(c.name)+'</span><span class="bs-n">'+n+'</span></button>';
-    if(o) kids.forEach(function(k){ var own=count(lib,k.id); h+='<button type="button" class="bs-sc kid'+(sel===k.id?' sel':'')+'" data-a="d-sel" data-v="'+k.id+'"><span class="bs-scn">'+esc(k.name)+'</span><span class="bs-n">'+(own?own+' ':'')+(k.class_docs&&n?'+'+n:'')+'</span></button>'; }); });
-  var g=scopesOf(lib,'group'); if(g.length){ h+='<p class="bs-dk">Groups</p>'; g.forEach(function(x){ h+='<button type="button" class="bs-sc'+(sel===x.id?' sel':'')+'" data-a="d-sel" data-v="'+x.id+'"><span class="bs-scn">'+esc(x.name)+'</span><span class="bs-n">'+count(lib,x.id)+'</span></button>'; }); }
+    h+='<button type="button" class="bs-sc'+(sel===c.id?' sel':'')+'" data-a="d-sel" data-v="'+esc(c.id)+'" aria-expanded="'+o+'"><span class="bs-car" data-a="d-tog" data-v="'+esc(c.id)+'" aria-hidden="true">'+(o?'▾':'▸')+'</span><span class="bs-scn">'+esc(c.name)+'</span><span class="bs-n">'+n+'</span></button>';
+    if(o) kids.forEach(function(k){ var own=count(lib,k.id); h+='<button type="button" class="bs-sc kid'+(sel===k.id?' sel':'')+'" data-a="d-sel" data-v="'+esc(k.id)+'"><span class="bs-scn">'+esc(k.name)+'</span><span class="bs-n">'+(own?own+' ':'')+(k.class_docs&&n?'+'+n:'')+'</span></button>'; }); });
+  var g=scopesOf(lib,'group'); if(g.length){ h+='<p class="bs-dk">Groups</p>'; g.forEach(function(x){ h+='<button type="button" class="bs-sc'+(sel===x.id?' sel':'')+'" data-a="d-sel" data-v="'+esc(x.id)+'"><span class="bs-scn">'+esc(x.name)+'</span><span class="bs-n">'+count(lib,x.id)+'</span></button>'; }); }
   var loose=lib.scopes.filter(function(x){ return (x.kind==='outline'||x.kind==='timeline')&&!x.class_id; });
-  if(loose.length){ h+='<p class="bs-dk">Outlines</p>'; loose.forEach(function(x){ h+='<button type="button" class="bs-sc'+(sel===x.id?' sel':'')+'" data-a="d-sel" data-v="'+x.id+'"><span class="bs-scn">'+esc(x.name)+'</span><span class="bs-n">'+count(lib,x.id)+'</span></button>'; }); }
+  if(loose.length){ h+='<p class="bs-dk">Outlines</p>'; loose.forEach(function(x){ h+='<button type="button" class="bs-sc'+(sel===x.id?' sel':'')+'" data-a="d-sel" data-v="'+esc(x.id)+'"><span class="bs-scn">'+esc(x.name)+'</span><span class="bs-n">'+count(lib,x.id)+'</span></button>'; }); }
   h+='<button type="button" class="bs-sc add" data-a="d-new">'+IC.plus+'<span class="bs-scn">New class or group</span></button>';
   if(d.newOpen) h+=newView(lib);
   return h; }
 function newView(lib){ var cls=scopesOf(lib,'class');
   return '<div class="bs-dnew"><select class="bs-dsel bs-dnk" aria-label="Kind"><option value="class">Class</option><option value="group">Group</option>'
-    +cls.map(function(c){ return '<option value="outline:'+c.id+'">Outline in '+esc(c.name)+'</option><option value="timeline:'+c.id+'">Timeline in '+esc(c.name)+'</option>'; }).join('')+'</select>'
+    +cls.map(function(c){ return '<option value="outline:'+esc(c.id)+'">Outline in '+esc(c.name)+'</option><option value="timeline:'+esc(c.id)+'">Timeline in '+esc(c.name)+'</option>'; }).join('')+'</select>'
     +'<div class="bs-inp"><input type="text" class="bs-dnn" maxlength="120" placeholder="Name, e.g. Evidence" aria-label="Name"></div><button type="button" class="bs-btn pri" data-a="d-newok">Add</button></div>'; }
 function pickView(lib,sel){ var h='<select class="bs-dsel bs-dpick" data-a="d-pick" aria-label="Class or group">';
-  lib.scopes.forEach(function(x){ var c=x.class_id&&lib.scopes.filter(function(y){ return y.id===x.class_id; })[0]; h+='<option value="'+x.id+'"'+(x.id===sel?' selected':'')+'>'+esc((c?c.name+' › ':'')+x.name)+' · '+(x.kind==='group'?'group':x.kind)+'</option>'; });
+  lib.scopes.forEach(function(x){ var c=x.class_id&&lib.scopes.filter(function(y){ return y.id===x.class_id; })[0]; h+='<option value="'+esc(x.id)+'"'+(x.id===sel?' selected':'')+'>'+esc((c?c.name+' › ':'')+x.name)+' · '+(x.kind==='group'?'group':x.kind)+'</option>'; });
   return h+'</select>'; }
 function mainView(lib,sel){
   var d=dk(), s=lib.scopes.filter(function(x){ return x.id===sel; })[0];
@@ -113,8 +113,8 @@ function mainView(lib,sel){
   var h='<div class="bs-dmain">'+pickView(lib,sel)+'<button type="button" class="bs-btn bs-dnewp" data-a="d-new">'+IC.plus+'New class or group</button>'+(d.newOpen?'<div class="bs-dnewm">'+newView(lib)+'</div>':'')+'<div class="bs-dt"><h2 class="bs-t">'+esc(s.name)+'</h2><button type="button" class="bs-ib" data-a="d-rsc" title="Rename" aria-label="Rename '+esc(s.name)+'">'+IC.pen+'</button></div><p class="bs-hint">'+esc(why)+'</p>';
   if(d.menu==='scope') h+='<div class="bs-dmenu"><div class="bs-inp"><input type="text" id="bs-dsn" maxlength="120" value="'+esc(s.name)+'" aria-label="New name"></div><button type="button" class="bs-btn pri" data-a="d-rscok">Save</button>'
     +(count(lib,s.id)||lib.scopes.some(function(x){ return x.class_id===s.id; })?'':'<button type="button" class="bs-btn" data-a="d-rmsc">Remove</button>')+'</div>';
-  if(c) h+='<div class="bs-drow cls">'+IC.doc+'<div class="bs-dn"><b>Also use the '+esc(c.name)+' class documents</b><small>'+cn+' file'+(cn===1?'':'s')+' shared with every '+esc(c.name)+' outline and timeline</small></div>'+sw(s.class_docs,'data-a="d-cls" data-v="'+s.id+'"','Also use the '+c.name+' class documents')+'</div>';
-  h+='<label class="bs-drop" data-drop="docs" for="bs-dfile">'+IC.up+'<b>Drop files here, or choose them</b><span>PDF, Word, text · '+lib.caps.files+' of '+lib.caps.files_max+' files used. Bass reads up to 60,000 characters of documents at a time.</span></label>'
+  if(c) h+='<div class="bs-drow cls">'+IC.doc+'<div class="bs-dn"><b>Also use the '+esc(c.name)+' class documents</b><small>'+cn+' file'+(cn===1?'':'s')+' shared with every '+esc(c.name)+' outline and timeline</small></div>'+sw(s.class_docs,'data-a="d-cls" data-v="'+esc(s.id)+'"','Also use the '+c.name+' class documents')+'</div>';
+  h+='<label class="bs-drop" data-drop="docs" for="bs-dfile">'+IC.up+'<b>Drop files here, or choose them</b><span>PDF, Word, text · '+num(lib.caps.files)+' of '+num(lib.caps.files_max)+' files used. Bass reads up to 60,000 characters of documents at a time.</span></label>'
     +'<input type="file" id="bs-dfile" multiple accept=".pdf,.docx,.txt,.md,.csv" style="display:none" aria-label="Choose files">';
   if(d.drv&&d.drv.available&&!phone()) h+='<button type="button" class="bs-btn bs-ddrive" data-a="d-drive"'+(d.busy?' disabled':'')+'>'+IC.doc+'Add from Drive</button><span class="bs-hint bs-ddh">Pick Google Docs, PDF or Word files. Bass sees only the files you pick.</span>';
   if(d.msg) h+='<div class="bs-alert">'+IC.warn+'<div><p>'+esc(d.msg)+'</p></div></div>';
@@ -122,15 +122,15 @@ function mainView(lib,sel){
   if(!mine.length) h+='<p class="bs-hint">No documents here yet.</p>';
   mine.forEach(function(f){
     h+='<div class="bs-drow"><span class="bs-tag">'+tag(f.type)+'</span><div class="bs-dn"><b>'+esc(f.name)+'</b><small>'+kb(f.bytes)+' · added '+dday(f.added)+'</small></div>'
-      +(f.readable?'<span class="bs-use'+(f.use?' on':'')+'">'+(f.use?'Bass is using this':'Not used')+'</span>'+sw(f.use,'data-a="d-use" data-v="'+f.id+'"','Bass is using '+f.name)
+      +(f.readable?'<span class="bs-use'+(f.use?' on':'')+'">'+(f.use?'Bass is using this':'Not used')+'</span>'+sw(f.use,'data-a="d-use" data-v="'+esc(f.id)+'"','Bass is using '+f.name)
         :'<span class="bs-use">Bass can\'t read pictures yet</span>')
-      +'<button type="button" class="bs-ib bs-more" data-a="d-menu" data-v="'+f.id+'" title="More" aria-label="More for '+esc(f.name)+'" aria-expanded="'+(d.menu===f.id)+'">⋯</button></div>';
-    if(d.menu===f.id) h+='<div class="bs-dmenu"><div class="bs-inp"><input type="text" id="bs-dfn" maxlength="120" value="'+esc(f.name)+'" aria-label="Rename"></div><button type="button" class="bs-btn" data-a="d-ren" data-v="'+f.id+'">Rename</button>'
-      +'<select class="bs-dsel" data-a="d-mv" data-v="'+f.id+'" aria-label="Move to"><option value="">Move to…</option>'+lib.scopes.filter(function(x){ return x.id!==sel; }).map(function(x){ return '<option value="'+x.id+'">'+esc(x.name)+'</option>'; }).join('')+'</select>'
-      +'<button type="button" class="bs-btn bs-del" data-a="d-del" data-v="'+f.id+'">Delete</button></div>'; });
+      +'<button type="button" class="bs-ib bs-more" data-a="d-menu" data-v="'+esc(f.id)+'" title="More" aria-label="More for '+esc(f.name)+'" aria-expanded="'+(d.menu===f.id?'true':'false')+'">⋯</button></div>';
+    if(d.menu===f.id) h+='<div class="bs-dmenu"><div class="bs-inp"><input type="text" id="bs-dfn" maxlength="120" value="'+esc(f.name)+'" aria-label="Rename"></div><button type="button" class="bs-btn" data-a="d-ren" data-v="'+esc(f.id)+'">Rename</button>'
+      +'<select class="bs-dsel" data-a="d-mv" data-v="'+esc(f.id)+'" aria-label="Move to"><option value="">Move to…</option>'+lib.scopes.filter(function(x){ return x.id!==sel; }).map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>'; }).join('')+'</select>'
+      +'<button type="button" class="bs-btn bs-del" data-a="d-del" data-v="'+esc(f.id)+'">Delete</button></div>'; });
   var gone=lib.deleted;
-  if(gone.length){ h+='<p class="bs-dk">Recently deleted</p>'; gone.forEach(function(f){ h+='<div class="bs-drow gone"><span class="bs-tag">'+tag(f.type)+'</span><div class="bs-dn"><b>'+esc(f.name)+'</b><small>Gone for good in '+f.days_left+' day'+(f.days_left===1?'':'s')+'</small></div><button type="button" class="bs-btn" data-a="d-res" data-v="'+f.id+'">Restore</button></div>'; }); }
-  if(d.from&&d.from!=='docs') h+='<div class="bs-act" style="padding:4px 0 0"><span class="bs-sp"></span><button type="button" class="bs-btn pri" data-a="d-here" data-v="'+s.id+'">'+(S.scope===s.id?'Bass uses these here'+IC.check:'Use '+esc(s.name)+' here')+'</button></div>';
+  if(gone.length){ h+='<p class="bs-dk">Recently deleted</p>'; gone.forEach(function(f){ h+='<div class="bs-drow gone"><span class="bs-tag">'+tag(f.type)+'</span><div class="bs-dn"><b>'+esc(f.name)+'</b><small>Gone for good in '+num(f.days_left)+' day'+(num(f.days_left)===1?'':'s')+'</small></div><button type="button" class="bs-btn" data-a="d-res" data-v="'+esc(f.id)+'">Restore</button></div>'; }); }
+  if(d.from&&d.from!=='docs') h+='<div class="bs-act" style="padding:4px 0 0"><span class="bs-sp"></span><button type="button" class="bs-btn pri" data-a="d-here" data-v="'+esc(s.id)+'">'+(S.scope===s.id?'Bass uses these here'+IC.check:'Use '+esc(s.name)+' here')+'</button></div>';
   return h+'</div>'; }
 function docsSheet(){ var d=dk(), lib=d.lib;
   return '<div class="bs-dsheet" role="dialog" aria-modal="true" aria-label="Documents"><div class="bs-h">'+IC.doc+'<span class="bs-name">Documents</span><span class="bs-sp"></span>'+meter()
@@ -142,7 +142,7 @@ function usingView(){ var u=S.using;
   if(!u) return '<div class="bs-using"><button type="button" class="bs-ul" data-a="d-open">'+IC.doc+'<span>Using: no documents</span><b>Choose</b></button></div>';
   var h='<div class="bs-using"><button type="button" class="bs-ul" data-a="d-uexp" aria-expanded="'+!!S.uexp+'">'+IC.doc+'<span><b>Using:</b> '+esc(u.label.replace(/^Using: /,''))+'</span>'+(S.uexp?'▴':'▾')+'</button>';
   if(u.over) h+='<p class="bs-hint bs-warn">'+esc(DMSG.docs_over_limit)+'</p>';
-  if(S.uexp){ h+='<div class="bs-wrap">'; u.files.forEach(function(f){ h+='<span class="bs-pill"><span>'+esc(f.name.replace(/\.[a-z0-9]+$/i,''))+'</span><button type="button" data-a="d-uoff" data-v="'+f.id+'" title="Stop using this here" aria-label="Stop using '+esc(f.name)+'">'+IC.x+'</button></span>'; });
+  if(S.uexp){ h+='<div class="bs-wrap">'; u.files.forEach(function(f){ h+='<span class="bs-pill"><span>'+esc(f.name.replace(/\.[a-z0-9]+$/i,''))+'</span><button type="button" data-a="d-uoff" data-v="'+esc(f.id)+'" title="Stop using this here" aria-label="Stop using '+esc(f.name)+'">'+IC.x+'</button></span>'; });
     h+='<button type="button" class="bs-pill add" data-a="d-open" title="Add documents" aria-label="Add documents">'+IC.plus+'<span>Add</span></button></div>'; }
   return h+'</div>'; }
 function addDocFiles(list){ var d=dk(), sid=d.sel; if(!sid) return;
