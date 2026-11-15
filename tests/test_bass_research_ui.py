@@ -12,7 +12,7 @@ DRIVER = STUBS + r"""
 const fs2=require('fs'); const src=fs2.readFileSync(process.argv[2],'utf8');
 (async()=>{ const out={}; const BASE='https://px.test/bass';
   const NV=mk(src).win._altoBass.NOTICE_V, ACK={'alto-bass-ack-u1':NV};
-  const OK={ok:true,status:'ok',credits:900,label:'900 beta credits remaining',available:true,beta:true};
+  const OK={ok:true,status:'ok',credits:900,label:'900 credits remaining',available:true,beta:true};
   const R=(s,extra)=>Object.assign({},OK,{research:s},extra||{});
   const NEED={available:true,on:false,version:'v7',needs_optin:true}, OFF={available:false,on:false,version:'v7',needs_optin:false};
   const rt=r=>{ const e=r.appended.filter(x=>x.id==='bass-root').pop(); return e?e.innerHTML:''; };   // the Bass window, not a toast appended after it

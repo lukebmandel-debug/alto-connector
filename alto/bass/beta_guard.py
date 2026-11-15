@@ -515,7 +515,7 @@ class BetaService:
         return None
 
     def _beta_balance(self, uid: str, out: dict, closed) -> None:
-        """The balance answer in the beta: the tester's free allowance ("Beta credits remaining"), and, when no call could go out
+        """The balance answer in the beta: the tester's free allowance ("Credits remaining"), and, when no call could go out
         now (Bass closed, this tester's share or the whole pool used up, today's limit reached), why, in the tester's words."""
         out["beta"] = True
         if self.research is not None:                 # opt-in sharing state rides the balance answer (no extra round trip); available=false while the switch is off
@@ -524,7 +524,7 @@ class BetaService:
             except Exception:
                 pass
         if out.get("ok") and isinstance(out.get("credits"), (int, float)):
-            out["label"] = f"{int(out['credits'])} beta credits remaining"
+            out["label"] = f"{int(out['credits'])} credits remaining"
         why = closed or self.ledger.precheck(uid)
         if why:
             out.update(available=False, code=why, message=POLICIES[why].user_message)

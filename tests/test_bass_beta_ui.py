@@ -1,5 +1,5 @@
 """The Bass UI in BETA mode (bass_ui.BETA, brief bass-beta-allowance): no buy or paywall element renders in any state, the meter reads
-"Beta credits remaining", a used-up share or pool shows the friendly message and nothing more is sent, a non-allowlisted account sees
+"Credits remaining", a used-up share or pool shows the friendly message and nothing more is sent, a non-allowlisted account sees
 no Bass button, and the real door carries the Firebase ID token the proxy needs. Pure `node` on stubs (no browser, no network)."""
 import json
 import subprocess
@@ -9,7 +9,7 @@ import pytest
 from test_bass_ui import NODE, _facts
 from alto.build import bass_ui
 
-USED = "Your Bass beta credits are used up. Thank you for testing Bass!"
+USED = "Your Bass credits are used up. Thank you for trying Bass!"
 STATES = ("home", "format", "upload", "review", "estimate", "build", "built", "edit", "offtopic", "nocredits", "busy", "paused",
           "refused", "capped", "error", "stopped")
 PAYWALL = ("Add credits", "addcr", "Buying credits", "buy", "purchase", "$", "Out of credits", "Stripe", "card number")
@@ -51,14 +51,14 @@ const src=fs.readFileSync(process.argv[2],'utf8'), STATES=JSON.parse(process.arg
   // every state, in each of the three places the UI is drawn
   const w=mk(src), B=w.win._altoBass; B.sim.delay=0;
   for(const mode of ['wizard','panel','embed']) for(const s of STATES){ B.dev(s,mode); out.renders[mode+':'+s]=w.html(); }
-  const BASE='https://px.test/bass', OK_BAL={ok:true,status:'ok',credits:900,label:'900 beta credits remaining',available:true,beta:true};
+  const BASE='https://px.test/bass', OK_BAL={ok:true,status:'ok',credits:900,label:'900 credits remaining',available:true,beta:true};
   const ACK={'alto-bass-ack-u1':B.NOTICE_V};
   // (a) the real door: Bearer token, no cookies; an allowed balance un-hides the buttons
   let r=mk(src,{base:BASE,user:true,answers:{balance:OK_BAL},store:ACK}); r.cls.add('alto-bass-off'); r.win._altoBass.open('panel'); await tick();
   const f0=r.fetches[0];
   out.door={n:r.fetches.length,url:f0.url,auth:f0.init.headers.authorization,creds:f0.init.credentials||null,off:r.cls.contains('alto-bass-off'),html:r.html()};
   // (b) a build answered "used up": the friendly message, and the next tries send nothing
-  const USED={ok:false,status:'no_credits',code:'beta_credits_used',message:'Your Bass beta credits are used up. Thank you for testing Bass!',
+  const USED={ok:false,status:'no_credits',code:'beta_credits_used',message:'Your Bass credits are used up. Thank you for trying Bass!',
     action_id:null,work_saved:false,credits:null,retryable:false,events:[]};
   r=mk(src,{base:BASE,user:true,answers:{balance:OK_BAL,build:USED},store:ACK}); let X=r.win._altoBass; X.open('wizard'); await tick();
   X.state.chips={title:'T',acts:[{label:'A'}],entities:[],fields:[],card_estimate:6}; X.build(true); await tick();
@@ -70,7 +70,7 @@ const src=fs.readFileSync(process.argv[2],'utf8'), STATES=JSON.parse(process.arg
   r.win._altoBass.open('panel'); await tick(); const m=r.fetches.length; await r.win._altoBass.call('propose',{materials:[]});
   out.open_used={html:r.html(),more:r.fetches.length-m};
   // (c2) today's beta limit: the server's own words, not the generic pause text
-  r=mk(src,{base:BASE,user:true,answers:{balance:Object.assign({},OK_BAL,{available:false,code:'beta_daily_full',status:'ok',message:"Today's beta limit has been reached. Nothing was charged. Please try again tomorrow."})},store:ACK});
+  r=mk(src,{base:BASE,user:true,answers:{balance:Object.assign({},OK_BAL,{available:false,code:'beta_daily_full',status:'ok',message:"Today's limit has been reached. Nothing was charged. Please try again tomorrow."})},store:ACK});
   r.win._altoBass.open('panel'); await tick(); out.daily={html:r.html()};
   // (c3) the chip on the real path: used up on open reads 0; a build answered "used up" moves it 142 -> 0; a daily limit leaves it alone
   r=mk(src,{base:BASE,user:true,answers:{balance:Object.assign({},OK_BAL,{available:false,code:'beta_credits_used',credits:0,message:USED.message})},store:ACK});
@@ -94,7 +94,7 @@ const src=fs.readFileSync(process.argv[2],'utf8'), STATES=JSON.parse(process.arg
   const k=r.fetches.length; await r.win._altoBass.call('build',{}); await r.win._altoBass.call('estimate',{kind:'build'});
   out.off={off:r.cls.contains('alto-bass-off'),more:r.fetches.length-k,html:r.html(),cached:r.store['alto-bass-ok-u1']||null};
   // (d2) the Beta Terms not accepted: the server's own message, no button, nothing more is sent
-  const TERMS={ok:false,status:'paused',code:'terms_required',message:'Please accept the Beta Terms to use Bass. Sign in again to see the box.',available:false,beta:true,action_id:null,work_saved:false,credits:null,retryable:false,events:[]};
+  const TERMS={ok:false,status:'paused',code:'terms_required',message:'Please accept the Terms to use Bass. Sign in again to see the box.',available:false,beta:true,action_id:null,work_saved:false,credits:null,retryable:false,events:[]};
   r=mk(src,{base:BASE,user:true,answers:{balance:TERMS},store:ACK}); r.win._altoBass.open('panel'); await tick();
   const k2=r.fetches.length; await r.win._altoBass.call('build',{});
   out.terms={more:r.fetches.length-k2,off:r.cls.contains('alto-bass-off'),html:r.html()};
@@ -157,38 +157,38 @@ def test_no_paywall_element_renders_in_any_state_or_place(ui):
 
 def test_the_credit_display_reads_beta_credits_remaining(ui):
     for key in ("panel:edit", "wizard:upload", "embed:upload"):
-        assert "Beta credits remaining: 142" in ui["renders"][key], key
+        assert "Credits remaining: 142" in ui["renders"][key], key
     est = ui["renders"]["wizard:estimate"]
-    assert "142 beta credits remaining" in est and "bigger than what is left" in est and 'data-a="go"' not in est
+    assert "142 credits remaining" in est and "bigger than what is left" in est and 'data-a="go"' not in est
 
 
 def test_used_up_shows_the_friendly_message_in_every_place(ui):
     for mode in ("wizard", "panel", "embed"):
         h = ui["renders"][mode + ":nocredits"]
-        assert "Beta credits used up" in h and USED in h and "Your work so far is saved." in h, mode
+        assert "Credits used up" in h and USED in h and "Your work so far is saved." in h, mode
         assert 'data-a="retry"' not in h
 
 
 def test_the_real_door_sends_the_firebase_token_and_no_cookies(ui, on):
     d = ui["door"]
     assert d["n"] == 1 and d["url"] == "https://px.test/bass" and d["auth"] == "Bearer tok-1" and d["creds"] is None
-    assert d["off"] is False and "Beta credits remaining: 900" in d["html"]
+    assert d["off"] is False and "Credits remaining: 900" in d["html"]
     assert "credentials:'include'" not in on["bundle"]
 
 
 def test_after_a_used_up_answer_nothing_more_is_sent(ui):
     u = ui["used"]
     assert u["n_after"] == u["n_before"] and u["again"] == "beta_credits_used"
-    assert "Beta credits used up" in u["html"] and USED in u["html"] and "Add credits" not in u["html"]
+    assert "Credits used up" in u["html"] and USED in u["html"] and "Add credits" not in u["html"]
     o = ui["open_used"]
-    assert o["more"] == 0 and "Beta credits used up" in o["html"] and USED in o["html"]
+    assert o["more"] == 0 and "Credits used up" in o["html"] and USED in o["html"]
     assert "try again tomorrow" in ui["daily"]["html"]
 
 
 def test_terms_not_accepted_shows_the_servers_message_with_no_paywall_and_sends_nothing_more(ui):
     t = ui["terms"]
     assert t["more"] == 0 and t["off"] is False
-    assert "Please accept the Beta Terms to use Bass. Sign in again to see the box." in t["html"] and "Beta Terms" in t["html"]
+    assert "Please accept the Terms to use Bass. Sign in again to see the box." in t["html"] and "Terms" in t["html"]
     assert "Add credits" not in t["html"] and 'data-a="retry"' not in t["html"] and 'data-a="addcr"' not in t["html"]
 
 
@@ -202,16 +202,16 @@ def test_the_chip_reads_zero_once_used_up_and_keeps_its_value_for_a_daily_limit(
 
 def test_the_chip_never_shows_the_simulator_number_when_a_real_backend_is_set(ui):
     u = ui["chip_unreachable"]                                                                       # proxy unreachable (CSP, offline, error)
-    assert u["bal"] is None and "Beta credits remaining" not in u["html"] and "142" not in u["html"]
+    assert u["bal"] is None and "Credits remaining" not in u["html"] and "142" not in u["html"]
     r = ui["chip_real"]                                                                                # the first real answer fills it in
     assert r["bal"] == 777 and "142" not in r["html"]
     s = ui["chip_sim"]                                                                                 # no base: the simulator number, as before
-    assert s["bal"] == 142 and "Beta credits remaining: 142" in s["html"]
+    assert s["bal"] == 142 and "Credits remaining: 142" in s["html"]
 
 
 def test_a_non_allowlisted_account_sees_no_bass_and_sends_nothing_more(ui):
     o = ui["off"]
-    assert o["off"] is True and o["more"] == 0 and "Bass is for beta testers" in o["html"]
+    assert o["off"] is True and o["more"] == 0 and "Bass is invite-only for now" in o["html"]
     assert json.loads(o["cached"])["ok"] is False
     assert ui["signedout"] == {"n": 0, "code": "signin"}
 
