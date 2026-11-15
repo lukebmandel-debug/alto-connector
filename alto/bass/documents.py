@@ -27,10 +27,10 @@ import secrets
 from .beta_store import MAX_DOC_BYTES, StoreError
 from .extract import Extractor, UploadRefused
 
-MAX_ACTION_CHARS = 60_000             # Bass reads at most this much document text per action (Luke's brief)
+MAX_ACTION_CHARS = 250_000            # Bass reads at most this much document text per action (raised from 60,000: Luke B-1115-144103)
 MAX_TEXT_BYTES = MAX_DOC_BYTES - 4_096  # one file's text in UTF-8, under Firestore's 1 MiB document limit with room for the other fields.
-                                       # 60,000 characters are at most 240,000 bytes even in 4-byte scripts, so MAX_ACTION_CHARS refuses first;
-                                       # this is the explicit second line, so no file can ever reach the store's own size refusal
+                                       # 250,000 characters of 4-byte script are 1,000,000 bytes, over this, so a file of that kind is refused by bytes
+                                       # (docs_too_long, as always); this is the line that keeps every file under the store's own size refusal
 MAX_FILES = 20                         # per account, deleted-but-recoverable files included (they still hold storage)
 MAX_BYTES = 50_000_000                 # per account, originals in Storage
 MAX_SCOPES = 60

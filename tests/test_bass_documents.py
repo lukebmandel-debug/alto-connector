@@ -220,14 +220,14 @@ def test_library_management_spends_nothing_and_sends_nothing(torts):
     assert s.mock.requests == [] and s.ledger.balance_mc(A) == before
 
 
-# -- the 60,000-character limit ----------------------------------------------------------------------------------------------
+# -- the 250,000-character limit ----------------------------------------------------------------------------------------------
 def test_over_the_per_action_limit_is_refused_with_nothing_upstream(tmp_path):
     s = stack(tmp_path)
     c = scope(s, "class", "Evidence")
-    add_text(s, c, "a.txt", "x" * 40_000)
-    add_text(s, c, "b.txt", "y" * 30_000)
+    add_text(s, c, "a.txt", "x" * 150_000)
+    add_text(s, c, "b.txt", "y" * 100_001)
     u = docs(s, "using", scope_id=c)
-    assert u["over"] is True and u["chars"] == 70_000
+    assert u["over"] is True and u["chars"] == 250_001
     s.mock.use(M.propose_chips())
     out = s.svc.handle(req({"action": "propose", "args": {"scope_id": c}}))
     assert out["code"] == "docs_over_limit" and out["message"] == D.MESSAGES["docs_over_limit"] and s.mock.requests == []
@@ -238,7 +238,7 @@ def test_over_the_per_action_limit_is_refused_with_nothing_upstream(tmp_path):
 def test_one_file_over_the_limit_is_refused_at_upload(tmp_path):
     s = stack(tmp_path)
     c = scope(s, "class", "Evidence")
-    out = docs(s, "add", scope_id=c, name="huge.txt", text="z" * 60_001)
+    out = docs(s, "add", scope_id=c, name="huge.txt", text="z" * 250_001)
     assert out["code"] == "docs_too_long" and library(s)["files"] == []
 
 
@@ -260,6 +260,41 @@ def test_size_cap(tmp_path, monkeypatch):
     c = scope(s, "class", "Torts")
     add_text(s, c, "a.txt", "12345678")
     assert docs(s, "add", scope_id=c, name="b.txt", text="12345")["code"] == "docs_too_big"
+
+
+# -- pasted text (the panel's "Paste text") is the same text add as an upload: same caps, same silos --------------------------------
+def test_pasted_text_obeys_every_cap_an_upload_does(tmp_path, monkeypatch):
+    s = stack(tmp_path)
+    c = scope(s, "class", "Torts")
+    out = docs(s, "add", scope_id=c, name="Pasted notes.txt", text="p" * 250_001)
+    assert out["code"] == "docs_too_long" and library(s)["files"] == []         # over 250,000 characters
+    assert docs(s, "add", scope_id=c, name="Pasted notes.txt", text="  ")["code"] == "upload_no_text"
+    for i in range(D.MAX_FILES):
+        add_text(s, c, f"Pasted notes {i}.txt", "notes")
+    s.clock.advance(seconds=60)
+    assert docs(s, "add", scope_id=c, name="Pasted notes.txt", text="n")["code"] == "docs_full"      # at 20 files
+    s2 = stack(tmp_path / "b")
+    monkeypatch.setattr(D, "MAX_BYTES", 10)
+    c2 = scope(s2, "class", "Torts")
+    add_text(s2, c2, "a.txt", "12345678")
+    assert docs(s2, "add", scope_id=c2, name="Pasted notes.txt", text="12345")["code"] == "docs_too_big"   # over the account's bytes
+
+
+def test_pasted_text_never_lands_in_another_users_or_scope(tmp_path):
+    s = stack(tmp_path)
+    ca = scope(s, "class", "Torts")
+    cb = scope(s, "class", "Mine", email=OTHER)
+    snap = lambda: json.dumps({k: v for k, v in s.store.docs.items() if k.startswith(("bass_docs/", "bass_doc_text/"))}, sort_keys=True)
+    before = snap()
+    out = docs(s, "add", scope_id=cb, name="Pasted notes.txt", text="LEAK", uid=B)         # A pastes into B's scope, with B's uid forged
+    assert out["ok"] is False and out["code"] in ("docs_not_found", "docs_bad_request") and snap() == before
+    assert library(s, email=OTHER)["files"] == []
+    forged = docs(s, "add", scope_id=ca, name="Pasted notes.txt", text="MINE", uid=B, user_id=B)   # a forged uid is refused outright
+    assert forged["ok"] is False and snap() == before
+    ok = docs(s, "add", scope_id=ca, name="Pasted notes.txt", text="MINE")
+    assert ok["ok"] and ok["file"]["path"] == f"users/{A}/bass/{ok['file']['id']}"
+    assert library(s, email=OTHER)["files"] == [] and "LEAK" not in snap()
+    assert s.store.get(D.text_key(B, ok["file"]["id"])) is None
 
 
 # -- 7-day recovery ---------------------------------------------------------------------------------------------------------------
@@ -355,9 +390,39 @@ def test_edit_with_a_scope_sends_the_documents_and_keeps_a_marker(torts):
 def test_text_in_a_four_byte_script_at_the_limit_is_stored_whole(tmp_path):
     s = stack(tmp_path)
     c = scope(s, "class", "Torts")
-    text = "\U0001d538" * D.MAX_ACTION_CHARS                                    # 60,000 characters x 4 bytes = 240,000 bytes
+    text = "\U0001d538" * (D.MAX_TEXT_BYTES // 4)                              # the most 4-byte characters one file can hold
     fid = add_text(s, c, "math.txt", text)
     assert s.store.get(D.text_key(A, fid))["text"] == text                      # whole, never cut
+
+
+def test_a_158k_md_is_accepted_250001_refused_and_a_full_action_estimates_under_the_cap(tmp_path):
+    from alto.bass import config as P, meter
+    s = stack(tmp_path)
+    c = scope(s, "class", "Torts")
+    fid = add_text(s, c, "casebook.md", "a" * 158_361)
+    assert library(s)["files"][0]["chars"] == 158_361 and s.store.get(D.text_key(A, fid))["text"] == "a" * 158_361
+    out = docs(s, "add", scope_id=c, name="x.md", text="a" * 250_001)
+    assert out["code"] == "docs_too_long" and "250,000" in out["message"] and len(library(s)["files"]) == 1
+    s.clock.advance(seconds=6)
+    assert docs(s, "add", scope_id=c, name="y.md", text="a" * 250_000)["ok"]       # one file at the limit is stored whole
+    assert D.MAX_ACTION_CHARS == 250_000 and P.PER_ACTION_CAP_CREDITS == 300
+    from alto.bass.engine import BassConfig
+    cfg, cap = BassConfig(), P.PER_ACTION_CAP_CREDITS * P.MC
+    M, out_t = cfg.model_for("build"), cfg.build_max_tokens // 4
+    first = 3000 + 250_000 // 4                                                    # 250,000 characters at 4 per token
+    for turns in (12, 40):
+        est = meter.estimate_action(M, first, out_t, turns)
+        grow, real = 2 * out_t, 0                                                  # the same run billed with cache hits (turn 1 writes the prefix, later turns read it)
+        for t in range(turns):
+            n = first + t * grow
+            u = ({"cache_creation_input_tokens": n, "output_tokens": out_t} if t == 0 else
+                 {"cache_read_input_tokens": first + (t - 1) * grow, "cache_creation_input_tokens": grow, "output_tokens": out_t})
+            real += meter.credits_for_usage(M, u)
+        assert est.mc <= cap and est.mc >= min(real, cap), (turns, est.mc, real)    # never shown above 300; never below the real cost (an action stops at the cap)
+    assert meter.estimate_action(M, first, out_t, 12).mc < 200_000                  # the 12-turn build no longer reads "about 311 credits"
+    chat = cfg.chat_max_tokens
+    assert meter.estimate_action(cfg.model_for("chat"), 3000, chat, 1).mc == meter.estimate_turn(cfg.model_for("chat"), 3000, chat)   # no-document chat unchanged
+    assert cfg.per_action_cap_mc == cap and meter.worst_turn(M, first, out_t) > meter.estimate_turn(M, first, out_t)   # holds and the cap untouched
 
 
 def test_300000_characters_of_non_english_script_is_refused_with_nothing_written(tmp_path):
