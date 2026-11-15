@@ -12,7 +12,7 @@ var FMAX=5000000;                              /* a file over this is not sent (
 var DISC='Bass uses AI and can make mistakes. Check your cards.';
 var BASE=window._ALTO_BASS_BASE||null;           /* the one switch: a URL = the real backend, null = the simulator below */
 var BETA=__BETA__;                                /* the beta (bass_ui.BETA): credits are a free allowance, nothing is sold, no price is shown */
-var OUT={bass_off:1,terms_required:1,beta_credits_used:1,beta_tester_daily:1,beta_daily_full:1};   /* the server says no call can go out now: nothing is sent until the next open */
+var OUT={promo_ended:1,bass_off:1,terms_required:1,beta_credits_used:1,beta_tester_daily:1,beta_daily_full:1};   /* the server says no call can go out now: nothing is sent until the next open */
 var GLC='__GL_MARK__', GLR='__GL_RETRO__', GLS='__GL_SMALL__';
 var IC={
  x:'<svg class="bs-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -31,6 +31,34 @@ var IC={
 };
 function glyph(s){ return '<span class="bs-gw" style="display:inline-flex;--s:'+s+'px">'+GLC.replace('<svg','<svg class="bs-g bs-gc"')+GLR.replace('<svg','<svg class="bs-g bs-gr"')+'</span>'; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+/* Server answers are untrusted (STAMP-hosted row 3, Board B-1114-043000). Three layers, each enough on its own against markup:
+   num()  a count from the server is a finite number or 0, never text;
+   tame() every string of every server answer loses < > " ' ` at the one door (call) before anything reads it, so no value can open a tag
+          or close an attribute, wherever it is placed;
+   put()/swap()  the ONLY way a template reaches the page: parsed in an inert document (DOMParser: nothing loads or runs), then every
+          element not on the tag list is turned into its text and every attribute not on the attribute list is removed (no on*, no
+          srcdoc/action; href only http(s), a site path or #; no url()/expression in style), then moved in. No innerHTML, outerHTML,
+          insertAdjacentHTML or document.write takes a non-constant string anywhere in this bundle (tests/test_bass_hosted_luke_only.py lint). */
+function num(v){ v=+v; return isFinite(v)?v:0; }
+var TAME={'<':'‹','>':'›','"':'”',"'":'’','`':'ʼ'};
+function tame(v,d){ d=d||0; if(d>16) return null;
+  if(typeof v==='string') return v.replace(/[<>"'`]/g,function(c){ return TAME[c]; });
+  if(Array.isArray(v)) return v.map(function(x){ return tame(x,d+1); });
+  if(v&&typeof v==='object'){ var o={}; for(var k in v) if(Object.prototype.hasOwnProperty.call(v,k)&&k!=='__proto__'&&k!=='constructor'&&k!=='prototype') o[tame(k)]=tame(v[k],d+1); return o; }
+  return (typeof v==='number'||typeof v==='boolean'||v===null)?v:null; }
+var TAGS={div:1,span:1,p:1,button:1,input:1,label:1,textarea:1,select:1,option:1,b:1,i:1,u:1,em:1,strong:1,small:1,br:1,h2:1,h3:1,a:1,nav:1,ul:1,ol:1,li:1,
+  svg:1,g:1,path:1,circle:1,rect:1,line:1,polyline:1,polygon:1,ellipse:1,defs:1,lineargradient:1,stop:1};
+var ATTR=/^(class|id|role|title|type|value|placeholder|maxlength|rows|for|tabindex|target|rel|style|accept|name|autocomplete|spellcheck|inputmode|min|max|step|disabled|checked|hidden|selected|multiple|readonly|href|width|height|viewbox|d|fill|stroke|stroke-[a-z]+|cx|cy|r|rx|ry|x|y|x1|x2|y1|y2|points|offset|stop-color|stop-opacity|opacity|transform|gradientunits|focusable|data-[a-z0-9-]+|aria-[a-z]+)$/;
+function clean(n){ for(var c=n.firstChild,nx;c;c=nx){ nx=c.nextSibling;
+    if(c.nodeType===3) continue;
+    if(c.nodeType!==1||!TAGS[String(c.localName).toLowerCase()]){ if(c.nodeType===1) n.replaceChild(c.ownerDocument.createTextNode(c.textContent||''),c); else n.removeChild(c); continue; }
+    for(var i=c.attributes.length-1;i>=0;i--){ var at=c.attributes[i], k=String(at.name).toLowerCase(), v=String(at.value);
+      if(!ATTR.test(k)||(k==='href'&&!/^(https?:\/\/|\/(?![\/\\])|#)/i.test(v.replace(/[\u0000- ]/g,'')))||(k==='style'&&/url\s*\(|expression|@import|javascript:/i.test(v))) c.removeAttribute(at.name); }
+    clean(c); } }
+function frag(html){ var d=new DOMParser().parseFromString('<!doctype html><body>'+String(html==null?'':html),'text/html'), f=D.createDocumentFragment();
+  clean(d.body); while(d.body.firstChild) f.appendChild(D.adoptNode(d.body.firstChild)); return f; }
+function put(el,html){ var f=frag(html); while(el.firstChild) el.removeChild(el.firstChild); el.appendChild(f); }
+function swap(el,html){ var f=frag(html), p=el.parentNode; if(p){ p.insertBefore(f,el); p.removeChild(el); } }
 function wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 function fl(n){ return Math.floor(n+1e-9); }
 function lab(n){ var f=fl(n); return f+' credit'+(f===1?'':'s'); }
@@ -43,6 +71,7 @@ var SIM={calls:0, acks:{}, bal:142, n:0, force:null, hold:false, stopReq:false, 
 var CH0={title:'Civil Procedure',acts:[{label:'Jurisdiction'},{label:'Pleading'},{label:'Discovery'}],
   entities:[{id:'pennoyer',name:'Pennoyer v. Neff'},{id:'erie',name:'Erie v. Tompkins'},{id:'twombly',name:'Twombly'}],fields:['Holding','Rule','Date'],card_estimate:61};
 var CODES={rate_limited:'Bass is busy right now. Nothing was charged. Please try again in a minute.',
+ promo_ended:'The free Bass credit has ended.',
  bass_paused:'Bass is taking a short break. Nothing was charged. Please try again later.',
  refused:'Bass could not help with that request. Nothing was charged.',
  upstream:'Something went wrong on our side. Nothing was charged. Please try again.',
@@ -153,7 +182,7 @@ function call(action,args,on){
   return token().then(function(t){
     if(!t) return R_('paused','signin','Please sign in to use Bass.',{});
     return fetch(BASE,{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+t},body:JSON.stringify({action:action,args:args||{}})})
-      .then(function(r){ return r.json().then(function(j){ return r.ok?j:R_('error',r.status===401?'signin':'upstream',(j&&j.message)||'Something went wrong on our side. Nothing was charged.',{retryable:r.status!==401}); }); })
+      .then(function(r){ return r.json().then(function(j0){ var j=tame(j0); if(!j||typeof j!=='object'||Array.isArray(j)) j={}; return r.ok?j:R_('error',r.status===401?'signin':'upstream',(j&&j.message)||'Something went wrong on our side. Nothing was charged.',{retryable:r.status!==401}); }); })
       .then(function(j){ (j.events||[]).forEach(function(e){ if(on) on(e); }); if(action==='balance'&&j.ok) gate(true); return note(j); }); })
     .catch(function(){ return R_('error','connection','Bass could not be reached. Nothing was charged. Please try again.',{retryable:true}); });
 }
@@ -171,7 +200,7 @@ function kindNow(){ return (typeof ntKind!=='undefined'&&ntKind)||'outline'; }
 function isCity(){ return kindNow()==='palace'; }                            /* RUN: a reply that arrives after the window was closed or reopened is dropped */
 function setBal(b){ if(typeof b!=='number') return; S.bal=b;
   try{ localStorage.setItem('alto-bass-bal',String(fl(b))); }catch(e){}
-  var h=D.querySelector('.bt-bal'); if(h) h.textContent=balLab(b); var m=root&&root.querySelector('.bs-chip'); if(m) m.outerHTML=meter(); var e=root&&root.querySelector('.bs-bal'); if(e) e.textContent=balLab(b); }
+  var h=D.querySelector('.bt-bal'); if(h) h.textContent=balLab(b); var m=root&&root.querySelector('.bs-chip'); if(m) swap(m,meter()); var e=root&&root.querySelector('.bs-bal'); if(e) e.textContent=balLab(b); }
 function meter(){ if(S.bal==null) return ''; if(BETA) return '<span class="bs-chip" title="'+balLab(S.bal)+'"><span class="bs-coin">'+IC.coin+'</span>'+balLab(S.bal)+'</span>';
   return '<span class="bs-chip" title="Credits: '+fl(S.bal)+' (about '+usd(fl(S.bal)*1)+')"><span class="bs-coin">'+IC.coin+'</span>'+fl(S.bal)+'</span>'; }
 function toast(t){ var e=D.createElement('div'); e.className='bs-toast bs-root-toast'; e.textContent=t; D.body.appendChild(e); setTimeout(function(){ e.remove(); },3200); }
@@ -193,12 +222,13 @@ function alertView(a){
   var ttl={no_credits:'Out of credits',capped:'Credit limit reached',busy:'Bass is busy',paused:'Bass is paused',stopped:'Stopped',refused:'Bass could not help',error:'Something went wrong'}[a.status]||'Bass';
   var body={busy:'Nothing was used. Try again in a moment.',paused:'Your timelines still open, study and share as usual.'}[a.status]||esc(a.message||'');
   if(BETA&&a.code==='bass_off'){ ttl='Bass is for beta testers'; body='Bass is open to invited beta testers only. Your timelines still open, study and share as usual.'; }
-  else if(BETA&&a.status==='no_credits'){ ttl='Beta credits used up'; body='Your Bass beta credits are used up. Thank you for testing Bass!'+(a.work||a.cards?'<br><span style="color:var(--bs-mut)">'+(a.cards?a.cards.done+' of '+a.cards.total+' cards are built. ':'')+'Your work so far is saved.</span>':''); }
+  else if(BETA&&a.status==='no_credits'){ ttl='Beta credits used up'; body='Your Bass beta credits are used up. Thank you for testing Bass!'+(a.work||a.cards?'<br><span style="color:var(--bs-mut)">'+(a.cards?num(a.cards.done)+' of '+num(a.cards.total)+' cards are built. ':'')+'Your work so far is saved.</span>':''); }
+  else if(a.code==='promo_ended'){ ttl='Free credit ended'; body=esc(a.message||CODES.promo_ended); }
   else if(BETA&&a.code==='terms_required'){ ttl='Beta Terms'; body=esc(a.message||'Please accept the Beta Terms to use Bass. Sign in again to see the box.'); }   /* no paywall, no button */
   else if(BETA&&OUT[a.code]&&a.message) body=esc(a.message);                          /* today's limits: the server's own words */
-  else if(a.status==='no_credits') body='Your credits ran out. Your work is saved.<br><span style="color:var(--bs-mut)">'+(a.cards?a.cards.done+' of '+a.cards.total+' cards are built. ':'')+'Add credits to finish.</span>';
+  else if(a.status==='no_credits') body='Your credits ran out. Your work is saved.<br><span style="color:var(--bs-mut)">'+(a.cards?num(a.cards.done)+' of '+num(a.cards.total)+' cards are built. ':'')+'Add credits to finish.</span>';
   var h='<div class="bs-alert">'+ic+'<div><b>'+ttl+'</b><p>'+body+'</p></div></div>';
-  if(a.cards&&a.cards.total) h+='<div class="bs-bar" role="progressbar" aria-valuenow="'+a.cards.done+'" aria-valuemax="'+a.cards.total+'"><b style="width:'+Math.round(100*a.cards.done/a.cards.total)+'%"></b></div>';
+  if(a.cards&&a.cards.total) h+='<div class="bs-bar" role="progressbar" aria-valuenow="'+num(a.cards.done)+'" aria-valuemax="'+num(a.cards.total)+'"><b style="width:'+num(Math.round(100*num(a.cards.done)/num(a.cards.total)))+'%"></b></div>';
   return h;
 }
 function alertActs(a){
@@ -247,7 +277,7 @@ function shareToggle(){ var s=S.share; if(!s) return;
   if(s.on===true) call('research',{op:'withdraw'}).then(function(r){ if(r&&r.ok){ S.share=Object.assign({},S.share,{on:false,needs_optin:false}); toast('Sharing is off.'); } else toast('That did not go through, so nothing changed.'); draw(); });
   else { S.sharesheet=true; draw(); } }          /* turning on shows the same sheet: the user re-confirms, no one-tap enable */
 function chat(){ var h=(S.mode==='panel'?usingView():'')+((S.log.length||S.typing)?'<div class="bs-log" role="log" aria-live="polite">':'');
-  S.log.forEach(function(m){ h+='<div class="bs-msg '+m.r+'">'+esc(m.t)+(m.s?'<small>'+esc(m.s)+'</small>':'')+'</div>'; });
+  S.log.forEach(function(m){ h+='<div class="bs-msg '+(m.r==='u'?'u':'a')+'">'+esc(m.t)+(m.s?'<small>'+esc(m.s)+'</small>':'')+'</div>'; });
   if(S.typing) h+='<div class="bs-msg a bs-typing" aria-label="Bass is working"><i></i><i></i><i></i></div>';
   if(S.log.length||S.typing) h+='</div>';
   if(S.alert) h+=alertView(S.alert);
@@ -283,13 +313,13 @@ function bodyWizard(){
     if(S.est&&!S.running){ var e=S.est, short=e.short_by>0;
       b='<div>'+dots()+'</div><div class="bs-alert">'+IC.coin+'<div><b>This build will use '+esc(e.credits_text)+'</b><p>'+(BETA
         ?'You have '+(S.bal==null?esc(e.have_label):fl(S.bal))+' beta credits remaining'+(short?', so this build is bigger than what is left. Try fewer materials. Nothing was charged':'')
-        :'That is about '+usd(e.estimate_credits)+'. You have '+esc(e.have_label)+(short?', so '+e.short_by+' more '+(e.short_by===1?'is':'are')+' needed':''))+'.</p></div></div>';
+        :'That is about '+usd(e.estimate_credits)+'. You have '+esc(e.have_label)+(short?', so '+num(e.short_by)+' more '+(num(e.short_by)===1?'is':'are')+' needed':''))+'.</p></div></div>';
       a='<button type="button" class="bs-btn" data-a="to2">Cancel</button>'+(short?(BETA?'':'<button type="button" class="bs-btn pri" data-a="addcr" title="Credits cannot be bought yet">Add credits</button>'):'<button type="button" class="bs-btn pri" data-a="go">Continue'+IC.check+'</button>'); }
     else { var p=S.prog||{stage:0,label:'',detail:'',done:0,total:0}, names=['Read your materials','Structured acts and entities','Placing cards','Linked and laid out'];
       b='<div>'+dots()+'</div><h2 class="bs-t">Building your timeline</h2>';
-      names.forEach(function(n,i){ var cls=i<p.stage?'done':i===p.stage?'cur':'', t=n+(i===2&&p.total&&i<=p.stage?', '+p.done+' of '+p.total:'');
+      names.forEach(function(n,i){ var cls=i<p.stage?'done':i===p.stage?'cur':'', t=n+(i===2&&p.total&&i<=p.stage?', '+num(p.done)+' of '+num(p.total):'');
         b+='<div class="bs-step '+cls+'"><i>'+(i<p.stage?IC.check:(i+1))+'</i>'+esc(t)+'</div>'; });
-      b+='<div class="bs-bar" role="progressbar" aria-valuenow="'+(p.total?p.done:0)+'" aria-valuemax="'+(p.total||100)+'"><b style="width:'+(p.total?Math.round(100*p.done/p.total):4)+'%"></b></div>';
+      b+='<div class="bs-bar" role="progressbar" aria-valuenow="'+(p.total?num(p.done):0)+'" aria-valuemax="'+(num(p.total)||100)+'"><b style="width:'+(num(p.total)?num(Math.round(100*num(p.done)/num(p.total))):4)+'%"></b></div>';
       a='<span class="bs-sp"></span><button type="button" class="bs-btn" data-a="stop" title="Stop and keep what is built">'+IC.stop+'Stop</button>'; }
   } else {
     b='<div>'+dots()+'</div><h2 class="bs-t">Your timeline is built</h2>'+chat(); a='';
@@ -315,7 +345,7 @@ function draw(){
       +(S.alert&&alertActs(S.alert)?'<div class="bs-act" style="padding:0 0 8px">'+alertActs(S.alert)+'</div>':'')+inputRow()+'</div>'+foot()+(S.notice?noticeView():S.sharesheet?shareView():'')+'</div>';
   }
   if(dsh&&!S.emb) inner+='<div class="bs-scrim bs-dscrim">'+dsh+'</div>';     /* over the panel or the wizard: the sheet needs the room */
-  root.innerHTML=inner;
+  put(root,inner);
   var lg=root.querySelector('.bs-log'); if(lg) lg.scrollTop=lg.scrollHeight;
   if(keep&&val!=null&&ae===keep){ var k=root.querySelector('.'+cls.split(' ')[0]); if(k){ k.value=val; k.focus(); } }
   if(S.notice){ var okb=root.querySelector('[data-a="noticeok"]'); if(okb&&okb.focus) okb.focus(); }
@@ -360,7 +390,7 @@ function doSend(){
   inp.value='';
   S.log.push({r:'u',t:t}); S.typing=true; S.alert=null; draw();
   call('edit',{timeline_id:S.tid||tidOf(),text:t,scope_id:S.scope||undefined}).then(function(r){ if(my!==RUN) return; applyBal(r); S.typing=false;
-    if(r.status==='ok'||r.status==='off_topic'){ var sp=r.credits?r.credits.spent:0; S.log.push({r:'a',t:r.message,s:r.status==='ok'?(sp<1?'less than 1 credit':'About '+Math.round(sp)+' credits'):''}); draw(); if(r.changed&&window._altoBassChanged) window._altoBassChanged(r); return; }
+    if(r.status==='ok'||r.status==='off_topic'){ var sp=r.credits?r.credits.spent:0; S.log.push({r:'a',t:r.message,s:r.status==='ok'?(num(sp)<1?'less than 1 credit':'About '+num(Math.round(num(sp)))+' credits'):''}); draw(); if(r.changed&&window._altoBassChanged) window._altoBassChanged(r); return; }
     failed(r); }); }
 /* "Turn into another format..." on the homepage (the sheet in home_template.html hands us the file, the format and its ui):
    estimate, a confirm that says it adds nothing, then the conversion; the counts come back from the server's own check. */
@@ -371,13 +401,13 @@ function doConvert(pg,fmt,ui){
   return call('convert',{timeline_id:tid,target:fmt,consent:true,accepted:false}).then(function(r){
     applyBal(r);
     if(r.status!=='estimate'){ ui.status(r.message||'Did not work. Nothing was charged.'); return; }
-    var cr=r.estimate_credits||'';
-    return ui.confirm('Bass will make a new timeline from this one\u2019s own '+(r.cards_in||'')+' cards and add nothing. About '+cr+' credits. Go on?','Make it (about '+cr+' credits)').then(function(yes){
+    var cr=num(r.estimate_credits)||'';
+    return ui.confirm('Bass will make a new timeline from this one\u2019s own '+(num(r.cards_in)||'')+' cards and add nothing. About '+cr+' credits. Go on?','Make it (about '+cr+' credits)').then(function(yes){
       if(!yes) return;
       ui.status('Working\u2026');
-      return call('convert',{timeline_id:tid,target:fmt,consent:true,accepted:true},function(e){ if(e.event==='progress'&&e.cards_total) ui.status('Making the cards: '+(e.cards_done||0)+' of '+e.cards_total); }).then(function(x){
+      return call('convert',{timeline_id:tid,target:fmt,consent:true,accepted:true},function(e){ if(e.event==='progress'&&e.cards_total) ui.status('Making the cards: '+num(e.cards_done)+' of '+num(e.cards_total)); }).then(function(x){
         applyBal(x);
-        if(x.ok&&x.timeline_id){ ui.status('Done: '+x.cards_in+' cards in, '+x.cards_out+' out. It is a new timeline in this project; the original is unchanged.'); if(window._altoBassChanged) window._altoBassChanged(x); }
+        if(x.ok&&x.timeline_id){ ui.status('Done: '+num(x.cards_in)+' cards in, '+num(x.cards_out)+' out. It is a new timeline in this project; the original is unchanged.'); if(window._altoBassChanged) window._altoBassChanged(x); }
         else ui.status(x.message||'Did not work. Nothing was saved.'); }); }); }); }
 function tidOf(){ var s=D.querySelector('script[data-tid]'); return (s&&s.getAttribute('data-tid'))||S.tid||'current'; }
 function onClick(e){
@@ -401,7 +431,7 @@ function onClick(e){
   else if(a==='to1'){ S.step=1; S.alert=null; S.chips=null; draw(); }
   else if(a==='to2'){ S.step=2; S.alert=null; S.est=null; draw(); }
   else if(a==='rm'){ var k=t.getAttribute('data-k'); S.chips[k].splice(+t.getAttribute('data-i'),1); draw(); }
-  else if(a==='add'){ var k2=t.getAttribute('data-k'), sp=D.createElement('span'); sp.className='bs-pill'; sp.innerHTML='<input type="text" maxlength="40" aria-label="New name">'; t.replaceWith(sp);
+  else if(a==='add'){ var k2=t.getAttribute('data-k'), sp=D.createElement('span'); sp.className='bs-pill'; var ip=D.createElement('input'); ip.type='text'; ip.maxLength=40; ip.setAttribute('aria-label','New name'); sp.appendChild(ip); t.replaceWith(sp);
     var inp=sp.firstChild; inp.focus(); var fin=function(){ var v=inp.value.trim(); if(v){ if(k2==='acts') S.chips.acts.push({label:v}); else if(k2==='entities') S.chips.entities.push({id:v.toLowerCase().replace(/\W+/g,'-'),name:v}); else S.chips.fields.push(v); } draw(); };
     inp.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); inp.onblur=null; fin(); } else if(ev.key==='Escape'){ ev.stopPropagation(); inp.onblur=null; draw(); } }); inp.onblur=fin; }
   else if(a==='consent'){ S.consent=t.checked; draw(); }

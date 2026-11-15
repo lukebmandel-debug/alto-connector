@@ -108,7 +108,7 @@ def test_bundle_requirements_stay_slim():
     people have to download."""
     # quickjs (~2 MB) is the one deliberate addition: without it the JS syntax
     # gate never ran for a Claude Desktop user, who has no node.
-    assert build_mcpb.REQUIREMENTS == ["mcp>=1.28,<2", "quickjs>=1.19,<2"]
+    assert build_mcpb.REQUIREMENTS == ["mcp>=1.28,<2", "quickjs>=1.19,<2", "tzdata; sys_platform == 'win32'"]   # tzdata: Windows only (no zone database there)
     for heavy in ("fastapi", "uvicorn", "firebase-admin", "google-cloud-storage"):
         assert not any(heavy in r for r in build_mcpb.REQUIREMENTS)
 

@@ -19,9 +19,9 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from . import keys
+from . import keys, promo
 from .beta_config import BetaConfig
-from .beta_guard import Allowlist, BetaFlags, BetaService, KillSwitch, MetaLog, RecordingSink, Watchdog
+from .beta_guard import DOCS, DRIVE, FREE, RESEARCH, Allowlist, _answer, BetaFlags, BetaService, KillSwitch, MetaLog, RecordingSink, Watchdog
 from .beta_ledger import LIVE_GO_KEY, BetaLedger
 from .client import make_client
 from .errors import NotConfigured
@@ -121,7 +121,7 @@ class Proxy:
         with self._lock:
             if self._client is None or self._client_mode != mode:
                 if go:
-                    self._client = make_client("live", key_provider=self.keyprov, go_check=lambda: True)
+                    self._client = make_client("live", key_provider=self.keyprov, go_check=lambda: True, clock=self.clock)
                 else:
                     self._client = make_client("mock", mock=self.mock)
                 self._client_mode = mode
@@ -172,6 +172,12 @@ class Proxy:
             uid, email, verified = str(who["uid"]), str(who["email"]), who.get("email_verified") is True
         except Exception:                                              # AuthError or anything a verifier raises: the same 401
             return self._reply(401, {"ok": False, "message": "Please sign in again."}, origin)
+        act = request.get("action")
+        if act not in FREE + (DOCS, DRIVE, RESEARCH) and self.live_go():                    # the free credit's end: every live action refuses here, before any hold or upstream request
+            try:
+                promo.check(self.clock)
+            except promo.BassError:
+                return self._reply(200, _answer("promo_ended", "paused"), origin)
         self._maybe_reap()
         out = self.service.handle({"uid": uid, "email": email, "email_verified": verified, "xff": h.get("x-forwarded-for"),
                                    "remote": h.get("x-real-ip"), "request": request})

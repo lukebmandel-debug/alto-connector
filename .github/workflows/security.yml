@@ -33,7 +33,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet pytest "mcp>=1.28,<2"
+          python -m pip install --quiet pytest "mcp>=1.28,<2" "tzdata; sys_platform == 'win32'"
           python packaging/stage_engine.py
       - name: Rules, headers and share checks (Python)
         env:

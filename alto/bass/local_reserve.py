@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Callable
 
 from .beta_config import BetaConfig
+from . import promo
 from .errors import BassError, InsufficientCredits
 
 MC = 1000
@@ -149,6 +150,8 @@ class LocalReserve:
         return self._locked(work)
 
     def hold(self, source: str, hold_id: str, mc: int) -> None:
+        if self.is_fixed():                                 # the fixed file is the LIVE reserve; mock files never see the promo cutoff
+            promo.check(self.clock)                         # before the lock and the file: a refused hold touches nothing
         def work(doc):
             p = self._open(doc)
             cap = min(self.cap_mc, int(p.get("cap_mc", self.cap_mc)))

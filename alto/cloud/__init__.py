@@ -71,8 +71,9 @@ def emit_cloud_js(config: dict | None = None) -> str:
             "alto-cloud.js: expected exactly one firebaseConfig literal — the "
             "file changed shape and this splice needs updating")
     body = ",\n".join(f"    {k}: {json.dumps(v)}" for k, v in cfg.items())
-    return _CONFIG_RE.sub(
-        lambda _: "const firebaseConfig = {\n" + body + ",\n  };", src, count=1)
+    from . import ext_hook                      # the optional extension hook: appended only when ALTO_EXT_URL is set (ext_hook.py)
+    return ext_hook.append(_CONFIG_RE.sub(
+        lambda _: "const firebaseConfig = {\n" + body + ",\n  };", src, count=1))
 
 
 def write_cloud_js(dest: Path, config: dict | None = None) -> Path:

@@ -18,12 +18,20 @@ STUBS = r"""
 const vm=require('vm'), fs=require('fs');
 function cl(){ const s=new Set(); return {add:(...a)=>a.forEach(x=>s.add(x)), remove:(...a)=>a.forEach(x=>s.delete(x)), contains:x=>s.has(x),
   toggle:(x,on)=>{ on=on===undefined?!s.has(x):!!on; on?s.add(x):s.delete(x); return on; }}; }
-function el(){ return {style:{},classList:cl(),innerHTML:'',appendChild(){},setAttribute(){},getAttribute(){return null},addEventListener(){},
-  removeEventListener(){},remove(){},querySelector(){return null},querySelectorAll(){return []}}; }
+function el(){ return {style:{},classList:cl(),innerHTML:'',setAttribute(){},getAttribute(){return null},addEventListener(){},
+  removeEventListener(){},remove(){},querySelector(){return null},querySelectorAll(){return []},
+  appendChild(x){ if(x&&x._frag) this.innerHTML+=x._html; return x; }, removeChild(){ this.innerHTML=''; },
+  get firstChild(){ return this.innerHTML?{}:null; }}; }
+// The bundle builds every template through DOMParser + a sanitizer (bass_ui_js put/swap). This stand-in keeps the markup as one text-like
+// node so the tests below still read the rendered markup; the sanitizer itself is tested in a real browser (test_bass_hosted_poison_webkit).
+function DOMParser(){}
+DOMParser.prototype.parseFromString=function(s){ const body={n:null, get firstChild(){ return this.n; }}; body.n={nodeType:3,_body:body,_html:String(s).replace(/^<!doctype html><body>/,'')}; return {body}; };
 function mk(src,o){ o=o||{}; const appended=[], fetches=[], store=Object.assign({},o.store||{});
   const doc={createElement:el,head:{appendChild(){}},body:{appendChild(x){appended.push(x)}},documentElement:el(),querySelector(){return null},
+    createDocumentFragment(){ return {_frag:true,_html:'',appendChild(x){ this._html+=(x&&x._html)||''; return x; }}; },
+    adoptNode(x){ if(x&&x._body) x._body.n=null; return x; }, createTextNode(t){ return {nodeType:3,_html:String(t)}; },
     querySelectorAll(){return []},getElementById(){return null},addEventListener(){},removeEventListener(){}};
-  const win={setTimeout,clearTimeout,document:doc,location:{hash:''},addEventListener(){},
+  const win={setTimeout,clearTimeout,document:doc,location:{hash:''},addEventListener(){},DOMParser,
     localStorage:{setItem(k,v){store[k]=String(v)},getItem(k){return k in store?store[k]:null}}};
   win.window=win;
   if(o.base) win._ALTO_BASS_BASE=o.base;

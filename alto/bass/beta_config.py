@@ -110,13 +110,20 @@ class BetaConfig:
     # Pages allowed to call the proxy (CORS). The shared tester site is alto-timelines (IT, ORG/it/beta-address.md);
     # luke-alto stays for Luke's own testing. Edit here, never in code.
     allowed_origins: tuple = ("https://alto-timelines.web.app", "https://luke-alto.web.app", "https://luke-alto.firebaseapp.com")
+    # Hosted Bass only: when the zone database is missing (a Windows Python without tzdata), build the config anyway and mark it unusable
+    # (zone_ok False) so the gate can answer {} and the deploy check refuses, instead of crashing. Every other caller still raises.
+    zone_optional: bool = False
 
     def __post_init__(self):
         if int(self.testers) <= 0 or int(self.server_ceiling_credits) <= 0:
             raise ValueError("beta config: testers and the ceiling must be positive")
         if not 1 <= int(self.start_day) <= 28:
             raise ValueError("beta config: start_day must be 1..28 so every month has it")
-        zoneinfo.ZoneInfo(self.tz)
+        try:
+            zoneinfo.ZoneInfo(self.tz)
+        except zoneinfo.ZoneInfoNotFoundError:
+            if not self.zone_optional:
+                raise
         object.__setattr__(self, "allowlist", frozenset(_norm(e) for e in self.allowlist if _norm(e)))
 
     # -- derived (credits) --------------------------------------------------------------------------------------
@@ -161,6 +168,15 @@ class BetaConfig:
         return self.per_action_cap_credits * MC
 
     @property
+    def zone_ok(self) -> bool:
+        """True when the zone loads. False only for a zone_optional config on a machine with no zone database: fail closed on it."""
+        try:
+            zoneinfo.ZoneInfo(self.tz)
+            return True
+        except Exception:
+            return False
+
+    @property
     def zone(self):
         return zoneinfo.ZoneInfo(self.tz)
 
@@ -177,6 +193,8 @@ class BetaConfig:
     def problems(self) -> list:
         """Things worth stopping a deploy for (the handler refuses to start with any)."""
         out = []
+        if not self.zone_ok:
+            out.append(f"the time zone {self.tz!r} cannot be loaded (no zone database: install tzdata)")
         if self.testers > MAX_TESTERS:
             out.append(f"{self.testers} testers is over the {MAX_TESTERS} the ceiling was planned for")
         if len(self.allowlist) > self.testers:
