@@ -10,7 +10,7 @@ One request:
                               2. the uid is in Firestore bass_beta/hosted {uids: [...]} (at most cfg.testers; longer admits nobody)
                               3. the verified email is on Bass's own tester list bass_beta/bass_testers (beta_guard.Allowlist, N = 1)
                            any check fails, or anything raises -> EMPTY: 200, body {}, the same headers. No 401, no 403, no message.
-    allowed + "ext"      -> {"x": the hosted bundle}: the Bass UI with a "Bass (beta)" button (alto/build/bass_hosted_ext.py)
+    allowed + "ext"      -> {"x": the hosted bundle}: the Bass UI with its entry points in the NEW dialog and on the study-plan line (alto/build/bass_hosted_ext.py)
     allowed, after the promo cutoff (promo.py, fail closed), any other action -> promo_ended ("The free Bass credit has ended."), nothing else runs
     allowed, otherwise   -> the beta Proxy, unchanged (its own token check, Beta Terms, kill switch, ledger, period marker, live_go flag)
 

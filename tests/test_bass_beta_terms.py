@@ -23,7 +23,7 @@ from alto.bass.errors import POLICIES
 from alto.bass.tools import ToolBox
 from alto.store.local import LocalStore
 
-MSG = "Please accept the Beta Terms to use Bass. Sign in again to see the box."
+MSG = "Please accept the Terms to use Bass. Sign in again to see the box."
 UID = "u_" + EMAIL.split("@")[0]
 KEY = f"terms_acceptance/{UID}_1.1"
 

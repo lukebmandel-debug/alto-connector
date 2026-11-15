@@ -129,7 +129,7 @@ def test_b3_a_tester_at_zero_gets_a_plain_message_and_no_request(st):
     for r in (build_req(), edit_req()):
         out = st.svc.handle(req(r))
         assert out["status"] == "no_credits" and out["code"] == "beta_credits_used"
-        assert "beta credits are used up" in out["message"] and "Traceback" not in out["message"]
+        assert "credits are used up" in out["message"] and "Traceback" not in out["message"]
     assert no_requests(st)
 
 
@@ -149,7 +149,7 @@ def test_u1_a_testers_own_credits_used_up_or_the_server_ceiling_gives_beta_credi
         for r in (build_req(), edit_req()):
             out = st.svc.handle(req(r))
             assert out["code"] == "beta_credits_used" and out["status"] == "no_credits", case
-            assert "beta credits are used up" in out["message"]
+            assert "credits are used up" in out["message"]
         assert no_requests(st) and byo_path_works(st)
 
 
@@ -157,7 +157,7 @@ def test_u2_the_global_daily_limit_has_its_own_message_and_reason_and_zero_reque
     g = {"day": st.ledger.today(), "spent_mc": st.cfg.daily_ceiling_mc, "reserved_mc": 0, "alerted": []}
     st.store.put(day_key(st.ledger.today()), g)                            # 1,500 credits already spent today by everyone
     out = st.svc.handle(req(edit_req()))
-    assert out["code"] == "beta_daily_full" and "Today's beta limit has been reached" in out["message"] and "tomorrow" in out["message"]
+    assert out["code"] == "beta_daily_full" and "Today's limit has been reached" in out["message"] and "tomorrow" in out["message"]
     assert "used up" not in out["message"] and no_requests(st) and byo_path_works(st)
     st.clock.advance(days=1)                                               # the day boundary on the fake clock
     assert st.svc.handle(req(edit_req()))["ok"]
@@ -209,7 +209,7 @@ def test_u4_a_tester_at_300_today_gets_the_try_tomorrow_message_others_are_unaff
     spend(st, "u_tester1", 300)                                            # the tester's whole day
     out = st.svc.handle(req(build_req()))
     assert out["code"] == "beta_tester_daily" and out["status"] == "capped" and "tomorrow" in out["message"]
-    assert "Today's beta limit" not in out["message"] and no_requests(st)
+    assert "Today's limit" not in out["message"] and no_requests(st)
     st.store.put("bass_beta/bass_testers", {"emails": [EMAIL, "tester2@example.com"]})
     assert st.svc.handle(req(edit_req(), email="tester2@example.com"))["ok"]            # another tester is fine
     st.clock.advance(days=1)
@@ -283,7 +283,7 @@ def test_p2_crossing_without_confirmation_turns_bass_off_with_the_friendly_messa
     st.clock.advance(20 * 60)
     for r in (build_req(), edit_req()):
         out = st.svc.handle(req(r))
-        assert out["code"] == "beta_credits_used" and out["status"] == "no_credits" and "beta credits are used up" in out["message"]
+        assert out["code"] == "beta_credits_used" and out["status"] == "no_credits" and "credits are used up" in out["message"]
     assert st.svc.handle(req(BAL))["available"] is False and no_requests(st) and byo_path_works(st)
     with pytest.raises(BassError) as e:
         st.ledger.hold("u1", "h", MC, "a")
@@ -665,7 +665,7 @@ def test_g13_every_401_403_credit_low_workspace_limit_or_unexpected_400_trips_th
     st.mock.use(endless(2000)).inject(fault(times=5))
     out = st.svc.handle(req(build_req()))
     assert out["status"] in ("paused", "error")
-    assert ("beta credits are used up" in out["message"]) if friendly else ("Nothing was charged" in out["message"])
+    assert ("credits are used up" in out["message"]) if friendly else ("Nothing was charged" in out["message"])
     assert len(st.mock.errors_sent) == 1                                   # exactly one upstream attempt: no retry
     assert st.kill.state() == {"on": True, "reason": reason}
     assert st.sink.of("kill_switch")[0]["reason"] == reason

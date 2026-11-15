@@ -64,7 +64,7 @@ function fl(n){ return Math.floor(n+1e-9); }
 function lab(n){ var f=fl(n); return f+' credit'+(f===1?'':'s'); }
 function usd(n){ return '$'+(n/100).toFixed(2); }
 function about(n){ return n<=1?'less than 1 credit':'about '+Math.max(1,Math.round(n))+' credits'; }
-function balLab(n){ return BETA?'Beta credits remaining: '+fl(n):lab(n); }
+function balLab(n){ return BETA?'Credits remaining: '+fl(n):lab(n); }
 
 /* ───────────────────────── the simulator: the real door's keys, states and flow, scripted ───────────────────────── */
 var SIM={calls:0, acks:{}, bal:142, n:0, force:null, hold:false, stopReq:false, cards:61, delay:1};
@@ -221,10 +221,10 @@ function alertView(a){
   var ic={no_credits:IC.coin,capped:IC.coin,busy:IC.clock,paused:IC.pause,stopped:IC.stop,refused:IC.warn,error:IC.warn,estimate:IC.coin}[a.status]||IC.warn;
   var ttl={no_credits:'Out of credits',capped:'Credit limit reached',busy:'Bass is busy',paused:'Bass is paused',stopped:'Stopped',refused:'Bass could not help',error:'Something went wrong'}[a.status]||'Bass';
   var body={busy:'Nothing was used. Try again in a moment.',paused:'Your timelines still open, study and share as usual.'}[a.status]||esc(a.message||'');
-  if(BETA&&a.code==='bass_off'){ ttl='Bass is for beta testers'; body='Bass is open to invited beta testers only. Your timelines still open, study and share as usual.'; }
-  else if(BETA&&a.status==='no_credits'){ ttl='Beta credits used up'; body='Your Bass beta credits are used up. Thank you for testing Bass!'+(a.work||a.cards?'<br><span style="color:var(--bs-mut)">'+(a.cards?num(a.cards.done)+' of '+num(a.cards.total)+' cards are built. ':'')+'Your work so far is saved.</span>':''); }
+  if(BETA&&a.code==='bass_off'){ ttl='Bass is invite-only for now'; body='Bass is invite-only for now. Your timelines still open, study and share as usual.'; }
+  else if(BETA&&a.status==='no_credits'){ ttl='Credits used up'; body='Your Bass credits are used up. Thank you for trying Bass!'+(a.work||a.cards?'<br><span style="color:var(--bs-mut)">'+(a.cards?num(a.cards.done)+' of '+num(a.cards.total)+' cards are built. ':'')+'Your work so far is saved.</span>':''); }
   else if(a.code==='promo_ended'){ ttl='Free credit ended'; body=esc(a.message||CODES.promo_ended); }
-  else if(BETA&&a.code==='terms_required'){ ttl='Beta Terms'; body=esc(a.message||'Please accept the Beta Terms to use Bass. Sign in again to see the box.'); }   /* no paywall, no button */
+  else if(BETA&&a.code==='terms_required'){ ttl='Terms'; body=esc(a.message||'Please accept the Terms to use Bass. Sign in again to see the box.'); }   /* no paywall, no button */
   else if(BETA&&OUT[a.code]&&a.message) body=esc(a.message);                          /* today's limits: the server's own words */
   else if(a.status==='no_credits') body='Your credits ran out. Your work is saved.<br><span style="color:var(--bs-mut)">'+(a.cards?num(a.cards.done)+' of '+num(a.cards.total)+' cards are built. ':'')+'Add credits to finish.</span>';
   var h='<div class="bs-alert">'+ic+'<div><b>'+ttl+'</b><p>'+body+'</p></div></div>';
@@ -288,7 +288,7 @@ function bodyWizard(){
   var st=S.step, b='', a='';
   if(S.alert){ b=alertView(S.alert); a=alertActs(S.alert); return [b,a]; }
   if(st===0){
-    b='<div>'+dots()+'</div><h2 class="bs-t">Pick a format</h2>'+fmtView()+'<p class="bs-hint">'+(BETA?'A build usually uses about 40 to 150 of your free beta credits. You see the estimate before anything runs.':'A build usually uses about 40 to 150 credits (about $0.40 to $1.50). You see the exact estimate before anything runs.')+'</p>';
+    b='<div>'+dots()+'</div><h2 class="bs-t">Pick a format</h2>'+fmtView()+'<p class="bs-hint">'+(BETA?'A build usually uses about 40 to 150 of your free credits. You see the estimate before anything runs.':'A build usually uses about 40 to 150 credits (about $0.40 to $1.50). You see the exact estimate before anything runs.')+'</p>';
     a='<button type="button" class="bs-btn" data-a="cancel">Cancel</button><span class="bs-sp"></span><button type="button" class="bs-btn pri" data-a="next0">Next'+IC.check+'</button>';
   } else if(st===1){
     b='<div>'+dots()+'</div><h2 class="bs-t">Add your materials</h2>'+usingView()+'<label class="bs-drop" data-drop="1" for="bs-file">'+IC.up+'<b>Drop PDFs or notes here</b><span>or tap to choose files</span></label>'
@@ -312,7 +312,7 @@ function bodyWizard(){
   } else if(st===3){
     if(S.est&&!S.running){ var e=S.est, short=e.short_by>0;
       b='<div>'+dots()+'</div><div class="bs-alert">'+IC.coin+'<div><b>This build will use '+esc(e.credits_text)+'</b><p>'+(BETA
-        ?'You have '+(S.bal==null?esc(e.have_label):fl(S.bal))+' beta credits remaining'+(short?', so this build is bigger than what is left. Try fewer materials. Nothing was charged':'')
+        ?'You have '+(S.bal==null?esc(e.have_label):fl(S.bal))+' credits remaining'+(short?', so this build is bigger than what is left. Try fewer materials. Nothing was charged':'')
         :'That is about '+usd(e.estimate_credits)+'. You have '+esc(e.have_label)+(short?', so '+num(e.short_by)+' more '+(num(e.short_by)===1?'is':'are')+' needed':''))+'.</p></div></div>';
       a='<button type="button" class="bs-btn" data-a="to2">Cancel</button>'+(short?(BETA?'':'<button type="button" class="bs-btn pri" data-a="addcr" title="Credits cannot be bought yet">Add credits</button>'):'<button type="button" class="bs-btn pri" data-a="go">Continue'+IC.check+'</button>'); }
     else { var p=S.prog||{stage:0,label:'',detail:'',done:0,total:0}, names=['Read your materials','Structured acts and entities','Placing cards','Linked and laid out'];
@@ -389,9 +389,20 @@ function doSend(){
   if(!acked()){ ask(function(){ var i=root&&root.querySelector('.bs-say'); if(i) i.value=t; doSend(); },t); return; }
   inp.value='';
   S.log.push({r:'u',t:t}); S.typing=true; S.alert=null; draw();
+  if(S.plan){ doPlan(t); return; }
   call('edit',{timeline_id:S.tid||tidOf(),text:t,scope_id:S.scope||undefined}).then(function(r){ if(my!==RUN) return; applyBal(r); S.typing=false;
     if(r.status==='ok'||r.status==='off_topic'){ var sp=r.credits?r.credits.spent:0; S.log.push({r:'a',t:r.message,s:r.status==='ok'?(num(sp)<1?'less than 1 credit':'About '+num(Math.round(num(sp)))+' credits'):''}); draw(); if(r.changed&&window._altoBassChanged) window._altoBassChanged(r); return; }
     failed(r); }); }
+/* the study plan from the homepage card: what the student says is the plan's input; an estimate first, then "yes" makes it (the server's make_study_plan) */
+function doPlan(t){ var my=RUN;
+  var go=function(acc,ans){ S.typing=true; S.alert=null; draw();
+    return call('make_study_plan',{timeline_id:S.tid,answers:ans,consent:true,accepted:acc}).then(function(r){ if(my!==RUN) return; applyBal(r); S.typing=false;
+      if(r.status==='estimate'){ S.pw=ans; S.log.push({r:'a',t:'This will use about '+num(r.estimate_credits)+' credits. Reply yes to go on, or tell me more first.'}); draw(); return; }
+      S.pw=null;
+      if(r.ok&&r.plan_saved){ S.log.push({r:'a',t:'Your study plan is saved'+(typeof r.summary==='string'&&r.summary?': '+r.summary:'.')+' It shows on the timeline\u2019s card.'}); draw(); if(window._altoBassChanged) window._altoBassChanged(r); return; }
+      failed(r); }); };
+  if(S.pw&&/^(y|yes|ok|okay|go|go on|go ahead|sure)\b/i.test(t)) return go(true,S.pw);
+  S.pw=null; return go(false,{told:t}); }
 /* "Turn into another format..." on the homepage (the sheet in home_template.html hands us the file, the format and its ui):
    estimate, a confirm that says it adds nothing, then the conversion; the counts come back from the server's own check. */
 function doConvert(pg,fmt,ui){
@@ -499,13 +510,15 @@ function dev(name,mode){
   if(name==='live') SIM.force=null;
   draw();
 }
-function open(mode){
+function open(mode,o){
   var h=(location.hash.match(/bass=([a-z-]+)/i)||[])[1];
   if(h){ dev(h,mode); return; }
   S.dopen=false; S.using=null; S.uexp=false; S.scope=null;
   if(mode==='docs'){ S.emb=false; S.out=null; S.mode='docs'; mount(); openDocs('docs'); call('balance').then(function(r){ if(r&&typeof r.credits==='number') setBal(r.credits); }); return; }
   S.emb=mode==='embed'; S.place='philadelphia'; S.mode=(mode==='wizard'||S.emb)?'wizard':'panel'; S.alert=null; S.est=null; S.running=false; S.typing=false; S.consent=false; S.step=S.emb?0:1; S.files=[]; S.paste=''; S.chips=null;
   S.log=S.mode==='panel'?[{r:'a',t:'Ask me to change a card, an act or a link in this timeline.'}]:[];
+  S.plan=!!(o&&o.plan&&typeof o.tid==='string'&&o.tid&&S.mode==='panel'); S.pw=null;
+  if(S.plan){ S.tid=o.tid; S.log=[{r:'a',t:'Let us make your study plan. Tell me when your exam is, about how much time you have each day, and what you find hard.'}]; }
   S.out=null; mount(); if(S.bal==null&&!BASE) S.bal=SIM.bal;   /* with a real backend the chip stays blank until its first answer: never the simulator's number */
   draw(); S.scope=scopeRead(); usingLoad(); call('balance').then(function(r){ if(r&&typeof r.ack==='string'&&r.ack) S.ack=r.ack; if(typeof r.credits==='number'){ SIM.bal=BASE?r.credits:SIM.bal; setBal(r.credits); }
     if(S.out){ S.alert={status:S.out.status==='off'?'paused':S.out.status,code:S.out.code,message:S.out.message}; if(S.mode==='wizard'&&!S.emb) S.step=1; } else if(r&&r.research) shareApply(r.research); draw(); });

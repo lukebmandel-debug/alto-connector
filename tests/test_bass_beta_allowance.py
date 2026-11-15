@@ -22,7 +22,7 @@ from alto.bass.tools import ToolBox
 from alto.store.local import LocalStore
 
 FRESH = "fresh.tester@example.com"
-USED_UP = "Your Bass beta credits are used up. Thank you for testing Bass!"
+USED_UP = "Your Bass credits are used up. Thank you for trying Bass!"
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +53,7 @@ def test_a_fresh_unpaid_tester_completes_every_bass_path_on_the_beta_allowance(p
     assert px.store.get("u_fresh") is None                               # never seen: no account, no lots, no card, no purchase
     bal = call(px, "balance")
     assert bal["ok"] and bal["beta"] is True and bal["available"] is True and bal["credits"] == 900
-    assert bal["label"] == "900 beta credits remaining" and bal["mock"] is True
+    assert bal["label"] == "900 credits remaining" and bal["mock"] is True
     assert call(px, "estimate", kind="build", materials=MATERIALS)["ok"]
 
     px.mock.use(M.Scenario("p", [M.Step(M.Reply([M.tool_use("propose_chips", CHIPS)]))]))
@@ -70,7 +70,7 @@ def test_a_fresh_unpaid_tester_completes_every_bass_path_on_the_beta_allowance(p
     assert ed["status"] == "ok" and ed["code"] is None, ed
 
     after = call(px, "balance")
-    assert 0 < after["credits"] < 900 and after["available"] is True and after["label"].endswith(" beta credits remaining")
+    assert 0 < after["credits"] < 900 and after["available"] is True and after["label"].endswith(" credits remaining")
     doc = px.store.get("u_fresh")
     assert doc["lots"] == [] and not [e for e in doc["entries"] if e["kind"] in ("purchase", "topup")]
     blob = json.dumps(doc).lower()

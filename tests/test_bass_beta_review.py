@@ -270,7 +270,7 @@ def test_the_console_and_org_limit_wordings_and_the_429_spend_cap_trip_the_switc
     st = make_stack(tmp_path)
     st.mock.use(endless(2000)).inject(fault(times=9))
     out = st.svc.handle(req(build_req()))
-    assert "beta credits are used up" in out["message"]
+    assert "credits are used up" in out["message"]
     assert len(st.mock.errors_sent) == 1                                     # a 429 is normally retried: this one is not
     assert st.kill.state() == {"on": True, "reason": "upstream_workspace_limit"} and st.sink.of("kill_switch")
     assert st.ledger.balance_mc("u_tester1") == st.cfg.allowance_mc

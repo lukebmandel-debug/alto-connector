@@ -241,7 +241,7 @@ window._spCard = function(el, rec){
   if(!document.getElementById('sp-card-css')){ var st = document.createElement('style'); st.id = 'sp-card-css';
     st.textContent = '.sp-card{--spa:#5b3fc4;--spl:#b42318;--spi:#fff;display:none;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:24px;font:600 13px/1.2 system-ui,-apple-system,sans-serif;color:var(--spa);}'
       + 'html.dark .sp-card{--spa:#b7a6ff;--spl:#ff8a7a;--spi:#13111f;}html.alto-retro .sp-card{--spa:#d9ae55;--spl:#ff8a7a;--spi:#000;border-radius:0;}html.alto-retro .sp-card b{border-radius:0;}'
-      + '.sp-card.has{color:inherit;}.sp-card b{background:var(--spa);color:var(--spi);border-radius:6px;padding:4px 7px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;}.sp-card b.l{background:var(--spl);}'
+      + '.sp-card.sp-make{cursor:pointer;}.sp-card.sp-make:hover{text-decoration:underline;}.sp-card.sp-make:focus-visible{outline:2px solid var(--spa);outline-offset:2px;}.sp-card.has{color:inherit;}.sp-card b{background:var(--spa);color:var(--spi);border-radius:6px;padding:4px 7px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;}.sp-card b.l{background:var(--spl);}'
       + '.sp-card i{font-style:normal;font-weight:400;opacity:.75;}@media (min-width:641px){.sp-card{display:flex;}}@media print{.sp-card{display:none !important;}}';
     document.head.appendChild(st); }
   var days = rec && rec.plan && rec.plan.days, line = document.createElement('div'); line.className = 'sp-card';
@@ -253,7 +253,20 @@ window._spCard = function(el, rec){
     if(today) add('', 'Today ' + today);
     if(late) add('l', late + ' late');
     if(!today && !late){ var n = document.createElement('i'); n.textContent = 'nothing today'; line.appendChild(n); }
-  } else line.textContent = '+ Make a study plan';
+  } else {
+    // The invitation does something every time (Luke 2026-11-15, "the study plan button still doesn't do anything": the line had no handler, so a click fell through to the card and just opened the timeline, which has no plan sheet until a plan exists).
+    // With Bass available the hosted hook sets window._altoStudyPlanMake and it opens Bass for this file; otherwise it hands the plan to Claude the way the New window's "Build it with Claude" does (a visible toast either way).
+    line.textContent = '+ Make a study plan'; line.className += ' sp-make'; line.setAttribute('role', 'button'); line.tabIndex = 0;
+    var ttl = (rec && (rec.heading || rec.title)) || 'this timeline';
+    var go = function(ev){
+      ev.stopPropagation(); ev.preventDefault();
+      var h = window._altoStudyPlanMake;
+      if(typeof h === 'function'){ try{ if(h(rec)) return; }catch(e){} }
+      openClaude('Make a study plan for my timeline "' + ttl + '". Ask me one question at a time: when my exam is, how much time I have each day, and what I find hard. Then propose the nodes to study each day, each with the reason in my own words, and save it with set_study_plan.');
+    };
+    line.addEventListener('click', go);
+    line.addEventListener('keydown', function(ev){ if(ev.key === 'Enter' || ev.key === ' ') go(ev); });
+  }
   var ti = el.querySelector('.tile-title'), host = el.querySelector('.tile-body') || el;   // (under the title, so a plate's undo that puts the lock glyph back last leaves the order as it was)
   if(ti && ti.parentNode) ti.parentNode.insertBefore(line, ti.nextSibling); else host.appendChild(line);
 };
