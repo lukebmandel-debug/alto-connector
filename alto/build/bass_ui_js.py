@@ -352,6 +352,7 @@ function draw(){
   else if(S.sharesheet){ var sht=root.querySelector('#bs-sh'); if(sht&&sht.focus) sht.focus(); }       /* focus starts on the title, never on a button */
   var fi=root.querySelector('#bs-file'); if(fi) fi.addEventListener('change',function(){ addFiles(fi.files); fi.value=''; });
   var pst=root.querySelector('#bs-paste'); if(pst) pst.addEventListener('input',function(){ S.paste=pst.value; var nx=root.querySelector('[data-a="next1"]'); if(nx) nx.disabled=!(S.files.length||pasted()||(S.using&&S.using.files.length)); });
+  var dpt=root.querySelector('#bs-dpt'), dpn=root.querySelector('#bs-dpn'), dd=dk(); if(dpt&&dd.paste) dpt.addEventListener('input',function(){ dd.paste.text=dpt.value; }); if(dpn&&dd.paste) dpn.addEventListener('input',function(){ dd.paste.name=dpn.value; });
   var dfi=root.querySelector('#bs-dfile'); if(dfi) dfi.addEventListener('change',function(){ addDocFiles(dfi.files); dfi.value=''; });
   root.classList.toggle('bs-sharing',!!S.sharesheet);                                  /* one close x while the sheet is open: the sheet's (= No thanks) */
   root.setAttribute('data-step',S.mode==='wizard'?String(S.step):'panel'); root.classList.toggle('bs-emb',!!S.emb);

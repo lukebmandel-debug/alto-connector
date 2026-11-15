@@ -18,6 +18,15 @@ class Policy:
     alert: bool = False          # tell Alto's owner
 
 
+PDF_TOO_BIG_HINT = "If you printed this from a web page, save it as text instead."
+
+
+def too_big_message(names) -> str:
+    """upload_too_big's message; when the file is a PDF it also says what usually makes a PDF that big (a page printed to PDF)."""
+    base = POLICIES["upload_too_big"].user_message
+    return f"{base} {PDF_TOO_BIG_HINT}" if any(isinstance(n, str) and n.lower().endswith(".pdf") for n in names or ()) else base
+
+
 POLICIES = {p.code: p for p in (
     Policy("rate_limited", "Bass is busy right now. Nothing was charged. Please try again in a minute.",
            retry=True),

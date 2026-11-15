@@ -112,7 +112,7 @@ def stack(tmp, runner=None, worker_cmd=None, **over):
 
 
 def refused(out, code):
-    return (out["ok"] is False and out["code"] == code and out["status"] == "refused" and out["message"] == POLICIES[code].user_message
+    return (out["ok"] is False and out["code"] == code and out["status"] == "refused" and out["message"].startswith(POLICIES[code].user_message)
             and out["retryable"] is False and "Traceback" not in json.dumps(out))
 
 

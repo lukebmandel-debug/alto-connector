@@ -13,7 +13,7 @@ path the proxy returns (storage.rules: owner only, listed only); without it Bass
 
 DOCS_JS = r"""
 /* ───────────────────────── Documents (bass_ui_docs.py) ───────────────────────── */
-var DMAX=20, DAYS=7, DCH=60000;
+var DMAX=20, DAYS=7, DCH=250000;
 var SIMLIB={scopes:{tor:{kind:'class',name:'Torts'},tol:{kind:'outline',name:'Torts outline',class_id:'tor',class_docs:true},tot:{kind:'timeline',name:'Torts timeline',class_id:'tor',class_docs:true},
   con:{kind:'class',name:'Contracts'},mid:{kind:'group',name:'Midterm prep'}},
  files:{d1:{scope:'tor',name:'Midterm 2, graded.pdf',type:'pdf',bytes:1258291,chars:18200,use:true,added:'2026-10-28T15:00:00Z'},
@@ -24,10 +24,11 @@ var SIMLIB={scopes:{tor:{kind:'class',name:'Torts'},tol:{kind:'outline',name:'To
   d6:{scope:'mid',name:'Practice exam 2024.pdf',type:'pdf',bytes:300000,chars:14000,use:true,added:'2026-10-25T15:00:00Z'},
   d7:{scope:'mid',name:'Study plan.md',type:'text',bytes:2100,chars:2100,use:true,added:'2026-10-26T15:00:00Z'}}, n:7};
 var DMSG={docs_not_found:'That document or folder is not in your library.',docs_full:'Your library is full (20 files). Delete one first; deleted files count until they are gone for good after 7 days.',
- docs_too_long:'That file has more text than Bass can read at once (60,000 characters). Split it, or upload just the part you need.',docs_bad_name:'Please give it a name (up to 120 characters).',
- docs_over_limit:'Bass can read up to 60,000 characters of documents at a time. Switch off a document under Using, then try again.',docs_bad_request:'Bass could not read that request.',
+ docs_too_long:'That file has more text than Bass can read at once (250,000 characters). Split it, or upload just the part you need.',docs_bad_name:'Please give it a name (up to 120 characters).',
+ docs_over_limit:'Bass can read up to 250,000 characters of documents at a time. Switch off a document under Using, then try again.',docs_bad_request:'Bass could not read that request.',
  docs_picture:'Bass can keep pictures in your library but cannot read them yet, so it will not use this one.',upload_unsupported:'Bass can read PDF, Word (.docx) and plain-text files. Paste the text or upload one of those.',
- upload_too_big:'That file is too large for Bass. Try a smaller file, or paste the text.',
+ upload_too_big:'That file is too large for Bass. Try a smaller file, or paste the text.',upload_too_big_pdf:'That file is too large for Bass. Try a smaller file, or paste the text. If you printed this from a web page, save it as text instead.',
+ upload_no_text:'This file has no selectable text. Paste the text or upload a text version.',
  drive_off:"Add from Drive isn't available right now.",drive_not_connected:'Connect Google Drive first, then choose your files.',drive_expired:'Your Google Drive connection ended. Choose your files again.',
  drive_bad_token:'Bass could not connect to Google Drive. Please try again.',drive_not_found:'Bass could not open that file from Drive. Choose it again.',
  drive_unsupported:'Bass can read Google Docs, PDF, Word (.docx) and plain-text files from Drive.',drive_unavailable:"Google Drive didn't answer. Please try again in a moment.",drive_cancel:'Google Drive could not be opened. Please try again.'};
@@ -52,7 +53,7 @@ function simDocs(a){
   if(op==='remove_scope'){ if(!s) return dno('docs_not_found'); if(Object.keys(F).some(function(k){ return F[k].scope===a.scope_id; })||Object.keys(S_).some(function(k){ return S_[k].class_id===a.scope_id; })) return dno('docs_bad_request'); delete S_[a.scope_id]; return ok; }
   if(op==='add'){ if(!s) return dno('docs_not_found'); if(Object.keys(F).length>=DMAX) return dno('docs_full'); var nm2=String(a.name||''), ext=(nm2.match(/\.([a-z0-9]+)$/i)||[])[1]||'', ty=/^(pdf|docx)$/i.test(ext)?ext.toLowerCase():/^(txt|md|markdown|csv|text)$/i.test(ext)?'text':null;
     if(!ty) return dno('upload_unsupported'); var by2=a.file_b64?Math.floor(a.file_b64.length*3/4):String(a.text||'').length, ch2=ty==='image'?0:ty==='text'?String(a.text||'').length:Math.round(by2/40);
-    if(ch2>DCH) return dno('docs_too_long'); var id2='f'+(++L.n); F[id2]={scope:a.scope_id,name:nm2,type:ty,bytes:by2,chars:ch2,use:ty!=='image',added:new Date(dnow()).toISOString()};
+    if(ty==='text'&&!String(a.text||'').trim()) return dno('upload_no_text'); if(ch2>DCH) return dno('docs_too_long'); var id2='f'+(++L.n); F[id2]={scope:a.scope_id,name:nm2,type:ty,bytes:by2,chars:ch2,use:ty!=='image',added:new Date(dnow()).toISOString()};
     var out={ok:true,status:'ok',file:{id:id2,scope:a.scope_id,name:nm2,type:ty,bytes:by2,chars:ch2,use:ty!=='image',readable:ty!=='image',path:'users/'+uid()+'/bass/'+id2}}; if(ty==='image') out.note=DMSG.docs_picture; return out; }
   if(op==='restore'){ if(!f||!f.deleted) return dno('docs_not_found'); delete f.deleted; return ok; }
   if(!live) return dno('docs_not_found');
@@ -114,8 +115,12 @@ function mainView(lib,sel){
   if(d.menu==='scope') h+='<div class="bs-dmenu"><div class="bs-inp"><input type="text" id="bs-dsn" maxlength="120" value="'+esc(s.name)+'" aria-label="New name"></div><button type="button" class="bs-btn pri" data-a="d-rscok">Save</button>'
     +(count(lib,s.id)||lib.scopes.some(function(x){ return x.class_id===s.id; })?'':'<button type="button" class="bs-btn" data-a="d-rmsc">Remove</button>')+'</div>';
   if(c) h+='<div class="bs-drow cls">'+IC.doc+'<div class="bs-dn"><b>Also use the '+esc(c.name)+' class documents</b><small>'+cn+' file'+(cn===1?'':'s')+' shared with every '+esc(c.name)+' outline and timeline</small></div>'+sw(s.class_docs,'data-a="d-cls" data-v="'+esc(s.id)+'"','Also use the '+c.name+' class documents')+'</div>';
-  h+='<label class="bs-drop" data-drop="docs" for="bs-dfile">'+IC.up+'<b>Drop files here, or choose them</b><span>PDF, Word, text · '+num(lib.caps.files)+' of '+num(lib.caps.files_max)+' files used. Bass reads up to 60,000 characters of documents at a time.</span></label>'
+  h+='<label class="bs-drop" data-drop="docs" for="bs-dfile">'+IC.up+'<b>Drop files here, or choose them</b><span>PDF, Word, text · '+num(lib.caps.files)+' of '+num(lib.caps.files_max)+' files used. Bass reads up to 250,000 characters of documents at a time.</span></label>'
     +'<input type="file" id="bs-dfile" multiple accept=".pdf,.docx,.txt,.md,.csv" style="display:none" aria-label="Choose files">';
+  h+='<button type="button" class="bs-btn bs-dpaste" data-a="d-paste" aria-expanded="'+!!d.paste+'"'+(d.busy?' disabled':'')+'>'+IC.pen+'Paste text</button>';
+  if(d.paste) h+='<div class="bs-dpbox"><div class="bs-inp"><input type="text" id="bs-dpn" maxlength="120" value="'+esc(d.paste.name)+'" aria-label="Name"></div>'
+    +'<textarea id="bs-dpt" class="bs-dta" rows="4" placeholder="Paste your notes here" aria-label="Text to add">'+esc(d.paste.text)+'</textarea>'
+    +'<div class="bs-act"><span class="bs-sp"></span><button type="button" class="bs-btn" data-a="d-pastex">Cancel</button><button type="button" class="bs-btn pri" data-a="d-pasteok"'+(d.busy?' disabled':'')+'>Add</button></div></div>';
   if(d.drv&&d.drv.available&&!phone()) h+='<button type="button" class="bs-btn bs-ddrive" data-a="d-drive"'+(d.busy?' disabled':'')+'>'+IC.doc+'Add from Drive</button><span class="bs-hint bs-ddh">Pick Google Docs, PDF or Word files. Bass sees only the files you pick.</span>';
   if(d.msg) h+='<div class="bs-alert">'+IC.warn+'<div><p>'+esc(d.msg)+'</p></div></div>';
   var mine=lib.files.filter(function(f){ return f.scope===sel; });
@@ -147,7 +152,7 @@ function usingView(){ var u=S.using;
   return h+'</div>'; }
 function addDocFiles(list){ var d=dk(), sid=d.sel; if(!sid) return;
   Array.prototype.forEach.call(list||[],function(f){ var n=f.name, isT=/\.(txt|md|markdown|csv)$/i.test(n)||/^text\//.test(f.type);
-    if(!isT&&f.size>FMAX){ d.msg=DMSG.upload_too_big; draw(); return; }
+    if(!isT&&f.size>FMAX){ d.msg=/\.pdf$/i.test(n)?DMSG.upload_too_big_pdf:DMSG.upload_too_big; draw(); return; }
     var r=new FileReader(); r.onload=function(){ var v=String(r.result||''), args={op:'add',scope_id:sid,name:n};
       if(isT) args.text=v.slice(0,DCH+1); else { var i=v.indexOf(','); args.file_b64=i>=0?v.slice(i+1):''; }
       dOp(args,function(res){ var put=window.AltoCloud&&window.AltoCloud.putBassOriginal; if(put&&res.file&&res.file.path){ try{ put(res.file.path,f,f.type||'application/octet-stream'); }catch(e){} } }); };
@@ -188,6 +193,11 @@ function docsClick(t,a){
   if(a==='d-open') openDocs();
   else if(a==='d-close') closeDocs();
   else if(a==='d-drive') drivePick();
+  else if(a==='d-paste'){ d.paste=d.paste?null:{name:'Pasted notes.txt',text:''}; d.msg=null; draw(); var ta=root&&root.querySelector('#bs-dpt'); if(ta){ ta.focus(); try{ ta.closest('.bs-dpbox').scrollIntoView({block:'nearest'}); }catch(e){} } }
+  else if(a==='d-pastex'){ d.paste=null; draw(); }
+  else if(a==='d-pasteok'){ var pn=((root.querySelector('#bs-dpn')||{}).value||'').trim()||'Pasted notes.txt', pt=(root.querySelector('#bs-dpt')||{}).value||'';
+    if(!/\.(txt|md|markdown|csv|text)$/i.test(pn)) pn=pn.slice(0,116)+'.txt';
+    d.paste={name:pn,text:pt}; dOp({op:'add',scope_id:d.sel,name:pn,text:pt.slice(0,DCH+1)},function(){ d.paste=null; }); }
   else if(a==='d-tog'){ d.open[v]=!d.open[v]; draw(); }
   else if(a==='d-sel'){ if(d.sel===v&&!d.open[v]) d.open[v]=true; d.sel=v; d.menu=null; d.msg=null; draw(); }
   else if(a==='d-pick'){ d.sel=t.value; d.menu=null; d.msg=null; draw(); }
@@ -234,6 +244,11 @@ DOCS_CSS = r"""
 .bs-dnew{display:flex;flex-direction:column;gap:6px;padding:6px 4px}
 .bs-dsel{min-height:36px;border:1px solid var(--bs-bd);border-radius:var(--bs-rad);background:var(--bs-glass);color:var(--bs-ink);font:inherit;font-size:13px;padding:0 8px;max-width:100%}
 .bs-dpick,.bs-dnewp,.bs-dnewm{display:none}
+.bs-dpaste{align-self:flex-start}
+.bs-dpbox{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--bs-bd);border-radius:var(--bs-rad);background:var(--bs-glass);flex-shrink:0}
+.bs-dta{width:100%;box-sizing:border-box;min-height:96px;height:110px;resize:vertical;border:1px solid var(--bs-bd);border-radius:var(--bs-rad);background:transparent;color:var(--bs-ink);font:inherit;font-size:13.5px;padding:8px 10px}
+.bs-dpbox .bs-act{position:sticky;bottom:0;z-index:1;background:var(--bs-bg);margin:0 -10px -10px;padding:8px 10px;border-top:1px solid var(--bs-bd);border-radius:0 0 var(--bs-rad) var(--bs-rad)}   /* Add / Cancel stay in view whatever the window height */
+.bs-dta:focus-visible{outline:2px solid var(--bs-acc);outline-offset:1px}
 .bs-dmain{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:10px;min-width:0}
 .bs-dt{display:flex;align-items:center;gap:6px}
 .bs-hint{margin:0;color:var(--bs-mut);font-size:12.5px}

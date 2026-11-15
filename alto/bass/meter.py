@@ -131,11 +131,25 @@ class Estimate:
 def estimate_action(model: str, first_input_tokens: int, output_per_turn: int, turns: int = 1,
                     growth_per_turn: int | None = None) -> Estimate:
     """A planned multi-turn action: every turn re-sends the history, so input grows by what each turn added
-    (its output plus the tool results; `growth_per_turn` defaults to 2x the output)."""
+    (its output plus the tool results; `growth_per_turn` defaults to 2x the output).
+
+    The shown number prices what the action really bills: the first turn writes the prompt (documents, instructions) into the cache at the
+    cache-write rate; every later turn reads that prefix back at the cache-read rate and pays the full input rate only for what the turns
+    added. It never shows more than the per-action cap (the engine stops an action at the cap anyway). Holds (worst_turn), the cap, the
+    allowance check and the notice threshold are not touched by this: they stay as they were."""
     grow = 2 * output_per_turn if growth_per_turn is None else growth_per_turn
     total = 0
     for t in range(max(1, turns)):
-        total += estimate_turn(model, first_input_tokens + t * grow, output_per_turn)
+        n = first_input_tokens + t * grow
+        r = rate_for(model, n)
+        if turns <= 1:
+            inp = n * r.inp                          # one call: nothing is read back, so nothing is priced as cached
+        elif t == 0:
+            inp = n * r.cache_write
+        else:
+            inp = first_input_tokens * r.cache_read + (n - first_input_tokens) * r.inp
+        total += _mc((inp + output_per_turn * r.out) / 1_000_000)
+    total = min(total, P.PER_ACTION_CAP_CREDITS * P.MC)
     return Estimate(total, max(1, turns), total > P.ESTIMATE_THRESHOLD_CREDITS * P.MC)
 
 

@@ -22,7 +22,7 @@ from .beta_config import BetaConfig, _norm
 from .beta_ledger import BASS_TESTERS_KEY, KILL_KEY, BetaLedger
 from .beta_limits import InFlight, SlidingLimiter, client_ip
 from .beta_store import StoreError
-from .errors import POLICIES, Policy
+from .errors import POLICIES, Policy, too_big_message
 from .documents import DocsError, Library, refusal as docs_refusal
 from .extract import Extractor, UploadRefused
 from .drive import DriveService
@@ -336,6 +336,10 @@ def _answer(code: str, status: str, **extra) -> dict:
     return out
 
 
+def _pdf_big(code: str, names) -> dict:
+    return {"message": too_big_message(names)} if code == "upload_too_big" else {}
+
+
 class BetaService:
     def __init__(self, cfg: BetaConfig, actions, ledger: BetaLedger, *, store, kill: KillSwitch, allow: Allowlist,
                  sink: AlertSink, clock: Callable[[], dt.datetime], metalog: MetaLog | None = None, extractor=None, blobs=None,
@@ -447,7 +451,8 @@ class BetaService:
                     self.extractor.prepare((body.get("args") or {}).get("materials") if isinstance(body.get("args"), dict) else None)
                 except UploadRefused as e:
                     self.meta.write(uid=uid, action=action, status="refused", code=e.code)
-                    return _answer(e.code, "refused", retryable=False)
+                    mats = (body.get("args") or {}).get("materials") if isinstance(body.get("args"), dict) else None
+                    return _answer(e.code, "refused", retryable=False, **_pdf_big(e.code, [m.get("name") for m in mats if isinstance(m, dict)] if isinstance(mats, list) else []))
             if action in SCOPED:
                 refused = self._scope_documents(uid, body)
                 if refused:
@@ -480,7 +485,7 @@ class BetaService:
         try:
             return self.library.handle(uid, args)
         except UploadRefused as e:
-            return _answer(e.code, "refused", retryable=False)
+            return _answer(e.code, "refused", retryable=False, **_pdf_big(e.code, [args.get("name")] if isinstance(args, dict) else []))
 
     def _drive(self, uid: str, args) -> dict:
         try:
