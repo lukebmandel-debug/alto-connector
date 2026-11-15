@@ -267,3 +267,36 @@ def test_m3_the_estimate_never_feeds_a_hold_or_the_cap(tmp_path, monkeypatch):
     assert s.svc.handle(req({"action": "propose", "args": {"materials": [{"name": "n", "kind": "notes", "text": "Duty. Breach."}]}}))["ok"]
     assert holds == base and all(w == m for m, w in holds)                       # holds are worst_turn, not the estimate
     assert s.engine.cfg.per_action_cap_mc == s.cfg.per_action_cap_mc == 300 * P.MC
+
+
+def test_m4_hosted_after_a_300_action_the_next_is_capped_by_the_100_left_never_overdrawn(tmp_path, monkeypatch):
+    g, p, store, t = rig(tmp_path)
+    _worst_usage(monkeypatch, p.mock)
+    c = _big_library(lambda op, **a: docs(g, t, op, **a))
+    cfg = hosted_config()
+    assert cfg.per_action_cap_mc == 300 * P.MC and cfg.tester_period_credits == 400
+    post(g, {"action": "balance", "args": {}})
+    used = []
+    for _ in range(4):
+        p.mock.use(_forty_turns())
+        before = p.ledger.balance_mc(LUKE)
+        t[0] += dt.timedelta(minutes=2)
+        post(g, build_req(scope_id=c, materials=[]))
+        used.append(before - p.ledger.balance_mc(LUKE))
+        assert p.ledger.balance_mc(LUKE) >= 0
+        if used[-1] == 0:
+            break
+    assert used[0] <= 300 * P.MC and sum(used) <= 400 * P.MC, used
+    assert len(used) < 2 or used[1] <= 400 * P.MC - used[0], used            # the next action only ever gets what is left
+
+
+def test_m5_hosted_estimate_clamps_to_the_engines_own_cap_and_158k_value(tmp_path):
+    g, p, store, t = rig(tmp_path)
+    e = p.service.actions.engine
+    assert e.cfg.per_action_cap_mc == 300 * P.MC
+    n = 158_361 // 4
+    est = e.estimate("build", n)
+    print("EST158k", est.mc / P.MC, est.turns, est.show_prompt)
+    assert est.mc <= 300 * P.MC
+    e.cfg.per_action_cap_mc = 50 * P.MC
+    assert e.estimate("build", n).mc <= 50 * P.MC

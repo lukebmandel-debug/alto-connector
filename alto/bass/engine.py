@@ -159,7 +159,7 @@ class Engine:
         """What to tell the student before a big action ("about N credits"), shown when N > the threshold."""
         turns = {"build": 12, "edit": 3, "chat": 1}.get(kind, 3)
         out = self.cfg.build_max_tokens // 4 if kind == "build" else self.cfg.chat_max_tokens
-        return meter.estimate_action(self.cfg.model_for(kind), first_input_tokens, out, turns)
+        return meter.estimate_action(self.cfg.model_for(kind), first_input_tokens, out, turns, cap_mc=self.cfg.per_action_cap_mc)
 
     def claim(self, action_id: str, uid: str) -> None:
         """Record who owns an action id from the moment its id is handed out (before the first turn runs), so that account's
