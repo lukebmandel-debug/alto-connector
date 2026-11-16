@@ -157,7 +157,7 @@ function lead(u, n){ return n.out>=2 || n===u.first || n.id===here; }
 /* ── a tile ── */
 function head(u){
   var h=el('button', 'ix-hd'); h.type='button'; h.setAttribute('aria-expanded', openI===u.k ? 'true' : 'false');
-  h.appendChild(el('span', 'ix-num', u.m.numeral||String(u.k+1)));
+  h.appendChild(el('span', 'ix-num un-n', window._altoU(u.k+1, u.m.numeral ? 'roman' : 'numbers')));
   var t=nice(u.m), nm=el('span', 'ix-name'+(t.length>34 ? ' long' : ''), t); h.appendChild(nm);
   if(here && BY[here] && BY[here].u===u) nm.appendChild(el('span', 'ix-flag', 'You are here'));
   var pn=0, pd=0; if(PL) u.nodes.forEach(function(n){ var p=PL[n.id]; if(p){ pn++; if(p.d>=p.n) pd++; } });
@@ -168,7 +168,7 @@ function head(u){
 function dot(n){ var d=el('i', 'ix-dot'), s=state(n); if(s) d.classList.add('is-'+s); return d; }
 function chip(l, out, full){
   var o=out ? l.b : l.a, c=el('button', 'ix-chip'); c.type='button'; c.dataset.u=o.u.k; c.dataset.j=o.id; c.style.setProperty('--rc', relCol(l));
-  var num=o.u.m.numeral||String(o.u.k+1), me=out ? l.a : l.b;
+  var num=window._altoU(o.u.k+1, o.u.m.numeral ? 'roman' : 'numbers'), me=out ? l.a : l.b;
   c.textContent=(full ? me.t+' ' : '')+(out ? '→ ' : '← ')+num+' '+o.t; return c;
 }
 function beside(u, v){ var d=v.k-u.k; return Math.abs(d)===1 && (!land() || Math.floor(u.k/2)===Math.floor(v.k/2)); }

@@ -383,7 +383,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       var te = cl.querySelector('.node-title');
       items[i].title = te ? te.textContent.replace(/\s+/g, ' ').trim() : '';
       var refs = Object.keys(see[items[i].id] || {}).sort(function(a, b){ return idx[a] - idx[b]; })
-        .map(function(k){ return num[k] || ''; }).filter(Boolean);
+        .map(function(k){ return num[k] ? window._altoP(num[k]) : ''; }).filter(Boolean);
       if(refs.length){
         var sd = document.createElement('div'); sd.className = 'ink-see'; sd.textContent = 'See also ' + refs.join(', ');
         cl.appendChild(sd);
@@ -471,7 +471,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
         var a = result.cols[k][0], b = result.cols[k][1], x0 = c * (Wl + gapL), y = 0;
         if(d[a] > 0){                                                   // this column starts inside a branch: say which
           var chain = [], q = items[a].p;
-          while(q){ chain.unshift((num[q] ? num[q] + ' ' : '') + items[idx[q]].title); q = items[idx[q]].p; }
+          while(q){ chain.unshift((num[q] ? window._altoP(num[q]) + ' ' : '') + items[idx[q]].title); q = items[idx[q]].p; }
           var cr = document.createElement('div'); cr.className = 'ink-crumb';
           cr.textContent = chain.join('  ›  ') + '  (continued)';
           cr.style.cssText = 'left:' + x0 + 'px;top:0;width:' + Wl + 'px;height:' + FL.HDR + 'px;';

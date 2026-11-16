@@ -121,7 +121,7 @@ MATCH_JS = r"""
   function score(Q,item,opt){
     if(!Q.toks.length) return null;
     /* a card's number ("1.4", "I.A.1") is only ever the whole query */
-    var qnum=Q.raw.replace(/[.\s]+$/,'');
+    var qnum=Q.raw.replace(/[.\s]+$/,''); if(window._altoUN) qnum=window._altoUN.arabic(qnum);
     for(var nf=0;nf<item.fields.length;nf++){
       var NF=item.fields[nf]; if(!NF.num) continue;
       var ns=norm(NF.text).split(/\s+/).map(function(x){ return x.replace(/\.+$/,''); });
@@ -400,7 +400,7 @@ TIMELINE_SEARCH_JS = r"""
       body='<span class="sr-full">'+M.snippet(r.fields[1].text,Q,700)+'</span>';
     }
     return '<button type="button" class="search-result sr-rich" '+attr+'="'+i+'"><span class="sr-head"><span class="sr-kind">'+M.esc(r.kind)+'</span>'
-      +(r.num?'<span class="sr-num">'+M.esc(r.num)+'</span>':'')+'<span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
+      +(r.num?'<span class="sr-num">'+M.esc(window._altoP ? window._altoP(r.num) : r.num)+'</span>':'')+'<span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
       +(meta.length?'<span class="sr-meta">'+meta.map(M.esc).join(' · ')+'</span>':'')+body+'</button>';
   }
 
@@ -691,8 +691,8 @@ function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._al
 if(K===k)return;K=k;
 var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g):n,t='Back to the '+(/^Memory/.test(n)?n:n.toLowerCase());window._altoFB=function(){return h};
 set('#desk-back .db-label',function(e){e.textContent='Back'});
-/* a phone: back to the timeline is one symbol, the format's own (Luke, 2026-10-24: "I don't like that you have two symbols in back to timeline") */
-set('#drawer-timeline-btn .drawer-icon',function(e){e.innerHTML=h});set('#drawer-timeline-btn .drawer-label',function(e){e.innerHTML=''});
+/* a phone: back to the timeline is one symbol, the format's own (Luke, 2026-10-24: "I don't like that you have two symbols in back to timeline"), with its name under it like the other tiles (2026-11-13: the first tile had no label) */
+set('#drawer-timeline-btn .drawer-icon',function(e){e.innerHTML=h});set('#drawer-timeline-btn .drawer-label',function(e){e.textContent=t});
 set('#desk-back,#drawer-timeline-btn,#detail-back-fixed',function(e){e.setAttribute('aria-label',t);if(e.id=='desk-back')e.title=t});
 var ph=H.classList.contains('mobile')||H.classList.contains('phone-whole');
 set('#nav-timeline',function(e){e.innerHTML=(ph?'':'\u21a9 ')+h;e.setAttribute('aria-label',t);e.title=t});

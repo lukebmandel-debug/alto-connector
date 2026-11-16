@@ -28,6 +28,45 @@ def url() -> str:
     return u if _URL_RE.fullmatch(u) and not _NAMED.search(u) else ""
 
 
+KEEP_ENV = "ALTO_KEEP_HOOK"
+DEPLOYED_PIN_FILE_ENV = "ALTO_EXT_DEPLOYED_PIN_FILE"
+DEFAULT_DEPLOYED_PIN_FILE = "~/.alto-work/altoext-deployed-pin.txt"
+_REPO = Path(__file__).resolve().parents[2]
+
+
+def deployed_pins(environ=None) -> list:
+    """The pins the deployed function is known to serve: the lines of the record file OUTSIDE this repo (default ~/.alto-work/altoext-deployed-pin.txt, or
+    ALTO_EXT_DEPLOYED_PIN_FILE), written by the altoext redeploy seat after a verified deploy. [] when the file is missing or unreadable, or when its path
+    resolves inside the repo (a record the tree itself could re-pin proves nothing)."""
+    env = os.environ if environ is None else environ
+    try:
+        path = Path(env.get(DEPLOYED_PIN_FILE_ENV) or DEFAULT_DEPLOYED_PIN_FILE).expanduser().resolve()
+        if path == _REPO or _REPO in path.parents:
+            return []
+        return [ln.strip() for ln in path.read_text("utf-8").splitlines() if ln.strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def keep_url(environ=None) -> str:
+    """What the luke-alto publish step may set as ALTO_EXT_URL so a release that does not touch the extension does not take it away.
+    "" unless ALL of: the release seat set ALTO_KEEP_HOOK=1; ALTO_EXT_URL is a good address; the committed pin is well formed; the bundle this tree
+    would serve has that pin; AND the deployed-pin record (a FILE outside the repo, see deployed_pins) lists it. The tree's bundle and its ext_pin.txt are
+    re-pinned together, so they alone prove nothing about what altoext serves. It reads no network, no Firestore and no account: live_go is the release
+    seat's own decision, passed by the flag (tools/keep_hook.py prints the line to export)."""
+    env = os.environ if environ is None else environ
+    if env.get(KEEP_ENV, "").strip() != "1":
+        return ""
+    u = env.get(ENV, "").strip()
+    if not (_URL_RE.fullmatch(u) and not _NAMED.search(u)) or not pin()[0]:
+        return ""
+    tree = PIN_FILE.read_text("utf-8").strip()
+    if tree not in deployed_pins(env):
+        return ""
+    from ..build import bass_hosted_ext
+    return u if bass_hosted_ext.pin() == tree else ""
+
+
 def origin() -> str:
     u = url()
     return re.match(r"https://[^/]+", u).group(0) if u and pin()[0] else ""

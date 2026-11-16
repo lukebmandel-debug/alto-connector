@@ -39,6 +39,7 @@ NEW_UNIT = re.compile(r"^unit-[a-z0-9]{4,12}$")
 CHIP_ATTR = {"chars": "entity_ids", "envs": "axis1_values", "themes": "axis2_values"}
 NEW_TREE = re.compile(r"^(n|c|a0|a1)-(.+)-(new-[a-z0-9]+)$")
 FILE_ID = re.compile(r"^file-[a-z0-9]{6,12}$")
+from .drive_common import GD_KEY, _ID as DRIVE_ID, clean_name as _drive_name  # noqa: E402  (neutral: no alto.bass)
 PROV_KEYS = ("quoted", "notes", "summary")
 # A solar outline (layout 'solar') is drawn sun > planets > moons > satellites:
 # four levels, so a card sits at most three below its unit's hub. Where it sits
@@ -94,6 +95,8 @@ class _Back(HTMLParser):
                 href = "src:" + a["data-src"]
             if FILE_ID.match(a.get("data-file") or ""):
                 href = "src:" + a["data-file"]
+            if GD_KEY.match(a.get("data-gdrive") or "") and DRIVE_ID.match(a.get("data-gdrive-id") or ""):
+                href = "src:" + a["data-gdrive"]
             keep = [("href", href)] + ([("title", a["title"])] if a.get("title") else [])
             self.out.append(f"<a{self._attrs(keep)}>")
             self.stack.append(["a", "a"])
@@ -153,6 +156,26 @@ class _Files(HTMLParser):
             self.out.setdefault(a["data-file"], {
                 "id": a["data-file"], "name": (a.get("data-file-name") or "").strip(),
                 "size": num(a.get("data-file-size")), "mod": num(a.get("data-file-mod"))})
+
+
+class _Drives(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out = {}
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "a" and GD_KEY.match(a.get("data-gdrive") or "") and DRIVE_ID.match(a.get("data-gdrive-id") or ""):
+            self.out.setdefault(a["data-gdrive"], {"id": a["data-gdrive"], "kind": "drive", "drive_id": a["data-gdrive-id"],
+                                                   "name": _drive_name(a.get("data-file-name")), "share": a.get("data-gdrive-share") == "1"})
+
+
+def drives_in(markup) -> list:
+    """The Drive chips a page value holds (drive_common): [{id, kind:'drive', drive_id, name, share}]. A reference only."""
+    p = _Drives()
+    p.feed(markup or "")
+    p.close()
+    return list(p.out.values())
 
 
 def files_in(markup) -> list:
@@ -225,8 +248,8 @@ class _View:
         self.node_ids = {n.id for n in self.ns}
 
     def sources(self):
-        from .build.sanitize import SourceMap
-        return SourceMap(self.b.source_docs)
+        from .build.sanitize import source_map
+        return source_map(self.b)
 
     def owner(self, kind, oid):
         if kind == "n":
@@ -667,6 +690,15 @@ def fold(store, uid, tid) -> "dict | None":
         """Every file the value links to is known, or found on this computer
         and added to linked_files. False: one could not be found (the edit
         waits, still shown on the page that made it)."""
+        # A Drive chip is a reference: recorded as it is, no lookup, nothing fetched, nothing read (drive_common).
+        for dv in drives_in(v):
+            have = next((f for f in brief.get("linked_files") or [] if isinstance(f, dict) and f.get("id") == dv["id"]), None)
+            if have is None:
+                brief["linked_files"] = list(brief.get("linked_files") or []) + [dv]
+                touched["brief"] = True
+            elif have.get("share") is not dv["share"] and have.get("kind") == "drive":     # only the share flag can change; the stored name stays
+                brief["linked_files"] = [{**f, "share": dv["share"]} if (isinstance(f, dict) and f.get("id") == dv["id"]) else f for f in brief["linked_files"]]
+                touched["brief"] = True
         need = [f for f in files_in(v) if f["id"] not in known_sources()]
         found = []
         for f in need:

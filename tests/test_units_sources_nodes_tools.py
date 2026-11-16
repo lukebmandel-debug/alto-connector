@@ -112,3 +112,35 @@ def test_get_nodes_filters_and_compact_timeline():
     full, small = srv.get_timeline(tid), srv.get_timeline(tid, compact=True)
     assert small["node_ids"] == full["node_ids"]
     assert len(json.dumps(small)) <= len(json.dumps(full))
+
+
+# ── unit numbers, Roman or arabic (unit_numbers.py) ─────────────────────────
+
+def test_unit_numbers_is_set_alone_and_kept_in_the_brief():
+    import time
+    from alto.build.builder import build_timeline, load_brief
+    tid = _draft()
+    before = srv.get_nodes(tid)["nodes"]
+    t0 = int(time.time() * 1000)
+    r = srv.set_units(tid, unit_numbers="numbers")
+    assert r["ok"] and r["unit_numbers"] == "numbers"
+    b = srv.get_timeline(tid)["brief"]
+    assert b["unit_numbers"] == "numbers" and b["unit_numbers_at"] >= t0
+    assert [a["label"] for a in b["acts"]] == [a["label"] for a in OUTLINE["brief"]["acts"]]
+    assert _strip(srv.get_nodes(tid)["nodes"]) == _strip(before)
+    # the page carries it as the brief's choice, with its time
+    fresh = json.loads((ROOT / "samples" / "outline_brief.json").read_text(encoding="utf-8"))
+    html = build_timeline(*load_brief({**fresh, "brief": {**fresh["brief"], "unit_numbers": b["unit_numbers"],
+                                                          "unit_numbers_at": b["unit_numbers_at"]}}))[0]
+    assert '"v": "numbers", "t": %d' % b["unit_numbers_at"] in html
+    r = srv.set_units(tid, update=[{"act": 0, "label": "RENAMED"}], unit_numbers="roman")
+    assert r["ok"]
+    b = srv.get_timeline(tid)["brief"]
+    assert b["unit_numbers"] == "roman" and b["acts"][0]["label"] == "RENAMED"
+
+
+@pytest.mark.parametrize("bad", ["Roman", "arabic", "", 1])
+def test_unit_numbers_takes_only_its_two_choices(bad):
+    tid = _draft()
+    assert srv.set_units(tid, unit_numbers=bad)["error"] == "invalid_units"
+    assert "unit_numbers" not in srv.get_timeline(tid)["brief"]

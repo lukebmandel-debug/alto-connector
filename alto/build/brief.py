@@ -245,6 +245,7 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
                   "custom")
 
 MODES = ("linear", "outline", "lanes", "palace")
+UNIT_NUMBERS = ("", "roman", "numbers")
 LAYOUTS = ("auto", "tree", "flow", "solar")
 TREE_LINES = ("fan", "trunk")
 # A System's two looks of the same content and the same geometry (an
@@ -480,6 +481,13 @@ class Brief:
     # else. False keeps the older page for a timeline whose authored sections
     # already restate every card in full.
     card_on_detail: bool = True
+    # How unit numbers are written (unit_numbers.py): "roman" (I, II, III),
+    # "numbers" (1, 2, 3) or "" (never chosen: each format keeps its own look,
+    # Roman band numerals and arabic card / outline numbers). Only the unit
+    # level changes: Roman gives "X.a.1", numbers "10.a.1". unit_numbers_at is
+    # when it was set (ms), so the newer of it and a choice made in the page wins.
+    unit_numbers: str = ""
+    unit_numbers_at: int = 0
     # The study companion (guide §G): {name, prompt}. Not rendered on any page;
     # get_timeline hands it back so the conversation that picks the timeline up
     # again speaks as it. Its prompt must restate the closed-system rule.
@@ -597,6 +605,7 @@ def _check_refs(refs, doc_ids, what, warnings) -> None:
 # A source's copy on the author's own computer: absolute (POSIX or a Windows
 # drive) or under ~. No control characters, no URL schemes — it becomes a
 # file:// URL only at click time, inside a copy opened from disk.
+from ..drive_common import _ID as _DRIVE_ID  # noqa: E402
 LOCAL_PATH = re.compile(r"^(?:/|~/|[A-Za-z]:[\\/])[^\x00-\x1f]{1,1000}$")
 
 
@@ -620,6 +629,15 @@ def _check_linked_files(b) -> None:
         raise BriefError(f"linked_files: a list of at most {MAX_LINKED_FILES}")
     seen = set()
     for f in b.linked_files:
+        if isinstance(f, dict) and f.get("kind") == "drive":      # a reference to a Drive file (drive_common): {id, kind, drive_id, name, share}
+            if set(f) - {"id", "kind", "drive_id", "name", "share"} or not _DRIVE_ID.match(f.get("drive_id") or "") or not isinstance(f.get("share"), bool):
+                raise BriefError("linked_files: a Drive entry is {id, kind:'drive', drive_id, name, share}")
+            _check_id(f.get("id", ""), "linked file")
+            if f["id"] in seen:
+                raise BriefError(f"linked_files: duplicate id {f['id']!r}")
+            seen.add(f["id"])
+            _check_len(f.get("name", ""), "name", f"linked file {f['id']} name")
+            continue
         if not isinstance(f, dict) or set(f) - {"id", "name", "local"}:
             raise BriefError("linked_files: each is {id, name, local}")
         _check_id(f.get("id", ""), "linked file")
@@ -711,6 +729,10 @@ def validate_brief(b: Brief) -> list[str]:
         raise BriefError(f"tree_lines {b.tree_lines!r}: must be one of {TREE_LINES}")
     if b.outcomes not in OUTCOME_LAYOUTS:
         raise BriefError(f"outcomes {b.outcomes!r}: must be one of {OUTCOME_LAYOUTS}")
+    if b.unit_numbers not in UNIT_NUMBERS:
+        raise BriefError(f"unit_numbers {b.unit_numbers!r}: must be one of {UNIT_NUMBERS[1:]}")
+    if not isinstance(b.unit_numbers_at, int) or isinstance(b.unit_numbers_at, bool) or b.unit_numbers_at < 0:
+        raise BriefError("unit_numbers_at: must be a whole number of milliseconds")
     if b.outcomes == "beside" and b.mode != "outline":
         raise BriefError("outcomes 'beside' needs mode 'outline': outcomes are "
                          "the leaves of an outline's tree")

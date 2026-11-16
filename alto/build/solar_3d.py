@@ -449,6 +449,7 @@ function frame(){
   for(var k=0;k<4;k++){ VPm[k*4]+=cam.ox*VPm[k*4+3]; VPm[k*4+1]+=cam.oy*VPm[k*4+3]; }         /* (the lens shifted: the aim drawn where the disc is) */
   /* close up, what fades: judged against the enlarged body (the one left, on the way out), coming in with the dive; "larger" against the disc it is diving to */
   var fi=LK ? LK.id : tw && tw.leave, gf=fi && G.bodies[fi], qf=gf && proj(W(gf)), pt=tw ? Math.min(1, (now-tw.t0)/tw.ms) : 1;
+  dimRefresh(G, now);
   FC=qf ? {id:fi, par:gf.p && G.bodies[gf.p] && G.bodies[gf.p].role!=='sun' ? gf.p : null, x:qf.x, y:qf.y, w:qf.w, rp:gf.d/2*qf.s, rd:LK && cin.rp || gf.d/2*qf.s, k:LK ? (tw && !tw.leave ? sm(.1, .5, pt) : 1) : 1-sm(0, .45, pt)} : null;
   gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -570,6 +571,10 @@ function dis(p){ Object.keys(p.a).forEach(function(k){ if(p.a[k]>=0) gl.disableV
 /* close up, a body nearer the camera than the enlarged one (where it would cover it), larger on screen than its disc, nearly as large and beside it, or over the disc at all, fades;
    its parent planet only when it is nearer the camera and over the disc (Luke, 2026-10-30: "When coming into orbit of something, the parent planet disappears") */
 var FC=null;
+/* a filter on: what it hides is drawn dim (Art, 2026-11-01: the body at 15% with no glow, its orbit and name at 15%; the same _altoShown the arrow keys ask) */
+var DM={}, DMT=0, DIMA=.08;   /* (a hidden body's one alpha: its lit colour runs bright, so .08 reads as about 15% of the way from the sky to the body; its name goes) */
+function dimRefresh(G, now){ if(now-DMT<150) return; DMT=now; var on=!!(window._altoFilterOn && window._altoShown && window._altoFilterOn());
+  Object.keys(G.bodies).forEach(function(id){ DM[id]=on && !window._altoShown(id); }); }
 function fade(id, q, rp){ if(!FC || id===FC.id || !q) return 1;
   var d=Math.hypot(q.x-FC.x, q.y-FC.y), k=rp/FC.rd, a=id===FC.par ? sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, d)) : Math.max(sm(.9, 1.2, k), sm(.65, .9, k)*(1-sm(rp+FC.rd*.9, rp+FC.rd*1.5, d)), 1-sm(rp+FC.rd*.85, rp+FC.rd*1.1, d), sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, d)));
   return 1-a*FC.k; }
@@ -592,7 +597,7 @@ function spheres(G){
     var hm=o.thi ? sm(0, 500, performance.now()-o.h0)*sm(30, 70, rp) : 0;            /* (no mipmaps: only while the body is big) */ gl.uniform1f(p.u.hm, hm);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, o.thi || o.tex || P.nz); gl.uniform1i(p.u.th, 2);
     gl.drawElements(gl.TRIANGLES, M.n, gl.UNSIGNED_SHORT, 0); }
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(!o) return; var q=proj(W(g)), rp=q ? g.d/2*q.s : 0; o.fa=fade(id, q, rp);
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(!o) return; var q=proj(W(g)), rp=q ? g.d/2*q.s : 0; o.fa=fade(id, q, rp); o.dm=!!DM[id]; if(o.dm) o.fa*=DIMA;
     if(MK[o.kind] || (q && rp<.4) || o.fa<.01) return; if(o.fa<.999) LT.push(id); else one(id); });
   gl.enable(gl.BLEND); if(LT.length){ gl.depthMask(false); LT.forEach(one); gl.depthMask(true); }      /* (the fading ones last, over the rest) */
   dis(p);
@@ -649,7 +654,7 @@ function fx(G, now){
 /* an atmosphere's halo past the globe's edge, brightest on its sun's side (a quad facing the eye at the globe's centre: the globe hides its inner part) */
 function halos(G){
   var p=P.h; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); attr(p, 'q', P.q4, 2); gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE);
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], k=o && KD[o.kind]; if(!k || !k[1] || !(o.fa>.01)) return; var C=W(g), q=proj(C), R=g.d/2; if(!q || R*q.s<3) return;
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], k=o && KD[o.kind]; if(!k || !k[1] || !(o.fa>.01) || o.dm) return; var C=W(g), q=proj(C), R=g.d/2; if(!q || R*q.s<3) return;
     var vz=sub(EYE, C), Dc=Math.hypot(vz[0], vz[1], vz[2]); if(Dc<=R*1.01) return; vz=nrm(vz);
     var X=crs([0, 1, 0], vz); X=Math.hypot(X[0], X[1], X[2])<1e-3 ? [1, 0, 0] : nrm(X); var Y=crs(vz, X), s=sunOf(G, id);
     gl.uniform3fv(p.u.C, C); gl.uniform3fv(p.u.X, X); gl.uniform3fv(p.u.Y, Y); gl.uniform1f(p.u.S, R*Dc/Math.sqrt(Dc*Dc-R*R));
@@ -661,7 +666,7 @@ function glows(G){
   gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE);
   function put(g, K, S, a){ gl.uniform3fv(p.u.C, W(g)); gl.uniform3fv(p.u.K, K); gl.uniform1f(p.u.S, S); gl.uniform1f(p.u.a, a); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
   /* a sun's bloom; a black hole's ring of light (its horizon hides the middle); a comet's coma; a satellite or station too small to see, a coloured glint */
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]||{}, f=o.fa==null ? 1 : o.fa, q;
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]||{}, f=o.fa==null ? 1 : o.fa, q; if(o.dm) return;
     if(o.kind==='blackhole'){ put(g, [1, .55, .25], g.d*1.5, .6*f); return; }
     if(o.kind==='comet'){ put(g, [.55, .8, 1], g.d*2.6, .35*f); return; }
     if(MK[o.kind] && (q=proj(W(g)))){ var rp=g.d/2*q.s; if(rp<8) put(g, o.kind==='sat' ? [1, .8, .45] : [.75, .85, 1], Math.max(g.d*.8, 7/q.s), .55*(1-sm(3, 8, rp))*f); return; }
@@ -677,7 +682,7 @@ function lines(G){
   LINES=[]; var seen={};
   Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], pa=g.p && G.bodies[g.p]; if(!pa) return; var rr=Math.hypot(g.x-pa.x, g.y-pa.y), k=g.p+'|'+Math.round(rr/2), col=U[g.si]||[.62,.7,1];
     if(seen[k]){ seen[k].ids.push(id); return; }
-    var a=g.role==='planet' ? .42 : .26; if(hot[id]) a=.9;
+    var a=g.role==='planet' ? .42 : .26; if(hot[id]) a=.9; if(DM[id]) a*=.15;
     gl.uniform3fv(c.u.C, W(pa)); gl.uniform1f(c.u.r, rr); gl.uniform4fv(c.u.K, [col[0]*.8+.2, col[1]*.8+.2, col[2]*.8+.2, a]); gl.drawArrays(gl.LINE_STRIP, 0, 129);
     var pts=[]; for(var i=0;i<=32;i++){ var w=i/32*Math.PI*2; pts.push(proj([pa.x+Math.cos(w)*rr, 0, pa.y+Math.sin(w)*rr])); }
     var L={id:id, ids:[id], pts:pts, line:1}; L.tip='Orbit of '+((BOD[g.p]||{}).name||''); seen[k]=L; LINES.push(L); });
@@ -685,7 +690,7 @@ function lines(G){
     gl.uniform3fv(c.u.C, W(s)); gl.uniform1f(c.u.r, u.R+40); gl.uniform4fv(c.u.K, [col[0], col[1], col[2], .5]); gl.drawArrays(gl.LINE_STRIP, 0, 129); });
   dis(c);
   var v=[], k=[], l=P.l; Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], pa=g.p && G.bodies[g.p]; if(!pa) return; var h=hot[id] || hot[g.p] && window._focusedNodeId===id;
-    v.push(pa.x, 0, pa.y, g.x, 0, g.y); var a=h ? .95 : .34; k.push(.75, .82, 1, a, .75, .82, 1, a);
+    v.push(pa.x, 0, pa.y, g.x, 0, g.y); var a=h ? .95 : .34; if(DM[id]) a*=.15; k.push(.75, .82, 1, a, .75, .82, 1, a);
     LINES.unshift({sp:[g.p, id], pts:[proj(W(pa)), proj(W(g))], line:1, tip:((BOD[g.p]||{}).name||'')+' — '+((BOD[id]||{}).name||'')}); });
   /* a flight's charted course ahead of the craft, faint (solar_fly.py's path: where the craft will be, so it leads a
      moving moon to where it will meet it), plainer as it sets off */

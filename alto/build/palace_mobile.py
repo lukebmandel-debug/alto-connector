@@ -226,7 +226,7 @@ function pmCard(p){ var h='', ic=function(d){ return '<svg viewBox="0 0 20 20" w
     +'<button type="button" class="pm-act" data-a="share">'+ic('<path d="M10 12V3M6.500 6.500L10 3l3.500 3.500M5 10v6h10v-6"/>')+'Share</button></div>';
   if(p.k==='b'){ var id=p.id, fl=P.fl[id]||[], u=ACT[id], pm=PHASE_META[u], dn=(P.d||[]).filter(function(q){ return q.u===u; })[0], col=pm?pm.colorRaw:'var(--accent)', d=pmDesc(id), rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
     h=acts+(d?'<p class="pm-desc">'+esc(d)+'</p>':'')+'<ul class="pm-info">'
-      +(pm?'<li><small>Neighbourhood</small><span><i style="background:'+esc(col)+'"></i>'+esc((dn&&dn.n)||pm.label)+'</span></li><li><small>Unit</small><span>'+esc(pm.numeral)+' · '+esc(pm.label)+'</span></li>':'')
+      +(pm?'<li><small>Neighbourhood</small><span><i style="background:'+esc(col)+'"></i>'+esc((dn&&dn.n)||pm.label)+'</span></li><li><small>Unit</small><span>'+esc(window._altoU(u+1, 'roman'))+' · '+esc(pm.label)+'</span></li>':'')
       +((P.near||{})[id]?'<li><small>Nearest corner</small><span>'+esc(P.near[id])+'</span></li>':'')
       +'<li><small>Floors</small><span>'+(fl.length?(fl.length+1)+' floors':'One floor')+'</span></li></ul>';
     var rs=rels(id).slice(0,6); if(rs.length){ h+='<div class="pm-h6">Connected to</div>'+rs.map(function(c){ var other=bOf(c[0])===id?c[1]:c[0], cl=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
@@ -243,7 +243,7 @@ function pmHeadHtml(){ var p=PM.sel, ic=function(d){ return '<svg viewBox="0 0 2
   return '<div class="pm-hrow"><label class="pm-search">'+ic('<circle cx="9" cy="9" r="5.500"/><path d="M13.200 13.200L17 17"/>')+'<input class="pm-q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Search the city" aria-label="Search buildings, landmarks and stations"></label>'
     +'<button type="button" class="pm-btn" data-a="dir" aria-label="Directions">'+ic('<path d="M10 2.500l7.500 7.500-7.500 7.500L2.500 10z"/><path d="M6.800 11.300V9.200a1.200 1.200 0 0 1 1.200-1.200h3.700M10.800 6.300L12.500 8l-1.700 1.700"/>')+'</button></div>'; }
 function pmHome(){ var h='<div class="pm-h6" style="margin-top:6px">Neighbourhoods</div><ul class="pm-list">';
-  (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return; h+='<li data-d="'+d.u+'"><span class="pm-bd" style="--bd:'+esc(pm.colorRaw)+'">'+esc(pm.numeral)+'</span><div><b>'+esc(d.n||pm.label)+'</b><small>'+esc(pm.label)+' · '+(((P.units||[])[d.u]||[]).length)+' buildings</small></div></li>'; });
+  (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return; h+='<li data-d="'+d.u+'"><span class="pm-bd un-n" style="--bd:'+esc(pm.colorRaw)+'">'+esc(window._altoU(d.u+1, 'roman'))+'</span><div><b>'+esc(d.n||pm.label)+'</b><small>'+esc(pm.label)+' · '+(((P.units||[])[d.u]||[]).length)+' buildings</small></div></li>'; });
   h+='</ul>'; var lms=(M.landmarks||[]).filter(function(l){ return l.n && l.page; }).slice(0,12);
   if(lms.length){ h+='<div class="pm-h6">Landmarks</div><ul class="pm-list">'+lms.map(function(l){ return '<li data-lm="'+esc(l.n)+'"><span class="pm-bd">◆</span><div><b>'+esc(l.n)+'</b><small>Reference inside</small></div></li>'; }).join('')+'</ul>'; }
   return h; }

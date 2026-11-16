@@ -27,14 +27,16 @@ ACCEPT = {"acceptance", "mirror-image", "mailbox-rule", "acceptance-by-conduct"}
 
 
 def _html(name):
-    d = json.loads((ROOT / "samples" / f"{name}_brief.json").read_text(encoding="utf-8"))
+    d = json.loads((ROOT / "samples" / f"{'outline' if name == 'system' else name}_brief.json").read_text(encoding="utf-8"))
+    if name == "system":                                   # the System: an outline laid out 'solar'
+        d["brief"]["layout"], d["brief"]["hub_look"] = "solar", "stars"
     return build_timeline(*load_brief(copy.deepcopy(d)))[0]
 
 
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     root = tmp_path_factory.mktemp("focus")
-    for name in ("outline", "contracts", "lanes"):
+    for name in ("outline", "contracts", "lanes", "system"):
         (root / f"{name}.html").write_text(_html(name), encoding="utf-8")
 
     class H(http.server.BaseHTTPRequestHandler):          # the pages, and the hosted phone layer a phone fetches
@@ -131,11 +133,57 @@ def _out(pg):
 
 
 # ── the page ──
-@pytest.mark.parametrize("page", ["outline", "contracts", "lanes"])
-def test_every_timeline_format_carries_the_layer(server, page):
+def test_the_normal_outline_carries_the_layer(server):
+    import urllib.request
+    text = urllib.request.urlopen(f"{server}/outline.html").read().decode()
+    assert 'id="alto-focus-branch"' in text and "_altoFocusEsc" in text
+
+
+# Luke, L-1114-focus: "I think it really only makes sense on a normal outline. So take it out everywhere else."
+@pytest.mark.parametrize("page", ["contracts", "lanes", "system"])
+def test_no_other_format_carries_focus_mode(server, page):
     import urllib.request
     text = urllib.request.urlopen(f"{server}/{page}.html").read().decode()
-    assert 'id="alto-focus-branch"' in text and "_altoFocusEsc" in text
+    for needle in ('id="alto-focus-branch"', "window._altoFocusBranch=", "btn.id='af-btn'", "Focus on this branch", "Exit focus"):
+        assert needle not in text, (page, needle)
+
+
+@pytest.mark.parametrize("page", ["contracts", "lanes"])
+@pytest.mark.parametrize("phone", [False, True])
+def test_no_focus_control_or_shortcut_off_the_outline_and_old_state_opens_normally(browser, server, page, phone):
+    """An enlarged card gets no Focus button, Esc and the arrows behave as ever, and a page opened with the old layer's classes
+    and window hooks already set (stale state) opens as normal, never stuck, never throwing."""
+    stale = "document.documentElement.classList.add('af-on'); localStorage.setItem('alto-focus-branch', '1'); window._altoFocusBranch = undefined;"
+    if phone:
+        ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, user_agent=UA)
+    else:
+        ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    ctx.add_init_script("document.addEventListener('DOMContentLoaded', function(){ " + stale + " });")
+    pg = ctx.new_page()
+    pg.errors = []
+    pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    try:
+        pg.goto(f"{server}/{page}.html")
+        pg.wait_for_function("typeof showDetail === 'function'", timeout=60000)
+        pg.wait_for_timeout(1800)
+        nid = pg.evaluate("NODE_ORDER[2]")
+        pg.evaluate("id => window.enterFocus ? window.enterFocus(id) : window.featureNode(id, false)", nid)
+        pg.wait_for_timeout(1500)
+        assert pg.evaluate("[!!document.getElementById('af-btn'), !!document.getElementById('af-exit'), !!window._altoFocusBranch, !!window._altoFocusEsc]") == [False, False, False, False]
+        pg.keyboard.press("Escape")                       # Esc un-enlarges the card, as it always did (a phone's card view keeps its card)
+        pg.wait_for_timeout(1200)
+        if not phone and page == "lanes":                  # the horizontal timeline: arrow keys only, so Esc leaves the card; the first scroll closes it
+            assert pg.evaluate("window._focusedNodeId") == nid
+            pg.mouse.move(700, 450)
+            pg.mouse.wheel(0, 100)
+            pg.wait_for_timeout(1200)
+        if not phone:
+            assert not pg.evaluate("window._focusedNodeId")
+        if not phone:           # (a phone's card view parks the other cards itself)
+            assert pg.evaluate("[...document.querySelectorAll('#world .node')].filter(n => getComputedStyle(n).pointerEvents === 'none' && !n.classList.contains('hidden')).length") == 0
+        assert pg.errors == []
+    finally:
+        ctx.close()
 
 
 # ── the button ──
@@ -355,39 +403,6 @@ def test_search_finds_only_the_branch(browser, server):
         pg.context.close()
 
 
-# ── the other formats ──
-@pytest.mark.parametrize("page", ["contracts", "lanes"])
-def test_a_plain_and_a_horizontal_timeline_hold_their_card(browser, server, page):
-    pg = _open(browser, server, page)
-    try:
-        nid = pg.evaluate("NODE_ORDER[2]")
-        _hold(pg, nid)
-        assert _st(pg)["root"] == nid and pg.evaluate("document.documentElement.classList.contains('af-on')")
-        for k in ("ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"):
-            pg.keyboard.press(k)
-            pg.wait_for_timeout(700)
-            assert _st(pg)["f"] == nid, f"{k} left the held card on a page with no children"
-        pg.click("#af-exit")
-        pg.wait_for_timeout(400)
-        assert _st(pg)["depth"] == 0 and not any(r["out"] for r in _out(pg))
-        assert pg.errors == []
-    finally:
-        pg.context.close()
-
-
-def test_children_a_format_declares_are_in_the_branch(browser, server):
-    """The horizontal timeline's nested cards (E3) set window._altoBranchKids; the branch follows it."""
-    pg = _open(browser, server, "lanes")
-    try:
-        ids = pg.evaluate("NODE_ORDER.slice(0, 3)")
-        pg.evaluate("([a, b]) => { window._altoBranchKids = id => id === a ? [b] : []; }", [ids[0], ids[1]])
-        _hold(pg, ids[0])
-        assert set(pg.evaluate(f"{F}.members()")) == {ids[0], ids[1]}
-        assert pg.evaluate("id => window._altoShown(id)", ids[1]) and not pg.evaluate("id => window._altoShown(id)", ids[2])
-    finally:
-        pg.context.close()
-
-
 def test_the_edit_strip_and_the_button_do_not_collide(browser, server):
     pg = _open(browser, server, "outline", init=FAKE)
     try:
@@ -467,7 +482,7 @@ _EXIT_INK = """() => { var lum = m => { var a = m.map(v => { v /= 255; return v 
   return r; }"""
 
 
-@pytest.mark.parametrize("page", ["outline", "lanes"])
+@pytest.mark.parametrize("page", ["outline"])
 @pytest.mark.parametrize("style,dark", [("classic", False), ("classic", True), ("retro", False), ("holo", False), ("holo", True)])
 def test_the_exit_pill_reads_in_every_style(browser, server, page, style, dark):
     pg = _open(browser, server, page)

@@ -25,14 +25,14 @@ PROJECTS = [{"name": "Law", "pid": "p", "courses": [{"title": "Torts", "href": "
 _FACTS = """
 import json, re, sys
 sys.path.insert(0, %r)
-from alto.build import bass_ui, palace_assets, engine_patches
+from alto.build import bass_ui, palace_assets, engine_patches, info_help
 from alto.build.builder import build_timeline, load_brief
 from alto.build.pages import build_home
 d = json.loads(open(%r).read())
 b, n, c = load_brief(d)
 print(json.dumps({"tl": build_timeline(b, n, c)[0], "home": build_home(%r), "path": bass_ui.PATH, "bundle": bass_ui.ASSET,
                   "hosted": [a[0] for a in palace_assets.assets() if a[0] == "bass"], "found": bool(palace_assets.find(bass_ui.PATH)),
-                  "info_d": engine_patches._HELP_D_TAIL_NEW, "info_m": engine_patches._HELP_M_TAIL_NEW}))
+                  "info_d": info_help.desktop("timeline", "3 sections"), "info_m": info_help.phone("timeline", "3 sections")}))
 """
 
 
@@ -77,11 +77,13 @@ def test_on_the_timeline_page_holds_only_the_button_and_the_loader(on, off):
     assert on["hosted"] == ["bass"] and on["found"]
 
 
-def test_on_the_home_page_the_new_project_window_gets_a_bass_claude_switch(on, off):
+def test_on_the_home_page_the_new_project_window_gets_a_bass_tab(on, off):
     h = on["home"]
-    assert 'id="nt-sw"' in h and 'data-sw="bass"' in h and 'data-sw="claude"' in h and 'id="nt-bass"' in h and on["path"] in h
-    assert h.index('id="nt-sw"') < h.index('id="nt-head">New</div>')            # the switch is the first thing in the window, above its title
-    assert "bass-tile" not in h and "New with Bass" not in h                       # no separate tile: the switch replaces it
+    assert 'data-tab="bass"' in h and 'data-tab="claude"' in h and 'id="nt-bass"' in h and on["path"] in h and 'id="nt-sw"' not in h
+    tb = lambda k: h.index('role="tab" data-tab="%s"' % k)
+    assert tb("bass") < tb("claude") < tb("self")                                  # B (tabs): Bass, Claude, Write it yourself
+    assert h.index('id="nt-head">New</div>') < tb("bass")
+    assert "bass-tile" not in h and "New with Bass" not in h                       # no separate tile: the tab replaces it
     assert "_altoBassOpen('embed')" in h and "bs-win" not in h and "_altoBass=" not in h
     assert len(h) - len(off["home"]) < 6000                                       # the page carries glue only; the steps are hosted
 

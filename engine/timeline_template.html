@@ -3860,12 +3860,59 @@ html.mobile #detail-page { padding-top: 48px !important; }
   }
 
   // ── Feature a node: pop actual .node element to fixed center ────
+  // Phone card to card (Luke, 2026-11-01, Art's spec alto-art-1101-5800-a; Board Art look 13 Nov: text must never sit on text): the two cards travel side by
+  // side over 160ms ease-out, one screen apart: the old card leaves toward the side you travel from as the new one enters from the side you travel toward,
+  // so no part of one is ever over the other (the Holo card is see-through). Translate only, none under reduced motion, and a newer call cancels whatever
+  // is running so quick taps never queue: they land on the latest card.
+  var _ctGhost = null, _ctAnims = [], _ctUnit = null;
+  function _ctStop(){
+    _ctAnims.forEach(function(a){ try{ a.cancel(); }catch(e){} }); _ctAnims = [];
+    if(_ctUnit){ _ctUnit.nu.style.visibility = ''; if(_ctUnit.L.parentNode) _ctUnit.L.parentNode.removeChild(_ctUnit.L); _ctUnit = null; }
+    if(_ctGhost && _ctGhost.parentNode) _ctGhost.parentNode.removeChild(_ctGhost); _ctGhost = null;
+  }
+  function _ctPrepare(nodeId){
+    _ctStop();
+    var oldId = window._featuredNodeId, axis = window._ctAxis || 'x'; window._ctAxis = 'x';
+    if(!oldId || oldId === nodeId || typeof NODE_ORDER === 'undefined' || !document.documentElement.classList.contains('mobile')) return null;
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+    if(!(window.CSS && CSS.supports && CSS.supports('translate', '1px')) || !document.documentElement.animate) return null;
+    var oldEl = document.getElementById('node-' + oldId);
+    if(!oldEl || !oldEl.classList.contains('mobile-featured')) return null;
+    var dir = NODE_ORDER.indexOf(nodeId) >= NODE_ORDER.indexOf(oldId) ? 1 : -1;
+    var g = oldEl.cloneNode(true);
+    g.removeAttribute('id'); [].forEach.call(g.querySelectorAll('[id]'), function(e){ e.removeAttribute('id'); });
+    g.classList.add('ct-ghost'); g.setAttribute('aria-hidden', 'true'); g.style.pointerEvents = 'none';
+    oldEl.parentNode.appendChild(g); _ctGhost = g;   // last in its parent, so a querySelector for the featured card still finds the real one first
+    return {dir: dir, axis: axis, ghost: g};
+  }
+  function _ctRun(el, t){
+    if(!t || !el) return;
+    var span = t.axis === 'y' ? window.innerHeight : window.innerWidth, d = t.dir * span;
+    var tr = function(v){ return t.axis === 'y' ? '0px ' + v + 'px' : v + 'px 0px'; };
+    _ctAnims.push(el.animate([{translate: tr(d)}, {translate: '0px 0px'}], {duration: 160, easing: 'ease-out'}));
+    _ctAnims.push(t.ghost.animate([{translate: '0px 0px'}, {translate: tr(-d)}], {duration: 160, easing: 'ease-out', fill: 'forwards'}));
+    _ctAnims[1].onfinish = function(){ if(_ctGhost === t.ghost) _ctStop(); };
+    var af = document.getElementById('af-btn');   // the enlarge icon would cover the gliding unit label: out for the slide, back in at rest (Board Art, 13 Nov)
+    if(af) _ctAnims.push(af.animate([{opacity: 1}, {opacity: 0, offset: .2}, {opacity: 0, offset: .8}, {opacity: 1}], {duration: 160, easing: 'linear'}));
+    // the unit label above the card (blocks.py UNIT_GLUE) is not part of the move: when both cards share it, one copy stays on screen and glides to the new
+    // card's height (cards differ in height, so it would otherwise jump and show doubled mid-fade); a different unit simply crosses over with its card
+    var ou = t.ghost.querySelector('.node-unit'), nu = el.querySelector('.node-unit');
+    if(ou && nu && ou.textContent === nu.textContent && !ou.classList.contains('in-card') && !nu.classList.contains('in-card')){
+      var a = ou.getBoundingClientRect(), b = nu.getBoundingClientRect(), L = ou.cloneNode(true);
+      L.classList.add('ct-unit'); L.style.cssText += ';position:fixed;left:' + a.left + 'px;top:' + a.top + 'px;width:' + a.width + 'px;right:auto;bottom:auto;margin:0;z-index:13;';
+      ou.style.visibility = 'hidden'; nu.style.visibility = 'hidden'; document.body.appendChild(L);
+      _ctUnit = {nu: nu, L: L};
+      _ctAnims.push(L.animate([{translate: '0px 0px'}, {translate: (b.left - a.left - (t.axis === 'y' ? 0 : d)) + 'px ' + (b.top - a.top - (t.axis === 'y' ? d : 0)) + 'px'}], {duration: 160, easing: 'ease-out', fill: 'forwards'}));
+    }
+  }
+
   function featureNode(nodeId, animate){
+    var _ct = animate === false ? null : _ctPrepare(nodeId);
     window._featuredNodeId = nodeId;
     window.featureNode = featureNode;
     if(typeof hlPalette !== 'undefined') hlPalette.classList.remove('open');
     if(typeof _hlMode !== 'undefined' && _hlMode && typeof hlBtn !== 'undefined'){ _hlMode=false; window._hlMode=false; hlBtn.classList.remove('active'); hlBtn.style.removeProperty('--hl-btn-tint'); hlBtn.style.removeProperty('--hl-btn-border'); document.documentElement.classList.remove('hl-mode'); if(typeof _updateHlDot==='function') _updateHlDot(); }
-    document.querySelectorAll('.node.mobile-featured').forEach(function(n){
+    document.querySelectorAll('.node.mobile-featured:not(.ct-ghost)').forEach(function(n){
       n.classList.remove('mobile-featured');
     });
     var nodeEl = document.getElementById('node-' + nodeId);
@@ -3878,6 +3925,7 @@ html.mobile #detail-page { padding-top: 48px !important; }
         if(descEl){ descEl.textContent = nd.shortDesc || nd.desc || ''; setTimeout(_restoreHighlightsInFeaturedCard, 30); }
       }
     }
+    _ctRun(nodeEl, _ct);   // after the description is in, so the card's final height is known
     updateCompassVisibility();
     if(window._minimapUpdateFn) window._minimapUpdateFn();
     if(window._minimapDrawFn)   window._minimapDrawFn();
@@ -3913,6 +3961,7 @@ html.mobile #detail-page { padding-top: 48px !important; }
       var idx = NODE_ORDER.indexOf(window._featuredNodeId);
       if(idx < 0) return;
       var eff = horiz ? dx : dy;   // vertical dy folds onto horizontal dx: down↔right, up↔left
+      window._ctAxis = horiz ? 'x' : 'y';
       if(eff < 0 && idx < NODE_ORDER.length - 1){ featureNode(NODE_ORDER[idx + 1]); }   // left / up → Next
       else if(eff > 0 && idx > 0){ featureNode(NODE_ORDER[idx - 1]); }                   // right / down → Prev
     }, {passive: true});

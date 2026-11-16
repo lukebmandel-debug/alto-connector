@@ -16,21 +16,31 @@ BUTTON_ID = "nt-bass"          # the Bass choice in the NEW dialog (no always-vi
 LABEL = "Bass"
 
 _WIRE = r"""(function(){var d=document;if(d.__altoBassWired)return;d.__altoBassWired=1;
-var P='.nt-kinds:not(.nt-sck) .nt-kind[data-kind="palace"][aria-pressed="true"]';
-var st=d.createElement('style');st.id='alto-bass-css';st.textContent='#nt-bass{margin-bottom:8px}#nt-modal:has('+P+') #nt-bass{display:none}@media print{#nt-bass{display:none}}';d.head.appendChild(st);
-var c=d.getElementById('nt-claude');
-if(c&&!d.getElementById('nt-bass')){var b=d.createElement('button');b.type='button';b.id='nt-bass';b.className=c.className;
-b.appendChild(d.createTextNode('Build it with Bass from my notes'));var sm=d.createElement('small');sm.textContent='Bass builds the cards, then you adjust by hand.';b.appendChild(sm);
+var st=d.createElement('style');st.id='alto-bass-css';st.textContent='.nt-tab[data-tab="bass"].on{border-color:#8b6cf0;box-shadow:inset 0 0 0 1px #8b6cf0;background:linear-gradient(color-mix(in srgb,#8b6cf0 14%,transparent),color-mix(in srgb,#8b6cf0 14%,transparent)),var(--surface,var(--bg))}.nt-pane[data-p="bass"]{border-color:color-mix(in srgb,#8b6cf0 60%,transparent)}#nt-bass{background:#5b3fc4}@media print{.nt-tab[data-tab="bass"]{display:none}}';d.head.appendChild(st);
+var tabs=d.getElementById('nt-tabs'),c=d.getElementById('nt-claude');
+if(tabs&&c&&!d.getElementById('nt-bass')){
+var t=d.createElement('button');t.type='button';t.className='nt-tab';t.setAttribute('role','tab');t.setAttribute('aria-selected','false');t.dataset.tab='bass';
+t.innerHTML=TABHTML;tabs.insertBefore(t,tabs.firstChild);
+var p=d.createElement('div');p.className='nt-pane nt-keep';p.dataset.p='bass';p.hidden=true;
+p.innerHTML='<p><b>Build it here with Bass</b></p><p class="nt-pn">You upload your notes or readings. Bass builds the project here in Alto. No Claude plan needed; uses credits.</p>';
+var b=d.createElement('button');b.type='button';b.id='nt-bass';b.className='nt-claude';b.textContent='Upload notes';
 b.addEventListener('click',function(){var x=d.getElementById('nt-cancel');if(x)x.click();if(window._altoBass)window._altoBass.open('wizard');});
-c.parentNode.insertBefore(b,c);}
+p.appendChild(b);c.parentNode.parentNode.insertBefore(p,c.parentNode);
+window._altoNtFirst='bass';}
 window._altoStudyPlanMake=function(rec){if(!rec||typeof rec.tid!=='string'||!rec.tid||!window._altoBass)return false;window._altoBass.open('panel',{tid:rec.tid,plan:true});return true;};
 })();
 """
 
 
+def _wire() -> str:
+    tab = bass_ui.GLYPH_SMALL.replace("<svg ", '<svg width="20" height="25" ') + "<span>Bass</span>"
+    assert "'" not in tab and "\\" not in tab
+    return _WIRE.replace("TABHTML", "'" + tab + "'")                         # one literal, like every other markup the bundle sets
+
+
 def bundle() -> str:
     head = "(function(){var u=window.__altoExtUrl;if(typeof u==='string'&&u)window._ALTO_BASS_BASE=u;})();\n"
-    return head + bass_ui.ASSET + "\n" + _WIRE
+    return head + bass_ui.ASSET + "\n" + _wire()
 
 
 def pin(js: str | None = None) -> str:

@@ -830,9 +830,10 @@ def _under(par, i, top):
     return False
 
 
-def _clash(y, x, h, w, a, b, gap=40):
-    """Two cards closer than the room make_room keeps between them."""
-    from alto.build.layout import ROOM_HGAP
+def _clash(y, x, h, w, a, b, gap=None):
+    """Two cards closer than the room make_room keeps between them (layout.ROOM)."""
+    from alto.build.layout import ROOM, ROOM_HGAP
+    gap = ROOM if gap is None else gap
     return (abs(x[a] - x[b]) < (w[a] + w[b]) / 2 + ROOM_HGAP
             and y[a] - h[a] / 2 < y[b] + h[b] / 2 + gap
             and y[a] + h[a] / 2 + gap > y[b] - h[b] / 2)
@@ -871,7 +872,7 @@ def test_a_shift_moves_the_card_and_its_progeny_and_the_rest_make_room():
     assert x1["a2-l"] == pytest.approx(x0["a2-l"] - 200)
 
 
-def _no_two_touch(y, x, h, w, y0, x0, ids, gap=40):
+def _no_two_touch(y, x, h, w, y0, x0, ids, gap=None):
     """Every pair of cards is apart, or as the unit's own layout set them."""
     for a in ids:
         for b in ids:

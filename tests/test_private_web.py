@@ -409,3 +409,105 @@ def test_a_reload_shows_no_gate_card_and_no_stale_page():
     assert s.count("site: SITE_V") == 2
     for fn in ("function signedOut(){\n    loud();", "function needsUpload(){\n    loud();"):
         assert fn in s
+
+
+# ── a private-web publish under the luke-alto config stores the STAMPED page ──
+# (republish-228 dry run: regenerate_site overwrote the stamped artifact with an unstamped one, and that was stored)
+
+def _luke_alto(monkeypatch, tmp_path, built):
+    """firebase-static + a cloud store, all fake: a LocalStore for drafts, pages through the real CloudStore.put_page/get_page
+    against FakeFirebase. deploy_site only counts."""
+    from alto import mcp_server as srv
+    from alto import publish_static as PS
+    from alto.build import engine_stamp as E
+    from alto.cloud.session import Session
+    from alto.store.cloud import CloudStore
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from cloudfake import FakeFirebase
+    fake = FakeFirebase()
+    sess = Session({"apiKey": "k", "projectId": "proj", "appId": "a"}, http=fake,
+                   path=tmp_path / "cfg" / "session-proj.json", opener=lambda u: None)
+    sess._accept("RT")
+    local, doc = _store(tmp_path, built)
+    cloud = CloudStore(sess, local)
+
+    class St(LocalStore):
+        def get_page(self, uid, key):
+            return cloud.get_page("U1", key)
+
+        def put_page(self, uid, key, html, title, meta):
+            return cloud.put_page("U1", key, html, title, meta)
+    st = St(tmp_path / "store")
+    st.put_nodes("local", doc["timeline_id"], [dict(n) for n in built[0]["nodes"]])
+    st.put_connections("local", doc["timeline_id"], [])
+    deploys = []
+    monkeypatch.setattr(srv, "get_store", lambda: st)
+    monkeypatch.setattr(srv, "uid", lambda: "local")
+    monkeypatch.setattr(srv, "store_mode", lambda: "cloud")
+    monkeypatch.setenv("ALTO_PUBLISH_MODE", "firebase-static")
+    monkeypatch.setenv("ALTO_SITE_DIR", str(tmp_path / "work" / "site"))
+    monkeypatch.setattr(PS, "firebase_configured", lambda: ("fb", "luke-alto", "proj"))
+    monkeypatch.setattr(PS, "deploy_site", lambda s: deploys.append(1) or "https://luke-alto.web.app")
+    monkeypatch.setattr(PS, "verify_live", lambda *a, **k: [])
+    return srv, st, doc, fake, deploys, E
+
+
+def _stored(fake):
+    import base64
+    from alto.build.private_shell import unpack_page
+    k = [k for k in fake.docs if "/pages/" in k][0]
+    return unpack_page(base64.b64decode(fake.docs[k]["z"]["bytesValue"]))
+
+
+def test_a_private_web_publish_stores_the_stamped_page(monkeypatch, tmp_path, built):
+    srv, st, doc, fake, deploys, E = _luke_alto(monkeypatch, tmp_path, built)
+    tid = doc["timeline_id"]
+    r = srv._publish_timeline(tid, "private-web")
+    assert r.get("view_url", "").endswith(f"/pv/{KEY}/"), r
+    assert E.page_engine(_stored(fake)) == srv.__version__
+    assert E.page_engine(st.get_artifact("local", tid, "private.html")) == srv.__version__
+    d = st.get_timeline("local", tid)                                   # key, visibility, URL unchanged
+    assert d["private_key"] == KEY and d["visibility"] == "private-web"
+
+
+def test_an_older_engine_cannot_overwrite_a_newer_stamp_but_a_rebuild_can(monkeypatch, tmp_path, built):
+    srv, st, doc, fake, deploys, E = _luke_alto(monkeypatch, tmp_path, built)
+    tid = doc["timeline_id"]
+    srv._publish_timeline(tid, "private-web")
+    srv._publish_timeline(tid, "private-web")                           # same version again: allowed
+    assert E.page_engine(_stored(fake)) == srv.__version__
+    monkeypatch.setattr(E, "running_version", lambda: "1.0.1")          # an OLD Alto now publishes over the stored page
+    with pytest.raises(E.StaleEngineError):
+        srv._publish_timeline(tid, "private-web")
+    assert E.page_engine(_stored(fake)) == srv.__version__
+
+
+def test_a_second_publish_does_not_redeploy_an_unchanged_site(monkeypatch, tmp_path, built):
+    srv, st, doc, fake, deploys, E = _luke_alto(monkeypatch, tmp_path, built)
+    tid = doc["timeline_id"]
+    srv._publish_timeline(tid, "private-web")
+    assert len(deploys) == 1                                            # first publish: the site is new
+    srv._publish_timeline(tid, "private-web")
+    assert len(deploys) == 1                                            # only the page changed
+    d = st.get_timeline("local", tid)
+    d["private_key"] = "newkeynewkeynewkeynewke"                        # a new key is a new site file
+    st.put_timeline("local", tid, d)
+    srv._publish_timeline(tid, "private-web")
+    assert len(deploys) == 2
+
+
+def test_a_publish_leaves_shares_alone(monkeypatch, tmp_path, built):
+    srv, st, doc, fake, deploys, E = _luke_alto(monkeypatch, tmp_path, built)
+    tid = doc["timeline_id"]
+    st.put_share("sharekey1", {"uid": "local", "tid": tid})
+    before = st.get_share("sharekey1")
+    srv._publish_timeline(tid, "private-web")
+    assert st.get_share("sharekey1") == before
+    assert (tmp_path / "work" / "site" / "s" / "index.html").read_text() == share_shell_text()
+
+
+def share_shell_text():
+    from alto.build.share_shell import shell as _s
+    from alto.cloud import emit_cloud_js
+    import hashlib
+    return _s(hashlib.sha256(emit_cloud_js().encode()).hexdigest()[:12])

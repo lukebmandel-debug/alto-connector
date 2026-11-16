@@ -21,7 +21,7 @@ from test_solar_draw import SMALL, SMALL_LINKS, _open, browser, solar_doc  # noq
 
 
 def test_the_control_stays_small_and_the_card_is_gone():
-    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 10300   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26; + its drag-to-resize handle, 2026-11-01: 9600 -> 10100)
+    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 10900   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26; + its drag-to-resize handle, 2026-11-01: 9600 -> 10100; + its own place on the toggles, minimap_home.py, 2026-11-13: 10300 -> 10900)
     for gone in (r"nvo-[bcd](?![\w-])", "nvo-pick", "data-nav", "Same level:", "Inside:", r"\.nv-r", r"\.nv-hd"):
         assert not re.search(gone, NAVOPT_JS + NAVOPT_CSS), gone
 
@@ -231,8 +231,9 @@ def test_the_minimap_shows_only_with_a_body_enlarged_big_and_clear(browser, page
     pg.wait_for_timeout(500)
     assert pg.is_visible("#nvo-map")                                                # enlarged: it fades in
     c = pg.evaluate(CLEAR)
-    assert c["in"] and not c["bad"], c                                              # over nothing: the card, beside it, the bar, the corner
-    assert c["h"] >= 200 and c["w"] >= 200, c                                       # big enough to see the whole system
+    assert c["in"] and not c["bad"], c                                              # over nothing here: the card, beside it, the bar, the corner
+    h = pg.evaluate("() => { var m=document.getElementById('nvo-map').getBoundingClientRect(), R=window._altoMmRow(); return [m.width-(R[2]-R[0]), m.right-R[2], R[1]-m.bottom]; }")
+    assert abs(h[0]) <= 1 and abs(h[1]) <= 1 and 8 <= h[2] <= 12, h               # (Luke, 2026-11-13: on the bottom-right toggles, as wide as they are)
     assert pg.evaluate("() => !!document.querySelector('#nvo-map circle.h') && !!document.querySelector('#nvo-map circle.hr')")   # you, ringed
     pg.keyboard.press("o")                                                          # the whole system: it fades out
     pg.wait_for_timeout(700)

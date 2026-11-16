@@ -821,7 +821,7 @@ def test_districts_are_named_not_numbered_and_carry_their_unit_in_a_popup():
     assert [d["n"] for d in data["d"]] == ["Old City", "Center City", "Mantua"]
     assert "t.textContent=d.n || pm.label;" in page            # the name, not the numeral
     assert "pm.numeral+' · '" not in page
-    assert "function distTip(u)" in page and "Unit '+esc(pm.numeral)" in page
+    assert "function distTip(u)" in page and "Unit '+esc(window._altoU(u+1, 'roman'))" in page
     assert "pl-dtint" in page                                    # its ground answers the pointer too
 
 

@@ -169,12 +169,15 @@ def test_no_pill_corner_unchanged_and_new_window_and_study_plan_reach_bass(brows
     assert pg.query_selector("#alto-bass-beta") is None
     assert "(beta)" not in pg.evaluate("document.body.innerText").lower()
     assert pg.evaluate(CORNER) == ref_corner                               # the corner controls sit exactly where they do without Bass
-    # the New window: a Bass choice beside "Build it with Claude", hidden for the palace kinds
+    # the New window: tabs, Bass first and chosen; Claude and Write it yourself beside it
     pg.evaluate("ntOpen('', true)"); pg.wait_for_timeout(500)
-    assert pg.is_visible("#nt-bass") and pg.is_visible("#nt-claude")
-    pg.click("#nt-modal .nt-kind[data-kind=palace]"); pg.wait_for_timeout(200)
+    assert pg.evaluate("[...document.querySelectorAll('#nt-tabs .nt-tab')].map(b=>b.dataset.tab)") == ["bass", "claude", "self"]
+    assert pg.evaluate("document.getElementById('nt-modal').dataset.tab") == "bass" and pg.is_visible("#nt-bass") and not pg.is_visible("#nt-claude")
+    pg.click("#nt-tabs .nt-tab[data-tab=claude]"); pg.wait_for_timeout(200)
     assert not pg.is_visible("#nt-bass") and pg.is_visible("#nt-claude")
-    pg.click("#nt-modal .nt-kind[data-kind=timeline]"); pg.wait_for_timeout(200)
+    pg.click("#nt-tabs .nt-tab[data-tab=self]"); pg.wait_for_timeout(200)
+    assert pg.is_visible("#nt-title") and not pg.is_visible("#nt-bass") and not pg.is_visible("#nt-claude")
+    pg.click("#nt-tabs .nt-tab[data-tab=bass]"); pg.wait_for_timeout(200)
     pg.click("#nt-bass"); pg.wait_for_timeout(900)
     assert pg.query_selector("#bass-root") is not None and not pg.is_visible("#nt-modal")
     pg.evaluate("window._altoBass.close&&window._altoBass.close()"); pg.wait_for_timeout(200)

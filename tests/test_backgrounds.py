@@ -364,7 +364,7 @@ def test_colours_patterns_and_a_colour_of_your_own_can_be_chosen_and_follow_the_
         assert not pg.evaluate(STATE)["on"], bad
     # and the picker offers them
     pg.click("#bg-toggle"); pg.wait_for_timeout(300)
-    assert pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].map(e=>e.textContent)") == ["Colors", "Patterns", "Space", "Nature", "City"]
+    assert pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].map(e=>e.textContent)") == ["Unit numbers", "Colors", "Patterns", "Space", "Nature", "City"]   # (the Unit numbers switch first: unit_numbers.py)
     assert pg.evaluate("!!document.querySelector('#bg-panel input[type=color]')")
     pg.evaluate("(()=>{const i=document.querySelector('#bg-panel input[type=color]'); i.value='#3366cc'; i.dispatchEvent(new Event('input',{bubbles:true}))})()")
     pg.wait_for_timeout(300)
@@ -523,9 +523,9 @@ def test_on_a_phone_homepage_the_tab_joins_the_top_row_of_toggles(browser, site)
     r = pg.evaluate("""(()=>{const q=i=>{const r=document.getElementById(i).getBoundingClientRect();return [r.left,r.top,r.width,r.height]};
       return {bg:q('bg-toggle'), info:q('info-btn'), mode:q('mode-toggle')}})()""")
     assert r["bg"][1] == r["info"][1] == r["mode"][1]                        # one row
-    assert r["bg"][2] == r["bg"][3] == r["info"][2] == 34                     # the same little box
+    assert r["bg"][2] == r["bg"][3] == r["info"][2] == 44                     # the same 44 pt box (was 34, v1.9.232)
     assert r["bg"][0] + r["bg"][2] + 8 == r["info"][0]                        # 8px beside info, which sits left of light/dark
-    assert pg.evaluate("parseFloat(getComputedStyle(document.getElementById('bg-toggle')).borderTopLeftRadius)") == 10
+    assert pg.evaluate("parseFloat(getComputedStyle(document.getElementById('bg-toggle')).borderTopLeftRadius)") == 12
     pg.tap("#bg-toggle"); pg.wait_for_timeout(600)
     assert pg.evaluate("document.getElementById('bg-panel').classList.contains('open')")
     ctx.close()

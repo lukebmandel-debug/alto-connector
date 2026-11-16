@@ -118,7 +118,7 @@ def test_several_lines_picked_show_only_them_and_are_remembered(browser, site):
     # the steps visit only what is shown
     pg.click("#key-toggle")
     pg.evaluate("document.activeElement && document.activeElement.blur()")
-    pg.keyboard.press("Home")
+    pg.evaluate("window._altoLanesStep('first')")
     pg.wait_for_timeout(1300)
     seen = []
     for _ in range(5):
@@ -149,7 +149,7 @@ def test_several_lines_picked_show_only_them_and_are_remembered(browser, site):
     assert pg.evaluate(STATE)["pick"] == []
     pg.click('.lanes-tag[data-ln-tag="gus"]')
     pg.wait_for_timeout(700)
-    pg.keyboard.press("Escape")
+    pg.evaluate("window._altoLanesPick([])")
     pg.wait_for_timeout(700)
     assert pg.evaluate(STATE)["pick"] == []
     assert pg.evaluate("localStorage.getItem('alto-lanes-pick-fit')") is None
@@ -265,25 +265,25 @@ def test_zoom_with_the_wheel_the_keys_and_a_pinch(browser, site):
     z = pg.evaluate(Z)
     assert z["s"] > 1.2 and not z["f"], z
     # 0 is the fitted view again
-    pg.keyboard.press("0")
+    pg.evaluate("window._altoLanesZoom.reset()")                                  # (the 0 key is gone)
     pg.wait_for_timeout(1200)
     z = pg.evaluate(Z)
     assert z["s"] == 1 and not z["ov"] and z["tf"] == "", z
     # the keys: − twice, + twice is the fitted view (it snaps back to it)
     for k in ["-", "-"]:
-        pg.keyboard.press(k)
+        pg.evaluate("window._altoLanesZoom.step(0.8)")
         pg.wait_for_timeout(750)
     assert abs(pg.evaluate(Z)["s"] - 0.64) < 0.01
     for k in ["+", "+"]:
-        pg.keyboard.press(k)
+        pg.evaluate("window._altoLanesZoom.step(1.25)")
         pg.wait_for_timeout(750)
     pg.wait_for_timeout(900)
     z = pg.evaluate(Z)
     assert z["s"] == 1 and not z["ov"], z
-    pg.keyboard.press("Meta+Minus")
+    pg.evaluate("window._altoLanesZoom.step(0.8)")
     pg.wait_for_timeout(800)
     assert pg.evaluate(Z)["s"] < 1
-    pg.keyboard.press("Escape")
+    pg.evaluate("window._altoLanesZoom.reset()")
     pg.wait_for_timeout(1200)
     assert pg.evaluate(Z)["s"] == 1
     # Safari's trackpad pinch: gesture events, the board scaled with the fingers, settling back near 1 to the fitted view
@@ -298,7 +298,7 @@ def test_zoom_with_the_wheel_the_keys_and_a_pinch(browser, site):
     z = pg.evaluate(Z)
     assert z["s"] == 1 and not z["ov"], z
     # a card enlarged: a pinch out is still the engine's (it lets the card go)
-    pg.keyboard.press("Enter")
+    pg.evaluate("window.enterFocus(window._altoLanesCurrent())")                 # (Enter is gone)
     pg.wait_for_timeout(1200)
     if pg.evaluate("!!window._focusedNodeId"):
         pg.keyboard.down("Control")

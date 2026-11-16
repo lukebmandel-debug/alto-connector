@@ -142,6 +142,8 @@ def test_a_writing_project_autolinks_its_characters():
 def test_the_package_carries_the_rules():
     assert (ROOT / "alto" / "firestore.rules").read_bytes() == \
         (ROOT / "firestore.rules").read_bytes()
+    # (the packaged copy is the current one: it names the unit-numbers setting, un/unAt, on the owner-only tl document)
+    assert "un/unAt" in (ROOT / "alto" / "firestore.rules").read_text(encoding="utf-8")
     py = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert '"firestore.rules"' in py
     mcpb = (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")

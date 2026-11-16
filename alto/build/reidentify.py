@@ -58,7 +58,10 @@ LOCAL_EMPTY = '<script id="alto-local-src">window._ALTO_LOCAL={};</script>'
 
 
 def strip_local(page_html: str) -> str:
-    return LOCAL_BLOCK.sub(LOCAL_EMPTY, page_html)
+    """Nothing of the owner's leaves with a share: no file paths, and no Drive chip the owner has not switched on for share links
+    (drive_common.strip_unshared; alto-cloud.js carries the same pattern, tests/test_share_strip_drive.py)."""
+    from ..drive_common import strip_unshared
+    return strip_unshared(LOCAL_BLOCK.sub(LOCAL_EMPTY, page_html))
 
 
 def reidentify(page_html: str, share_key: str) -> str:

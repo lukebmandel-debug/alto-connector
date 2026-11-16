@@ -8,7 +8,7 @@ from pathlib import Path
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, migrate_brief, building_view, world_view
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
-from . import backgrounds, clear_top, focus_branch, format_symbols, hover_lines, select_guard, title_tab
+from . import backgrounds, clear_top, unit_numbers, focus_branch, format_symbols, hover_lines, select_guard, title_tab
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
@@ -53,7 +53,8 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
     extra = [{"id": f["id"], "name": f.get("name") or f["id"], "url": "",
               "local": f.get("local") or ""}
              for f in brief.linked_files or []
-             if isinstance(f, dict) and f.get("id") and f["id"] not in have]
+             if isinstance(f, dict) and f.get("id") and f["id"] not in have and f.get("kind") != "drive"]
+    # (a Drive chip, drive_common, is NOT added here: it is a reference, never a source Alto or Claude can read; sanitize.source_map draws it from linked_files)
     if extra:
         brief.source_docs = list(brief.source_docs) + extra
     nodes = [
@@ -241,6 +242,10 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
+    from .. import drive_common
+    if drive_common.DriveConfig.from_env().available:      # a Drive build only: the link panel is placed by the enlarge safe box (engine_patches.share_safe_box)
+        from .engine_patches import share_safe_box
+        html = share_safe_box(html)
     html = _add_tail(html, brief, nodes, warnings, trees, study, photos)
     html = _add_background_head(html, brief)
     if phone_mode(brief) != "phone":
@@ -288,7 +293,7 @@ def _add_background_head(html: str, brief: Brief) -> str:
     from .phone_minimal import head_block as phone_min_head
     from .phone_shell import head_block as phone_shell_head
     auto = brief.mode == "palace" or solar_style(brief) == "orbit"     # an Atlas, a Blueprint, a city map and a System make their own background
-    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro, own=not retro, auto=auto) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
+    return html.replace(anchor, unit_numbers.head_block(ID_PATTERNS["hl_key"].format(tid=brief.timeline_id), brief) + backgrounds.head_block(key, palace=city, retro=retro, own=not retro, auto=auto) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
                         + "\n" + phone_shell_head() + "\n" + anchor, 1)
 
 
@@ -321,6 +326,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .photos import block as photos_block
     from .manual_edit import manual_edit
     from .print_views import print_views
+    from .study_sheet import study_sheet
     from .history_nav import history_nav
     from .phone import card_block
     table = dx.autolink_table(brief)
@@ -335,9 +341,9 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {})))
             + study_plan_block(brief, nodes)
-            + manual_edit(brief, nodes) + print_views()
-            + backgrounds.ui_block("This " + _bg_noun(brief), rail=True) + hover_lines.block()
-            + (focus_branch.block() if brief.mode != "palace" and not solar_style(brief) else "")   # focus on a branch: timelines, outlines, the horizontal timeline
+            + manual_edit(brief, nodes) + print_views() + study_sheet(brief)
+            + backgrounds.ui_block("This " + _bg_noun(brief), rail=True) + unit_numbers.panel_block() + hover_lines.block()
+            + (focus_branch.block() if brief.mode == "outline" and not solar_style(brief) else "")   # focus on a branch: the normal outline only (Luke L-1114-focus: not the timeline, the horizontal timeline or any other format)
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief), hl_key=ID_PATTERNS["hl_key"].format(tid=brief.timeline_id))
             + select_guard.block()
             + title_tab.block(format_symbols.key_of(brief))

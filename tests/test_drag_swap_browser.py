@@ -89,21 +89,21 @@ def _ops(pg):
     return pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(k=>k.indexOf('alto-ed-')===0)[0])).ops")
 
 
-def test_a_dragged_card_takes_its_progeny_and_with_option_slides_alone(page):
+def test_a_dragged_card_takes_its_progeny_and_with_option_moves_alone(page):
+    """(The rules of a move, on a big outline: tests/test_outline_branch_drag.py.)"""
     kids = ("revocation", "option-contracts", "unilateral-offers")
     g0 = page.evaluate(GEO)
-    assert "Moving with" in _drag(page, "offer", 10, 160)          # straight down its own line: the branch moves
+    assert "under it" in _drag(page, "offer", 10, 160)             # the branch moves, to a free spot, as one piece
     g1 = page.evaluate(GEO)
-    for k in ("offer",) + kids:
-        assert abs((g1[k]["t"] - g0[k]["t"]) - (g1["offer"]["t"] - g0["offer"]["t"])) <= 3, k
-    assert g1["offer"]["t"] > g0["offer"]["t"] + 100
-    assert "p|offer|shift" in _ops(page) and _touching(g1) == []
-    assert "alone" in _drag(page, "offer", 10, 160, alt=True)      # Option: it alone, along its line
-    g2 = page.evaluate(GEO)
-    assert g2["offer"]["t"] > g1["offer"]["t"] + 100 and g2["offer"]["l"] == g1["offer"]["l"]
+    d = (g1["offer"]["l"] - g0["offer"]["l"], g1["offer"]["t"] - g0["offer"]["t"])
     for k in kids:
-        assert g2[k]["l"] == g1[k]["l"] and g2[k]["t"] >= g1[k]["t"], k
-    assert "p|offer|slide" in _ops(page) and _touching(g2) == []
+        assert abs(g1[k]["l"] - g0[k]["l"] - d[0]) <= 3 and abs(g1[k]["t"] - g0[k]["t"] - d[1]) <= 3, k
+    assert _touching(g1) == [] and "p|offer|slide" not in _ops(page)
+    assert "this card only" in _drag(page, "offer", 10, 160, alt=True)      # Option: it alone
+    g2 = page.evaluate(GEO)
+    for k in kids:
+        assert abs(g2[k]["l"] - g1[k]["l"]) <= 3 and abs(g2[k]["t"] - g1[k]["t"]) <= 3, k
+    assert _touching(g2) == []
 
 
 def _menu(pg, i):

@@ -36,10 +36,9 @@ from .documents import DocsError, Library, refusal as docs_refusal
 from .net_guard import RealNetworkBlocked, check_google_url
 
 log = logging.getLogger("bass.beta")
-SCOPE = "https://www.googleapis.com/auth/drive.file"
+from ..drive_common import SCOPE, DriveConfig, _ID                 # the neutral module (no Bass, no SDK): manual edit shares the scope, the id check and the config
 MAX_IDS = 5                                    # files per request
 TOKEN_MAX_S = 3600                             # a token is never kept longer than an hour, whatever Google says
-_ID = re.compile(r"^[A-Za-z0-9_-]{10,100}$")
 _TOKEN = re.compile(r"^[A-Za-z0-9._~+/=-]{20,2048}$")
 GDOC = "application/vnd.google-apps.document"
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -65,43 +64,6 @@ class DriveError(Exception):
     def __init__(self, code: str):
         super().__init__(code)
         self.code = code
-
-
-class DriveConfig:
-    """The Picker's public identifiers, from the server's environment. Absent (any of the three) = the feature is off and the page hides its
-    button. They are PUBLIC identifiers by design (they ride in the page); the client SECRET is never needed (the token is the implicit kind)."""
-
-    ENV = ("ALTO_DRIVE_CLIENT_ID", "ALTO_DRIVE_API_KEY", "ALTO_DRIVE_APP_ID")           # names only; the values are IT's (ORG/it/bass-drive-deploy.md)
-
-    def __init__(self, client_id: str = "", api_key: str = "", app_id: str = ""):
-        self.client_id, self.api_key, self.app_id = client_id.strip(), api_key.strip(), app_id.strip()
-
-    @classmethod
-    def from_env(cls, env=None):
-        e = os.environ if env is None else env
-        return cls(*(str(e.get(n, "") or "") for n in cls.ENV))
-
-    def missing(self) -> list:
-        """The NAMES of the environment variables that are not set (never a value)."""
-        return [n for n, v in zip(self.ENV, (self.client_id, self.api_key, self.app_id)) if not v]
-
-    @property
-    def partial(self) -> bool:
-        """Some but not all set: a half-finished deploy. The feature stays off and the operator is told which are missing (fail closed, loudly)."""
-        return 0 < len(self.missing()) < len(self.ENV)
-
-    def problem(self) -> str:
-        m = self.missing()
-        return ("Add from Drive is off: missing environment variable%s %s. Set all of %s, or none." % ("s" if len(m) > 1 else "", ", ".join(m), ", ".join(self.ENV))) if m else ""
-
-    @property
-    def available(self) -> bool:
-        return bool(self.client_id and self.api_key and self.app_id)
-
-    def public(self) -> dict:
-        if not self.available:
-            return {"ok": True, "status": "ok", "available": False}
-        return {"ok": True, "status": "ok", "available": True, "client_id": self.client_id, "api_key": self.api_key, "app_id": self.app_id, "scope": SCOPE}
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

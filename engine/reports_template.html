@@ -368,8 +368,8 @@
     #info-btn, #account-btn, #mode-toggle{
       position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)) !important;
       bottom:auto !important; left:auto !important; right:auto !important; transform:none !important;
-      width:34px !important; height:34px !important; max-height:34px !important; min-width:0 !important;
-      border-radius:10px !important; border:1px solid var(--card-glass-border) !important;
+      width:44px !important; height:44px !important; max-height:44px !important; min-width:0 !important;
+      border-radius:12px !important; border:1px solid var(--card-glass-border) !important;
       border-left:1px solid var(--card-glass-border) !important; border-right:1px solid var(--card-glass-border) !important;
       padding:0 !important; z-index:300; overflow:visible !important;
       display:flex !important; flex-direction:row !important; align-items:center; justify-content:center; gap:0 !important;
@@ -378,7 +378,7 @@
     }
     /* order: account (far left) · search — · · · — info · light/dark (far right) */
     #account-btn{ left:14px !important; }
-    #info-btn{ right:56px !important; left:auto !important; }
+    #info-btn{ right:66px !important; left:auto !important; }
     #mode-toggle{ right:14px !important; color:var(--text); }
     /* glyph-only in the compact bar — no ::after text labels */
     #info-btn:not(.expanded)::after, #account-btn::after{ content:none !important; }
@@ -392,8 +392,8 @@
        glyph + label centred inside the bubble; expands rightward, results drop DOWN */
     #search-btn{
       position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)) !important; bottom:auto !important;
-      left:56px !important; right:auto !important; transform:none !important;
-      width:auto !important; height:34px !important; max-height:34px !important; border-radius:17px !important;
+      left:66px !important; right:auto !important; transform:none !important;
+      width:auto !important; height:44px !important; max-height:44px !important; border-radius:22px !important;
       display:flex; align-items:center; justify-content:center; gap:6px; padding:0 15px !important; overflow:visible !important; z-index:300;
       box-shadow:none !important;
       -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%);
@@ -403,16 +403,16 @@
     #search-label{ display:inline; font-size:13px; color:var(--muted); white-space:nowrap;
       font-family:Georgia,'Times New Roman',serif; }
     /* expanded pill grows rightward from its left anchor and stops 8px short of the
-       INFO tile (which spans right:56–90px) — never covers the other buttons */
-    #search-btn.expanded{ width:min(340px, calc(100vw - 154px)) !important; padding:0 12px !important; justify-content:flex-start; }
+       INFO tile (which spans right:66–110px) — never covers the other buttons */
+    #search-btn.expanded{ width:min(340px, calc(100vw - 184px)) !important; padding:0 12px !important; justify-content:flex-start; }
     #search-input{ font-size:16px; }   /* 16px suppresses iOS focus-zoom (keyboard viewport jumps) */
     #search-btn.expanded #search-label{ display:none; }
     #search-btn:not(.expanded) #search-input{ display:none; }
     #search-btn.expanded #search-input{ position:static; flex:1 1 auto; min-width:0; width:auto; opacity:1; }
     /* results overlay BELOW the toolbar pill (absolute within the fixed pill) */
     #search-results{
-      left:-42px !important; right:auto !important; transform:none !important;   /* pill left = 56px → panel left = 14px */
-      top:42px !important; bottom:auto !important;
+      left:-52px !important; right:auto !important; transform:none !important;   /* pill left = 66px → panel left = 14px */
+      top:52px !important; bottom:auto !important;
       width:calc(100vw - 28px); max-width:440px; max-height:62dvh;
       /* near-opaque plate + hairline: results must read AGAINST the vivid wallpaper */
       background:rgba(252,252,255,0.97); border:1px solid rgba(90,90,128,0.32);
@@ -424,9 +424,9 @@
        bottom-RIGHT corner as a separate overlay panel (nothing gets pushed aside). */
     #info-btn.expanded{
       top:calc(63px + env(safe-area-inset-top,0px)) !important; bottom:auto !important;
-      right:56px !important; left:auto !important;
-      width:34px !important; height:34px !important; max-height:34px !important;
-      border-radius:10px !important; overflow:visible !important;
+      right:66px !important; left:auto !important;
+      width:44px !important; height:44px !important; max-height:44px !important;
+      border-radius:12px !important; overflow:visible !important;
       border-color:var(--muted) !important;   /* active hint while the guide is open */
     }
     #info-btn.expanded #info-icon{ position:absolute !important; inset:0 !important; width:auto !important; height:auto !important; display:flex; align-items:center; justify-content:center; }
@@ -437,7 +437,7 @@
          same box in every browser. top:34 = tile height → panel top-RIGHT corner meets
          the tile's bottom-RIGHT corner. */
       display:block; position:absolute; z-index:400;
-      top:33px; right:-1px; left:auto;   /* −1px each: absolute anchors inside the tile's 1px border */
+      top:43px; right:-1px; left:auto;   /* −1px each: absolute anchors inside the tile's 1px border */
       width:min(360px, calc(100vw - 70px)); max-height:65dvh; overflow-y:auto;
       -webkit-overflow-scrolling:touch;
       padding:15px 16px 17px; opacity:1;

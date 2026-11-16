@@ -683,6 +683,9 @@ RETRO_CSS = (r"""
     box-shadow:0 0 0 7px #000,0 0 0 9px #f5e6bd,0 0 0 16px #000,0 0 0 17px rgba(245,230,189,.6) !important;}
   X #world .node[data-solar=blackhole] .node-card:not(#_){background:#000 !important;box-shadow:0 0 0 2px #d9ae55,0 0 0 6px #000,0 0 0 7px rgba(217,174,85,.5) !important;}
   X #world .node[data-solar=sat] .node-card:not(#_){background:url("PROBE") 50% 50%/118% 118% no-repeat !important;filter:none;}
+  /* a body a filter hides (Art, 2026-11-01): the cream disc goes hollow, one 1.5px gold ring at 40%, no fill and no rings round the sun; its name 14% (solar_draw.py) */
+  X #world .node[data-solar] .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed):not(#_):not(#__){background:transparent !important;filter:none;
+    box-shadow:inset 0 0 0 1.5px rgba(217,174,85,.4) !important;}
   X #world .node[data-solar] .sol-face,X #world .node[data-solar] .sol-face *{color:#fff !important;text-shadow:none !important;}
   X #world .node[data-solar=sun] .sol-face.sol-face,X #world .node[data-solar=sun] .sol-face.sol-face *{color:#0a1b34 !important;}
   X #world .sol-hov .node-card:not(#_){outline:1.5px solid #d9ae55;outline-offset:3px;}

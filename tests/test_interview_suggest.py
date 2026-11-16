@@ -66,5 +66,13 @@ def test_the_flow_one_lines_the_student_reads_use_plain_words():
     assert "Under '<their main concept>', what are its sub-concepts?" in f and "Under '<their hub>'" not in f
 
 
+def test_a_study_plan_is_one_of_the_three_offers_and_the_student_picks_its_concepts():
+    s = _section()
+    assert "a study plan is one of the at-most-three offers of that round, never an extra on top" in s
+    assert "propose at most six concepts" in s and '"keep, drop or add?"' in s
+    assert "A plan holds at most six concepts even after an add" in s
+    assert "is not an answer about the outline" in s and "after a no say nothing more about a plan" in s
+
+
 def test_the_section_stays_compact():
-    assert len(_section()) < 7500
+    assert len(_section()) < 8200

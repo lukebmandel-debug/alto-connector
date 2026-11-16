@@ -516,9 +516,8 @@ HOME_CSS = r"""
   X.alto-home .t-actions button+button:not(#_){border-left:1px solid rgba(217,174,85,.32) !important}
   X.alto-home .t-actions button:hover{background:rgba(217,174,85,.14) !important}
   X.alto-home .t-actions .tile-more{font-size:16px;line-height:1}
-  X.alto-home .slab-count{margin-left:14px;color:#b9b2a0;font-size:10px;letter-spacing:.2em;text-transform:uppercase}
   X.alto-home .course-tile.new-tile{min-height:0}
-  X.alto-home .course-tile :is(.t-no,.t-kind,.t-units),X.alto-home .slab-count{font-family:var(--rt-f)}
+  X.alto-home .course-tile :is(.t-no,.t-kind,.t-units){font-family:var(--rt-f)}
 
   /* B: engraved plate with a medallion and a ledger foot */
   X.alto-home .course-tile:not(.new-tile){display:grid !important;grid-template-columns:84px minmax(0,1fr);grid-template-rows:1fr auto;height:auto !important;min-height:170px;padding:0 !important;background:#06080c !important;border:1px solid rgba(217,174,85,.6) !important;overflow:visible}
@@ -577,8 +576,6 @@ function decorate(){
   document.querySelectorAll('.project-slab:not(.new-project-slab)').forEach(function(slab){
     var k=slab.querySelector('.slab-kicker'), g=slab.querySelector('.course-grid'); if(!k||!g) return;
     var tiles=g.querySelectorAll('.course-tile:not(.new-tile)');
-    var c=k.querySelector('.slab-count'); if(!c){ c=el('span','slab-count'); k.appendChild(c); }
-    var ct=String(tiles.length); if(c.textContent!==ct) c.textContent=ct;   /* (written only when it changed: a write alone wakes the observer, which drew it again, every frame) */
     tiles.forEach(function(t,i){
       var no=t.querySelector('.t-no');
       if(no){ var nt='Nº '+two(i+1); if(no.textContent!==nt) no.textContent=nt; return; }   /* already decorated: only the number can change (a re-sort) */
@@ -687,9 +684,17 @@ def _slim(src: str) -> str:
     return "\n".join(t for t in (ln.strip() for ln in src.split("\n")) if t and not t.startswith("//"))
 
 
+def enlarged_cards(at: str) -> str:
+    """The board's card rules (`#world .node...`) said again for a card enlarged off the board, borrowed into `at` (the Memory Blueprint's
+    `#bldg-root .bl-enl`; the Atlas keeps its own copy in its hosted script), so it wears exactly what the board's card does."""
+    body = _re.sub(r"/\*.*?\*/", "", COMMON_CSS, flags=_re.S)
+    rows = [r.strip() for r in _re.findall(r"[^{}]+\{[^{}]*\}", body) if "#world .node" in r.split("{")[0] and "phase" not in r.split("{")[0]]
+    return "\n".join(rows).replace(":where(:not(.sk-retro))", "").replace("#world .node", at + " .node")
+
+
 def css() -> str:
     """Every format's Retro rules, as the hosted script adds them."""
-    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS + HOME_CSS
+    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS + HOME_CSS + enlarged_cards("#bldg-root .bl-enl")
     return ("@media screen{\n" + _slim(scoped(body, "html.alto-retro")) + "\n}\n"     # (printing: the engine's black on white)
             "@media print{#sk-frame,#sk-mark{display:none !important;}}")
 

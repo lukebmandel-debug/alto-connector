@@ -6,8 +6,11 @@ user to navigate only through the node and children of that node, enlarged or un
 mode until that mode is deactivated, which should be very easy and apparent on how to do."  Rules he confirmed (Board
 B-1103-091725): outside keeps the enlarged-card faded look (not the filter's dimming); outside is untouchable; one obvious
 Exit focus button and Esc; Up stops at the focused card, Left / Right stay in the branch, Down goes to children; focus inside
-focus, and Exit steps back one level; search and filters work only inside the branch; outlines and timelines, horizontal
-too, and a phone gets the button and the behaviour (L-1103-091725); not remembered on reload.
+focus, and Exit steps back one level; search and filters work only inside the branch; a phone gets the button and the behaviour
+(L-1103-091725); not remembered on reload.
+
+L-1114-focus: "it really only makes sense on a normal outline. So take it out everywhere else." builder.py puts this block on a normal
+outline's page only (not a plain or a horizontal timeline, not a System, not a palace); the rest of this file is unchanged.
 
 How it is built, so the rest of the page needed almost nothing:
 

@@ -14,7 +14,7 @@ LINE = "(id) => (window._ALTO_LANES.ev[id] || {}).l || 'main'"
 
 
 def _home(pg):
-    pg.keyboard.press("Home")
+    pg.evaluate("window._altoLanesStep('first')")
     pg.wait_for_timeout(1500)
 
 
@@ -39,7 +39,7 @@ def test_a_held_right_arrow_travels_smoothly_and_settles_on_an_event(browser, v2
 def test_a_held_left_arrow_travels_back(browser, v2_file):
     pg, errs = _desk(browser, v2_file)
     S = pg.evaluate(STOPS)
-    pg.keyboard.press("End")
+    pg.evaluate("window._altoLanesStep('last')")
     pg.wait_for_timeout(1500)
     pg.keyboard.down("ArrowLeft")
     pg.wait_for_timeout(1500)
@@ -57,7 +57,8 @@ def test_a_quick_press_is_still_one_step_and_lets_go_at_once(browser, v2_file):
     _home(pg)
     pg.keyboard.press("ArrowRight")
     pg.wait_for_timeout(1600)
-    assert pg.evaluate(CUR) == S[1]
+    # one step: the next event whose view is somewhere else (the opening's first two both rest at scroll 0, so the first press goes past the second)
+    assert pg.evaluate(CUR) in S[1:3] and pg.evaluate("document.getElementById('canvas').scrollLeft") > 20
     assert not errs
 
 
@@ -109,7 +110,7 @@ def test_a_wheel_or_home_returns_the_travel_to_the_main_line(browser, v2_file):
     pg.keyboard.press("ArrowDown")
     pg.wait_for_timeout(1400)
     assert pg.evaluate(CUR) == "ben-letter"
-    pg.keyboard.press("Home")
+    pg.evaluate("window._altoLanesStep('first')")
     pg.wait_for_timeout(1400)
     assert "ben-leaves" not in pg.evaluate("window._altoLanesTravel().ids")
     assert not errs
