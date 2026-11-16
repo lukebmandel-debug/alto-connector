@@ -332,9 +332,9 @@ html:root #wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 30%,var(--w-text
 html:root #wpal-root .wp-card .n,html:root #wpal-root .wp-list button b{color:color-mix(in srgb,var(--u) 30%,var(--w-text));}
 html:root #wpal-root .wp-hk{background:var(--w-pin);border:1.5px solid var(--u);color:var(--w-text);line-height:12px;}
 html:is(.alto-retro,.alto-holo):root #wpal-root .wp-lbl:not(#_){text-shadow:var(--w-ring);}
-#wpal-root .wp-mm{position:absolute;right:16px;bottom:66px;padding:5px;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;cursor:pointer;touch-action:none;}
+#wpal-root .wp-mm{position:absolute;z-index:6;right:16px;bottom:66px;padding:5px;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;cursor:pointer;touch-action:none;}
 #wpal-root .wp-mm.on{opacity:1;visibility:visible;transition:opacity .28s ease;}
-#wpal-root .wp-mm svg{display:block;width:calc(var(--mh,86px)*2.05);height:var(--mh,86px);}
+#wpal-root .wp-mm svg{display:block;width:var(--mw,calc(var(--mh,86px)*2.05));height:var(--mh,86px);}
 #wpal-root .wp-mm .rz{position:absolute;left:0;top:0;width:24px;height:24px;cursor:nwse-resize;touch-action:none;z-index:2;}
 #wpal-root .wp-mm .rz::before{content:"";position:absolute;left:5px;top:5px;width:14px;height:14px;border:solid var(--w-text);border-width:2px 0 0 2px;border-radius:7px 0 0 0;}
 #wpal-root .wp-mm .c{fill:color-mix(in srgb,var(--w-text) 16%,transparent);stroke:none;}
@@ -342,10 +342,10 @@ html:is(.alto-retro,.alto-holo):root #wpal-root .wp-lbl:not(#_){text-shadow:var(
 #wpal-root .wp-mm circle{fill:var(--u);stroke:none;}
 #wpal-root .wp-mm circle.h{fill:none;stroke:var(--w-text);stroke-width:1.6px;vector-effect:non-scaling-stroke;}
 #wpal-root .wp-mm rect{fill:var(--accent,#5b6cff);fill-opacity:.1;stroke:var(--accent,#5b6cff);stroke-width:1.4px;vector-effect:non-scaling-stroke;cursor:move;}
-#wpal-root .wp-mmtip{position:absolute;right:16px;bottom:calc(var(--mh,86px) + 82px);padding:3px 9px;font-size:11.5px;border-radius:8px;pointer-events:none;}
+#wpal-root .wp-mmtip{position:absolute;right:var(--mmr,16px);bottom:calc(var(--mmb,66px) + var(--mh,86px) + 16px);padding:3px 9px;font-size:11.5px;border-radius:8px;pointer-events:none;}
 #wpal-root .wp-help{right:16px;top:64px;width:min(330px,calc(100% - 32px));display:block;white-space:normal;line-height:1.5;font-size:12.5px;padding:12px 14px;}
 #wpal-root .wp-help kbd{font:inherit;font-weight:700;border:1px solid var(--w-edge);border-radius:5px;padding:0 5px;}
-#wpal-root.wp-mmon .wp-list{bottom:calc(var(--mh,86px) + 92px);}
+#wpal-root.wp-mmon .wp-list{bottom:calc(var(--mmb,66px) + var(--mh,86px) + 26px);}
 /* the key opens above its toggle in the bottom-right row (key_toggle.py, Luke's pick A): while it is open the minimap beside it steps aside */
 html:has(.key-pop.wk.open,#summary-wrap.open) #wpal-root .wp-mm{opacity:0;visibility:hidden;pointer-events:none;}
 html:is(.mobile,.alto-editing) #wpal-root :is(.wp-nav,.wp-mm,.wp-mmtip,.wp-help){display:none !important;}
@@ -410,6 +410,7 @@ try{ S.tour=localStorage.getItem('alto-world-tour')!=='off'; }catch(x){}      //
 function on(e,f){ (ev[e]=ev[e]||[]).push(f); }
 function emit(e,d){ (ev[e]||[]).slice().forEach(function(f){ try{ f(d); }catch(x){} }); }
 function el(t,a,p){ var n=document.createElementNS(NS,t); if(a) for(var k in a) n.setAttribute(k,a[k]); if(p) p.appendChild(n); return n; }
+function _wU(n,d){ return window._altoU ? window._altoU(n,d) : String(n); }   /* unit numbers, Roman or arabic (unit_numbers.py; an older page has no choice) */
 function h(t,a,p,txt){ var n=document.createElement(t); if(a) for(var k in a) n.setAttribute(k,a[k]); if(txt!=null) n.textContent=txt; if(p) p.appendChild(n); return n; }
 function dec(s){ var t=document.createElement('textarea'); t.innerHTML=s==null?'':String(s); return t.value; }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
@@ -514,7 +515,7 @@ function placeOf(id){ var n=N(id); while(n&&n.x==null&&n.par){ id=n.par; n=N(id)
 // every card in the order the Tour and the arrow keys hop through them: each stop, then the cards clustered round it
 function seq(){ var o=[]; stops().forEach(function(id){ o.push(id); ((D().cl||{})[id]||[]).forEach(function(c){ o.push(c); }); }); return o; }
 // the reader's filters (the engine dims a card it hides): a filtered-out card's pin fades and the hops skip it
-function out(id){ var e=document.getElementById('node-'+id), c=e&&e.querySelector('.node-card'); return !!(c&&(c.classList.contains('dimmed')||c.classList.contains('ent-dimmed'))); }
+function out(id){ var e=document.getElementById('node-'+id), c=e&&e.querySelector('.node-card'); return !!(c&&(c.classList.contains('dimmed')||c.classList.contains('ent-dimmed')||c.classList.contains('rel-dimmed'))); }
 function live(){ return seq().filter(function(id){ return !S.out[id]; }); }
 
 // ── drawing ──
@@ -564,7 +565,7 @@ function drawPins(){
   Object.keys(groups).forEach(function(k){ var g=groups[k]; if(g.length<2) return;            // cards sharing a capital fan round it
     g.forEach(function(id,i){ var a=-Math.PI/2+i*2*Math.PI/g.length, r=12+3*g.length; S.pins[id].off=[r*Math.cos(a),r*Math.sin(a)]; S.pins[id].fan=1; }); });
   (D().u||[]).forEach(function(u,a){
-    var tg=h('button',{type:'button','class':'wp-tag '+ucls(a)},S.lTag); h('b',null,tg,String(a+1)); tg.appendChild(document.createTextNode(dec((D().acts[a]||{}).n||''))); h('span',null,tg,' · '+(u.tops||[]).length);
+    var tg=h('button',{type:'button','class':'wp-tag '+ucls(a)},S.lTag); h('b',{'class':'un-n'},tg,_wU(a+1, 'numbers')); tg.appendChild(document.createTextNode(dec((D().acts[a]||{}).n||''))); h('span',null,tg,' · '+(u.tops||[]).length);
     tg.addEventListener('click',function(e){ e.stopPropagation(); if(S.dragged) return; if(u.hub) A.select(u.hub); else A.unit(a); });
     S.tags.push({el:tg,a:a});
   });
@@ -960,7 +961,7 @@ function els(C){ return [C.main].concat(C.cards.map(function(K){ return K.el; })
 function card(id,main){
   var n=N(id), c=h('div',{'class':'wp-card wp-grow '+ucls(n.a)+(main?' main':'')+(S.out[id]?' wp-dim':''),role:'button',tabindex:'0','data-id':id},S.lCards);
   var ha=hubUnit(id);
-  h('div',{'class':'n'},c,ha>=0?'Unit '+(ha+1)+' · '+(D().u[ha].reg||[]).join(', '):dec(n.n||'')+(main&&n.pl?' · '+dec(n.pl):''));
+  h('div',{'class':'n'},c,ha>=0?'Unit '+_wU(ha+1, 'numbers')+' · '+(D().u[ha].reg||[]).join(', '):dec(n.n||'')+(main&&n.pl?' · '+dec(n.pl):''));
   h('h4',null,c,dec(n.t||''));
   if(main&&n.nm) h('div',{'class':'pl'},c,'Named in your notes: '+dec(n.nm));
   var go=function(e){ if(e) e.stopPropagation(); A.select(id); };
@@ -1072,7 +1073,7 @@ function homeName(){ var c=D().scope; return c?dec((D().names||{})[c]||c):'Whole
 A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW,g:S.gN}; };
 function tourBar(){ navSync();
   var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.tour&&s.length>0; B.hidden=!on; if(!on) return;      // (the Tour on: its bar is there before the first stop)
-  var nm=function(id){ var n=N(id), a=hubUnit(id); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var q=N(placeOf(id)||id); return dec((n.n||'')+' '+(n.pl||(q&&q.pl)||'')); };
+  var nm=function(id){ var n=N(id), a=hubUnit(id); if(a>=0) return dec(_wU(a+1, 'numbers')+' '+((D().acts[a]||{}).n||'')); var q=N(placeOf(id)||id); return dec((n.n||'')+' '+(n.pl||(q&&q.pl)||'')); };
   if(i<0){ S.tPrev.textContent=''; S.tCur.textContent='Tour · '+s.length+' stops'; S.tNext.textContent=nm(s[0]); return; }
   S.tPrev.textContent=nm(s[(i-1+s.length)%s.length]); S.tNext.textContent=nm(s[(i+1)%s.length]);
   S.tCur.textContent='Tour '+(i+1)+' / '+s.length+' · '+nm(S.cur);
@@ -1394,7 +1395,7 @@ function nsibs(h){ return nkids(nup(h)); }
 function nscope(h){ var k=nkids(h); return k.length?k:nsibs(h); }
 function nnext(h){ if(!h) return null; var s=nsibs(h), i=s.indexOf(h); return i>=0&&s[i+1]?s[i+1]:null; }
 function nround(h,d){ var s=nscope(h), i=s.indexOf(h); if(!s.length||(s.length===1&&i===0)) return null; return i<0?s[d>0?0:s.length-1]:s[(i+d+s.length)%s.length]; }
-function nname(h){ if(!h) return homeName(); var a=ua(h); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var n=N(h); return n?dec(((n.n||'')+' '+(n.t||'')).trim()):''; }
+function nname(h){ if(!h) return homeName(); var a=ua(h); if(a>=0) return dec(_wU(a+1, 'numbers')+' '+((D().acts[a]||{}).n||'')); var n=N(h); return n?dec(((n.n||'')+' '+(n.t||'')).trim()):''; }
 function nhome(){ return S.cur||(S.ua!=null?ukey(S.ua):''); }
 function ngo(h){ if(!h){ A.world(); return; } var a=ua(h); if(a>=0){ A.unit(a); return; } A.select(h); }
 var NKEYS=[['Back','up to the place or unit it belongs to'],['Next','the next one at the same level'],['Left / Right arrows','round the ones beside the enlarged card (Tour off; on, the arrows step the Tour)'],['1 – 9','that one beside it (lit and numbered on the map)'],['O','the whole world'],['Esc','the card goes, then the whole world'],['T','the Tour on or off'],['+ / −','zoom']];
@@ -1412,19 +1413,33 @@ function navChrome(){
   [S.nUp,S.nAt,S.nNx].forEach(function(e){ e.addEventListener('click',function(ev){ ev.stopPropagation(); if(e.disabled) return; ngo(e.getAttribute('data-go')||''); }); });
   S.nMp.addEventListener('click',function(ev){ ev.stopPropagation(); S.mmOn=!S.mmOn; try{ localStorage.setItem('alto-world-map',S.mmOn?'1':'0'); }catch(x){} navSync(); });
   try{ S.mmOn=localStorage.getItem('alto-world-map')!=='0'; }catch(x){ S.mmOn=true; }
-  var mm=S.mmEl=h('div',{'class':'wp-bar wp-mm',role:'group','aria-label':'Minimap: the whole world, the box is what the map shows'},S.root);
+  var mm=S.mmEl=h('div',{'class':'wp-bar wp-mm alto-mm',role:'group','aria-label':'Minimap: the whole world, the box is what the map shows'},S.root);
   S.mmSvg=el('svg',{viewBox:'-1010 -497 2020 994'},mm); S.mmLand=el('g',null,S.mmSvg); S.mmPins=el('g',null,S.mmSvg);
   S.mmHere=el('circle',{'class':'h',r:26},S.mmSvg); S.mmBox=el('rect',null,S.mmSvg);
   S.mmTip=h('div',{'class':'wp-bar wp-mmtip',hidden:''},S.root);
   mmInput(); mmSize(mm); }
-// the minimap's size is the user's to set: drag its corner (kept per viewer; a double-click is the usual size)
-function mmSize(mm){ var rz=h('i',{'class':'rz',title:'Drag to resize'},mm), HK='alto-world-map-h', d=null, v=0;
-  function set(n){ S.root.style.setProperty('--mh',n+'px'); mmBox(); }
-  try{ var k=+localStorage.getItem(HK); if(k>=60) set(k); }catch(x){}
-  rz.addEventListener('pointerdown',function(e){ if(e.button>0) return; e.stopPropagation(); e.preventDefault(); d=[e.clientX,e.clientY,S.mmSvg.getBoundingClientRect().height]; v=0; try{ rz.setPointerCapture(e.pointerId); }catch(x){} });
-  rz.addEventListener('pointermove',function(e){ if(!d) return; v=Math.round(Math.max(60,Math.min(300,(S.root.clientWidth-80)/2.05,d[2]-((e.clientY-d[1])+(e.clientX-d[0])/2.05)/2))); set(v); });
-  rz.addEventListener('pointerup',function(){ if(d&&v){ try{ localStorage.setItem(HK,v); }catch(x){} } d=null; });
-  rz.addEventListener('dblclick',function(){ S.root.style.removeProperty('--mh'); try{ localStorage.removeItem(HK); }catch(x){} mmBox(); }); }
+// the minimap's size and place are the user's to set: drag its corner (size) or the map outside the box (place), both kept per viewer; a
+// double-click on the corner puts it back. Otherwise it sits just above the bottom-right toggles, as wide as they are (minimap_home.py)
+var MMK={h:'alto-world-map-h',at:'alto-world-map-at'};
+function mmLs(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(x){} return null; }
+function mmZ(){ return parseFloat(getComputedStyle(document.documentElement).zoom)||1; }
+function mmHome(){ var mm=S.mmEl; if(!mm||phone()||!S.root||S.root.hidden||!mm.offsetParent) return; var R=window._altoMmRow&&window._altoMmRow(); if(!R) return;
+  var z=mmZ(), rr=S.root.getBoundingClientRect(), st=S.root.style, ex=mm.offsetWidth-S.mmSvg.getBoundingClientRect().width/z; if(!(ex>0&&ex<60)) ex=12;
+  var uh=S.mmUH||0, mh=uh||Math.max(30,((R[2]-R[0])/z-ex)/2.05), mw=uh?uh*2.05:(R[2]-R[0])/z-ex;
+  var w=mw+ex, hh=mh+ex, W=rr.width/z, H=rr.height/z, at=S.mmAt, r, b;
+  if(at){ r=Math.max(4,Math.min(W-w-4,at.x*(W-w))); b=Math.max(4,Math.min(H-hh-4,at.y*(H-hh))); }
+  else { r=(rr.right-R[2])/z; b=(rr.bottom-R[1])/z+(window._altoMmGap||12); }
+  var v={'--mh':mh.toFixed(2)+'px','--mw':mw.toFixed(2)+'px','--mmr':r.toFixed(2)+'px','--mmb':b.toFixed(2)+'px'}, ch=0;
+  for(var k in v) if(st.getPropertyValue(k)!==v[k]){ st.setProperty(k,v[k]); ch=1; }
+  if(mm.style.right!=='var(--mmr)'){ mm.style.right='var(--mmr)'; mm.style.bottom='var(--mmb)'; }
+  if(ch){ mmBox(); if(window._altoSafeRefit) window._altoSafeRefit(); } }
+function mmSize(mm){ var rz=h('i',{'class':'rz',title:'Drag to resize; double-click to put it back'},mm), d=null, v=0;
+  S.mmUH=+mmLs(MMK.h)>=60?+mmLs(MMK.h):0; try{ var a=JSON.parse(mmLs(MMK.at)||'null'); S.mmAt=a&&isFinite(a.x)&&isFinite(a.y)?a:null; }catch(x){ S.mmAt=null; }
+  rz.addEventListener('pointerdown',function(e){ if(e.button>0) return; e.stopPropagation(); e.preventDefault(); d=[e.clientX,e.clientY,S.mmSvg.getBoundingClientRect().height/mmZ()]; v=0; try{ rz.setPointerCapture(e.pointerId); }catch(x){} });
+  rz.addEventListener('pointermove',function(e){ if(!d) return; var z=mmZ(); v=Math.round(Math.max(60,Math.min(300,(S.root.clientWidth-80)/2.05,d[2]-((e.clientY-d[1])+(e.clientX-d[0])/2.05)/2/z))); S.mmUH=v; mmHome(); });
+  rz.addEventListener('pointerup',function(){ if(d&&v) mmLs(MMK.h,String(v)); d=null; });
+  rz.addEventListener('dblclick',function(){ S.mmUH=0; S.mmAt=null; mmLs(MMK.h,null); mmLs(MMK.at,null); mmHome(); });
+  window.addEventListener('resize',mmHome); setInterval(mmHome,250); }
 function mmDraw(){ var L=S.mmLand, used=D().used||{}; while(L.firstChild) L.removeChild(L.firstChild);
   var oc=one(); if(oc){ var bb=hbox(oc), w=bb[2]-bb[0], hh=bb[3]-bb[1], m=Math.max(w,hh*2.05)*.08, W=Math.max(w,hh*2.05)+2*m, H=W/2.05;
     S.mmSvg.setAttribute('viewBox',[(bb[0]+bb[2])/2-W/2,(bb[1]+bb[3])/2-H/2,W,H].map(function(v){ return v.toFixed(1); }).join(' ')); S.mmHere.setAttribute('r',(W/80).toFixed(1)); }
@@ -1440,8 +1455,10 @@ function mmInput(){ var mm=S.mmEl, dg=null;
   mm.addEventListener('pointermove',function(e){ var q=mmPt(e); if(!q) return;
     if(!dg){ var t=mmNear(q); S.mmTip.hidden=!t; if(t) S.mmTip.textContent=nname(t)+(t===placeOf(nhome())?' · you are here':''); return; }
     if(!dg.on&&Math.hypot(e.clientX-dg.x,e.clientY-dg.y)<4) return; dg.on=1; S.mmTip.hidden=true;
-    if(dg.in){ stop(); setView(dg.c[0]+q[0]-dg.q[0],dg.c[1]+q[1]-dg.q[1],S.k); mmBox(); } });
-  var up=function(e){ if(!dg) return; var d=dg; dg=null; if(d.on) return; var t=mmNear(d.q); if(t) A.select(t); else fly(d.q[0],d.q[1],S.k); };
+    if(dg.in){ stop(); setView(dg.c[0]+q[0]-dg.q[0],dg.c[1]+q[1]-dg.q[1],S.k); mmBox(); return; }
+    if(!dg.m){ var z=mmZ(), rr=S.root.getBoundingClientRect(), m=mm.getBoundingClientRect(); dg.m=[(rr.right-m.right)/z,(rr.bottom-m.bottom)/z,(rr.width-m.width)/z,(rr.height-m.height)/z]; }
+    var z2=mmZ(), M=dg.m; S.mmAt={x:Math.max(0,Math.min(1,(M[0]-(e.clientX-dg.x)/z2)/Math.max(1,M[2]))),y:Math.max(0,Math.min(1,(M[1]-(e.clientY-dg.y)/z2)/Math.max(1,M[3])))}; mmHome(); });   // (outside the box: the map itself moves)
+  var up=function(e){ if(!dg) return; var d=dg; dg=null; if(d.m&&S.mmAt) mmLs(MMK.at,JSON.stringify({x:+S.mmAt.x.toFixed(4),y:+S.mmAt.y.toFixed(4)})); if(d.on) return; var t=mmNear(d.q); if(t) A.select(t); else fly(d.q[0],d.q[1],S.k); };
   mm.addEventListener('pointerup',up); mm.addEventListener('pointercancel',function(){ dg=null; });
   mm.addEventListener('pointerleave',function(){ if(!dg) S.mmTip.hidden=true; });
   mm.addEventListener('click',function(e){ e.stopPropagation(); }); }
@@ -1459,7 +1476,7 @@ function navSync(){ if(!S.navEl) return; var hm=nhome(), u=nup(hm), nx=nnext(hm)
   S.nMp.classList.toggle('on',!!S.mmOn); S.nMp.setAttribute('aria-pressed',String(!!S.mmOn)); lab(S.nMp,S.mmOn?'Hide the minimap':'Show the minimap');
   var at=S.nAt; while(at.firstChild) at.removeChild(at.firstChild); at.setAttribute('data-go',hm);
   if(hm&&p) at.appendChild(document.createTextNode(nname(p)+' › ')); h('b',null,at,nname(hm)); lab(at,hm?'You are at '+nname(hm)+(p?', in '+nname(p):'')+' (? for the keys)':'All of '+homeName().replace(/^Whole world$/,'the world')+' (? for the keys)');
-  var mmOn=!!(S.mmOn&&hm&&S.ready); S.mmEl.classList.toggle('on',mmOn); S.root.classList.toggle('wp-mmon',mmOn); if(!mmOn) S.mmTip.hidden=true;
+  var mmOn=!!(S.mmOn&&hm&&S.ready); S.mmEl.classList.toggle('on',mmOn); S.root.classList.toggle('wp-mmon',mmOn); if(!mmOn) S.mmTip.hidden=true; mmHome();
   var hp=placeOf(hm)||(ua(hm)>=0?null:null), hn=hp&&N(hp); if(hn){ S.mmHere.setAttribute('cx',hn.x); S.mmHere.setAttribute('cy',hn.y); S.mmHere.style.display=''; } else S.mmHere.style.display='none';
   mmBox(); hints(hm); }
 function hints(hm){ var sc=hm?nscope(hm).slice(0,9):[], on={};
@@ -1564,7 +1581,7 @@ function chrome(){
   var key=S.keyEl=h('div',{'class':'wp-bar wp-key'+(narrow?' shut':'')},root);
   var kt=h('button',{type:'button','class':'wp-kt'},key); (D().acts||[]).forEach(function(a,i){ h('i',{'class':ucls(i),style:'width:8px;height:8px'},kt); }); kt.appendChild(document.createTextNode(' Key'));
   kt.addEventListener('click',function(){ key.classList.toggle('shut'); });
-  (D().u||[]).forEach(function(u,a){ var b=h('button',{type:'button','class':'u '+ucls(a)},key); h('i',null,b); b.appendChild(document.createTextNode((a+1)+' '+dec((D().acts[a]||{}).n||'')+' ')); h('span',null,b,'· '+(u.reg||[]).join(', '));
+  (D().u||[]).forEach(function(u,a){ var b=h('button',{type:'button','class':'u '+ucls(a)},key); h('i',null,b); b.appendChild(document.createTextNode(_wU(a+1, 'numbers')+' '+dec((D().acts[a]||{}).n||'')+' ')); h('span',null,b,'· '+(u.reg||[]).join(', '));
     b.addEventListener('click',function(){ A.unit(a); }); });
   if(Object.keys(D().nodes||{}).some(function(id){ return N(id).r; })){ var kn=h('div',{'class':'wp-kn'},key); var s=el('svg',{viewBox:'-8 -16 16 17',width:10,height:12},kn); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z',fill:'currentColor'},s); kn.appendChild(document.createTextNode('place named in your notes')); }
   // the key is Alto's floating key toggle on desktop (key_toggle.py, as the city palace's and the horizontal timeline's): a round glass
@@ -1659,7 +1676,8 @@ def _asset() -> str:
     from .world_geo import REGIONS, manifest, continent_boxes
     from .world_flags import manifest as flag_manifest
     from .key_toggle import KEY_CSS, KEY_JS
-    return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps({**manifest(), "flag": flag_manifest()}, sort_keys=True)
+    from .minimap_home import MM_HOME_JS
+    return (KEY_JS + MM_HOME_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps({**manifest(), "flag": flag_manifest()}, sort_keys=True)
             + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\nvar CTRY=" + _json.dumps(_countries(), sort_keys=True, separators=(",", ":"))
             + ";\nvar REG=" + _json.dumps([r for r, _ in REGIONS]) + ";\n" + WORLD_JS + "\n})();\n")
 

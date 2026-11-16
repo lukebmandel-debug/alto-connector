@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.232"
+__version__ = "1.9.233"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1685,7 +1685,7 @@ def set_flags(timeline_id: str, flags: list[dict],
 @mcp.tool(title="Add or rename units", annotations=RW)
 @accounted
 def set_units(timeline_id: str, add: list[dict] | None = None,
-              update: list[dict] | None = None) -> dict:
+              update: list[dict] | None = None, unit_numbers: str | None = None) -> dict:
     """Add units (sections / acts / bands) to an existing page, or change a
     unit's label, short name, colour or Overview summary. No limit on how many
     units a page has. Nodes are never touched: existing nodes keep their
@@ -1696,13 +1696,21 @@ def set_units(timeline_id: str, add: list[dict] | None = None,
     short?, color?, summary?}] — only the fields sent change. A new unit needs
     its hub card (a node with no `parent`, in outline mode) before the build.
     set_overview(section_summaries=...) then takes one entry per unit, new
-    ones included."""
+    ones included.
+
+    unit_numbers: "roman" (I, II, III) or "numbers" (1, 2, 3) — how every
+    format of this page writes its unit numbers (only the unit level: "X.a.1"
+    or "10.a.1"). Never set, each format keeps its own look. The owner can
+    also switch it in the page (Scene panel); the newer choice wins. It shows
+    once the page is built and published again."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     add, update = add or [], update or []
-    if not add and not update:
-        return {"error": "nothing_to_do", "message": "send `add` and/or `update`"}
+    if not add and not update and unit_numbers is None:
+        return {"error": "nothing_to_do", "message": "send `add`, `update` and/or `unit_numbers`"}
+    if unit_numbers is not None and unit_numbers not in ("roman", "numbers"):
+        return {"error": "invalid_units", "message": 'unit_numbers must be "roman" or "numbers"'}
     acts = [dict(a) for a in (doc["brief"].get("acts") or [])]
     keys = ("label", "short", "color", "summary")
     for u in update:
@@ -1717,6 +1725,9 @@ def set_units(timeline_id: str, add: list[dict] | None = None,
             return {"error": "invalid_units", "message": "every added unit needs a label"}
         acts.append({k: a[k] for k in keys if k in a})
     brief = {**doc["brief"], "acts": acts}
+    if unit_numbers is not None:
+        import time as _time
+        brief["unit_numbers"], brief["unit_numbers_at"] = unit_numbers, int(_time.time() * 1000)
     try:
         load_brief({"brief": _checked(doc, brief)})
     except (BriefError, TypeError) as e:
@@ -1725,6 +1736,8 @@ def set_units(timeline_id: str, add: list[dict] | None = None,
     get_store().put_timeline(uid(), timeline_id, doc)
     return {"ok": True,
             "units": [{"act": i, "label": a.get("label")} for i, a in enumerate(acts)],
+            **({"unit_numbers": unit_numbers,
+                "note": "build and publish the page for it to show"} if unit_numbers is not None else {}),
             **({"added": list(range(first_new, len(acts))),
                 "next": "add each new unit's hub node (no parent) with add_nodes"} if add else {})}
 
@@ -3303,7 +3316,7 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     if mode == "firebase-static" or (not base and firebase_configured()):
         # Free-tier path: regenerate the static site (all link-visible
         # timelines + homepage + reports) and deploy with the Firebase CLI.
-        from .publish_static import regenerate_site, deploy_site, PublishError
+        from .publish_static import regenerate_site, deploy_if_changed, PublishError
         st.put_timeline(uid(), timeline_id, doc)
         if not firebase_configured():
             # No web publishing set up (new user without a Firebase site):
@@ -3329,7 +3342,7 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                 return err
         try:
             site = regenerate_site(st, uid())
-            live = deploy_site(site)
+            live, deployed = deploy_if_changed(site)
         except PublishError as e:
             return {"error": "publish_failed", "message": str(e)}
 
@@ -3347,13 +3360,16 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                                 "ship a page older than the current engine. "
                                 "Fix the listed pages, or set "
                                 "ALTO_ALLOW_STALE=1 to publish anyway.")}
-        drift = verify_live(site, live)
+        drift = verify_live(site, live) if deployed else []      # nothing new went up: nothing new to check
         if drift and not allow_stale:
             return {"error": "live_mismatch", "pages": drift,
                     "message": ("the deploy reported success but the live site "
                                 "is not serving this build. Re-run the publish; "
                                 "if it persists, the pages above are stale on "
                                 "the CDN or were never written.")}
+        if deployed and not drift:
+            from .publish_static import mark_deployed
+            mark_deployed(site)                                  # only now is this deploy recorded as good (a mismatch above leaves no record)
         stale_bits = ({"stale": stale,
                        "stale_note": ("shipped from an older build — "
                                       "ALTO_ALLOW_STALE was set")}

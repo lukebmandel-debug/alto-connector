@@ -239,13 +239,16 @@ function camFor(id, B){
    path (a character's own event, the page as it opened, a scrollbar drag) is an
    offset (ox, oy) from the nearest point of the path, which fades out over the
    next few hundred px of travel, so nothing ever jumps back onto the path. */
-var M={hv:0, u:0, uT:0, pend:[], vel:0, ox:0, oy:0, raf:0, last:0, input:-1e9, dir:1, restU:0, restId:null, gl:null, drag:null, pth:null, wr:null, near:null, stale:false};
+var M={hv:0, u:0, uT:0, pend:[], vel:0, ox:0, oy:0, raf:0, last:0, input:-1e9, dir:1, restU:0, restId:null, gl:null, drag:null, pth:null, wr:null, near:null, stale:false, vy:null};
 function buildPath(){
   var c=cv(), S=stops(), B=band(c), ids=S.ids, P=[], U=[], ml=0, mt=0;
   _fit={t:B.t, b:B.b, y:fitHome(c,B,ids)};
   for(var i=0;i<ids.length;i++){
     var t=camFor(ids[i],B); ml=t.ml; mt=t.mt; P.push([t.l,t.t]);
-    U.push(i ? U[i-1]+Math.max(MINSEG, Math.abs(t.l-P[i-1][0])) : 0);
+    /* two events resting at the very same view (the opening's first two: the camera cannot centre them, so both sit at scroll 0) are one
+       stop for the hand: a gap of 1 px, so the first notch, swipe or key press goes on to a view that is visibly somewhere else */
+    var same=i && Math.abs(t.l-P[i-1][0])<.5 && Math.abs(t.t-P[i-1][1])<.5 && (t.l<.5 || t.l>t.ml-.5);   // (only at an end of the board, where the camera cannot centre them)
+    U.push(i ? U[i-1]+(same ? 1 : Math.max(MINSEG, Math.abs(t.l-P[i-1][0]))) : 0);
   }
   if(!ids.length){ ml=c.scrollWidth-c.clientWidth; mt=c.scrollHeight-c.clientHeight; }
   return M.pth={ids:ids, P:P, U:U, end:U.length ? U[U.length-1] : 0, ml:ml, mt:mt};
@@ -320,8 +323,10 @@ function stopLoop(){ if(M.raf) cancelAnimationFrame(M.raf); M.raf=0; M.gl=null; 
 var _drawn=null;
 function draw(){
   var c=cv(), q=pathAt(M.u), L=Math.max(0,Math.min(M.pth.ml,q[0]+M.ox)), T=Math.max(0,Math.min(M.pth.mt,q[1]+M.oy));
+  if(M.vy!=null) T=Math.max(0,Math.min(M.pth.mt,M.vy));      // a height the hand chose (two fingers or a drag, up and down) stays
   if(_drawn && Math.abs(_drawn[0]-L)<.01 && Math.abs(_drawn[1]-T)<.01 && !extMoved()) return;
   _drawn=[L,T]; axis('scrollLeft').go(L); axis('scrollTop').go(T); M.wr=[c.scrollLeft, c.scrollTop];
+  if(M.vy!=null && _land) _land[1]=c.scrollTop;               // (a height the hand chose is not the view having been moved off its event)
 }
 /* the rail and the ring follow the nearest event while travelling */
 function follow(){
@@ -398,6 +403,7 @@ function glideTo(id, opt, done){
 function land(g){
   var c=cv(), qx=axis('scrollLeft'), qy=axis('scrollTop'), q=pathAt(g.u1);
   var L=Math.max(0,Math.min(M.pth.ml,q[0]+g.ox1)), T=Math.max(0,Math.min(M.pth.mt,q[1]+g.oy1));
+  if(M.vy!=null) T=Math.max(0,Math.min(M.pth.mt,M.vy));
   qx.go(qx.stop(dev(L,M.pth.ml))); qy.go(qy.stop(dev(T,M.pth.mt)));
   M.u=M.uT=g.u1; M.ox=g.ox1; M.oy=g.oy1; M.vel=0; M.raf=0; M.gl=null;
   M.wr=[c.scrollLeft, c.scrollTop]; _drawn=null;
@@ -435,6 +441,8 @@ function setCur(id){
    wait their turn, a held key's repeat adds at most one */
 function step(dir, src, repeat){
   if(!on() || _ov) return;
+  /* an enlarged card (Luke, 2026-11-13: "make sure user can enlarge nodes in horizontal timeline"): the rail and ← → hop it along the stops */
+  var fid=window._focusedNodeId; if(fid && typeof dir==='number'){ var nx=neighbour(fid, dir); if(nx && window.enterFocus) window.enterFocus(nx); return; }
   if(_busy){ if(repeat ? !_q.length : _q.length<QMAX) _q.push([dir,src]); return; }
   run(dir, src);
 }
@@ -447,13 +455,20 @@ function run(dir, src){
     else { for(k=U.length-1;k>=0 && !nx;k--) if(U[k]<M.u-1) nx=I[k]; if(!nx) nx=I[0]; }
   }
   else nx=from ? neighbour(from, dir) : stops().ids[dir>0?0:stops().ids.length-1];
+  if(nx && from && typeof dir==='number'){                      // a step that would rest on the view it is already in goes on to the next one
+    var cf=camFor(from), ct=camFor(nx), n2;
+    while(Math.abs(cf.l-ct.l)<.5 && Math.abs(cf.t-ct.t)<.5 && (ct.l<.5 || ct.l>ct.ml-.5) && (n2=neighbour(nx, dir))){ nx=n2; ct=camFor(nx); }
+  }
   if(!nx){ if(from && (from!==_cur || moved(cv()))) glideTo(from,{step:true}); return; }      // the end: rest on the last one
   de.classList.add('ln-stepped');
   _busy=true;
   glideTo(nx, {step:true}, function(){ _busy=false; var q=_q.shift(); if(q) run(q[0], q[1]); });
   if(src==='key') focusCard(nx);
 }
-window._altoLanesStep=function(d){ step(d,'api'); };       // for tests and the rail
+window._altoLanesStep=function(d){            // (the keys that used to do these, Home and End, are gone: the arrows only)
+  if(d==='first'){ lnReset(); step(stops().ids[0],'api'); return; }
+  if(d==='last'){ lnReset(); var S=stops().ids; step(S[S.length-1],'api'); return; }
+  step(d,'api'); };       // for tests and the rail
 window._altoLanesCurrent=function(){ return current(); };
 window._altoLanesTravel=function(){ return M.pth ? {u:M.u, end:M.pth.end, U:M.pth.U.slice(), ids:M.pth.ids.slice(), P:M.pth.P.map(function(q){ return [Math.round(q[0]),Math.round(q[1])]; }), moving:!!M.raf, settling:!!(M.gl && M.gl.settle)} : null; };   // for tests
 function focusCard(id){
@@ -472,25 +487,35 @@ window._altoLanesNav=function(id, dir){
 };
 
 /* ── keys ──────────────────────────────────────────────────────────────── */
-document.addEventListener('keydown', function(e){
-  if(!on() || e.metaKey || e.ctrlKey || e.altKey) return;
-  var k=e.key;
-  if(k==='Escape' && _ov){ e.preventDefault(); e.stopPropagation(); ovLeave(null); return; }
-  if(k==='Escape'){ setTimeout(function(){ invalidate(); ui(current(),0); },0); return; }     // lanes.py lets go of a kept line: all events again
-  if(window._focusedNodeId || busyElsewhere()) return;
-  var ae=document.activeElement, tg=ae && ae.tagName;
+/* Luke (L-1114-focus): "I only want the arrow keys to do something on the keyboard, no other keys should come into play." On the board
+   ← → step along the line, ↑ ↓ move between lanes; Esc, + / − / 0, Space, Page keys, Home / End, Enter, Shift, Ctrl / ⌘ do nothing here
+   (typing in a text field, and the pop-ups' own keys, are untouched). A modified arrow, or ⌘ / Ctrl with a zoom key, is swallowed too:
+   no modifier changes what a key does, and the browser's page zoom never takes it. Registered on window so it is ahead of the engine's. */
+function panelsOpen(){
+  return de.classList.contains('detail-open') ||
+    !!document.querySelector('#notes-panel.open,#summary-wrap.open,#ef-panel.open,#bg-panel.open,#note-dialog.visible,#search-btn.expanded,#share-dialog.visible');
+}
+window.addEventListener('keydown', function(e){
+  if(!on()) return;
+  var k=e.key, ae=document.activeElement, tg=ae && ae.tagName;
   if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
-  var onCtl=(tg==='BUTTON' || tg==='A' || (ae && ae.getAttribute && ae.getAttribute('role')==='button'));
-  var d=null, sh=e.shiftKey;
-  if(k==='ArrowRight' && !sh) d=1; else if(k==='ArrowLeft' && !sh) d=-1;
-  else if(k==='PageDown' || (k===' ' && !sh && !onCtl)) d=1;
-  else if(k==='PageUp' || (k===' ' && sh && !onCtl)) d=-1;
-  else if(k==='Home' && !onCtl) d='first'; else if(k==='End' && !onCtl) d='last';
-  else if((k==='ArrowUp' || k==='ArrowDown') && !sh) d=k==='ArrowUp'?'n':'s';
-  else if(k==='Enter' && !onCtl){
-    var cur=current(); if(!cur) return;
-    e.preventDefault(); cancelAll(); if(window.enterFocus) window.enterFocus(cur); return;
-  }
+  var arrow=(k==='ArrowRight' || k==='ArrowLeft' || k==='ArrowUp' || k==='ArrowDown'), mod=e.metaKey || e.ctrlKey || e.altKey || e.shiftKey;
+  if(panelsOpen()) return;
+  if(arrow && mod){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if((e.metaKey || e.ctrlKey) && (k==='+' || k==='=' || k==='-' || k==='_' || k==='0')){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+  return;
+}, true);
+document.addEventListener('keydown', function(e){
+  if(!on()) return;
+  var k=e.key, ae=document.activeElement, tg=ae && ae.tagName;
+  if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
+  var arrow=(k==='ArrowRight' || k==='ArrowLeft' || k==='ArrowUp' || k==='ArrowDown');
+  if(panelsOpen()) return;
+  if(!arrow || e.altKey) return;
+  if(window._focusedNodeId) return;                                // an enlarged card: the engine's arrows step it on
+  var d=null, sh=false;
+  if(k==='ArrowRight') d=1; else if(k==='ArrowLeft') d=-1;
+  else d=k==='ArrowUp'?'n':'s';
   if(d==null) return;
   if(_ov){ e.preventDefault(); return; }
   e.preventDefault();
@@ -500,8 +525,6 @@ document.addEventListener('keydown', function(e){
     var other=K.l||K.r||K.u||K.d; K[kk]=performance.now(); holdStart();
     if(other && !KT) return;                     // the second key of a combo (↑ → …): the first one's step stands
   }
-  if(d==='first'){ lnReset(); step(stops().ids[0],'key'); return; }
-  if(d==='last'){ lnReset(); var S=stops().ids; step(S[S.length-1],'key'); return; }
   if(d==='n'||d==='s'){ hop(d); return; }
   step(d,'key',e.repeat);
 }, true);
@@ -574,13 +597,13 @@ var WH={last:-1e9, ax:null, sx:0, sy:0, cand:null};
 function notch(s){
   var p=M.pth; if(!p || p.U.length<2) return 120;
   var U=p.U, i=seg(M.uT); if(s<0 && M.uT<=U[i]+.5 && i>0) i--;
-  var L=U[i+1]-U[i];
+  var L=U[i+1]-U[i]; for(var j=i+1; L<MINSEG && j<U.length-1; j++) L+=U[j+1]-U[j];      // (events at one view count as one)
   return Math.min(NOTCH_MAX, Math.max(NOTCH*L, Math.min(NOTCH_MIN, .6*L)));
 }
 /* Safari's mouse wheel: whole multiples of 4.000244… px (a trackpad's are not) */
 function sfNotch(a){ var k=Math.round(a/SFN); return k>=1 && Math.abs(a-k*SFN)<1e-4 && Math.abs(a-Math.round(a))>1e-4; }
-function onWheel(e){
-  if(!on() || e.ctrlKey || e.metaKey) return;
+function onWheel(e, forced){
+  if(!on() || ((e.ctrlKey || e.metaKey) && !forced)) return;
   if(window._focusedNodeId) return;                         // an enlarged card: the engine's swipe hops (along the stops)
   if(_ov){ ovWheel(e); return; }
   if(busyElsewhere()) return;
@@ -588,8 +611,15 @@ function onWheel(e){
   e.preventDefault();                                       // the camera stays on the path: no free scroll
   if(M.drag) return;
   var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, now=performance.now();
-  if(e.shiftKey && !dx){ dx=dy; dy=0; }
   var gap=now-WH.last; WH.last=now;
+  /* a trackpad's up and down moves the view up and down when the lanes do not all fit; a mouse's notch, or lanes that all fit, go along the line */
+  var big=Math.max(Math.abs(dx),Math.abs(dy)), mouse=!!e.deltaMode || sfNotch(big) || (gap>=LONE && big>=40 && big===Math.round(big) && !(dx && dy));
+  var mt0=cv().scrollHeight-cv().clientHeight;
+  if(!phone() && !mouse && dy && mt0>1){
+    var k0=zk(cv()); M.vy=Math.max(0,Math.min(mt0,(M.vy!=null ? M.vy : cv().scrollTop)+dy/k0)); dy=0;
+    if(!M.pth) resync();
+    M.input=now; wake(); if(!dx) return;                      // (the camera along the line is not touched by an up and down)
+  }
   if(gap>GESTURE){ WH.ax=null; WH.sx=WH.sy=0; }
   WH.sx+=Math.abs(dx); WH.sy+=Math.abs(dy);
   if(!WH.ax && WH.sx+WH.sy>=4) WH.ax=WH.sx>=WH.sy ? 'x' : 'y';
@@ -625,9 +655,13 @@ document.addEventListener('wheel', function(e){
    it along the path (the hand's across movement, or its up and down if that is how
    it set off); let go with speed and it coasts (TAU_FLING), then settles. The
    engine's own free pan never sees the drag. */
-var DR=null, _noClick=0;
+var DR=null, _noClick=0, _pn={};                             // _pn: the pointers down on the board (a second finger is a pinch, never a second drag)
+function pnCount(){ var n=0; for(var k in _pn) n++; return n; }
+function dragStop(){ if(!DR) return; DR=M.drag=null; var c=cv(); if(c) c.classList.remove('ln-drag'); M.input=performance.now(); if(!_ov) wake(); }   // no fling, no click-suppression: the hand became two
 document.addEventListener('pointerdown', function(e){
-  var c=cv(); if(!c || !c.contains(e.target) || e.button>0) return;
+  var c=cv(); if(c && c.contains(e.target) && e.pointerType!=='mouse'){ _pn[e.pointerId]=1; if(pnCount()>1){ dragStop(); _gzUntil=performance.now()+600; } }
+  if(!c || !c.contains(e.target) || e.button>0) return;
+  if(pnCount()>1 || _zg) return;                             // two fingers: the pinch's (zoom, below), not a travel drag
   if(!on() || _ov || window._focusedNodeId || busyElsewhere()) return;
   var r=c.getBoundingClientRect(), k=zk(c);
   if((e.clientX-r.left)/k>c.clientWidth || (e.clientY-r.top)/k>c.clientHeight) return;         // the scrollbars
@@ -639,10 +673,12 @@ document.addEventListener('pointerdown', function(e){
   M.input=performance.now(); wake();
 }, true);
 window.addEventListener('pointermove', function(e){
-  if(!DR || e.pointerId!==DR.id) return;
+  if(!DR || e.pointerId!==DR.id || pnCount()>1 || _zg) return;
   var k=zk(cv()), tx=(e.clientX-DR.x)/k, ty=(e.clientY-DR.y)/k, now=performance.now();
   if(!DR.moved){ if(Math.abs(tx)+Math.abs(ty)<5) return; DR.moved=true; DR.ax=Math.abs(tx)>=.7*Math.abs(ty) ? 'x' : 'y'; cv().classList.add('ln-drag'); }
-  var d=DR.ax==='x' ? -(e.clientX-DR.lx)/k : -(e.clientY-DR.ly)/k;
+  var d, free=!phone() && M.pth && M.pth.mt>0;
+  if(free){ d=-(e.clientX-DR.lx)/k; var dv=-(e.clientY-DR.ly)/k; if(dv) M.vy=Math.max(0,Math.min(M.pth.mt,(M.vy!=null ? M.vy : cv().scrollTop)+dv)); }   // free: across along the line, up and down as far as the lanes go
+  else d=DR.ax==='x' ? -(e.clientX-DR.lx)/k : -(e.clientY-DR.ly)/k;
   DR.lx=e.clientX; DR.ly=e.clientY;
   if(d){ M.dir=d>0?1:-1; setU(M.u+d); }
   DR.smp.push([now, M.u]); while(DR.smp.length>2 && DR.smp[0][0]<now-90) DR.smp.shift();
@@ -669,8 +705,8 @@ function coast(v){
   M.dir=dir; glideTo(id, {settle:true, ms:ms, pw:Math.max(1.6, Math.min(4, v*ms/D))});
   return true;
 }
-window.addEventListener('pointerup', function(e){ dragEnd(e, true); }, true);
-window.addEventListener('pointercancel', function(e){ dragEnd(e, false); }, true);
+window.addEventListener('pointerup', function(e){ delete _pn[e.pointerId]; dragEnd(e, true); }, true);
+window.addEventListener('pointercancel', function(e){ delete _pn[e.pointerId]; dragEnd(e, false); }, true);
 /* the engine's free pan reads the mouse's moves on window: not while the path has the hand */
 window.addEventListener('mousemove', function(e){ if(DR) e.stopPropagation(); }, true);
 document.addEventListener('click', function(e){ if(_noClick && performance.now()-_noClick<400 && cv() && cv().contains(e.target)){ _noClick=0; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
@@ -700,12 +736,18 @@ document.addEventListener('alto:lanes-pick', function(){
 });
 /* an enlarged card's own hops and exits move the steps along with it */
 var _lastFocus=null;
+var _pre=null;
 function watchFocus(){
   var c=cv(); if(!c || c._lnObs || !window.MutationObserver) return; c._lnObs=1;
   new MutationObserver(function(){
-    if(R) R.el.classList.toggle('lnv-away', c.classList.contains('focus-mode'));    // an enlarged card has the stage
-    if(c.classList.contains('focus-mode')){ if(M.raf || _busy) cancelAll(); if(window._focusedNodeId){ _lastFocus=window._focusedNodeId; setCur(_lastFocus); _trust=true; ui(_lastFocus,0); } }
-    else if(_lastFocus){ setCur(_cur||_lastFocus); _trust=true; _lastFocus=null; }
+    /* (an enlarged card no longer hides the rail: it steps the enlarged card, and the card keeps clear of it, engine_patches enlarge-safe-box) */
+    if(c.classList.contains('focus-mode')){ if(M.raf || _busy) cancelAll(); if(window._focusedNodeId){
+      if(_lastFocus && _lastFocus!==window._focusedNodeId) _pre=null;                // stepped on to another card: no "where it was" to go back to
+      else if(!_lastFocus && !_pre) _pre={id:window._focusedNodeId, l:c.scrollLeft, t:c.scrollTop};
+      _lastFocus=window._focusedNodeId; setCur(_lastFocus); _trust=true; ui(_lastFocus,0); } }
+    else if(_lastFocus){ setCur(_cur||_lastFocus); _trust=true; _lastFocus=null;
+      /* closing the card puts the line exactly where it was (the enlarging may leave it a pixel or two off) */
+      if(_pre){ var q=_pre; _pre=null; if(Math.abs(c.scrollLeft-q.l)<=6 && Math.abs(c.scrollTop-q.t)<=6){ axis('scrollLeft').go(q.l); axis('scrollTop').go(q.t); _land=[c.scrollLeft,c.scrollTop]; M.pth=null; } } }
   }).observe(c,{attributes:true, attributeFilter:['class']});
 }
 
@@ -876,7 +918,7 @@ function ovLeave(id, instant, then){
   if(!_ov) return;
   var c=cv(), from=_ov; id=id||_cur||stops().ids[0];
   if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; c.classList.remove('ln-ovanim'); }
-  _ov=null; _zg=null; c.classList.remove('ln-ov','ln-drag','ln-zin');
+  ovCoastStop(); _ov=null; _zg=null; c.classList.remove('ln-ov','ln-drag','ln-zin');
   if(R){ R.ov.setAttribute('aria-pressed','false'); R.ov.title=OV_T; R.ov.setAttribute('aria-label', OV_T); }
   var w=document.getElementById('world'), off=worldOff(c);
   /* where the camera will rest, worked out as if the board were at scale 1 */
@@ -901,13 +943,45 @@ function ovHold(on){
 }
 /* the board is moved by its transform there, never scrolled (a scrollbar drag is undone) */
 function ovNoScroll(){ var c=cv(); if(!c || c._lnOvS) return; c._lnOvS=1; c.addEventListener('scroll', function(){ if(_ov && (c.scrollLeft || c.scrollTop)){ c.scrollLeft=0; c.scrollTop=0; } }, {passive:true}); }
+/* One way of moving, zoomed or not: a wheel's vertical travel is travel ALONG the line (across), a trackpad's two fingers go where
+   the fingers go, Shift sends a vertical wheel up and down. A mouse notch (lines or pages, Safari's whole multiples, or a lone whole
+   100) is chased smoothly like the rest view's, never a 100 px jump; a trackpad's own stream (and its inertia tail) is applied as it comes. */
+var _wz={t:-1e9}, _wc=null;
+function ovChase(){
+  var last=performance.now();
+  (function fr(now){
+    var c=_wc; if(!c || !_ov){ _wc=null; return; }
+    var dt=Math.max(1,Math.min(50,now-last)); last=now; var k=1-Math.exp(-dt/TAU_CHASE), mx=c.dx*k, my=c.dy*k; c.dx-=mx; c.dy-=my;
+    if(Math.abs(c.dx)<.3 && Math.abs(c.dy)<.3){ mx+=c.dx; my+=c.dy; _wc=null; }
+    _ov.tx-=mx; _ov.ty-=my; ovClamp(_ov); ovSet(_ov);
+    if(_wc) requestAnimationFrame(fr);
+  })(last);
+}
 function ovWheel(e){
   e.preventDefault();
   if(_ovA) return;
-  var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m;
-  if(tall(_ov)){ if(e.shiftKey && !dx){ dx=dy; dy=0; } _ov.tx-=dx; _ov.ty-=dy; }
-  else _ov.tx-=(Math.abs(dx)>Math.abs(dy)?dx:dy);
-  ovClamp(_ov); ovSet(_ov);
+  var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, now=performance.now(), gap=now-_wz.t; _wz.t=now;
+  ovCoastStop();
+  var big=Math.abs(dx)>=Math.abs(dy) ? dx : dy, a=Math.abs(big);
+  var notch=!!e.deltaMode || sfNotch(a) || (gap>=LONE && a>=40 && a===Math.round(a) && !(dx && dy));
+  if(notch){ dx=big; dy=0; }                                                            // along the line (no modifier changes it)
+  else if(!tall(_ov)){ dx=Math.abs(dy)>Math.abs(dx) ? dy : dx; dy=0; }                 // a board no taller than the window has no up and down
+  if(notch && !reduced()){ var run=!_wc; if(run) _wc={dx:0,dy:0}; _wc.dx+=dx; _wc.dy+=dy; if(run) ovChase(); return; }
+  _ov.tx-=dx; _ov.ty-=dy; ovClamp(_ov); ovSet(_ov);
+}
+/* a drag let go with speed coasts on and slows (the rest view's fling, on the board's own pan) */
+var _oc=null;
+function ovCoastStop(){ _oc=null; _wc=null; }
+function ovCoast(vx, vy){
+  if(reduced() || !_ov || Math.hypot(vx,vy)<FLING_MIN) return;
+  var me=_oc={vx:vx, vy:vy}, last=performance.now();
+  (function fr(now){
+    if(_oc!==me || !_ov) return; var dt=Math.max(1,Math.min(50,now-last)); last=now;
+    var k=Math.exp(-dt/TAU_FLING*1.6); me.vx*=k; me.vy*=k;
+    var tx=_ov.tx, ty=_ov.ty; _ov.tx+=me.vx*dt; _ov.ty+=me.vy*dt; ovClamp(_ov); ovSet(_ov);
+    if((Math.abs(_ov.tx-tx)<.05 && Math.abs(_ov.ty-ty)<.05) || Math.hypot(me.vx,me.vy)<.02){ _oc=null; return; }
+    requestAnimationFrame(fr);
+  })(last);
 }
 function ovPoint(cx, cy){
   var c=cv(), r=c.getBoundingClientRect(), k=zk(c), lx=(cx-r.left)/k, ly=(cy-r.top)/k, P=PAD();
@@ -930,7 +1004,8 @@ function ovPoint(cx, cy){
     if(!_ov) return; var c=cv(); if(!c || !c.contains(e.target)) return;
     e.preventDefault(); e.stopPropagation();
     np++; if(np>1 || _zg){ if(dn) dn.moved=true; dn=null; return; }        // a second finger: a pinch, not a drag
-    dn={x:e.clientX, y:e.clientY, tx:_ov.tx, ty:_ov.ty, moved:false, id:e.pointerId};
+    ovCoastStop();
+    dn={x:e.clientX, y:e.clientY, tx:_ov.tx, ty:_ov.ty, moved:false, id:e.pointerId, smp:[]};
   }, true);
   document.addEventListener('pointermove', function(e){
     if(!dn || !_ov || e.pointerId!==dn.id || _zg) return;
@@ -938,14 +1013,17 @@ function ovPoint(cx, cy){
     if(!dn.moved && Math.abs(e.clientX-dn.x)+Math.abs(e.clientY-dn.y)<5) return;
     if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; cv().classList.remove('ln-ovanim'); }
     dn.moved=true; cv().classList.add('ln-drag'); _ov.tx=dn.tx+dx; if(tall(_ov)) _ov.ty=dn.ty+dy; ovClamp(_ov); ovSet(_ov);
+    var t=performance.now(); dn.smp.push([t,_ov.tx,_ov.ty]); while(dn.smp.length>2 && dn.smp[0][0]<t-90) dn.smp.shift();
   }, true);
   ['pointerup','pointercancel'].forEach(function(t){ document.addEventListener(t, function(e){ if(np>0) np--; }, true); });
   document.addEventListener('pointerup', function(e){
     if(!dn || e.pointerId!==dn.id) return;
     var d=dn; dn=null; cv().classList.remove('ln-drag');
-    if(!_ov || d.moved || _zg) return;
+    if(_ov && d.moved && !_zg && d.smp.length>=2){ var a0=d.smp[0], b0=d.smp[d.smp.length-1], t1=performance.now();
+      if(t1-b0[0]<60){ var dt0=Math.max(16,b0[0]-a0[0]); ovCoast((b0[1]-a0[1])/dt0, (b0[2]-a0[2])/dt0); } }
+    if(!_ov || d.moved || _zg || performance.now()<_gzUntil) return;
     /* a click: down to that event at the fitted size (zoomed in and right on a card: it opens as well) */
-    var id=ovPoint(e.clientX, e.clientY), open=_ov.s>1.001 && _ovCard===id;
+    var id=ovPoint(e.clientX, e.clientY), open=_ovCard===id;
     if(id) ovLeave(id, false, open ? function(){ if(window.enterFocus) window.enterFocus(id); } : null);
   }, true);
   /* nothing under the whole timeline is clicked through to (cards, the engine's own drag) */
@@ -979,7 +1057,7 @@ function zLocal(e){ var c=cv(), r=c.getBoundingClientRect(), k=zk(c);
 function zEnter(){
   if(_ov) return true;
   if(!on() || window._focusedNodeId || busyElsewhere()) return false;
-  cancelAll(); var here=current(); if(here) setCur(here);
+  cancelAll(); M.vy=null; var here=current(); if(here) setCur(here);
   var c=cv(), off=worldOff(c);
   _ov={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop, hand:1};
   ovHold(true); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
@@ -992,7 +1070,7 @@ function zSet(s2, q, w){                     /* scale s2; world point w (default
   o.s=s2; o.tx=q.x-w.x*s2; o.ty=q.y-w.y*s2; o.hand=1; ovClamp(o); ovSet(o);
   cv().classList.toggle('ln-zin', s2>1.001);
 }
-function zStop(){ if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; cv().classList.remove('ln-ovanim'); } }
+function zStop(){ ovCoastStop(); if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; cv().classList.remove('ln-ovanim'); } }
 /* a gesture over: back near the fitted size, the fitted view (on the event nearest the middle) */
 function zSettle(){
   if(!_ov || _ovA || Math.abs(_ov.s-1)>ZSNAP) return;
@@ -1007,47 +1085,86 @@ function zStep(f, e){
   zSet(t, q, w); var to={s:_ov.s, tx:_ov.tx, ty:_ov.ty, hand:1}; ovSet(from); _ov=from; _ov.hand=1;
   ovAnim(from, to, function(){ _ov=to; ovSet(to); cv().classList.toggle('ln-zin', to.s>1.001); if(Math.abs(to.s-1)<1e-3) zSettle(); });
 }
+var _gzUntil=0, _eg=null, _gs=false, EGAP=260;
+/* ENLARGED CARD vs ZOOM / SCROLL (Luke: "enlarging nodes vs. zooming in"). While a card is enlarged, a scroll or a pinch never zooms or moves the line
+   under it: the first of a gesture closes the card (the engine's own flight back, so the line is exactly where it was) and nothing else; the rest
+   of that gesture is swallowed. Phones keep the engine's pattern. */
+function enlargedGate(e){
+  if(phone() || panelsOpen()) return false;
+  var t=performance.now();
+  if(_eg && t-_eg.t<=EGAP){ _eg.t=t; return true; }                 // the rest of the gesture that closed the card
+  if(!window._focusedNodeId || (window._altoWheelOwn && window._altoWheelOwn(e))) return false;
+  _eg={t:t}; if(window.exitFocus) window.exitFocus(); return true;
+}
 window.addEventListener('wheel', function(e){
+  var c=cv(); if(!on() || !c || !e.target) return;
+  var inC=c.contains(e.target);
+  if((inC || window._focusedNodeId || _eg) && enlargedGate(e)){ e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if(!inC) return;
   if(!e.ctrlKey && !e.metaKey) return;
-  var c=cv(); if(!on() || !c || !e.target || !c.contains(e.target)) return;
-  var now=performance.now();
+  /* Chrome sends a trackpad pinch as wheel + ctrl (small deltas): that zooms. A real ctrl / ⌘ + mouse notch (whole 100s, lines) and any ⌘ + wheel are
+     a plain notch: it travels the line and the browser's page zoom never sees it. */
+  var bg=Math.max(Math.abs(e.deltaX), Math.abs(e.deltaY));
+  if((e.metaKey && !e.ctrlKey) || e.deltaMode || (bg>=40 && bg===Math.round(bg) && !(e.deltaX && e.deltaY))){
+    e.preventDefault(); e.stopImmediatePropagation();
+    if(_ov) ovWheel(e); else if(!busyElsewhere()) onWheel(e, true);
+    return; }
+  var now=performance.now(); _gzUntil=now+450;
   if(!_zw || now-_zw.t>ZGAP) _zw={own:(window._focusedNodeId || busyElsewhere()) ? 'engine' : 'me'};
   _zw.t=now;
   if(_zw.own!=='me') return;                                    // an enlarged card: the engine lets it go
   e.preventDefault(); e.stopImmediatePropagation();
   if(_zg || !zEnter()) return;                                  // (Safari's own pinch is already scaling)
   zStop();
-  var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1, d=Math.max(-60, Math.min(60, e.deltaY*m));
+  var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1, d=Math.max(-60, Math.min(60, e.deltaY*m)), lone=!_zw.n;
+  _zw.n=(_zw.n||0)+1;
+  if(!e.deltaX && (e.deltaMode || (lone && Math.abs(e.deltaY)>=40 && Math.abs(e.deltaY)===Math.round(Math.abs(e.deltaY))))){   // a mouse's notch: one smooth step (not 1.8x in a frame)
+    zStep(d<0 ? 1.25 : 1/1.25, e); clearTimeout(_zt); _zt=setTimeout(zSettle, ZGAP+700); return; }
   zSet(_ov.s*Math.exp(-d*.01), zLocal(e));
   clearTimeout(_zt); _zt=setTimeout(zSettle, ZGAP+40);
 }, {passive:!!window.GestureEvent, capture:true});   /* Safari pinches with gesture events: there the wheel stays passive, so it keeps scrolling panels off the main thread (engine_patches) */
 document.addEventListener('gesturestart', function(e){
-  var c=cv(); _zg=null;
+  var c=cv(); _zg=null; _gs=false;
+  if(on() && c && e.target && (c.contains(e.target) || window._focusedNodeId) && enlargedGate(e)){ e.preventDefault(); e.stopImmediatePropagation(); _gs=true; return; }
   if(!on() || !c || !e.target || !c.contains(e.target) || window._focusedNodeId || busyElsewhere()) return;   // the engine's
   e.preventDefault(); e.stopImmediatePropagation();
+  dragStop();                                                   // a finger already travelling the line lets go of it: the pinch owns both
   if(!zEnter()) return;
   zStop(); var q=zLocal(e);
   _zg={s0:_ov.s, w:{x:(q.x-_ov.tx)/_ov.s, y:(q.y-_ov.ty)/_ov.s}};
 }, {passive:false});
 document.addEventListener('gesturechange', function(e){
-  if(!_zg) return; e.preventDefault(); e.stopImmediatePropagation();
+  if(_gs){ e.preventDefault(); e.stopImmediatePropagation(); _gzUntil=performance.now()+450; return; }
+  if(!_zg) return; _gzUntil=performance.now()+450; e.preventDefault(); e.stopImmediatePropagation();
   if(!_ov) return;
   zSet(_zg.s0*(e.scale||1), zLocal(e), _zg.w);                    // the point first pinched stays under the fingers (they pan it too)
 }, {passive:false});
 document.addEventListener('gestureend', function(e){
-  if(!_zg) return; e.preventDefault(); e.stopImmediatePropagation();
+  if(_gs){ e.preventDefault(); e.stopImmediatePropagation(); _gs=false; _gzUntil=performance.now()+450; return; }
+  if(!_zg) return; _gzUntil=performance.now()+450; e.preventDefault(); e.stopImmediatePropagation();
   _zg=null; zSettle();
 }, {passive:false});
-window.addEventListener('keydown', function(e){
-  var k=e.key; if(!(k==='+' || k==='=' || k==='-' || k==='_' || k==='0') || e.altKey || !on()) return;
-  if(window._focusedNodeId || busyElsewhere()) return;            // the engine's: let a card go, the Overview's own zoom
-  var ae=document.activeElement, tg=ae && ae.tagName;
-  if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
-  e.preventDefault(); e.stopImmediatePropagation();
-  if(k==='0'){ if(_ov) ovLeave(null); return; }
-  zStep(k==='-' || k==='_' ? 1/1.25 : 1.25);
-}, true);
 window._altoLanesZoom={s:function(){ return _ov ? _ov.s : 1; }, view:function(){ return _ov ? {s:_ov.s, tx:_ov.tx, ty:_ov.ty} : null; }, step:zStep, reset:function(){ if(_ov) ovLeave(null); }};
+
+/* a click is never read as part of a pinch or a drag: none for a moment after one (a second finger's pointerdown, a gesture, a zoom wheel) */
+document.addEventListener('click', function(e){
+  var c=cv(); if(on() && c && c.contains(e.target) && performance.now()<_gzUntil){ e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+
+/* ── a click on a card enlarges it, as a pinch on a card does in the vertical timeline (Luke, 2026-11-13). On the
+   enlarged card a click is the engine's (its page, as ⛶). Phones keep their own pattern (the card's page). ── */
+var _ckd=null;
+document.addEventListener('mousedown', function(e){ _ckd=[e.clientX, e.clientY]; }, true);
+document.addEventListener('click', function(e){
+  if(!on() || _ov || phone() || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !window.enterFocus) return;
+  var t=e.target, card=t && t.closest && t.closest('#world .node[data-ln] .node-card'); if(!card) return;
+  if(t.closest('button,a,input,select,textarea,.ln-chip,.lanes-tag,[onclick]') && !t.closest('.node-title,.node-desc')) return;
+  var n=card.closest('.node'), id=n && n.id.slice(5); if(!id || n.classList.contains('focused')) return;
+  if(_ckd && Math.abs(e.clientX-_ckd[0])+Math.abs(e.clientY-_ckd[1])>6) return;          // a drag, not a click
+  if(de.classList.contains('detail-open') || document.querySelector('#notes-panel.open,#summary-wrap.open,#ef-panel.open,#bg-panel.open,#note-dialog.visible,#share-dialog.visible')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  cancelAll(); window.enterFocus(id);
+}, true);
 
 /* ── after every layout ─────────────────────────────────────────────────── */
 var _vw=0;

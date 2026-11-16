@@ -71,7 +71,7 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) body:not(#_):not(#__){background:transparent !important;}
   /* the Background picker in Holographic lists the style's own backgrounds and nothing else (Luke, 2026-11-10: "Only the holo backgrounds should be available"; the Import tile stays); a photograph or colour chosen
      earlier stays stored and comes back with Classic. A phone's picker too; the palaces and the Star chart keep theirs. */
-  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(:has(.bg-tile[data-bg^="h-"])){display:none !important;}
+  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(#bg-units):not(:has(.bg-tile[data-bg^="h-"])){display:none !important;}
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
@@ -103,6 +103,10 @@ HOLO_CSS = r"""
   X #world .node-tag:not(#_){letter-spacing:.14em !important;}
   /* a System's suns, planets and moons stay round (Luke, 2026-10-30: "we don't want square planets"): only the cards above are square */
   X.alto-solar:not(.mobile) #world .node[data-solar] .node-card:not(#_):not(#__),X.alto-solar:not(.mobile) #world .node[data-solar] .node-card:not(#_):not(#__)::before{border-radius:50% !important;}
+  /* a card a filter hides, the System's bodies too (Art, 2026-11-01, alto-art-1101-4600-a): the whole card fades together: no glow or shadow, the plate at 15%, a 1px edge at 30%,
+     its contents 15% (the engine's rule) and a System body's name 14% (solar_draw.py); colour and opacity only */
+  X #world .node .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed):not(#_):not(#__):not(#___){background:rgba(var(--ho-sfrgb),.15) !important;
+    border:1px solid rgba(var(--ho-rgb),.3) !important;box-shadow:none !important;}
   /* no dimmed text (Art's rule 2): the small numerals and glyphs wear the controls' ink at full strength */
   X :is(.nav-chip-count,.node-order,.aep-pen,.node-unit):not(#_):not(#__){color:var(--ho-ac2) !important;opacity:1 !important;}
   X :is(#alto-edit-pill,#alto-edit-pill .aep-half):not(#_):not(#__){opacity:1 !important;}
@@ -146,6 +150,8 @@ HOLO_CSS = r"""
     box-shadow:0 0 0 1px var(--ho-ac),var(--ho-glow) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* dark only (Luke, 2026-11-01, on a computer; 2026-11-13 on a phone too: "light mode is still available incorrectly on mobile holo"): no light/dark button anywhere (JS: hdark) */
   X #mode-toggle:not(#_):not(#__){display:none !important;}
+  /* ... and no Dark / Light tile in the MENU, on a phone or a computer: Holographic is dark only (Luke, 2026-11-13); Classic and Retro keep it */
+  X #nav-drawer-body #drawer-mode-btn:not(#_):not(#__){display:none !important;}   /* (the phone's MENU squares set display with three ids: this has four) */
   /* the Alto marks (Luke, 2026-11-01: "the alto logo and glyph in holographic style ... the glyph should rotate like the glyphs for file type"):
      the clef and the wordmark in the light, on every page that has them, a phone's too; the clef turns on Y on the homepage's motion budget, the phone timeline's clef in #nav too (CEO 2026-11-05)
      (transform only, 10 s, still under reduced motion and while the tab is hidden) */
@@ -236,7 +242,7 @@ PROJ_CSS = r"""
 FORMAT_CSS = r"""
   /* the Memory Atlas's own nodes (Luke, 2026-11-04: "the holo style didn't make it to nodes"): the map's pins and unit labels are the same square glass plates as
      the cards, rimmed in their unit's light with a faint glow, in the cards' own type (the enlarged card and its chips are the board's own rules, copied below) */
-  X #wpal-root .wp-enl .node :is(.node-order,.node-unit):not(#_):not(#__){color:var(--ho-ac2) !important;opacity:1 !important;}   /* (the board's rule for these two is global, so the copied card rules would otherwise out-rank it) */
+  X :is(#wpal-root .wp-enl,#bldg-root .bl-enl) .node :is(.node-order,.node-unit):not(#_):not(#__){color:var(--ho-ac2) !important;opacity:1 !important;}   /* (the board's rule for these two is global, so the copied card rules would otherwise out-rank it) */
   X #wpal-root .wp-pin:not(#_):not(#__){border-radius:0;font:inherit;font-size:9px;font-weight:500;line-height:1;letter-spacing:.06em;border-width:1px;}   /* (`font:inherit`: the sheet names no font family) */
   X #wpal-root .wp-pin:not(.wp-hint):not(#_):not(#__){box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
   X #wpal-root .wp-pin.wp-hint:not(#_):not(#__){box-shadow:0 0 0 4px color-mix(in srgb,var(--u) 38%,transparent),0 0 10px color-mix(in srgb,var(--u) 55%,transparent);}
@@ -327,20 +333,21 @@ FORMAT_CSS = r"""
      The tiles stay solid (Luke: "no"). Phones too (L-1105-160112). No backdrop blur on the panels: they are large, and blur is Safari's costly paint */
   X.alto-home .project-slab:not(.new-project-slab):not(#_):not(#__):not(#___){background:rgba(var(--ho-bgrgb),.16) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;
     border:1px solid rgba(var(--ho-rgb),.75) !important;box-shadow:0 0 0 1px rgba(var(--ho-bgrgb),.6),0 0 16px rgba(var(--ho-rgb),.2),inset 0 0 28px rgba(var(--ho-bgrgb),.4) !important;}
-  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__){padding:3px 9px;width:fit-content;}
+  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker):not(#_):not(#__){padding:3px 9px;width:fit-content;}
   /* C final (Luke 2026-11-12, "C is good", "holo looks good"): every timeline card wears the New tile's glass (the --ho-glass-* variables: body, icon cell; the button row is clear), the outer panels stay as clear as before, no label backings:
      one shared halo in the ground colour (1px, 2px and 3px axis rings are load-bearing: Grid horizon's count is 4.50 without the 3px layer 3.34), the full text colour on the small labels, a keyline on the unit bars over a thin solid track */
   X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___){background:var(--ho-glass-bg) !important;border:var(--ho-glass-bd) !important;box-shadow:var(--ho-glass-sh) !important;-webkit-backdrop-filter:var(--ho-glass-bf) !important;backdrop-filter:var(--ho-glass-bf) !important;}
   X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .tile-emblem{background-color:transparent !important;}
   X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) :is(.tile-title,.t-units,.tile-sub,.t-top,.t-top *,.sp-card,.sp-card *){text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
+  /* the TODAY / late chips keep their own solid colour: the ground-colour halo above is for text on glass, and on a chip it ringed the white (or dark) glyphs in the ground colour until they could not be read (Luke B-1115-022740 b) */
+  X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .sp-card b{text-shadow:none !important;}
   X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) :is(.tile-sub,.t-units,.t-top,.t-top *){color:var(--text) !important;}
   X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .unit-strip{background:rgb(var(--ho-bgrgb)) !important;box-shadow:0 0 0 1px rgb(var(--ho-bgrgb)),0 0 5px 1px rgba(var(--ho-bgrgb),.9) !important;}
   X:not(.dark).alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .unit-strip{box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 40%,#000),0 0 5px 1px rgba(var(--ho-bgrgb),.9) !important;}   /* (light: a 1px ink keyline (the text colour darkened: at .55 it measured 2.7 against the bar, red bars included), so the bars hold 3:1 against their surround) */
-  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__):not(#___){background:transparent !important;text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
+  X.alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker):not(#_):not(#__):not(#___){background:transparent !important;text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
   X.alto-home .home-section-label :is(.hs-t,.home-sort):not(#_):not(#__):not(#___){background:transparent !important;text-shadow:1px 0px 0 rgb(var(--ho-bgrgb)),-1px 0px 0 rgb(var(--ho-bgrgb)),0px 1px 0 rgb(var(--ho-bgrgb)),0px -1px 0 rgb(var(--ho-bgrgb)),1px 1px 0 rgb(var(--ho-bgrgb)),-1px 1px 0 rgb(var(--ho-bgrgb)),1px -1px 0 rgb(var(--ho-bgrgb)),-1px -1px 0 rgb(var(--ho-bgrgb)),2px 0 0 rgb(var(--ho-bgrgb)),-2px 0 0 rgb(var(--ho-bgrgb)),0 2px 0 rgb(var(--ho-bgrgb)),0 -2px 0 rgb(var(--ho-bgrgb)),2px 2px 0 rgb(var(--ho-bgrgb)),-2px 2px 0 rgb(var(--ho-bgrgb)),2px -2px 0 rgb(var(--ho-bgrgb)),-2px -2px 0 rgb(var(--ho-bgrgb)),3px 0 0 rgb(var(--ho-bgrgb)),-3px 0 0 rgb(var(--ho-bgrgb)),0 3px 0 rgb(var(--ho-bgrgb)),0 -3px 0 rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 2px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 4px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)),0 0 8px rgb(var(--ho-bgrgb)) !important;}
-  X:not(.dark).alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker,.slab-count):not(#_):not(#__):not(#___),X:not(.dark).alto-home .home-section-label :is(.hs-t,.home-sort):not(#_):not(#__):not(#___){color:var(--text) !important;}
+  X:not(.dark).alto-home .project-slab:not(.new-project-slab) :is(.slab-kicker):not(#_):not(#__):not(#___),X:not(.dark).alto-home .home-section-label :is(.hs-t,.home-sort):not(#_):not(#__):not(#___){color:var(--text) !important;}
   X.alto-home .course-tile:not(.new-tile):not(#_):not(#__):not(#___) .tile-sub,X.alto-home .home-section-label :is(.hs-t,.home-sort,.home-sort *):not(#_):not(#__):not(#___){opacity:1 !important;}
-  X.alto-home .project-slab:not(.new-project-slab) .slab-count:not(#_):not(#__):not(#___){color:var(--text) !important;}
   X.alto-home .bin-group .bin-toggle:not(#_):not(#__){text-shadow:0 0 8px rgba(var(--ho-bgrgb),.95),0 0 3px rgba(var(--ho-bgrgb),.95),0 1px 1px rgba(var(--ho-bgrgb),.9) !important;}
   X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn,#m-search,#mode-toggle,.slab-share,.slab-download):not(#_):not(#__):not(#___){
     background:rgba(var(--ho-bgrgb),var(--ho-frost)) !important;-webkit-backdrop-filter:blur(10px) saturate(1.25) !important;backdrop-filter:blur(10px) saturate(1.25) !important;}
@@ -388,6 +395,35 @@ FORMAT_CSS = r"""
   X:is(.mobile,.pmin,.phone-whole):not(.pal-elev-on) #detail-page .detail-section .ol-row:not(#_):not(#__){border-top:1px solid rgba(var(--ho-rgb),.28);padding:10px 0 8px;}
 """
 
+# The toggles as glass (S1 Glass, Luke 2026-11-15, Board B-1115-190321: "s1 is best"): a frosted round lens (a pill for Search, the Edit pill and the return pill), no
+# outline, a soft glint and glow, the glyph in the accent. Art's sheet had the glyph dipping to 2.5 over a bright streak, so the lens carries a deeper plate of the page's own
+# colour under the glow: the worst pixel around a glyph stays at 4.5:1 or better on every Holo ground (ORG/notes-art/holo-toggles/S1-final/). Holo is dark-only.
+_S1_IDS = ("#search-btn", "#info-btn", "#account-btn", "#bin-btn", "#bg-toggle", "#download-all", "#drawer-scene-btn", "#tab-rail>button", "#key-toggle", ".alto-edit-pill", "#timeline-return-pill")
+_S1_NOT = ":not(#_):not(#__):not(#___):not(#____):not(#_____)"
+S1_PLATE = "rgba(var(--ho-bgrgb),.86)"
+
+
+def _s1(suffix: str = "") -> str:
+    return ",".join(f"X {i}{suffix}{_S1_NOT}" for i in _S1_IDS)
+
+
+S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !important;"
+          "background:radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%)," + S1_PLATE + " !important;"
+          "box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 0 16px rgba(var(--ho-rgb),.30) !important;"
+          "-webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;filter:none !important;color:var(--ho-ac) !important;}\n"
+          + ",".join(_s1(":is(:hover,:focus-visible)").split(",")) + "{box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 0 16px rgba(var(--ho-rgb),.3),0 0 22px rgba(var(--ho-rgb),.55) !important;}\n"
+          + _s1(':is(.on,.active,.open,[aria-pressed="true"],[aria-expanded="true"])') + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26))," + S1_PLATE + " !important;}\n"
+          "X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half:not(#_):not(#__){box-shadow:none !important;}\n"
+          "X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half + .aep-half:not(#_):not(#__){box-shadow:inset 1px 0 0 rgba(47,167,157,.45) !important;}\n"
+          # a phone's controls keep their 1px border box (transparent now) so the guide that drops from the info tile, and every width, sit exactly where they did
+          "@media (max-width:640px){" + _s1() + "{border:1px solid transparent !important;}}\n"
+          # the focused Search keeps its one teal rim (border and ring one colour), over the glass
+          "X #search-btn:focus-within" + _S1_NOT + "{border-color:var(--ho-ac) !important;box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}\n"
+          # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)
+          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 20px) !important;}}\n"
+          # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
+          "@media (min-width:641px){X.alto-home:not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
+
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
 
 
@@ -431,14 +467,14 @@ def atlas_cards(css: str) -> str:
     round planets and the phase rows are not part of it."""
     css = _re.sub(r"/\*.*?\*/", "", css, flags=_re.S)
     rows = [c for c in _chunks(css) if "#world .node" in c.split("{")[0] and "phase" not in c.split("{")[0] and "solar" not in c.split("{")[0]]
-    return "\n".join(rows).replace(":where(:not(.sk-retro))", "").replace("#world .node", "#wpal-root .wp-enl .node")   # (retro.py keeps its card plates off the System's Retro poster, html.sk-retro; an Atlas has none)
+    return "\n".join(rows).replace(":where(:not(.sk-retro))", "").replace("#world .node", ":is(#wpal-root .wp-enl,#bldg-root .bl-enl) .node")   # (retro.py keeps its card plates off the System's Retro poster, html.sk-retro; an Atlas has none; the Blueprint enlarges the same way)
 
 
 def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
     base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)   # (HOME_CSS: the homepage, home_look.py)
     board = base + "\n" + HOLO_CSS
-    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS
+    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS + S1_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
             f"  :is({sel}.dark,{sel}.alto-stars.sk-real):not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")   # (the Star chart's sky is space in both themes)

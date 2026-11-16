@@ -169,11 +169,14 @@ def test_a_card_picked_from_the_list_lands_clear_of_the_dock_and_the_room_card(b
         assert page.locator("#bldg-root .bl-cards button").count() >= 20
         page.locator("#bldg-root .bl-cards button").nth(12).click()
         page.wait_for_timeout(500)
-        assert page.locator("#bldg-root .bl-cards").is_hidden() and page.locator("#bldg-root .bl-info").is_visible()
+        # since 2026-11-13 the card enlarges over the plan (tests/test_blueprint_enlarge.py) where the room card stood: the room lands clear of the dock and of it
+        assert page.locator("#bldg-root .bl-cards").is_hidden() and page.locator("#bldg-root .bl-enl:not(.bl-out) .node-card").is_visible()
         g = page.evaluate(GEO)
         sel = page.evaluate("""(() => { const q = document.querySelector('#bldg-root .bl-room.bl-sel'); if (!q) return null; const b = q.getBoundingClientRect(), d = document.querySelector('#bldg-root .bl-dock').getBoundingClientRect(),
-            c = document.querySelector('#bldg-root .bl-info').getBoundingClientRect(); const x = (a, z) => a.left < z.right && a.right > z.left && a.top < z.bottom && a.bottom > z.top; return {dock: x(b, d), card: x(b, c), on: b.width > 4 && b.top < innerHeight}; })()""")
-        assert sel and sel["on"] and not sel["dock"] and not sel["card"], (sel, g)
+            c = document.querySelector('#bldg-root .bl-enl:not(.bl-out) .node-card').getBoundingClientRect(); const x = (a, z) => a.left < z.right && a.right > z.left && a.top < z.bottom && a.bottom > z.top; return {dock: x(b, d), card: x(b, c), on: b.width > 4 && b.top < innerHeight}; })()""")
+        assert sel and sel["on"] and not sel["dock"], (sel, g)
+        if w >= 520:                                                                           # (a 360 px window: the enlarged card is as wide as the window, its room is under it)
+            assert not sel["card"], (sel, g)
         assert errors == []
     finally:
         page.close()

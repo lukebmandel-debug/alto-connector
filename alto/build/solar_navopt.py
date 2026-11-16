@@ -19,6 +19,7 @@ box shows more of the system (the window zooms out) and a smaller one less (it z
 On a phone the control waits in MENU ("Where you are") and opens as a row above the corner controls. Every move goes
 through solar_draw.py's own ride / flight (window._altoSolarNavApi); ?nav= and a kept alto-solar-nav are ignored."""
 
+from .minimap_home import MM_HOME_JS
 from .solar_draw import _slim
 
 NAVOPT_CSS = r"""
@@ -142,12 +143,12 @@ function tip(id, x, y){ if(!TIP){ TIP=mk('div', 'nvo-tip', 'line-tip'); document
   TIP.textContent=A.name(id)+(id===A.home() ? ' · you are here' : ''); TIP.style.display='block';
   var z=parseFloat(getComputedStyle(de).zoom)||1, w=TIP.offsetWidth; x/=z; y/=z; TIP.style.left=Math.max(6, Math.min(innerWidth/z-w-6, x-w/2))+'px'; TIP.style.top=Math.max(6, y-34)+'px'; }   /* (a zoomed page: fixed px are its own) */
 function mapDraw(h){
-  if(!MP){ MP=mk('div', 'nvo-map', 'nvo'); MP.setAttribute('role', 'group'); MP.setAttribute('aria-label', 'Minimap');
+  if(!MP){ MP=mk('div', 'nvo-map', 'nvo alto-mm'); MP.setAttribute('role', 'group'); MP.setAttribute('aria-label', 'Minimap');
     MP.addEventListener('pointermove', function(e){ if(DG) return; var E=edges(e.clientX, e.clientY); if(E && E.any){ tip(null); MP.style.cursor=cur(E); return; } var t=near(e.clientX, e.clientY); tip(t, e.clientX, e.clientY); MP.style.cursor=t ? 'pointer' : E && E.in ? 'move' : ''; });
     MP.addEventListener('pointerleave', function(){ if(!DG) tip(null); });
     MP.addEventListener('pointerdown', grab);
-    MP.addEventListener('dblclick', function(e){ if(!(e.target.closest && e.target.closest('.rz'))) return; UH=0; try{ localStorage.removeItem('alto-solar-map-h'); }catch(_){} SZ=0; SK=''; SP=null; tick(true); }); }
-  MP.innerHTML='<i class="rz" title="Drag to resize"></i>'+mapSvg().replace('</svg>', '<rect class="vb"/>'+'<rect class="vh"/>'.repeat(4)+'</svg>'); var me=MP.querySelector('circle[data-b="'+(window.CSS && CSS.escape ? CSS.escape(h) : h)+'"]'); if(me){ me.classList.add('h');   /* (you: ringed as well, to be found at a glance) */
+    MP.addEventListener('dblclick', function(e){ if(!(e.target.closest && e.target.closest('.rz'))) return; UH=0; POS=null; try{ localStorage.removeItem('alto-solar-map-h'); localStorage.removeItem('alto-solar-map-at'); }catch(_){} SZ=0; SK=''; SP=null; tick(true); }); }   /* (a double-click on the handle: back to its own place and size) */
+  MP.innerHTML='<i class="rz" title="Drag to resize; double-click to put it back"></i>'+mapSvg().replace('</svg>', '<rect class="vb"/>'+'<rect class="vh"/>'.repeat(4)+'</svg>'); var me=MP.querySelector('circle[data-b="'+(window.CSS && CSS.escape ? CSS.escape(h) : h)+'"]'); if(me){ me.classList.add('h');   /* (you: ringed as well, to be found at a glance) */
     var hr=document.createElementNS('http://www.w3.org/2000/svg', 'circle'); hr.setAttribute('class', 'hr'); ['cx', 'cy'].forEach(function(a){ hr.setAttribute(a, me.getAttribute(a)); });
     hr.setAttribute('r', Math.max(+me.getAttribute('r')*1.9, MG.m*3.2).toFixed(0)); me.parentNode.insertBefore(hr, me.nextSibling); }
   SZ=0; if(SD) size(SD); return MP; }   /* (a redraw keeps the frame's size) */
@@ -179,6 +180,7 @@ function grab(e){ if(phone() || e.button || !MP) return;
 function drag(e){ if(!DG) return; e.stopPropagation(); var dx=e.clientX-DG.x, dy=e.clientY-DG.y;
   if(!DG.on){ if(Math.abs(dx)+Math.abs(dy)<4) return; DG.on=1; tip(null); MP.classList.add('dr'); try{ MP.setPointerCapture(DG.id); }catch(_){} }
   if(DG.m==='rz'){ var z=zm(), r=DG.r, nh=Math.round(Math.max(100, Math.min(520, DG.h-(dy+dx/1.5)/2/z, (r.right/z-18)/1.5, r.bottom/z-18))), ou=UH;
+    if(!phone()){ UH=nh; size(dims(nh)); if(POS) put(r.right/z-MP.offsetWidth, r.bottom/z-MP.offsetHeight); else home(); vbDraw(); return; }   /* (a desktop: its bottom-right corner stays, at home or where you put it) */
     function fit(h){ UH=h; size(dims(h || mh())); put(r.right/z-MP.offsetWidth, r.bottom/z-MP.offsetHeight); var q=MP.getBoundingClientRect(); return free([q.left, q.top, q.right, q.bottom], obst()); }
     if(!fit(nh)) fit(ou);   /* (it grows only into free room) */
     vbDraw(); return; }
@@ -194,7 +196,7 @@ function drag(e){ if(!DG) return; e.stopPropagation(); var dx=e.clientX-DG.x, dy
   CAM.set(cx, cy-PY, s); vbDraw(); }
 function drop(){ if(!DG) return; var on=DG.on, mv=DG.m!=='pan' && DG.m!=='rs', rz=DG.m==='rz'; DG=null; MP && MP.classList.remove('dr'); if(!on) return;
   SUP=performance.now(); if(mv){ SK=''; SP=null; }
-  if(rz){ lsSet('alto-solar-map-h', UH); var z=zm(), w=MP.offsetWidth, h=MP.offsetHeight; POS={x:Math.max(0, Math.min(1, parseFloat(MP.style.left)/Math.max(1, innerWidth/z-w))), y:Math.max(0, Math.min(1, parseFloat(MP.style.top)/Math.max(1, innerHeight/z-h)))}; }
+  if(rz){ lsSet('alto-solar-map-h', UH); if(!phone() && !POS) return; var z=zm(), w=MP.offsetWidth, h=MP.offsetHeight; POS={x:Math.max(0, Math.min(1, parseFloat(MP.style.left)/Math.max(1, innerWidth/z-w))), y:Math.max(0, Math.min(1, parseFloat(MP.style.top)/Math.max(1, innerHeight/z-h)))}; }
   if(mv) lsSet('alto-solar-map-at', JSON.stringify({x:+POS.x.toFixed(4), y:+POS.y.toFixed(4)})); }
 /* its place: the biggest that fits in the free room, first where you last put it, else down the right side then the
    left, from the bottom; never over the enlarged card, what is beside it, the nav row, Ship or the corner controls */
@@ -221,12 +223,22 @@ function spot(){ if(!MG) return null; var z=zm(), W=innerWidth, H=innerHeight, O
   if(POS){ x=POS.x*(W-bw); y=POS.y*(H-bh); if(free(box(x, y), O)) return [x/z, y/z, d, 0]; }
   for(var c=0;c<2;c++){ x=c ? m : W-m-bw; for(y=H-m-bh; y>=m; y-=10*z) if(free(box(x, y), O)) return [x/z, y/z, d, c]; }   /* (c: 0 the right side or where you put it, 1 the left, the second choice) */
   return null; }
-function size(d){ var sv=MP && MP.querySelector('svg'); SD=d; if(!sv || SZ===d[1]) return; SZ=d[1]; sv.style.width=d[0].toFixed(0)+'px'; sv.style.height=d[1].toFixed(0)+'px'; var r=MP.querySelector('.vb'); if(r) r._k=''; }
+function size(d){ var sv=MP && MP.querySelector('svg'); SD=d; if(!sv || SZ===d[1]) return; SZ=d[1]; sv.style.width=d[0].toFixed(2)+'px'; sv.style.height=d[1].toFixed(2)+'px'; var r=MP.querySelector('.vb'); if(r) r._k=''; }
 function put(x, y){ var st=MP.style, l=Math.round(x)+'px', t=Math.round(y)+'px'; if(st.left!==l) st.left=l; if(st.top!==t) st.top=t; if(st.right!=='auto'){ st.right='auto'; st.bottom='auto'; } }
 /* placed once per enlarged body (and window, style), checked again every tick: moved only when something comes over it */
 function place(key){ if(!MP || !MP.isConnected) return false;
+  if(!phone()){ SK=key; var ok=home(); SP=ok ? [0, 0, SD, 0] : null; return ok; }
   if(SP && SK===key && !SP[3]){ var r=MP.getBoundingClientRect(); if(r.width && free([r.left, r.top, r.right, r.bottom], obst())) return true; }
   SK=key; SP=spot(); if(!SP) return false; size(SP[2]); put(SP[0], SP[1]); return true; }
+/* a desktop's own place (minimap_home.py): just above the bottom-right toggles, as wide as they are, its right edge on
+   theirs; the height is the frame's own shape. Where you dragged it, or the size you pulled it to, instead (kept per viewer). */
+function home(){ if(!MP || !MP.isConnected || !MG) return false; var R=window._altoMmRow && window._altoMmRow(); if(!R) return false;
+  var z=zm(), sv=MP.querySelector('svg'), ex=sv ? MP.offsetWidth-sv.offsetWidth : 0; if(!(ex>0 && ex<60)) ex=14;
+  size(dims(UH ? mh() : Math.max(40, (R[2]-R[0])/z-ex)/1.5));
+  if(POS){ dragTo(); return true; }
+  var st=MP.style, r=((innerWidth-R[2])/z).toFixed(2)+'px', b=((innerHeight-R[1])/z+(window._altoMmGap||12)).toFixed(2)+'px', ch=st.right!==r || st.bottom!==b;
+  if(ch){ st.right=r; st.bottom=b; st.left='auto'; st.top='auto'; if(window._altoSafeRefit) window._altoSafeRefit(); }
+  return true; }
 function dragTo(){ var z=zm(), W=innerWidth/z, H=innerHeight/z, w=MP.offsetWidth, h=MP.offsetHeight;
   put(Math.max(4, Math.min(W-w-4, POS.x*(W-w))), Math.max(4, Math.min(H-h-4, POS.y*(H-h)))); }
 var HP=null;
@@ -255,6 +267,7 @@ function tick(force){
   else if(HOLD && !en) fit=!!SP;
   else if(en && !busy()) fit=place([innerWidth, innerHeight, mh()].join('|'));   /* (not per body or per class: it stays where it is until the window or its size changes, or something comes over it) */
   else fit=was && (!!en || busy()) && !!SP;
+  if(!phone() && !DG && !sh) home();   /* (a desktop: always at its place, whatever the window or the toggles do; shown as before) */
   MP.classList.toggle('fit', fit && phone()); MP.classList.toggle('on', sh || fit);
   if(busy()){ if(!BT) BT=Date.now(); } else BT=0; MP.classList.toggle('dim', !!BT && Date.now()-BT>180 && (sh || fit));   /* (a short hop does not flicker it) */
   if(!(sh || fit)) tip(null); vbDraw();
@@ -263,7 +276,7 @@ setInterval(function(){ tick(); later(); }, 250); tick(true);
 /* the box follows every pan and zoom: redrawn on the camera's own news and a scroll, one frame each, nothing at rest */
 var VQ=0; function vbSoon(){ if(VQ || !MP || !MP.isConnected) return; VQ=requestAnimationFrame(function(){ VQ=0; vbDraw(); }); }
 if(CAM && CAM.onChange) CAM.onChange(vbSoon); document.addEventListener('scroll', vbSoon, {capture:true, passive:true});
-addEventListener('resize', function(){ SK=''; });
+addEventListener('resize', function(){ SK=''; if(MP && !phone()) home(); });
 addEventListener('pointerdown', function(e){ if(HOLD && !(MP && MP.contains(e.target))) HOLD=0; }, true);
 addEventListener('pointermove', drag, true); ['pointerup', 'pointercancel'].forEach(function(t){ addEventListener(t, drop, true); });   /* (a drag goes on outside the map) */
 function act(b){ var n=b.getAttribute('data-n');
@@ -327,5 +340,5 @@ window._altoNavOpt={get:function(){ return 'final'; }, sheet:sheet, scope:functi
 })();
 """
 
-NAVOPT_JS = _slim(NAVOPT_JS)
+NAVOPT_JS = _slim(MM_HOME_JS + NAVOPT_JS)
 NAVOPT_CSS = _slim(NAVOPT_CSS)

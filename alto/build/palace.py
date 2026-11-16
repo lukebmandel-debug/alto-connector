@@ -2027,7 +2027,7 @@ function openPage(pg){ var q=String(pg||'').split(':'), k=q.slice(1).join(':'); 
 function lmTip(g){ return window._palLm.tip(g, esc, pageName); }
 /* a neighbourhood's pop-up: its name, the unit it holds (number and label), and what stands in it */
 function distTip(u){ var pm=PHASE_META[u]; if(!pm) return ''; var d=(P.d||[]).filter(function(q){ return q.u===u; })[0]||{}, ids=(P.units||[])[u]||[];
-  var h='<b>'+esc(d.n||pm.label)+'</b><small class="pt-unit"><i style="background:'+esc(tubeCol(pm.colorRaw))+'"></i>Unit '+esc(pm.numeral)+' · '+esc(pm.label)+'</small>';
+  var h='<b>'+esc(d.n||pm.label)+'</b><small class="pt-unit"><i style="background:'+esc(tubeCol(pm.colorRaw))+'"></i>Unit '+esc(window._altoU(u+1, 'roman'))+' · '+esc(pm.label)+'</small>';
   h+='<small>'+ids.length+' building'+(ids.length===1?'':'s')+': '+ids.slice(0,3).map(function(id){ return esc(num(id)+' '+title(id)); }).join(' · ')+(ids.length>3?' …':'')+'</small>';
   return h; }
 function svgPt(svg, e){ var r=svg.getBoundingClientRect(), vb=svg.viewBox.baseVal; return [vb.x+(e.clientX-r.left)/r.width*vb.width, vb.y+(e.clientY-r.top)/r.height*vb.height]; }
@@ -2272,7 +2272,7 @@ function ctl(){
   var c=document.createElement('div'); c.id='pal-ctl';
   var h='<h5><span>'+esc(P.place||'The city')+'</span><span></span></h5><div class="pk-body">';
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
-    h+='<div class="pk-row" data-u="'+d.u+'"><span class="pk-sw" style="background:'+pm.colorRaw+'"></span><div><b>'+esc(d.n||pm.label)+'</b><small>Unit '+esc(pm.numeral)+' · '+esc(pm.label)+'</small></div></div>'; });
+    h+='<div class="pk-row" data-u="'+d.u+'"><span class="pk-sw" style="background:'+pm.colorRaw+'"></span><div><b>'+esc(d.n||pm.label)+'</b><small>Unit '+esc(window._altoU(d.u+1, 'roman'))+' · '+esc(pm.label)+'</small></div></div>'; });
   var sw=function(s){ return '<svg width="26" height="12" style="flex:none">'+s+'</svg>'; };
   h+='<div class="pk-sep"></div>';
   if(window._palTr.has()) h+=window._palTr.keyHtml(sw); else {

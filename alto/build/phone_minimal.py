@@ -246,6 +246,8 @@ BAR@@::after{content:'' !important;position:absolute !important;left:var(--nb-hl
 html.pmin.alto-retro,html.pmin.alto-holo{--nb-hl:12px;}
 /* a detail page starts under the 52 pt header; "Back to" sits above the pill (its height, 44 or 52, is --nb-h) and never over it */
 html.pmin.mobile:not(.phone-whole).detail-open #detail-page@@{top:calc(52px + env(safe-area-inset-top,0px)) !important;}
+/* MARK and NOTES float at the right edge over the page (x 331-376 of 390): the text keeps clear of them instead of running under (2026-11-13, Classic detail page) */
+html.pmin.mobile:not(.phone-whole).detail-open #detail-content@@{padding-right:calc(var(--pm-tools,52px) + 6px) !important;box-sizing:border-box !important;}
 /* with "Back to Overview" showing (it is in #app, not a sibling of the page, so :has), the page's text starts 48 pt under that pill as it does under the header without it */
 html.pmin.mobile:not(.phone-whole).detail-open:has(#back-to-overview-bar.visible) #detail-page@@{padding-top:90px !important;}
 html.pmin.mobile:not(.phone-whole) #summary-wrap@@{top:calc(52px + env(safe-area-inset-top,0px)) !important;}
@@ -327,7 +329,7 @@ r.addEventListener('click',function(e){e.stopPropagation();if(window.closeNavDra
 /* each square as soon as its control exists (some come late: the System's FILTER leaves the desktop rail after load) */
 var prev=at;[['minimap-toggle','Map','&#9638;'],['notes-toggle','Notes','&#9776;'],['filter-toggle','Filter','&#9661;'],['tutorial-toggle','How to use','&#9432;']].forEach(function(s){
 var el=$(s[0]),r=$('pmin-'+s[0]);if(!r){if(!el||el.hasAttribute('hidden'))return;var sv=el.querySelector('svg');
-r=row(s[1],sv?sv.outerHTML:s[2],s[0]==='minimap-toggle'?function(){tap($(s[0]));}:function(){$(s[0]).click();},'pmin-'+s[0]);}
+r=row(s[1],sv?sv.outerHTML:s[2],(s[0]==='minimap-toggle'||s[0]==='tutorial-toggle')?function(){tap($(s[0]));}:function(){$(s[0]).click();},'pmin-'+s[0]);}
 if(prev.nextSibling!==r)prev.parentNode.insertBefore(r,prev.nextSibling);prev=r;});
 if($('pmin-view'))return;var src=[].slice.call(document.querySelectorAll('#sol-ctl button,#wpal-root .wp-ctl button')).filter(function(x){return (x.textContent||'').trim().length>1;});if(!src.length)return;
 var f=document.createDocumentFragment(),l=document.createElement('div');l.className='drawer-section-label';l.id='pmin-view';l.textContent='View';f.appendChild(l);

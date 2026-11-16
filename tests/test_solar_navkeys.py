@@ -187,6 +187,7 @@ def test_in_3d_the_whole_system_view_frames_every_body_at_any_aspect(browser, pa
 GEO = """() => { var m=document.getElementById('nvo-map'); if(!m) return null; var r=m.getBoundingClientRect(), c=getComputedStyle(m);
   return {l:Math.round(r.left), t:Math.round(r.top), r:Math.round(r.right), b:Math.round(r.bottom), w:Math.round(r.width), h:Math.round(r.height), on:m.classList.contains('on'),
           shown:c.visibility!=='hidden' && +c.opacity>0.5, saved:localStorage.getItem('alto-solar-map-h')}; }"""
+HOME = "() => { var m=document.getElementById('nvo-map').getBoundingClientRect(), R=window._altoMmRow(); return [m.width-(R[2]-R[0]), m.right-R[2], R[1]-m.bottom]; }"
 CLEAR = "() => { ['alto-solar-map', 'alto-solar-map-at', 'alto-solar-map-h'].forEach(function(k){ localStorage.removeItem(k); }); }"
 
 
@@ -216,7 +217,7 @@ def test_dragging_the_corner_handle_sets_the_minimaps_size_and_it_is_kept(browse
     g1 = pg.evaluate(GEO)
     assert g1["h"] > g0["h"] + 20 and g1["w"] > g0["w"] + 20, (g0, g1)                    # bigger
     assert abs(g1["r"] - g0["r"]) <= 2 and abs(g1["b"] - g0["b"]) <= 2, (g0, g1)            # grown into the free room from the opposite corner
-    assert g1["saved"] and int(g1["saved"]) > 230, g1
+    assert g1["saved"] and int(g1["saved"]) > 150, g1                                     # (the default: as wide as the toggles, minimap_home.py)
     _drag_handle(pg, 160, 120)                                                              # and smaller again (never under a floor)
     g2 = pg.evaluate(GEO)
     assert 100 <= int(g2["saved"]) < int(g1["saved"]) and g2["h"] < g1["h"], (g1, g2)
@@ -266,7 +267,7 @@ def test_the_minimap_stays_put_across_bodies_and_style_switches(browser, page, s
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate(CLEAR)
     ids = _ids(pg)
-    spots = []
+    spots, home = [], []
     for i in ids[:8]:
         _at(pg, at=i, style=style)
         g = _shown(pg)
@@ -276,10 +277,12 @@ def test_the_minimap_stays_put_across_bodies_and_style_switches(browser, page, s
         pg.wait_for_timeout(500)
         g = pg.evaluate(GEO)
         assert g and g["on"], (other, g)
-        spots.append((other, g["l"], g["t"], g["w"], g["h"]))
+        home.append((other, pg.evaluate(HOME)))
     pg.context.close()
     assert not errs, errs
-    assert all(s[1:] == spots[0][1:] for s in spots), spots
+    assert all(s[1:] == spots[0][1:] for s in spots), spots                     # across bodies: not a pixel
+    for other, h in home:                                                         # across styles: still on the toggles, as wide as they are
+        assert abs(h[0]) <= 1 and abs(h[1]) <= 1 and 8 <= h[2] <= 12, (other, h)    # (Luke, 2026-11-13: minimap_home.py)
 
 
 # ── Luke, 2026-11-01: "key navigation will not get me out of orbit between satellites/asteroids back up to the moon/planet.

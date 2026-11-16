@@ -63,3 +63,12 @@ def test_lanes_reads_horizontal_wherever_users_see_it():
     from alto import entitlements
     assert entitlements.LABELS["lanes"] == "Horizontal"
     assert "['lanes', 'Horizontal', '']" in HOME and "Horizontal timeline" not in HOME
+
+
+def test_the_blueprint_tile_and_guide_do_not_promise_a_walk():
+    """The first-person walk is switched off (Luke L-1101-222655, Art 4700-a): the tile, the hand-off line and the guide say so."""
+    guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    assert "a blueprint then a walk" not in HOME and "a blueprint, then a walk through its rooms" not in HOME
+    assert "a blueprint plus a walk through its rooms" not in HOME
+    assert "Your outline inside one real building, floor by floor." in HOME      # the Blueprint picture tile (14 Nov): no walk promised
+    assert "walk through?" not in guide and "which building do you want your" in guide

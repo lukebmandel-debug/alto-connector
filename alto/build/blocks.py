@@ -18,7 +18,7 @@ import json
 import re
 from urllib.parse import quote as url_q
 
-from . import format_symbols
+from . import format_symbols, info_help
 from .brief import Brief, Node, Section, COL_SETS, roman, building_view, world_view
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
@@ -941,7 +941,7 @@ function _altoOutlineHead(id){
   if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ titleOf[n.id]=n.title; });
   var parts = chain.map(function(pid){
     return '<span class="alto-link" data-sd-type="node" data-sd-id="'+pid+'">'
-      + ((O.num[pid]?O.num[pid]+' ':'') + (titleOf[pid]||pid)) + '</span>';
+      + ((O.num[pid]?window._altoP(O.num[pid])+' ':'') + (titleOf[pid]||pid)) + '</span>';
   });
   return [{h:'Sits under', t:'<div class="ol-trail">'+parts.join(' <span class="ol-sep">\\u203a</span> ')+'</div>'}];
 }
@@ -1897,6 +1897,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     act_names_lit = ("[" + ",".join(js_str(a.short) for a in b.acts) + "]")
     sec_names = [s.h for n in nodes for s in n.sections[:3] if s.t][:3]
     sec_hint = ", ".join(dict.fromkeys(sec_names)) or "its full details"
+    _hk = format_symbols.key_of(b)
+    help_tokens = {"help_sections_d": info_help.desktop(_hk, sec_hint), "help_sections_m": info_help.phone(_hk, jsq(sec_hint))}
     # Tag-free title for the sinks that display a string rather than parse it.
     title_txt = one_line(b.title)
     owner_mail = b.owner_email or "user@example.com"
@@ -1940,10 +1942,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                         f"{js_str(ax1.singular if ax1 else 'Group')}:"
                         f"{js_str(ax2.singular if ax2 else 'Group')};"),
         "chips_heading": f"<h3>{jsq(b.entity_axis_label)} Present</h3>",
-        "help_sections_m": ("Tap the current card to open its detail page "
-                            f"&#8212; {jsq(sec_hint)}."),
-        "help_sections_d": ("click any card to open its detail page "
-                            f"({sec_hint})"),
+        # The Info panel and the How to use sheet: one text per format (info_help.py).
+        **help_tokens,
         # The print heading names the format by its symbol (a printed outline is
         # no "Timeline"); the symbol carries the name as its tooltip. The symbol
         # is the one the page's way-back button wears (search.py format_name_js).

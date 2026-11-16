@@ -115,10 +115,9 @@ def test_the_page_carries_a_loader_and_the_placements_not_the_plan():
 
 def test_the_page_grows_by_a_few_kilobytes_only():
     """The private page is at its size cap: a Memory Blueprint costs a loader and the placements, and is far lighter than the city."""
-    from alto.build import focus_branch
     plain, _ = built(mode="linear", palace_view="city", building={})
     html, _ = built()
-    plain_n = len(plain) - len(focus_branch.block())                            # (the plain timeline page carries the focus-on-a-branch block, a palace page never does)
+    plain_n = len(plain)
     assert abs(len(html) - plain_n) < 12_000, len(html) - plain_n       # (a few KB either way: the plain page carries its own timeline code)
     assert len(html) < len(built(palace_view="city", building={})[0])
 
@@ -271,7 +270,7 @@ def _timeline_other_city():
 def test_the_homepage_picker_offers_the_building_and_hands_it_to_claude():
     phrases = HOME[HOME.index("const KIND_PHRASE = {"):HOME.index("function kindSentence(kind)")]
     assert "  building: '" in phrases and "palace_view \\'building\\'" in phrases and "set_up_building" in phrases
-    assert 'data-mode="building" aria-pressed="false">' in HOME and 'Memory Blueprint</button>' in HOME and 'data-for="building"' in HOME
+    assert 'data-mode="building" aria-pressed="false">' in HOME and 'Memory Blueprint</span>' in HOME and 'Your outline inside one real building, floor by floor.' in HOME
     assert "ntModes.palace === 'building' ? 'building' :" in HOME
     assert "if(ntKind === 'palace' || ntKind === 'building' || ntKind === 'world'){ ntClose(); openClaude(" in HOME      # a building needs its plan: Claude's, never a browser starter
     assert (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8") == HOME     # staged

@@ -233,5 +233,5 @@ def test_pages_with_a_proxy_url_carry_the_gate_and_the_hiding_css(monkeypatch, o
     f = _facts(True)
     for page in (f["tl"], f["home"]):
         assert 'window._ALTO_BASS_BASE=window._ALTO_BASS_BASE||"https://px.test/bass"' in page and "_altoBassGate" in page
-    assert "html.alto-bass-off .aep-bass" in f["tl"] and "html.alto-bass-off #nt-sw" in f["home"]
+    assert "html.alto-bass-off .aep-bass" in f["tl"] and 'html.alto-bass-off .nt-tab[data-tab="bass"]' in f["home"]
     assert len(f["tl"]) - len(on["tl"]) < 2000

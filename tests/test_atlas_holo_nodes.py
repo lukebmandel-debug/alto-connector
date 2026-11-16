@@ -31,10 +31,11 @@ def _rgb(h):
 
 def test_the_holo_sheet_says_the_boards_card_rules_again_for_the_enlarged_atlas_card():
     c = holo.css()
-    for sel in ("#wpal-root .wp-enl .node-card", "#wpal-root .wp-enl .node-footer", "#wpal-root .wp-enl .node-title", "#wpal-root .wp-enl .node.focused .node-card"):
-        assert "html.alto-holo " + sel in c, sel
+    E = ":is(#wpal-root .wp-enl,#bldg-root .bl-enl)"          # (the Memory Blueprint enlarges the same borrowed card, 2026-11-13)
+    for sel in (" .node-card", " .node-footer", " .node-title", " .node.focused .node-card"):
+        assert "html.alto-holo " + E + sel in c, sel
     assert "html.alto-holo #wpal-root .wp-pin" in c and "html.alto-holo #wpal-root .wp-tag" in c
-    assert "#wpal-root .wp-enl .node[data-solar]" not in c and "phase" not in holo.atlas_cards(holo.ink(holo.HOLO_CSS)).split("{")[0]
+    assert E + " .node[data-solar]" not in c and "phase" not in holo.atlas_cards(holo.ink(holo.HOLO_CSS)).split("{")[0]
 
 
 def _page():

@@ -794,7 +794,7 @@ def test_build_bundle_refuses_a_folder_whose_bundle_and_pin_drift(tmp_path):
     fn = out / "functions"
     assert bb.check_pin(fn) == (ROOT / "alto" / "cloud" / "ext_pin.txt").read_text().strip()
     p = fn / "alto" / "build" / "bass_hosted_ext.py"
-    p.write_text(p.read_text().replace("Build it with Bass from my notes", "Build it with Bass from my notes "))
+    p.write_text(p.read_text().replace("b.textContent='Upload notes'", "b.textContent='Upload notes '"))
     with pytest.raises(SystemExit, match="does not match"):
         bb.check_pin(fn)
 

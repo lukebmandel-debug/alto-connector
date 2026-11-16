@@ -269,7 +269,7 @@ def test_the_bottom_right_toggles_mirror_the_account_toggle(browser, home_site):
 def test_the_homepage_source_carries_the_rename_and_the_mirror():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
     assert "function altoRenameTimeline" in h and "function altoRenameProject" in h and "Rename…" in h
-    assert "const GAP = 12.5, W = 35, INSET = 24;" in h and "EDIT_SLOT" not in h
+    assert "let GAP = 12.5, W = 35, INSET = 24, BW = 35;" in h and "EDIT_SLOT" not in h
     assert "renameTimeline: async (key, tid, title)" in CLOUD and "renameProject: async (from, to)" in CLOUD
 
 

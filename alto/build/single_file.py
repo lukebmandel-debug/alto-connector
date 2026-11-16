@@ -71,6 +71,9 @@ def _inject_shim(html, label):
     return html[:i + 6] + SHIM + html[i + 6:]
 
 
+from ..drive_common import strip_unshared as strip_unshared_drive  # noqa: E402
+
+
 def _embed(html):
     return json.dumps(html).replace("<", "\\u003c")
 
@@ -258,7 +261,8 @@ def bundle_many(groups: list[dict], title: str = "Alto",
             # No reports page in the bundle → no report bubble on the chip.
             entry["reports"] = False
             courses.append(entry)
-            docs[key] = _prepare_timeline(timeline_html, brief.timeline_id, key)
+            # a Drive chip not switched on for sharing leaves no id in an offline copy or a preview (drive_common)
+            docs[key] = _prepare_timeline(strip_unshared_drive(timeline_html), brief.timeline_id, key)
             keys[f"{key}.html"] = key
             n += 1
         if courses:

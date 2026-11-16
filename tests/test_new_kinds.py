@@ -24,7 +24,7 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     kinds = re.findall(r'<button type="button" class="nt-kind[^"]*" data-kind="(\w+)"', h)
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    assert blk.count('class="nt-pv"') == 9                       # one each, and a second for the two with modes (Horizontal, Building), a third for the Atlas, a fourth and fifth for its scope tiles (World, A country)
+    assert blk.count('class="nt-pv"') == 10                      # one each, and a second for the two with modes (Horizontal, Building), a third for the Atlas, a fourth and fifth for its scope tiles (World, A country)
     for want in ("Timeline", "Outline", ">System<", "Memory Palace", ">Sketch<", ">Horizontal<", "Memory Map</button>", "Memory Blueprint</button>", "Memory Atlas</button>"):
         assert want in blk, want
     assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
@@ -92,10 +92,7 @@ def test_build_it_with_claude_tells_claude_which_tile_was_picked():
 def test_the_timeline_tile_shows_only_the_chosen_modes_picture_and_words():
     h = _home()
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
-    assert ('.nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"],\n'
-            '  .nt-kind[data-mode="city"] [data-for="building"], .nt-kind[data-mode="building"] [data-for="city"],\n'
-            '  .nt-kind[data-mode="city"] [data-for="world"], .nt-kind[data-mode="building"] [data-for="world"],\n'
-            '  .nt-kind[data-mode="world"] [data-for="city"], .nt-kind[data-mode="world"] [data-for="building"]'
+    assert ('.nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"]'
             '{ display:none; }') in css                       # the rule is whole: it once lost its block
 
 

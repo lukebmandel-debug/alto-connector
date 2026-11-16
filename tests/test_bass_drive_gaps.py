@@ -30,11 +30,11 @@ def test_the_picker_csp_is_exactly_the_google_origins_and_nothing_loose():
     d = dict(p.split(" ", 1) for p in PK.PICKER_CSP.split("; "))
     assert d["script-src"] == "'self' https://apis.google.com https://accounts.google.com/gsi/client"
     assert d["frame-src"] == "https://docs.google.com https://accounts.google.com/gsi/"
-    assert d["connect-src"] == "https://accounts.google.com/gsi/" and d["style-src"] == "'self' https://accounts.google.com/gsi/style"
+    assert d["connect-src"] == "https://accounts.google.com/gsi/ https://oauth2.googleapis.com/revoke" and d["style-src"] == "'self' https://accounts.google.com/gsi/style"
     assert d["default-src"] == "'none'" and d["object-src"] == "'none'" and d["base-uri"] == "'none'" and d["form-action"] == "'none'"
     assert d["frame-ancestors"] == "'none'"
     assert "unsafe-inline" not in PK.PICKER_CSP and "unsafe-eval" not in PK.PICKER_CSP and "*" not in PK.PICKER_CSP and "wasm" not in PK.PICKER_CSP
-    assert set(re.findall(r"https://[a-z.]+", PK.PICKER_CSP)) == {"https://apis.google.com", "https://accounts.google.com", "https://docs.google.com"}
+    assert set(re.findall(r"https://[a-z0-9.]+", PK.PICKER_CSP)) == {"https://apis.google.com", "https://accounts.google.com", "https://docs.google.com", "https://oauth2.googleapis.com"}
 
 
 def test_only_the_picker_path_gets_it_and_the_site_wide_csp_is_untouched(monkeypatch):

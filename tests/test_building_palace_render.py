@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from alto.build import building_schema as bs, palace_assets  # noqa: E402
+from alto.build.palace_building_asset import BLUEPRINT_ALL_FLOORS  # noqa: E402
 from tests.test_building_palace_tools import built  # noqa: E402
 
 try:
@@ -72,7 +73,7 @@ def test_the_blueprint_draws_the_plan_with_its_tabs_rooms_and_pills(browser, htm
         page.wait_for_selector("#bldg-root .bl-tab")
         assert page.evaluate("AltoBuilding.ready.then(p => p.id)") == "test-pavilion"
         tabs = page.eval_on_selector_all("#bldg-root .bl-tab", "els => els.map(e => e.textContent)")
-        assert sorted(tabs) == ["1", "G", "Outside"]
+        assert sorted(tabs) == ["1"] + (["All"] if BLUEPRINT_ALL_FLOORS else []) + ["G", "Outside"]
         assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').textContent") == "Outside"
         page.click("#bldg-root .bl-tab[data-level=g]")
         assert page.locator("#bldg-root .bl-room").count() == 2
@@ -83,6 +84,43 @@ def test_the_blueprint_draws_the_plan_with_its_tabs_rooms_and_pills(browser, htm
         page.click("#bldg-root .bl-tab[data-level=u]")
         assert page.locator("#bldg-root .bl-room.bl-guess").count() == 2            # the confidence 1 and 0 rooms are dashed
         assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-room')].map(e => e.style.getPropertyValue('--bl-tint')).join()") == "#e0813f,#e0813f"
+        assert errors == []
+    finally:
+        page.close()
+
+
+@pytest.mark.skipif(not BLUEPRINT_ALL_FLOORS, reason="Blueprint All floors is off (ALTO_BP_ALL_FLOORS=1 builds it in)")
+def test_all_floors_are_laid_out_together_with_lit_counts(browser, html):
+    """Art, alto-art 2026-11-01: an "All" level button lays every floor out on the page (top floor first); a floor's name opens that floor; under a filter each
+    floor says how many of its cards are lit and a floor with none fades back. (Label A of the same spec is not taken: the name card that drags and
+    collapses, 2026-11-12, keeps its kind line and card count.)"""
+    page, errors = _open(browser, html)
+    try:
+        page.wait_for_selector("#bldg-root .bl-tab")
+        assert page.evaluate("document.querySelector('#bldg-root .bl-head h2').textContent") == "Alto Test Pavilion"
+        page.click("#bldg-root .bl-tab[data-level=all]")
+        assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').getAttribute('data-level')") == "all"
+        titles = page.eval_on_selector_all("#bldg-root .bl-celltitle", "els => els.map(e => e.textContent)")
+        assert titles == ["LEVEL 1", "LEVEL G"]                                      # the top floor first
+        assert page.locator("#bldg-root .bl-cellbg").count() == 2 and page.locator("#bldg-root .bl-room").count() == 4   # every floor's rooms are drawn
+        assert page.locator("#bldg-root .bl-pill").count() >= 3                    # the cards of every floor
+        # a filter: the cards it hides dim, each floor counts what is lit, a floor with none fades back
+        page.evaluate("document.querySelectorAll('#world .node-card').forEach(c => c.classList.add('ent-dimmed'))")
+        page.wait_for_timeout(400)
+        lit = page.evaluate("[...document.querySelectorAll('#bldg-root .bl-cell')].map(c => c.querySelector('.bl-litt').textContent)")
+        assert lit == ["0 lit", "0 lit"] and page.locator("#bldg-root .bl-cell.bl-zero").count() == 2 and page.locator("#bldg-root [data-fade].bl-cellfade").count() >= 2
+        page.evaluate("document.querySelectorAll('#world .node-card').forEach(c => c.classList.remove('ent-dimmed'))")
+        page.wait_for_timeout(400)
+        assert page.locator("#bldg-root .bl-cell.bl-zero").count() == 0 and page.locator("#bldg-root .bl-cellfade").count() == 0
+        page.evaluate("document.querySelectorAll('#world .node-card').forEach((c, i) => { if (i % 2) c.classList.add('ent-dimmed'); })")
+        page.wait_for_timeout(400)
+        assert page.locator("#bldg-root .bl-pill.bl-dim").count() >= 1
+        # a floor's name opens that floor, "All" brings the grid back
+        page.evaluate("document.querySelector('#bldg-root .bl-celltitle').dispatchEvent(new MouseEvent('click', {bubbles: true}))")
+        assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').getAttribute('data-level')") == "u"
+        assert page.locator("#bldg-root .bl-cell").count() == 0
+        page.click("#bldg-root .bl-tab[data-level=all]")
+        assert page.locator("#bldg-root .bl-cell").count() == 2
         assert errors == []
     finally:
         page.close()
@@ -132,11 +170,17 @@ def test_wall_segments_break_at_doors_and_keep_windows(browser, html):
 
 
 def test_pills_open_the_nodes_page_and_closing_it_brings_the_blueprint_back(browser, html):
+    # since 2026-11-13 a chip enlarges its card over the plan (tests/test_blueprint_enlarge.py); a click on the enlarged card opens its page
     page, errors = _open(browser, html)
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         page.click("#bldg-root .bl-tab[data-level=g]")
+        nid = page.get_attribute("#bldg-root .bl-pill >> nth=0", "data-node")
         page.click("#bldg-root .bl-pill >> nth=0")
+        page.wait_for_function("id => AltoBuilding.enlarged() === id", arg=nid)
+        assert page.evaluate("document.getElementById('bldg-root').hidden") is False
+        page.wait_for_timeout(500)
+        page.click("#bldg-root .bl-enl .node-card")
         assert page.evaluate("document.getElementById('bldg-root').hidden") is True
         assert page.evaluate("document.documentElement.classList.contains('detail-open')")    # the engine's own detail page took over
         assert page.evaluate("document.getElementById('bldg-toggle')") is None              # blueprint and walk only: no switch to the card board
@@ -171,6 +215,13 @@ def test_pan_and_zoom_move_the_view_not_the_plan(browser, html):
                 if (document.elementFromPoint(x, y) === r) return [x, y]; } return null; })()""")
         assert spot, "no free spot of room g101 to click"
         page.mouse.click(*spot)
+        rid = page.evaluate("document.querySelectorAll('#bldg-root .bl-room')[1].getAttribute('data-room')")
+        cards = page.evaluate("r => AltoBuilding.nodesIn(r)", rid)
+        if cards:                                                                            # a room with cards enlarges its first (2026-11-13)
+            page.wait_for_function("id => AltoBuilding.enlarged() === id", arg=cards[0])
+            assert page.evaluate("document.querySelector('#bldg-root .bl-info').hidden") is True
+            page.keyboard.press("Escape")
+            page.evaluate("r => AltoBuilding.selectRoom(r)", rid)                            # the room's panel is still there by its own call
         assert "Gallery 101" in page.inner_text("#bldg-root .bl-info")
         assert errors == []
     finally:

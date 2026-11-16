@@ -1874,7 +1874,7 @@ function units(world, order, X, w, H, W){
     u.style.setProperty('--unit-color', pm.colorRaw);
     u.innerHTML='<div class="lu-chip"><b></b><span></span></div>';
     if(cuts[a]<=0) u.querySelector('.lu-chip').style.left='66px';   // clear of the key's toggle at the top left
-    u.querySelector('b').textContent=pm.numeral; u.querySelector('span').textContent=(pm.label.split(' — ')[1]||pm.label);
+    u.querySelector('b').className='un-n'; u.querySelector('b').textContent=window._altoU(a+1, 'roman'); u.querySelector('span').textContent=(pm.label.split(' — ')[1]||pm.label);
     world.insertBefore(u, world.firstChild);
     stops.push([pm.colorRaw+'b3', (cuts[a]+cuts[a+1])/2]);
   });
@@ -2005,7 +2005,7 @@ document.addEventListener('click', function(e){
 var _escBusy=false;
 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var k=document.getElementById('lanes-key'), c=document.getElementById('canvas');
   _escBusy=!!window._focusedNodeId || !!(k && k.classList.contains('open')) || !!(c && c.classList.contains('ln-ov')); } }, true);
-document.addEventListener('keydown', function(e){ if(e.key==='Escape' && PICK.length && !_escBusy) setPick([]); });
+/* (Esc does nothing on the board any more: Luke, L-1114-focus, the arrow keys only) */
 /* the nav bar's character chips: a plain click is still the character's page; ⇧- or ⌘-click picks (or lets go of)
    their line, and each chip shows whether its line is picked */
 var ENT=window._ALTO_LANES_ENT||{};
@@ -2080,8 +2080,6 @@ document.addEventListener('keydown', function(e){
   if(window._focusedNodeId || de.classList.contains('detail-open')) return;
   var ae=document.activeElement, tg=ae && ae.tagName; if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
   var k=e.key, stop=function(){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
-  if(k==='Escape'){ if(Object.keys(OPEN).length && !expandedNow()){ stop(); clearKC(); OPEN={}; relayoutNow(); } return; }
-  if(k==='Enter'){ if(KC && window.enterFocus){ stop(); window.enterFocus(KC); } return; }
   if(k==='ArrowLeft' || k==='ArrowRight'){ if(KC) clearKC(); return; }
   if(k!=='ArrowDown' && k!=='ArrowUp') return;
   var cur=KC || (window._altoLanesCurrent && window._altoLanesCurrent()); if(!cur) return;

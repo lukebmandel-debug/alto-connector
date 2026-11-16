@@ -4,10 +4,10 @@
   "commit": "74a142a140988b9f39ed02b05e4aec184d47e4c4",
   "sha256": {
     "alto/build/share_shell.py": "e1823d2df2330e32ce5482918c68bc637589dca0abfe0d917926c6879d90d1ea",
-    "alto/cloud/alto-cloud.js": "175578ae525393903867d93c30496dd5bf2fb6d93157ae6e8bb15bc115d988e5",
-    "firestore.rules": "495d8c5bef2365ccb2a92dabc714dbd8675a13d292852b6546d1b5398a3add46",
-    "alto/firestore.rules": "495d8c5bef2365ccb2a92dabc714dbd8675a13d292852b6546d1b5398a3add46",
-    "alto/publish_static.py": "dd9f9f093a0158e15319de0b0758063963fe47eba4de120e5c3c04f6691735ed"
+    "alto/cloud/alto-cloud.js": "4f65f873a11bd21c02975177400d1baa99d91816919d3c63720e42cc25314d13",
+    "firestore.rules": "55ea513d671f56e6d1c1c142f0a95e23437a5ec52b8ceab61a127c6ec5b5b98c",
+    "alto/firestore.rules": "55ea513d671f56e6d1c1c142f0a95e23437a5ec52b8ceab61a127c6ec5b5b98c",
+    "alto/publish_static.py": "00ef06b754c496cfe6caba872ab84c53521d0223f2fc450471349ff5ef69afd7"
   },
-  "note": "Refreshed 2026-11-13 on alto-bass-cur2 (1.9.225 release head 74a142a1): with the Bass additions removed, every file below is byte-identical to 74a142a1."
+  "note": "2026-11-15 v1.9.233 (alto-rel-231-int): FOUR files differ from 74a142a1 on purpose, each by a row's own change, none by Bass. alto/cloud/alto-cloud.js: the unit-numbers sync (un/unAt, _unOk, _unStamp into a share copy) and the terms-denied message (TERMS_DENIED, termsDenied, deny(), a termsDialog 3rd argument, one comment 'the Bass proxy' -> 'the proxy'). firestore.rules and alto/firestore.rules: one comment line naming un/unAt as owner-only fields, no rule changed. alto/publish_static.py: pubstamp (site_v derived from the build, stamp_engine on the stored private page, site_digest, deploy_if_changed) and Drive (_picker_csp also on when ALTO_DRIVE_* are all set). 2026-11-15 v1.9.232 (alto-231-tweaks): alto/cloud/alto-cloud.js DELIBERATELY differs from 74a142a1 by the terms-denied message (TERMS_DENIED, termsDenied flag, the deny() view in termsDialog, a termsDialog 3rd argument) and one comment ('the Bass proxy' -> 'the proxy'); rules unchanged. Refreshed 2026-11-13 on alto-bass-cur2 (1.9.225 release head 74a142a1): with the Bass additions removed, every file below is byte-identical to 74a142a1. | 233 picks: alto/cloud/alto-cloud.js line 1946 only (TERMS_DENIED text: no Bass word); sha256 re-pinned, no other line moved. | 233 picks (pubstamp f7d8ff20): alto/publish_static.py only deploy_if_changed (no marker write), new _marker/mark_deployed, deploy_site clears the marker; the Bass additions are untouched."
 }

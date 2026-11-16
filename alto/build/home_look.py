@@ -49,7 +49,7 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .course-tile{ --em:88px; min-height:132px; display:flex; flex-direction:column; }
   .course-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
   .project-slab{ padding:30px 22px 32px; }
-  #projects-wrap{ padding-left:16px; padding-right:16px; }
+  #projects-wrap{ padding-left:max(20px, env(safe-area-inset-left,0px)); padding-right:max(20px, env(safe-area-inset-right,0px)); }   /* 20 px: the Private and sort chips sit on the panel's edges, never nearer the screen edge */
   .course-tile .tile-body{ flex:1; padding:12px 14px 0; }
   .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:normal; -webkit-hyphens:manual; hyphens:manual; }
   /* the card's ⋯ sits beside the title: every line keeps the same short width, so the line spacing stays even */
@@ -223,9 +223,12 @@ html.dark #bin-panel{ background:rgba(18,20,30,.95); }
 #bin-panel .bin-list{ margin-top:8px; }
 @media (max-width:640px){
   #bin-btn::after{ content:''; position:absolute; inset:-5px; }
-  #bin-btn{ position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)); bottom:auto; left:auto; right:140px; width:34px; height:34px; border-radius:10px; }
+  #bin-btn{ position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)); bottom:auto; left:auto; right:140px; width:44px; height:44px; border-radius:12px; }
+  html:not(.alto-holo):not(.alto-retro) #bin-btn{ right:170px; }   /* (past the Scene tile, which grew to 44 and sits at right 118) */
   #bin-panel{ left:14px; right:14px; width:auto; max-width:none; top:calc(106px + env(safe-area-inset-top,0px)); bottom:auto; }
 }
+/* a phone on its side: the bin grows to 44 pt like the other corner tiles (home_template.html) and slides clear of the account tile */
+@media (min-width:641px) and (max-height:500px) and (pointer:coarse){ #bin-btn{ width:calc(44px / var(--alto-zoom, 0.8)); height:calc(44px / var(--alto-zoom, 0.8)); left:calc(24px + (44px + 8px) / var(--alto-zoom, 0.8)); } }
 @media print{ #bin-corner{ display:none !important; } }
 """
 
@@ -255,7 +258,7 @@ window._spCard = function(el, rec){
     if(!today && !late){ var n = document.createElement('i'); n.textContent = 'nothing today'; line.appendChild(n); }
   } else {
     // The invitation does something every time (Luke 2026-11-15, "the study plan button still doesn't do anything": the line had no handler, so a click fell through to the card and just opened the timeline, which has no plan sheet until a plan exists).
-    // With Bass available the hosted hook sets window._altoStudyPlanMake and it opens Bass for this file; otherwise it hands the plan to Claude the way the New window's "Build it with Claude" does (a visible toast either way).
+    // When a hook sets window._altoStudyPlanMake it handles this file; otherwise it hands the plan to Claude the way the New window's "Build it with Claude" does (a visible toast either way).
     line.textContent = '+ Make a study plan'; line.className += ' sp-make'; line.setAttribute('role', 'button'); line.tabIndex = 0;
     var ttl = (rec && (rec.heading || rec.title)) || 'this timeline';
     var go = function(ev){

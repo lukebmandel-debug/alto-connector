@@ -128,7 +128,7 @@ def test_classic_panels_are_not_the_holo_glass(webkit, site):
 
 
 LABELS = {"title": ".course-tile:not(.new-tile) .tile-title", "units": ".course-tile:not(.new-tile) .t-units", "sub": ".course-tile:not(.new-tile) .tile-sub",
-          "pname": ".project-slab:not(.new-project-slab) .slab-kicker", "rswitch": "#home-row .hr-switch .hr-chip", "rprivate": "#home-row .hr-plain", "rsort": "#home-row .home-sort", "spcard": ".sp-card"}
+          "pname": ".project-slab:not(.new-project-slab) .slab-kicker", "rswitch": "#home-row .hr-switch .hr-chip", "rprivate": "#home-row .hr-plain", "rsort": "#home-row .home-sort", "spcard": ".sp-card", "spchip": ".sp-card b"}
 
 
 
@@ -199,7 +199,7 @@ def _worst_contrast(webkit, site, ground, dark, size, shot=None):
 @pytest.mark.parametrize("ground,dark,size", [(g, d, z) for g in ("h-neon-rain", "h-amber-haze", "h-grid-horizon", "h-signal-rain", "h-targeting", "h-lightspeed", None) for d, z in ((True, (1440, 900)), (True, (402, 874)), (False, (402, 874)))])
 def test_labels_clear_4_5_over_a_loaded_ground(webkit, site, ground, dark, size):
     w = _worst_contrast(webkit, site, ground, dark, size)
-    assert {"title", "pname", "rprivate", "rsort", "units", "bars"} <= set(w) and ("spcard" in w) == (size[0] > 640), w   # (the study-plan line is a computer's)
+    assert {"title", "pname", "rprivate", "rsort", "units", "bars"} <= set(w) and ("spcard" in w) == (size[0] > 640) and ("spchip" in w) == (size[0] > 640), w   # (the study-plan line is a computer's)
     assert min(v for k, v in w.items() if k != "bars") >= 4.5, str({k: round(v, 2) for k, v in w.items()})
     print("CHIP", ground, dark, size[0], round(min(w['rprivate'], w['rsort']), 2))
     assert w["bars"] >= 3, w   # (3:1 against the surround in both themes: ground keyline in dark, ink keyline in light)
