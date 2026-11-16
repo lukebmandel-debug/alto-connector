@@ -969,7 +969,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             for j, k in enumerate(ks[1:], 1):
                 etx[f"{p}|{k}"] = round(x[ks[0]] + -(-j // 2) * s * (-1 if j % 2 else 1), 2)
     out = {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
-           "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"],
+           "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"], "room": ROOM,
            "bus_span": T["BUS_SPAN"], "bus_above": T["BUS_ABOVE"], "warnings": warns}
     for hk in ("shift", "slide"):
         hv = {i: [float(h[hk][0]), float(h[hk][1])] for i, h in H.items()
@@ -983,10 +983,20 @@ def plan_js(plan: dict) -> dict:
     """The part of a plan the page needs (it measures heights itself)."""
     out = {k: plan[k] for k in ("x", "w", "acts", "etx", "top", "act_gap", "row_gap", "cx",
                                 "bus_span", "bus_above")}
+    if plan.get("room"):
+        out["room"] = plan["room"]
     for hk in ("shift", "slide"):
         if plan.get(hk):
             out[hk] = plan[hk]
     return out
+
+
+# The least room kept between a card placed by hand and the cards around it (px,
+# each way). The page drops a dragged card only where it is this clear of every
+# other card (manual_edit.py), so make_room and separate — which keep the same
+# room — have nothing to move, and the build lands every card where the page
+# showed it. (Rows the layout stacks itself stay ROW_GAP apart.)
+ROOM = 12
 
 
 def shift_offsets(shift: dict, parent: dict, slide: dict = None) -> dict:
@@ -1292,9 +1302,10 @@ def run_plan(plan: dict, nodes, heights: dict):
             for i in moved:
                 x[i] += off[i][0]
                 y[i] += off[i][1]
+            room = plan.get("room") or row_gap
             make_room(y, x, h, plan.get("w") or {}, mine, set(moved), par,
-                      row_gap, start)
-            separate(y, x, h, plan.get("w") or {}, mine, y0, x0, par, row_gap)
+                      room, start)
+            separate(y, x, h, plan.get("w") or {}, mine, y0, x0, par, room)
             bottom[0] = max(y[i] + h[i] / 2 for i in y)
     # anything outside the tree (verify rejects it; still never drop a card)
     for n in nodes:

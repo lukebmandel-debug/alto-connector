@@ -246,6 +246,9 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing)>.sol-lbl,
   html.alto-solar:not(.mobile) #canvas.focus-mode #world .node[data-solar]:not(.sol-flank)>.sol-lbl{opacity:0 !important;}
   html.alto-solar:not(.mobile) #world .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed)~.sol-lbl{opacity:.14;}
+  html.alto-solar-hub #world .node[data-solar] .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed){opacity:.15;}   /* the System look: a body a filter hides fades whole, plate, edge, glow, arc and contents together (Art, alto-art-1102-0800-a), not a flat white disc */
+  #solar-svg g.sol-udim :is(.sol-ubd,circle[fill^="url(#sol-glow"]){opacity:0;}
+  html.alto-solar:not(.mobile) #world .node[data-solar] .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed){pointer-events:none;}   /* (a body a filter hides: not hover-lit, not picked) */
   .node[data-solar=planet] .sol-face span{display:none;}
   .node[data-solar=planet] .sol-face b{font-size:12.5px;line-height:15px;}
   html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-dot{display:block;position:absolute;left:50%;top:50%;pointer-events:none;border-radius:50%;opacity:0;
@@ -361,7 +364,7 @@ function face(n, id){
   var num=(NUM && NUM[id]) || (typeof NODE_ORDER_MAP!=='undefined' && NODE_ORDER_MAP[id]) || '', t=c.querySelector('.node-title'), tt=t ? t.textContent : '';
   var b=B[id];
   var small=b.role==='moon' || b.role==='sat';
-  f.querySelector('b').textContent=small ? (num.split(/[.\-]/).pop()||num) : num;
+  f.querySelector('b').className=small ? '' : 'un-p'; f.querySelector('b').textContent=small ? (num.split(/[.\-]/).pop()||num) : window._altoP(num);
   var sp=f.querySelector('span'), base={sun:16.25, planet:12.5, moon:8.75}[b.role], L=Math.max.apply(null, tt.split(/\s+/).map(function(w){ return w.length; }).concat([1]));
   sp.textContent=tt; sp.style.fontSize=sp.style.lineHeight='';
   /* a word too long for the disc: the type steps down (to 72%) before a word is broken */
@@ -530,7 +533,7 @@ window._altoSolarLayout=function(pos){
   ORD.forEach(function(id){ var b=B[id]; if(b.n) H=Math.max(H, b.hy+b.d/2+115); });
   slab(W, H);
   var rv=document.getElementById('river-svg'); if(rv){ rv.setAttribute('height', H); if(W>1700) rv.setAttribute('width', W); }
-  draw(W, H);
+  draw(W, H); udim();
   ready=true; hov=0;
   apply(true); skin();
   if(MOVES) go();
@@ -665,6 +668,12 @@ function oBands(g, si){
   });
   g.insertBefore(gb, g.firstChild);
 }
+/* a unit whose sun a filter hides loses its glow and boundary ring (Art, 2026-11-01: a hidden body keeps no halo): .sol-udim on the unit's group, kept by watching the cards' classes */
+var UDT=0, UDO=null;
+function udim(){ UDT=0; if(!svg) return; var on=!!(window._altoFilterOn && window._altoShown && window._altoFilterOn());
+  SY.forEach(function(s, si){ var g=svg.querySelector('g[data-sys="'+si+'"]'); if(g) g.classList.toggle('sol-udim', on && !window._altoShown(s.sun)); });
+  if(!UDO && world && window.MutationObserver){ UDO=new MutationObserver(function(m){ if(!UDT && m.some(function(r){ return r.target.classList && r.target.classList.contains('node-card'); })) UDT=setTimeout(udim, 60); });
+    UDO.observe(world, {subtree:true, attributes:true, attributeFilter:['class']}); } }
 function draw(W, H){
   var old=document.getElementById('solar-svg'); if(old) old.remove();
   document.querySelectorAll('#world .sol-unit,#sol-ulay .sol-unit').forEach(function(e){ e.remove(); });
@@ -714,7 +723,7 @@ function draw(W, H){
     var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null, lbl=(U && U.label) || s.label || (pm ? pm.label : ''), bb=(U && U.bbox) || s.bbox;
     lbl=plain(lbl).split(' — ').pop();
     if(lbl && (U || !S.units)){ var ch=document.createElement('div'); ch.className='sol-unit'; if(u) ch.style.setProperty('--u', u);
-      ch.setAttribute('data-unit', s.unit); ch.innerHTML='<b></b><span></span>'; ch.querySelector('b').textContent=pm ? pm.numeral : ''; ch.querySelector('span').textContent=lbl;
+      ch.setAttribute('data-unit', s.unit); ch.innerHTML='<b></b><span></span>'; ch.querySelector('b').className='un-n'; ch.querySelector('b').textContent=pm ? window._altoU(s.unit+1, 'roman') : ''; ch.querySelector('span').textContent=lbl;
       world.appendChild(ch);
       var top=Math.max(PAD+24, (bb ? bb[1]+PAD : sun.hy-(s.R||sun.d))-44);
       ch.style.left=Math.round((U ? (bb[0]+bb[2])/2 : sun.hx)-ch.offsetWidth/2)+'px'; ch.style.top=Math.round(top)+'px'; chips.push(ch);

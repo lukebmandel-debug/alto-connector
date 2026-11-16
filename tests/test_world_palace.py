@@ -222,10 +222,9 @@ def test_the_page_carries_a_loader_and_the_places_not_the_map():
 
 
 def test_the_page_grows_by_a_few_kilobytes_only():
-    from alto.build import focus_branch
     plain, _ = built(mode="linear", palace_view="city")
     html, _ = built()
-    plain_n = len(plain) - len(focus_branch.block())        # (the plain timeline page carries the focus-on-a-branch block, a palace page never does)
+    plain_n = len(plain)
     assert 0 < len(html) - plain_n < 14_000, len(html) - plain_n
     assert len(html) < len(built(palace_view="city")[0])
 
@@ -281,7 +280,7 @@ def test_set_up_world_refuses_clearly(local_store):
 # ── the homepage, the guide ─────────────────────────────────────────────────
 
 def test_the_homepage_offers_the_world_and_sends_the_user_to_claude():
-    assert 'data-mode="world"' in HOME and "Memory Atlas</button>" in HOME and 'data-for="world"' in HOME
+    assert 'data-mode="world"' in HOME and "Memory Atlas</span>" in HOME and "Your outline across the world: sections are regions, concepts are countries." in HOME
     assert "palace_view \\'world\\'" in HOME and "set_up_world" in HOME
     assert "ntModes.palace === 'world' ? 'world'" in HOME and "ntKind === 'world'" in HOME
     assert (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8") == HOME

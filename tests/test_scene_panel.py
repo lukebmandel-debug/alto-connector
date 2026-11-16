@@ -230,10 +230,10 @@ DRAWN_JS = r"""(function(){
   var r=document.documentElement, pb=document.getElementById('page-bg'), p=document.getElementById('bg-panel');
   function col(e){ return e ? getComputedStyle(e).backgroundColor : ''; }
   function lit(w){ if(!pb) return false; var s=getComputedStyle(pb,w); return s.display!=='none' && s.backgroundImage!=='none' && s.content!=='none'; }
-  var vis=[].filter.call(p ? p.querySelectorAll('.bg-body > .bg-sec') : [], function(s){ return getComputedStyle(s).display!=='none' && !s.classList.contains('bg-auto'); }).map(function(s){ return s.id || (s.querySelector('.bg-h')||{}).textContent || s.className; });
+  var vis=[].filter.call(p ? p.querySelectorAll('.bg-body > .bg-sec') : [], function(s){ return getComputedStyle(s).display!=='none' && !s.classList.contains('bg-auto') && s.id!=='bg-units'; }).map(function(s){ return s.id || (s.querySelector('.bg-h')||{}).textContent || s.className; });
   var det=document.getElementById('detail-page');
   return {id:window._altoBgId||'', bgOn:r.classList.contains('alto-bg'), map:r.classList.contains('alto-bg-map'), only:!!(p && p.classList.contains('bg-only')),
-    html:col(r), body:col(document.body), pb:col(pb), before:lit('::before'), after:pb ? getComputedStyle(pb,'::after').display : '', detail:col(det), sections:vis,
+    html:col(r), body:col(document.body), pb:col(pb), before:lit('::before'), after:pb ? getComputedStyle(pb,'::after').display : '', detail:col(det), sections:vis, units:(function(u){ return !!(u && getComputedStyle(u).display!=='none'); })(document.getElementById('bg-units')),   /* (the Unit numbers switch, unit_numbers.py: a setting, shown with every style and format) */
     retro:r.classList.contains('alto-retro')||r.classList.contains('sk-retro'), holo:r.classList.contains('alto-holo'), dp:r.classList.contains('detail-open')};
 })()"""
 BLACK = ("rgb(0, 0, 0)", "rgba(0, 0, 0, 0)")
@@ -287,7 +287,8 @@ def test_retro_is_plain_black_whatever_is_saved_and_the_choice_returns(browser, 
     _open_panel(pg)
     d = _drawn(pg)
     _shot(pg, "retro-scene-panel", page)
-    assert d["only"] and d["sections"] in (["bg-style"],), (page, d)          # the style picker, nothing else
+    assert d["only"] and d["sections"] in (["bg-style"],), (page, d)          # the style picker, nothing else (and the Unit numbers switch)
+    assert d["units"] == (page not in ("home", "reports")), (page, d)     # (a timeline's setting: the homepage and reports have none)
     # the choice is kept and returns in Classic
     _style_of(pg, page, "classic")
     d = _drawn(pg)

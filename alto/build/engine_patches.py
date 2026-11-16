@@ -63,8 +63,18 @@ _MERGE_FLAG_NEW = """        var _mfLo = mergedRide ? mergedRide.x1 : 0, _mfHi =
 _PRINT_OUTLINE_OLD = (
     "function _buildPrintTimelineHTML(){\n"
     "  if(typeof ACT_SEQS === 'undefined' || typeof NODES === 'undefined') return '';")
+# The same hook puts a visual format's study sheet (study_sheet.py) in front: System and the palaces print a
+# one-page picture of their shape before these pages. Wrapped, not edited, so 'timeline' and 'full' both start
+# with it and the ink-saver picture, which never calls this, is untouched. A page with no _altoStudySheet
+# (every other format) prints exactly as before.
 _PRINT_OUTLINE_NEW = (
     "function _buildPrintTimelineHTML(){\n"
+    "  var rest = _altoPrintTimelineRest();\n"
+    "  if(!rest || !window._altoStudySheet) return rest;\n"
+    "  var pa = window._altoPrintMode === 'full' && document.getElementById('print-all');\n"
+    "  try{ return window._altoStudySheet(rest + (pa ? pa.innerHTML : '')) + rest; }catch(e){ return rest; }\n"
+    "}\n"
+    "function _altoPrintTimelineRest(){\n"
     "  if(typeof ACT_SEQS === 'undefined' || typeof NODES === 'undefined') return '';\n"
     "  if(window._ALTO_OUTLINE && window._altoPrintOutline)\n"
     "    return window._altoPrintOutline(ACT_SEQS, NODES,\n"
@@ -126,6 +136,12 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
   background:var(--node-glass-bg, var(--panel-glass-bg));
 }
 html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
+/* An outline with cards past the page's left or right edge (window._altoSideX = [left, right] px, set by the tree's
+   layout as --xl / --xr on #world: detail_extras._altoSides; like _altoHX, absent = 0 = no change anywhere). The board
+   starts that much further left, and the bands, the tubes (initLayout), the glass and the lines reach as far. */
+html.alto-xwide:not(.mobile) #world{ left:var(--xl,0px); }
+html.alto-xwide:not(.mobile) #world #glass-slab{ width:calc(max(1700px, 100vw / var(--alto-zoom, 0.8)) + var(--xl,0px) + var(--xr,0px)) !important; margin-left:calc((var(--xr,0px) - var(--xl,0px)) / 2); }
+html.alto-xwide:not(.mobile) #world #river-svg{ overflow:visible !important; }
 /* Every fade that comes with a focus change rides the growth's clock and curve
    (motion-one-body): the other cards dimming, the new card brightening, the
    headers and lines fading. They ran on CSS's own 'ease' over .25-.3s, done
@@ -153,6 +169,7 @@ html:not(.mobile) #world .alto-fshadow{
 @media print{ #world .alto-fshadow{ display:none !important; } }
 /* a fitted enlarged card (enlarge-safe-box): its text scrolls inside it */
 #world .node .node-card.alto-sf:not(#_){ overflow-x:hidden !important; overflow-y:auto !important; overscroll-behavior:contain; }
+#world .node.focused .node-card.alto-sf:not(#_) .node-desc{ display:block !important; -webkit-line-clamp:unset !important; line-clamp:none !important; overflow:visible !important; }
 """
 
 # ── enlarge-safe-box (Luke, 2026-11-13) ─────────────────────────────────────
@@ -296,6 +313,8 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
         if(c.contains(canvas) || !pos || big) walk(c);
       }
     })(document.body);
+    [].forEach.call(document.querySelectorAll('.alto-mm.on'),function(m){   /* a minimap (minimap_home.py) is chrome: the card fits round it */
+      var r=m.getBoundingClientRect(); if(r.width>1 && r.height>1 && parseFloat(getComputedStyle(m).opacity)>0 && !out.some(function(o){ return o.left===r.left && o.top===r.top && o.right===r.right; })) out.push(r); });
     return out;
   }
   function _safeBox(x0,x1){
@@ -315,25 +334,30 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     var card=_cardOf(el); el._sfs=null; if(!card || document.documentElement.classList.contains('mobile') && !document.documentElement.classList.contains('phone-whole')) return;
     if(el.hasAttribute('data-solar') || document.documentElement.classList.contains('alto-palace')) return;
     var old=card._sf; card._sf=null;
-    var hadF=el.classList.contains('focused'), z0=card.style.zoom, st=card.getAttribute('style')||'';
+    var de=document.documentElement, Z=(parseFloat(getComputedStyle(de).zoom)||1)*(parseFloat(getComputedStyle(document.body).zoom)||1);
+    /* Horizontal (lanes): the small card is a compact face, the enlarged one the full card; it keeps the small card's shape */
+    var lock=de.classList.contains('alto-lanes') && !el.classList.contains('ln-kid');
+    var hadF=el.classList.contains('focused'), z0=card.style.zoom, st=card.getAttribute('style')||'', w0, h0;
     ['width','height','max-width','min-width','box-sizing'].forEach(function(p){ card.style.removeProperty(p); });
-    if(!hadF) el.classList.add('focused');
-    card.style.zoom='';            var w0=card.offsetWidth, h0=card.offsetHeight;
+    card.style.zoom='';
+    if(lock){ if(hadF) el.classList.remove('focused'); var q=card.getBoundingClientRect(); w0=q.width/Z; h0=q.height/Z; }
+    el.classList.add('focused');
+    if(!lock){ w0=card.offsetWidth; h0=card.offsetHeight; }
     card.style.zoom=String(FOCUS_K); var hK=card.offsetHeight;
     if(!hadF) el.classList.remove('focused');
     card.setAttribute('style',st); card.style.zoom=z0;
     if(!w0 || !h0){ card._sf=old; return; }
-    var de=document.documentElement, Z=(parseFloat(getComputedStyle(de).zoom)||1)*(parseFloat(getComputedStyle(document.body).zoom)||1);
+    if(lock) hK=h0;
     var K=FOCUS_K*Z, cr=canvas.getBoundingClientRect(), cx=(cr.left+cr.right)/2, cy=(cr.top+cr.bottom)/2;
     var W=w0*K, H=hK*K, S=_safeBox(cx-W/2, cx+W/2), sw=S.r-S.l, sh=S.b-S.t;
-    if(cx-W/2>=S.l && cx+W/2<=S.r && cy-H/2>=S.t && cy+H/2<=S.b){ if(old) _sfClear(card); return; }
+    if(!lock && cx-W/2>=S.l && cx+W/2<=S.r && cy-H/2>=S.t && cy+H/2<=S.b){ if(old) _sfClear(card); return; }
     var f=1;
     if(H>sh || W>sw){
       f=Math.min(1, sh/(h0*K), sw/(w0*K), H>sh ? sh/H*(hK/h0) : 1);
       f=Math.max(f, 1/FOCUS_K);
     }
     var nw=w0*f*K, nh=Math.min(f<1?h0*f*K:H, sh);
-    card._sf = f<1 ? {w:w0, h:h0, f:f, hmax:sh/K} : null;
+    card._sf = (f<1 || lock) ? {w:w0, h:h0, f:f, hmax:sh/K} : null;
     if(!card._sf && old) _sfClear(card);
     var tx = nw>=sw ? (S.l+S.r)/2 : Math.max(S.l+nw/2, Math.min(S.r-nw/2, cx));
     var ty = nh>=sh ? (S.t+S.b)/2 : Math.max(S.t+nh/2, Math.min(S.b-nh/2, cy));
@@ -352,6 +376,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     },140);
   }
   window._altoSafeRefit=_safeRefit;
+  window._altoSafeBox={box:_safeBox,fit:_sfBox,clear:_sfClear,K:FOCUS_K};   /* the same rule for a card enlarged off the board (the Memory Blueprint, palace_building_asset.py) */
   window.addEventListener('resize',_safeRefit);
   (function(){
     if(typeof ResizeObserver!=='function') return;
@@ -1408,7 +1433,8 @@ PATCHES += [
 # unit colour still rings the chip.
 _TUBE_INSET = 20
 _HDR_TUBE_OLD = "bar.style.left='0px'; bar.style.right='0px';"
-_HDR_TUBE_NEW = f"bar.style.left='{_TUBE_INSET}px'; bar.style.right='{_TUBE_INSET}px';"
+# (--xl / --xr: the side room of an outline whose cards stand past the page's edges, window._altoSideX, detail_extras._altoSides: 0 anywhere else)
+_HDR_TUBE_NEW = f"bar.style.left='calc({_TUBE_INSET}px - var(--xl,0px))'; bar.style.right='calc({_TUBE_INSET}px - var(--xr,0px))';"
 _HDR_NAME_OLD = "    lbl.style.left='9px';"
 _HDR_NAME_NEW = f"    lbl.style.left='{9 + _TUBE_INSET}px';"
 _HDR_NUM_OLD = "  top:38px !important; right:9px !important; transform:none !important;"
@@ -2378,14 +2404,14 @@ PATCHES += [
 # never shown (a phone has the sheet instead) and go.
 # The recommended route is said once in each: build with Claude from the user's
 # own material, then adjust by hand (the Edit toggle's two halves say the rest).
+# The words themselves are one set per format (info_help.py): blocks.py fills the engine's help_sections_* token with
+# the whole text and these patches only trim the engine's own old paragraphs around it, so a Memory Map is told about
+# its map and not a timeline's tabs.
 _HELP_D_HEAD_OLD = (
     '    <div id="info-content">\n'
     '      <p class="info-desktop" style="margin:0 0 8px"><strong>Overview</strong> &#8212; click the &#10022; tab on the right edge for an act-by-act plot summary. Click any highlighted phrase to open that scene.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Navigate</strong> &#8212; ')
-_HELP_D_HEAD_NEW = (
-    '    <div id="info-content">\n'
-    '      <p class="info-desktop" style="margin:0 0 8px"><strong>Making it</strong> &#8212; build by hand if you like. The suggested route: have Claude build it from your own notes or readings, then make small adjustments yourself.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Open a card</strong> &#8212; ')
+_HELP_D_HEAD_NEW = '    <div id="info-content">\n'
 _HELP_D_TAIL_OLD = (
     '. On a detail page, &#8592; &#8594; arrows step prev/next; Escape returns to the timeline.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Characters &#183; Environments &#183; Themes</strong> &#8212; chips in the nav open their detail pages. The symbols in each card&#8217;s footer do the same.</p>\n'
@@ -2404,16 +2430,7 @@ _HELP_D_TAIL_OLD = (
     '      <p class="info-mobile" style="margin:5px 0"><strong>NOTES / MARK</strong> live on each node. In NOTES, tap a highlighted passage to add a note, or tap the <em>+</em> for a freeform note.</p>\n'
     '      <p class="info-mobile" style="margin:5px 0"><strong>Overview</strong> &#8212; tap a phrase in MENU&rsquo;s Overview to jump to that scene.</p>\n'
     '    </div>\n')
-_HELP_D_TAIL_NEW = (
-    '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; <span class="db-name"></span></em> or Escape goes back.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge gives an overview; click a phrase to jump to its card.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this one (a bright picture in the light theme, a dim one in the dark). Each one keeps its own.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse; tick <em>Attach my Freewrite</em> above <em>Generate Report</em> to put it in a report too.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Controls</strong> &#8212; bottom right: search, this &#9432;, light or dark, Edit. Bottom left signs you in; the Alto clef or wordmark opens your homepage.</p>\n'
-    '    </div>\n')
+_HELP_D_TAIL_NEW = '    </div><!--/info-->\n'
 
 from . import bass_ui as _bass_ui                                       # Bass (bass_ui.py): its Info lines, only in a build made with ALTO_BASS_UI=1
 _HELP_D_TAIL_NEW = _bass_ui.info_desktop(_HELP_D_TAIL_NEW)
@@ -2423,11 +2440,7 @@ _HELP_M_HEAD_OLD = (
     "    '    <p>Swipe a card left or right to step through the story in order.</p>',\n"
     "    '    <h3>Open a scene</h3>',\n"
     "    '    <p>")
-_HELP_M_HEAD_NEW = (
-    "    '    <h3>Moving between cards</h3>',\n"
-    "    '    <p>Swipe a card left or right to step through in order.</p>',\n"
-    "    '    <h3>Open a card</h3>',\n"
-    "    '    <p>")
+_HELP_M_HEAD_NEW = "    /*how-to-use*/\n"
 _HELP_M_TAIL_OLD = (
     " Tap <strong>Back</strong> (top-left) to return.</p>',\n"
     "    '    <h3>MENU</h3>',\n"
@@ -2442,24 +2455,7 @@ _HELP_M_TAIL_OLD = (
     "    '    <p>Tap the <strong>Search</strong> pill at the bottom center to search scenes, detail pages, and the overview. Tap a result to jump straight there.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"
     "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in the panel header. <strong>Create Link</strong> builds your link; then <strong>Copy Link</strong> copies it. Print options live in the same dialog.</p>',\n")
-_HELP_M_TAIL_NEW = (
-    " Tap <strong>BACK</strong> (bottom-left) to return.</p>',\n"
-    "    '    <h3>MENU</h3>',\n"
-    "    '    <p>Tap <strong>MENU</strong> (top-right) for the groups and index pages. Tap one to open its page.</p>',\n"
-    "    '    <h3>MAP</h3>',\n"
-    "    '    <p>Tap <strong>MAP</strong> (top-left) to see every card, grouped by section. Tap one to feature it, or, from a detail page, to jump to it.</p>',\n"
-    "    '    <h3>Overview</h3>',\n"
-    "    '    <p>Tap <strong>Overview</strong> in <strong>MENU</strong> to read the summary. Tap a phrase there to jump to its card.</p>',\n"
-    "    '    <h3>Search and filter</h3>',\n"
-    "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards; double-tap it to switch every filter off, and again to bring them back.</p>',\n"
-    "    '    <h3>Background</h3>',\n"
-    "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a colour, a pattern or a photograph behind this one. Each one keeps its own.</p>',\n"
-    "    '    <h3>MARK and NOTES</h3>',\n"
-    "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around; tick <strong>Attach my Freewrite</strong> above <strong>Generate Report</strong> to put it in a report too.</p>',\n"
-    "    '    <h3>Share &amp; Print</h3>',\n"
-    "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy or print it.</p>',\n"
-    "    '    <h3>Making and editing</h3>',\n"
-    "    '    <p>You can build one entirely by hand on a computer, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments and revisions yourself. <strong>Edit this page</strong> (at the foot of a page) changes its words right here.</p>',\n")
+_HELP_M_TAIL_NEW = "    /*/how-to-use*/\n"
 
 _HELP_M_TAIL_NEW = _bass_ui.info_phone(_HELP_M_TAIL_NEW)
 
@@ -2689,6 +2685,8 @@ PATCHES += [
      "new": "    if(hx) num.style.setProperty('top',(BOX_TOP+hx/2)+'px','important');\n    band.appendChild(num);", "count": 1},
     {"name": "unit-header-grows-chip", "old": "    lbl.style.top=(bandTop+BOX_TOP)+'px';",
      "new": "    lbl.style.top=(bandTop+BOX_TOP)+'px'; if(hx) lbl.style.height=(BOX_H+hx)+'px';", "count": 1},
+    {"name": "outline-side-room-band", "old": "left:0;right:0;background:transparent;--unit-color:${pm.colorRaw};`;",
+     "new": "left:calc(0px - var(--xl,0px));right:calc(0px - var(--xr,0px));background:transparent;--unit-color:${pm.colorRaw};`;", "count": 1},
     {"name": "unit-header-grows-tube", "old": "    bar.style.height=TUBE_H+'px';",
      "new": "    bar.style.height=(TUBE_H+hx)+'px';", "count": 1},
     {"name": "unit-header-grows-gaps", "old": "bottom:bandTop+TUBE_TOP+TUBE_H+4, cy:bandTop+TUBE_TOP+TUBE_H/2}",
@@ -2722,6 +2720,25 @@ PATCHES += [
     {"name": "focus-card-width-follows-the-window-a", "old": _FCW_A_OLD, "new": _FCW_A_NEW, "count": 1},
     {"name": "focus-card-width-follows-the-window-b", "old": _FCW_B_OLD, "new": _FCW_B_NEW, "count": 1},
 ]
+
+
+# The manual-edit link panel (manual_edit.drive_patch, a Drive build only) is placed by the SAME measured chrome as an enlarged card: _safeBox (already handed
+# over as window._altoSafeBox.box for the Memory Blueprint) takes a third argument for "the whole window, not the board" (a detail page covers the board). A default build never
+# calls this, so its pages stay byte for byte what they were.
+_SAFE_SHARE = (("""  function _safeBox(x0,x1){
+    var vw=innerWidth, vh=innerHeight, cr=canvas.getBoundingClientRect();
+""", """  function _safeBox(x0,x1,win){
+    var vw=innerWidth, vh=innerHeight, cr=win?{left:0,top:0,right:vw,bottom:vh}:canvas.getBoundingClientRect();
+"""),)
+
+
+def share_safe_box(html: str) -> str:
+    """The page with the enlarge safe box handed to the link panel (see above). Each patch must match exactly once."""
+    for old, new in _SAFE_SHARE:
+        if html.count(old) != 1:
+            raise ValueError("engine_patches: the safe-box hand-over no longer matches exactly once: " + old.strip()[:50])
+        html = html.replace(old, new, 1)
+    return html
 
 
 def apply_patches(html: str) -> str:
@@ -2999,6 +3016,7 @@ _PV_STAGE_NEW = (
     "  var root = document.documentElement;\n"
     "  root.classList.remove('printing','print-timeline','print-current','print-all','print-full','print-ink');\n"
     "  if(window._altoInkUnstage) window._altoInkUnstage();\n"
+    "  window._altoPrintMode = mode;   // study_sheet.py: 'full' counts the detail pages in its \"Page 1 of N\"\n"
     "  if(mode === 'ink'){\n"
     "    if(window._altoInkStage && window._altoInkStage()){ root.classList.add('print-ink','printing'); return; }\n"
     "    mode = 'timeline';   // no canvas to draw: the outline is the fallback\n"
@@ -3130,7 +3148,27 @@ PATCHES += [
 # ── Esc steps back out of a focus on a branch (focus_branch.py) ─────────────
 # After the pop-ups and the detail page (which take Esc first), before the enlarged card's own un-enlarge: one level back.
 _ESC_OLD = "    // 3) otherwise exit prezi focus if a node is zoomed.\n"
-_ESC_NEW = "    if(window._altoFocusEsc && window._altoFocusEsc(e)) return;\n" + _ESC_OLD
+_ESC_NEW = ("    if(window._altoFocusEsc && window._altoFocusEsc(e)) return;\n"
+            "    if(document.documentElement.classList.contains('alto-lanes')) return;      // the horizontal timeline: arrow keys only, Esc does not close a card\n" + _ESC_OLD)
 PATCHES += [
     {"name": "focus-branch-esc", "old": _ESC_OLD, "new": _ESC_NEW, "count": 1},
+]
+
+
+# ── unit numbers, Roman or arabic (unit_numbers.py) ─────────────────────────
+# The band numeral's collision box is the wider of its two spellings (XXVIII
+# against 28), so a switch never moves a card; the mobile nav panel's number is
+# its own span so a switch rewrites it in place; print writes it the chosen way.
+_UN_BOX_OLD = "      numX1 = _numEl.offsetLeft;            numX2 = numX1 + _numEl.offsetWidth;"
+_UN_BOX_NEW = ("      numX2 = _numEl.offsetLeft + _numEl.offsetWidth;"
+               " numX1 = numX2 - (window._altoUN ? window._altoUN.wide(_numEl) : _numEl.offsetWidth);")
+_UN_MNP_OLD = "          btn.textContent = (numStr ? numStr + '. ' : '') + (lbl.length > 22 ? lbl.slice(0,21)+'…' : lbl);"
+_UN_MNP_NEW = ("          btn.textContent = (numStr ? '. ' : '') + (lbl.length > 22 ? lbl.slice(0,21)+'…' : lbl);"
+               " if(numStr){ var _uns = document.createElement('span'); _uns.className = 'un-p'; _uns.textContent = window._altoP ? window._altoP(numStr) : numStr; btn.insertBefore(_uns, btn.firstChild); }")
+_UN_PRINT_OLD = "(num ? ('<span class=\"pn-num\">' + esc(num) + '</span>') : '') +"
+_UN_PRINT_NEW = "(num ? ('<span class=\"pn-num\">' + esc(window._altoP ? window._altoP(num) : num) + '</span>') : '') +"
+PATCHES += [
+    {"name": "unit-numbers-collision-box", "old": _UN_BOX_OLD, "new": _UN_BOX_NEW, "count": 1},
+    {"name": "unit-numbers-mobile-nav", "old": _UN_MNP_OLD, "new": _UN_MNP_NEW, "count": 1},
+    {"name": "unit-numbers-print", "old": _UN_PRINT_OLD, "new": _UN_PRINT_NEW, "count": 1},
 ]

@@ -469,7 +469,7 @@ html.mobile #bg-panel .bg-foot{ padding:8px 16px 0; margin:0; border-top:1px sol
 #bg-panel .bg-foot a{ color:inherit; text-decoration:underline; }
 /* A page that makes its own background, and Retro (plain black everywhere), offer the style picker and nothing else (Luke, 2026-11-04) */
 #bg-panel .bg-auto{ display:none; }
-#bg-panel.bg-only .bg-sec:not(#bg-style):not(.bg-auto), #bg-panel.bg-only .bg-foot{ display:none; }
+#bg-panel.bg-only .bg-sec:not(#bg-style):not(.bg-auto):not(#bg-units), #bg-panel.bg-only .bg-foot{ display:none; }
 #bg-panel.bg-only .bg-auto{ display:block; font-size:11px; line-height:1.5; color:var(--muted); margin:2px 2px 10px; }
 #bg-panel .bg-solar-seg{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); width:100%; min-width:0; box-sizing:border-box; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
 #bg-panel .bg-solar-seg .bg-segb{ min-width:0; padding:0 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:inherit; font-size:12px; height:30px; border:0;
@@ -661,9 +661,9 @@ HOME_CSS = """
 html:not(.mobile) body > #bg-toggle{ position:fixed; right:0; top:calc(50% - 17px); z-index:300; }
 @media (max-width:640px){
   /* On a phone the tab joins the top row of toggles as a little rounded box: [account] [search] ... [scene] [info] [light/dark],
-     the same 34px box, 8px gap and glass as its neighbours (info sits at right 56, light/dark at right 14). */
-  html:not(.mobile) body > #bg-toggle, html:not(.mobile) #bg-toggle{ position:fixed; top:calc(63px + env(safe-area-inset-top,0px)); right:98px; bottom:auto; left:auto;
-    width:34px; height:34px; z-index:300; border-radius:10px; border:1px solid var(--card-glass-border); box-shadow:none; color:var(--muted);
+     the same 44 pt box, 8px gap and glass as its neighbours (info sits at right 66, light/dark at right 14). */
+  html:not(.mobile) body > #bg-toggle, html:not(.mobile) #bg-toggle{ position:fixed; top:calc(63px + env(safe-area-inset-top,0px)); right:118px; bottom:auto; left:auto;
+    width:44px; height:44px; z-index:300; border-radius:12px; border:1px solid var(--card-glass-border); box-shadow:none; color:var(--muted);
     background:var(--card-glass-bg); -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%); }
   html:not(.mobile) #bg-toggle svg{ width:18px; height:18px; }
   html:not(.mobile) #bg-toggle.active{ color:var(--accent, #6d5bd0); border-color:var(--accent, #6d5bd0); }

@@ -7,7 +7,7 @@
    generalized to many timelines per user:
 
      users/{uid}                      — { theme, homeSort, homeSortAt, homeBg, homeBgAt }   (account-wide)
-     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, bg, bgAt, chips, chipsAt, updatedAt }
+     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, bg, bgAt, chips, chipsAt, un, unAt, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
@@ -303,6 +303,11 @@
   const HBG_KEY = 'alto-bg-home-v1';          // the homepage's (and reports') background: {v, t}
   let BG_KEY = TID ? `alto-hl-${TID}-bg` : null;   // this timeline's background: {v, t}
   let CH_KEY = TID ? `alto-hl-${TID}-chips` : null; // this timeline's top chip bar, 'on' (open, the default) or 'off': {v, t}
+  // This timeline's unit numbers, 'roman' | 'numbers' (unit_numbers.py): {v, t}. A share link (s-<key>) has none of its
+  // own: it shows the owner's choice, stamped into the copy by _sharePush, so it is never read or synced here.
+  const SHARE_TID = /^s-[a-km-np-z2-9]{22}$/;
+  const _unKey = (tid) => (tid && !SHARE_TID.test(tid)) ? `alto-hl-${tid}-un` : null;
+  let UN_KEY = _unKey(TID);
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
   const RP_CAP = 25, TOMB_CAP = 800, TRASH_CAP = 200;
 
@@ -567,6 +572,24 @@
           }
         }
 
+        /* ---- this timeline's unit numbers (the newest choice wins; none = each format's own look) ---- */
+        if (UN_KEY) {
+          let ls = null;
+          try { ls = JSON.parse(origGet(UN_KEY) || 'null'); } catch (e) {}
+          let rs = remoteMain && remoteMain.unAt
+            ? { v: remoteMain.un, t: Number(remoteMain.unAt) || 0 } : null;
+          // Only the expected shape is stored or pushed: 'roman' | 'numbers' and a time no later than a day ahead.
+          if (ls && !_unOk({ v: ls.v, t: Number(ls.t) })) ls = null;
+          if (rs && !_unOk(rs)) rs = null;
+          if (ls && (!rs || ls.t > rs.t)) {
+            await setDoc(mainRef, { un: ls.v, unAt: Number(ls.t),
+                                    updatedAt: serverTimestamp() }, { merge: true });
+          } else if (rs && (!ls || rs.t > ls.t)) {
+            origSet(UN_KEY, JSON.stringify(rs));
+            try { window.dispatchEvent(new Event('alto-un')); } catch (e) {}
+          }
+        }
+
         /* ---- highlights ---- */
         // A note still being typed (the "+" placeholder, flagged `pending`) stays
         // on this device until it is saved: other devices never see an empty note
@@ -687,7 +710,7 @@
     // (another tab signed someone in or out) must not write that data.
     if (this === localStorage && _blocked(k)) return;
     nativeSet.call(this, k, v);
-    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY || k === HBG_KEY || (BG_KEY && k === BG_KEY) || (CH_KEY && k === CH_KEY))) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY || k === HBG_KEY || (BG_KEY && k === BG_KEY) || (CH_KEY && k === CH_KEY) || (UN_KEY && k === UN_KEY))) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -1203,6 +1226,13 @@
   // A srcdoc iframe inherits this origin, so a share that kept the master's id
   // would write to the master's localStorage keys and, for a signed-in reader,
   // the master's users/{uid}/tl/{tid} document. Re-stamp it first, always.
+  // unit numbers (unit_numbers.py): the one shape kept or sent, and the owner's choice written into a share's copy
+  function _unOk(o) { return !!o && (o.v === 'roman' || o.v === 'numbers') && typeof o.t === 'number' && isFinite(o.t) && o.t >= 0 && o.t < Date.now() + 864e5; }
+  const UN_OWNER = /<script id="alto-un-owner">[\s\S]*?<\/script>/;
+  function _unStamp(html, pick) {
+    const js = 'window._ALTO_UN_OWNER=' + (pick && _unOk(pick) ? JSON.stringify({ v: pick.v, t: Math.floor(pick.t) }) : 'null') + ';';
+    return html.replace(UN_OWNER, () => '<script id="alto-un-owner">' + js + '</script>');
+  }
   function _identityOf(html) {
     const m = /var COURSE_ID = '([^']*)';/.exec(html || '');
     return m ? m[1] : '';
@@ -1340,7 +1370,18 @@
     const shareKey = existing || _mintKey();
     // Re-identify BEFORE writing. A share that kept the master's identity
     // would write a recipient's highlights into the owner's own records.
-    const html = _reidentify(master, shareKey);
+    let html = _reidentify(master, shareKey);
+    // The owner's unit-number choice goes with the copy (a share has no choice of its own): the newest of this
+    // device's and the account's, read from the owner's own users/{uid}/tl/{tid}.
+    try {
+      const tid = _identityOf(master); let pick = null;
+      if (tid) {
+        try { const l = JSON.parse(origGet(`alto-hl-${tid}-un`) || 'null'); if (l && _unOk({ v: l.v, t: Number(l.t) })) pick = { v: l.v, t: Number(l.t) }; } catch (e) {}
+        try { const r = await getDoc(doc(db, 'users', u.uid, 'tl', tid)); const d = r.exists() ? r.data() : null;
+              const rs = d && d.unAt ? { v: d.un, t: Number(d.unAt) } : null; if (rs && _unOk(rs) && (!pick || rs.t > pick.t)) pick = rs; } catch (e) {}
+      }
+      html = _unStamp(html, pick);
+    } catch (e) { console.warn('[AltoCloud] unit numbers', e); }
     let wasRefs = [];
     if (existing) { try { const was = await _getShare(existing); wasRefs = _picRefsOf(was && was.html); } catch (e) {} }
     // the owner's claim to the link comes first (the pictures' rules check it)
@@ -1818,7 +1859,7 @@
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
     TID = tid; cloud.tid = tid;
-    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`; BG_KEY = `alto-hl-${tid}-bg`; CH_KEY = `alto-hl-${tid}-chips`;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`; BG_KEY = `alto-hl-${tid}-bg`; CH_KEY = `alto-hl-${tid}-chips`; UN_KEY = _unKey(tid);
     META_KEY = `alto-cloud-meta-v3-${tid}`;
     meta = loadMeta();
     if (cloud.user) subscribeTl(cloud.user);
@@ -1888,28 +1929,32 @@
   }
   // true when the record exists afterwards. A refused create is read once more: a record that is there already (another tab, a second click) counts as accepted;
   // anything else (the rules not deployed yet, a person who is not on the beta list) is reported, never thrown
+  let termsDenied = false;   // the last refusal was permission-denied: this account is not on the beta list (the rules are unchanged)
   async function termsWrite(user) {
+    termsDenied = false;
     const ref = doc(db, 'terms_acceptance', termsDocId(user.uid));
     try {
       await setDoc(ref, { uid: user.uid, version: TERMS_V, ageConfirmed: true, acceptedAt: serverTimestamp() });
       return true;
     } catch (e) {
       console.warn('[AltoCloud] terms record', e);
+      termsDenied = !!(e && e.code === 'permission-denied');
       try { return (await getDoc(ref)).exists(); } catch (e2) { return false; }
     }
   }
   const TERMS_FAIL = "We couldn't save your agreement. Please try again.";
+  const TERMS_DENIED = "This feature is invite-only during the beta, and this account isn't on the list.";
   // after sign-in: this person's own record for this version decides. Missing -> write it if the box was ticked just now, else a blocking dialog (declining signs out).
-  // A record that cannot be read does not lock anyone out (the Bass proxy checks the same record and does), and is never written over.
+  // A record that cannot be read does not lock anyone out (the proxy checks the same record and does), and is never written over.
   async function termsCheck(user) {
     let exists = false;
     try { exists = (await getDoc(doc(db, 'terms_acceptance', termsDocId(user.uid)))).exists(); }
     catch (e) { console.warn('[AltoCloud] terms read', e); return; }
     if (exists) return;
-    if (termsTicked) { termsTicked = false; if (!(await termsWrite(user))) termsDialog(user, TERMS_FAIL); return; }
+    if (termsTicked) { termsTicked = false; if (!(await termsWrite(user))) termsDialog(user, termsDenied ? TERMS_DENIED : TERMS_FAIL, termsDenied); return; }
     termsDialog(user);
   }
-  function termsDialog(user, problem) {
+  function termsDialog(user, problem, denied) {
     if (document.getElementById('alto-terms-scrim')) return;
     termsStyle();
     const sc = document.createElement('div'); sc.id = 'alto-terms-scrim'; sc.setAttribute('role', 'dialog'); sc.setAttribute('aria-modal', 'true'); sc.setAttribute('aria-label', 'Beta Terms');
@@ -1919,10 +1964,13 @@
       '<button type="button" id="alto-terms-go" disabled>Continue</button><button type="button" id="alto-terms-no">Sign out</button></div>';
     document.body.appendChild(sc);
     const ok = sc.querySelector('#alto-terms-ok'), go = sc.querySelector('#alto-terms-go');
+    const deny = () => { sc.querySelector('.acct-terms').style.display = 'none'; go.style.display = 'none'; sc.querySelector('#alto-terms-msg').textContent = TERMS_DENIED; };
+    if (denied) deny();
     ok.addEventListener('change', () => { go.disabled = !ok.checked; });
     go.addEventListener('click', async () => {
       go.disabled = true;
       if (await termsWrite(user)) { sc.remove(); return; }
+      if (termsDenied) { deny(); return; }
       sc.querySelector('#alto-terms-msg').textContent = TERMS_FAIL; go.disabled = !ok.checked;
     });
     sc.querySelector('#alto-terms-no').addEventListener('click', () => { sc.remove(); _signOut().catch(() => {}); });

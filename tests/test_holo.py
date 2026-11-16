@@ -768,7 +768,7 @@ def test_the_toggle_edge_rule_is_for_a_computer_only_and_has_no_glow():
     assert ":not(.mobile):not(.pmin)" in block
 
 
-def test_every_toggle_wears_the_same_one_pixel_edge_on_a_computer_and_a_phone_keeps_its_own(browser, site):
+def test_every_toggle_wears_the_same_glass_on_a_computer_and_a_phone_keeps_its_own(browser, site):
     js = """(sel)=>[...document.querySelectorAll(sel)].filter(e=>e.getBoundingClientRect().width).map(e=>getComputedStyle(e).boxShadow)"""
     ctx = browser.new_context(viewport={"width": 1400, "height": 900})
     pg = ctx.new_page()
@@ -777,7 +777,7 @@ def test_every_toggle_wears_the_same_one_pixel_edge_on_a_computer_and_a_phone_ke
     pg.evaluate("window._altoStyle.set('holo')")
     pg.wait_for_timeout(700)
     got = pg.evaluate(js, TOGGLES)
-    assert len(got) >= 4 and set(got) == {"rgb(47, 167, 157) 0px 0px 0px 1px"}, got       # one edge, no glow, every one
+    assert len(got) >= 4 and len(set(got)) == 1 and "rgb(47, 167, 157) 0px 0px 0px 1px" not in got[0] and "inset" in got[0], got       # S1 Glass (1.9.233): no outline, one glass shadow, every one
     assert pg.evaluate("getComputedStyle(document.querySelector('.alto-edit-pill .aep-half')).boxShadow") == "none"
     ctx.close()
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
@@ -798,3 +798,10 @@ def test_short_viewports_get_the_firmer_toggle_frost_and_nothing_else_changes():
     assert re.search(r"@media \(max-height:500px\)\{ X\.alto-home\{--ho-frost:\.60;\} \}", src), "no short-viewport frost"
     assert src.count("rgba(var(--ho-bgrgb),var(--ho-frost))") == 4    # the toggles (plain and chosen), the tab and the home row's chips (#home-row, 1.9.225), no literal beside it
     assert "rgba(var(--ho-bgrgb),.46)" not in src and "rgba(var(--ho-bgrgb),.60)" not in src
+
+
+def test_holographic_menu_has_no_dark_light_tile_but_the_other_styles_keep_it():
+    """Holographic is dark only (Luke, 2026-11-13, the phone MENU still showed Dark / Light): the tile is hidden in that style's sheet, on a
+    phone and on a computer; Classic and Retro's own sheets never hide it."""
+    assert re.search(r"html\.alto-holo[^{]*#drawer-mode-btn[^{]*\{[^}]*display:none", holo.css())
+    assert "#drawer-mode-btn" not in retro.CHROME_CSS + retro.FORMAT_CSS or "display:none" not in re.findall(r"[^}]*#drawer-mode-btn[^{]*\{[^}]*\}", retro.CHROME_CSS + retro.FORMAT_CSS)[0]

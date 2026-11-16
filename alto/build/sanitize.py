@@ -169,6 +169,11 @@ class SourceMap:
             url = _safe_url(d.get("url") or "") or ""
             self.by_id[d["id"]] = {"url": url if url.startswith("https://") else "",
                                    "local": bool(d.get("local"))}
+            if d.get("kind") == "drive":        # a Drive chip (drive_common): a reference, its address BUILT from a checked id
+                from ..drive_common import drive_url
+                du = drive_url(d.get("drive_id") or "")
+                self.by_id[d["id"]].update({"url": "", "drive": du or "", "drive_id": d.get("drive_id") or "", "name": d.get("name") or "",
+                                            "share": d.get("share") is True})
             if self.by_id[d["id"]]["url"]:
                 self.by_url.setdefault(_url_key(url), d["id"])
 
@@ -184,6 +189,13 @@ class SourceMap:
         if re.match(r"^https://", href or "", re.I):
             return self.by_url.get(_url_key(href)), None
         return None, None
+
+
+def source_map(b) -> "SourceMap":
+    """The links a page may write for `src:` ids: the brief's source_docs, plus its Drive chips (linked_files of kind drive, drive_common). A chip is a
+    reference to a file in the owner's Drive; it is never a source_docs entry, so nothing that reads sources (a local copy, the consent manifest, Claude)
+    can reach it."""
+    return SourceMap(list(b.source_docs) + [f for f in (b.linked_files or []) if isinstance(f, dict) and f.get("kind") == "drive"])
 
 
 def unescape_text(s) -> str:
@@ -312,6 +324,18 @@ class _Allowlist(HTMLParser):
         if not sid:
             return False
         d = self.sources.by_id[sid]
+        if "drive" in d:
+            if not d["drive"]:
+                self._anchor_stack.append("drop")
+                return True
+            ttl = self._emit_attrs("a", [(k, v) for k, v in attrs if (k or "").lower() == "title"])
+            if d["share"]:                      # switched on for share links: it carries its own address, id and name
+                self.out.append(f'<a href="{esc(d["drive"])}"{ttl} class="note-link" target="_blank" rel="noopener noreferrer" data-src="{sid}" '
+                                f'data-gdrive="{sid}" data-gdrive-share="1" data-gdrive-id="{esc(d["drive_id"])}" data-file-name="{esc(d["name"])}">')
+            else:                               # not switched on: no id, no name and no address in the page's words (the id is in _ALTO_LOCAL, which shares drop)
+                self.out.append(f'<a href="#"{ttl} class="note-link" data-src="{sid}" data-gdrive="{sid}" data-gdrive-share="0">')
+            self._anchor_stack.append("a")
+            return True
         if not (d["url"] or d["local"]):
             self._anchor_stack.append("drop")
             return True
@@ -523,7 +547,7 @@ def sanitize_connections(b, nodes, connections) -> "tuple[list, list[str]]":
     out, warnings = [], []
     for c in connections or []:
         if len(c) == 4 and c[3]:
-            how, w = clean_linked_markup(c[3], link_types, SourceMap(b.source_docs))
+            how, w = clean_linked_markup(c[3], link_types, source_map(b))
             warnings.extend(f"connection {c[0]} → {c[1]}: {m}" for m in w)
             out.append([c[0], c[1], c[2], how])
         else:
@@ -554,7 +578,7 @@ def sanitize_brief(b, nodes=None) -> list:
     sec_warnings: list[str] = []
     # Read before the source_docs themselves are cleaned below; SourceMap
     # applies the same https-only rule to each url.
-    sources = SourceMap(b.source_docs)
+    sources = source_map(b)
 
     def sections(items, what):
         for i, s in enumerate(items or []):

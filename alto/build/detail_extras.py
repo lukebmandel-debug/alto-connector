@@ -193,8 +193,8 @@ window._altoTreeCalc = function(h, shift, TP, slide){
       var mv={}, mine=NODES.map(function(n){ return n.id; }).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; }), y0={}, x0={};
       mine.forEach(function(i){ y0[i]=y[i]; x0[i]=x[i]; });
       moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; mv[i]=1; });
-      window._altoMakeRoom(y, x, h, T.w, mine, mv, P0, T.row_gap, start);
-      window._altoSeparate(y, x, h, T.w, mine, y0, x0, P0, T.row_gap);
+      window._altoMakeRoom(y, x, h, T.w, mine, mv, P0, T.room||T.row_gap, start);
+      window._altoSeparate(y, x, h, T.w, mine, y0, x0, P0, T.room||T.row_gap);
       bottom=Math.max.apply(null, Object.keys(y).map(function(i){ return y[i]+h[i]/2; }));
     }
   });
@@ -212,6 +212,30 @@ window._altoTreeWrite = function(R, pos, h){
   });
   window._altoEdgeTX=R.etx;
   window._altoTreeOn=true; window._altoTreeGeo={y:R.y, h:h, x:R.x};
+  window._altoSides(R, h);
+};
+/* Cards placed past the page's left or right edge (dragged there in edit mode): the board opens that much
+   more room on that side (40 px clear of the outermost card), reached by scrolling sideways. Like a header
+   that grows (_altoHX): the room is plain data, window._altoSideX = [left, right] px (absent = none), handed
+   to the engine's own layout as --xl / --xr on #world, which its bands, tubes, glass and lines read
+   (engine_patches.py). lo / hi: a held card's own edges while it is dragged; least: the least room on the
+   left (a card held at the screen's left edge opens it further). */
+window._altoSides = function(R, h, lo, hi, least){
+  var T=window._ALTO_TREE_PLAN||{}, w=document.getElementById('world'), cv=document.getElementById('canvas'), S=window._altoSideX||[0,0];
+  if(!w || !cv || typeof NODES==='undefined') return S;
+  var mn=Infinity, mx=-Infinity;
+  NODES.forEach(function(n){ if(R.x[n.id]==null || h[n.id]==null) return; var v=(T.w&&T.w[n.id])||270; if(v===270) v=290;
+    mn=Math.min(mn,R.x[n.id]-v/2); mx=Math.max(mx,R.x[n.id]+v/2); });
+  if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
+  var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
+  var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],mx>1700?Math.ceil(mx+40-1700):0);   // (only for a card past the page's own edge)
+  if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
+  if(L===S[0] && X===S[1]) return S;
+  w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');
+  document.documentElement.classList.toggle('alto-xwide', !!(L||X));
+  if(L!==S[0] && !(least && L===least)) cv.scrollLeft+=L-S[0];  // what was in view stays in view (but a held card at the left edge is given the room)
+  return window._altoSideX=[L,X];
 };
 window._altoTree = function(pos, h){
   if(document.documentElement.classList.contains('mobile')) return false;
@@ -357,7 +381,7 @@ function _altoAxisIndex(kind){
     var e = reg[eid], b = blurb(e);
     var links = (via||[]).map(function(n){
       var c = home(n), lab = (c!==n && !c.band) ? c.title+' \\u2014 '+n.title : n.title;
-      return '<span class="alto-link" data-sd-type="node" data-sd-id="'+n.id+'">'+(num[n.id]?num[n.id]+' ':'')+lab+'</span>';
+      return '<span class="alto-link" data-sd-type="node" data-sd-id="'+n.id+'">'+(num[n.id]?window._altoP(num[n.id])+' ':'')+lab+'</span>';
     }).join(' &middot; ');
     return '<div class="doc-row" style="cursor:default">'
       + '<span class="alto-link doc-row-t" data-sd-type="'+base+'" data-sd-id="'+eid+'">'+e.name+'</span>'
@@ -374,7 +398,7 @@ function _altoAxisIndex(kind){
   (A.top||[]).forEach(function(s){ html += '<div class="detail-section"><h3>'+s.h+'</h3><p>'+s.t+'</p></div>'; });
   groups.forEach(function(g){
     var head = g.c.band ? g.c.title
-      : '<span class="alto-link" data-sd-type="node" data-sd-id="'+g.c.id+'">'+(num[g.c.id]?num[g.c.id]+' ':'')+g.c.title+'</span>';
+      : '<span class="alto-link" data-sd-type="node" data-sd-id="'+g.c.id+'">'+(num[g.c.id]?window._altoP(num[g.c.id])+' ':'')+g.c.title+'</span>';
     html += '<div class="detail-section"><h3>'+head+'</h3>' + g.rows.map(function(r){ return row(r.id, r.via); }).join('') + '</div>';
   });
   if(loose.length) html += '<div class="detail-section"><h3>Not yet attached to '+(O?'a concept':'anything')+'</h3>'
@@ -1254,14 +1278,20 @@ def local_sources(b) -> "tuple[str, list[str]]":
             warnings.append(f"source {d['id']}: no file at {loc} — its "
                             "offline link will not open anything")
         files[d["id"]] = {"p": p}
+    # A Drive chip the owner has NOT switched on for share links keeps its file id here and nowhere else in the page: a share snapshot empties this block
+    # (reidentify.strip_local, alto-cloud.js), so the id never leaves with it. A flagged chip carries its own address (sanitize._open_source_anchor).
+    drive = {f["id"]: f["drive_id"] for f in (b.linked_files or [])
+             if isinstance(f, dict) and f.get("kind") == "drive" and f.get("share") is not True and f.get("drive_id")}
     if not files:
-        return "", warnings
+        if not drive:
+            return "", warnings
+        return (f'<script id="{LOCAL_BLOCK_ID}">window._ALTO_LOCAL=' + js_json({"drive": drive}) + ";</script>\n"), warnings
     dirs = [os.path.dirname(f["p"]) for f in files.values()]
     try:
         root = os.path.commonpath(dirs)
     except ValueError:              # different drives
         root = ""
-    data = js_json({"root": root, "files": files})
+    data = js_json({"root": root, "files": files, **({"drive": drive} if drive else {})})
     block = (f'<script id="{LOCAL_BLOCK_ID}">window._ALTO_LOCAL='
              + data + ";</script>\n")
     return block + LOCAL_OPEN + "\n", warnings

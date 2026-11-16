@@ -132,7 +132,8 @@ ZOOM = """async () => {
   const svg = document.querySelector('#bldg-root svg.bl-svg'), r = svg.getBoundingClientRect(), out = [];
   const raf = () => new Promise(f => requestAnimationFrame(f));
   const snap = (ph) => out.push({ph, m: (AltoMarkers.debug('bldg') || []).map(c => [c.id, c.x - c.w / 2 - c.ax, c.y - c.ay, c.w, c.op])});
-  const wheel = (dy) => svg.dispatchEvent(new WheelEvent('wheel', {deltaY: dy, clientX: r.left + r.width * .47, clientY: r.top + r.height * .55, bubbles: true, cancelable: true}));
+  // a pinch (ctrl-wheel steps, the same zoom per step as the plain wheel's -14 / 14 before 2026-11-13; a plain wheel pans now)
+  const wheel = (dy) => svg.dispatchEvent(new WheelEvent('wheel', {deltaY: dy * .16, ctrlKey: true, clientX: r.left + r.width * .47, clientY: r.top + r.height * .55, bubbles: true, cancelable: true}));
   const idle = async (ms, ph) => { const t0 = performance.now(); while (performance.now() - t0 < ms) { await raf(); snap(ph); } };
   snap('start');
   for (const [n, dy] of [[28, -14], [0, 0], [28, -14], [0, 0], [40, 14], [0, 0]]) {

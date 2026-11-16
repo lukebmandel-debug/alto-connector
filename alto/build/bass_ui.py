@@ -129,35 +129,32 @@ def pill_script() -> str:
     return '<script id="alto-bass-loader">' + loader_js("panel") + "</script>\n"
 
 
-# ── the homepage: a Bass | Claude switch at the top of the New / New project window (alto/engine/home_template.html #nt-modal) ──
-# Claude = the window as it is. Bass = the same window with its body swapped for the hosted bundle's steps (format tiles cloned from the window's own).
-HOME_SWITCH_ANCHOR = '<div class="acct-title" id="nt-head">New</div>'
-HOME_SWITCH = ('<div class="nt-sw" id="nt-sw" role="group" aria-label="Build with">'
-               '<button type="button" class="nt-sw-b" data-sw="bass" aria-pressed="false" aria-label="Bass" title="Bass: no Claude plan needed, uses credits">' + GLYPH_SMALL.replace("<svg ", '<svg width="16" height="20" ') + '<span>Bass</span></button>'
-               '<button type="button" class="nt-sw-b on" data-sw="claude" aria-pressed="true" aria-label="Claude" title="Claude: your own plan or connector"><span>Claude</span></button></div>'
-               '\n    ')
-HOME_BOX_ANCHOR = '<div class="acct-sub" id="nt-sub"></div>'
-HOME_BOX = '\n    <div id="nt-bass" hidden></div>'
-HOME_CSS = """  html.alto-bass-off #nt-sw{display:none !important;}
-  .nt-sw{display:flex;margin:0 0 14px;border:1px solid var(--border);border-radius:var(--radius,10px);overflow:hidden;}
-  .nt-sw-b{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:6px 10px;font:inherit;font-size:14px;letter-spacing:.02em;color:var(--muted);background:transparent;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  .nt-sw-b+.nt-sw-b{border-left:1px solid var(--border);}
-  .nt-sw-b svg{display:block;color:currentColor;}
-  .nt-sw-b.on{background:#5b3fc4;color:#fff;font-weight:600;}
-  html.alto-retro .nt-sw-b.on{background:#d9ae55;color:#000;}
-  #nt-scrim #nt-modal{background:color-mix(in srgb,var(--surface,#fff) 92%,transparent);}
+# ── the homepage: Bass as the first tab of the New / New project window (alto/engine/home_template.html #nt-tabs; B (tabs), Luke 2026-11-15) ──
+# The plain page has the Claude and Write-it-yourself tabs only. Bass is added here, through anchors, and never in the template.
+# Claude = the window's own pane. Bass = the same window with its body swapped for the hosted bundle's steps (format tiles cloned from the window's own).
+HOME_SWITCH_ANCHOR = '<button type="button" class="nt-tab on" role="tab" data-tab="claude"'
+HOME_SWITCH = ('<button type="button" class="nt-tab" role="tab" data-tab="bass" aria-selected="false" aria-label="Bass" title="Bass: no Claude plan needed, uses credits">'
+               + GLYPH_SMALL.replace("<svg ", '<svg width="20" height="25" ') + '<span>Bass</span></button>\n      ')
+HOME_BOX_ANCHOR = '<div class="nt-pane nt-keep" data-p="claude">'
+HOME_BOX = ('<div class="nt-pane nt-keep" data-p="bass" hidden><p><b>Build it here with Bass</b></p><p class="nt-pn">You upload your notes or readings. Bass builds the project here in Alto. '
+            'No Claude plan needed; uses credits.</p></div>\n    <div id="nt-bass" class="nt-keep" hidden></div>\n    ')
+HOME_CSS = """  html.alto-bass-off .nt-tab[data-tab="bass"]{display:none !important;}
+  .nt-tab[data-tab="bass"].on{border-color:#8b6cf0;box-shadow:inset 0 0 0 1px #8b6cf0;background:linear-gradient(color-mix(in srgb,#8b6cf0 14%,transparent),color-mix(in srgb,#8b6cf0 14%,transparent)),var(--surface,var(--bg));}
+  html.alto-retro .nt-tab[data-tab="bass"].on{border-color:#d9ae55;box-shadow:inset 0 0 0 1px #d9ae55;}
+  #nt-scrim #nt-modal{background:color-mix(in srgb,var(--surface,#fff) 97%,transparent);}
+  html:not(.dark) #nt-scrim #nt-modal{background:var(--surface,var(--bg));}
   #nt-bass .nt-modes{flex-wrap:wrap;row-gap:6px;margin:-8px 0 20px;}
   #nt-bass .nt-mode{display:inline-flex;align-items:center;white-space:nowrap;height:auto;min-height:30px;padding:4px 12px;}
   #nt-bass .nt-mode svg{margin:0 6px 0 0 !important;vertical-align:0 !important;}
-  .nt-sw-b:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
-  #nt-modal.nt-bass-on > :not(.nt-sw):not(#nt-bass):not(#nt-head){display:none !important;}
-  #nt-modal.nt-bass-on > #nt-bass{display:block;}
+  #nt-modal[data-tab="bass"] > #nt-bass{display:block;}
+  #nt-modal[data-tab="bass"] > #nt-cancel{display:none !important;}   /* the steps carry their own Cancel */
+  .nt-pane[data-p="bass"]{border-color:color-mix(in srgb,#8b6cf0 60%,transparent);margin-bottom:10px;}
   #nt-bass[hidden]{display:none;}
-  @media print{ #nt-sw, #nt-bass{display:none !important;} }
+  @media print{ #nt-bass{display:none !important;} }
 """
 HOME_ANCHOR_CSS = "  .project-slab.new-project-slab{"
 HOME_ANCHOR_JS = "// ── \"Start new project\" panel below all existing projects."
-_HOME_JS = r"""// ── Bass | Claude switch in the New timeline window (hosted bundle on first use: bass_ui.py)
+_HOME_JS = r"""// ── The Bass tab in the New timeline window (hosted bundle on first use: bass_ui.py)
 (function(){
   __LOADER__
   // Bass's route for the file menu's "Turn into another format..." (the sheet is in home_template.html; the three palaces need map data: Claude makes those)
@@ -170,15 +167,11 @@ _HOME_JS = r"""// ── Bass | Claude switch in the New timeline window (hosted
       s.onload = function(){ if(window._altoBass) use(); else { ui.status('Bass could not be loaded.'); done(); } };
       s.onerror = function(){ ui.status('Bass could not be reached. Nothing was charged.'); done(); };
       document.head.appendChild(s); }); }});
-  const m = document.getElementById('nt-modal'), sw = document.getElementById('nt-sw'), box = document.getElementById('nt-bass'), sc = document.getElementById('nt-scrim');
-  if(!m || !sw || !box) return;
-  const set = on => { m.classList.toggle('nt-bass-on', on); box.hidden = !on;
-    sw.querySelectorAll('.nt-sw-b').forEach(b => { const x = (b.dataset.sw === 'bass') === on; b.classList.toggle('on', x); b.setAttribute('aria-pressed', x ? 'true' : 'false'); });
-    if(on) window._altoBassOpen('embed'); else if(window._altoBass) window._altoBass.leave(); };
-  sw.addEventListener('click', e => { const b = e.target.closest('.nt-sw-b'); if(b) set(b.dataset.sw === 'bass'); });
-  new MutationObserver(() => { if(sc.classList.contains('open')) set(false); }).observe(sc, {attributes: true, attributeFilter: ['class']});
-  window._altoBassSwitch = set;
-  if(/[#&]bass=/.test(location.hash)) addEventListener('load', () => { ntOpen(''); set(true); });
+  const box = document.getElementById('nt-bass');
+  if(!box) return;
+  Object.defineProperty(window, '_altoNtFirst', {configurable: true, get: () => document.documentElement.classList.contains('alto-bass-off') ? 'claude' : 'bass'});
+  window._altoNtTab = k => { const on = k === 'bass'; box.hidden = !on; if(on) window._altoBassOpen('embed'); else if(window._altoBass) window._altoBass.leave(); };
+  if(/[#&]bass=/.test(location.hash)) addEventListener('load', () => { ntOpen(''); ntTab('bass'); });
 })();
 
 """
@@ -189,13 +182,13 @@ def home_js() -> str:
 
 
 # ── Info text. Every control an Info paragraph names must exist (tests/test_bass_ui.py reads INFO_CONTROLS) ──
-INFO_DESKTOP_OLD = "<em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones."
+INFO_DESKTOP_OLD = "<em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones"
 INFO_DESKTOP_NEW = ("<em>Edit with Claude</em>: bigger changes. <em>Bass</em>: asks Bass to change this timeline by chat, no Claude plan needed (it uses credits). "
-                    "<em>Edit manually</em>: small ones.")
-INFO_PHONE_OLD = "changes its words right here.</p>"
-INFO_PHONE_NEW = "changes its words right here. The <strong>Bass</strong> symbol beside it asks Bass to change the page for you; it uses credits.</p>"
+                    "<em>Edit manually</em>: small ones")
+INFO_PHONE_OLD = "changes its words; adding and moving are done on a computer."
+INFO_PHONE_NEW = "changes its words; the <strong>Bass</strong> symbol beside it asks Bass to change the page for you, and it uses credits. Adding and moving are done on a computer."
 INFO_HOME_ANCHOR = '    <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches every project'
-INFO_HOME_NEW = ('    <p style="margin:5px 0"><strong>Bass</strong> &#8212; in <em>New</em> or <em>Start new project</em>, the <em>Bass</em> half of the switch builds a timeline from your own notes without a Claude plan. '
+INFO_HOME_NEW = ('    <p style="margin:5px 0"><strong>Bass</strong> &#8212; in <em>New</em> or <em>Start new project</em>, the <em>Bass</em> tab builds a timeline from your own notes without a Claude plan. '
                  'It uses credits, shown in its steps.</p>\n')
 # the controls the Info text names (<em> / <strong> words) and where they are drawn, for the test that Info never names a control that is gone
 INFO_CONTROLS = {"Bass": 'aria-label="Bass"', "Edit with Claude": 'aria-label="Edit with Claude"', "Edit manually": 'aria-label="Edit manually"',

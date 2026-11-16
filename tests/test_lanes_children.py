@@ -286,7 +286,7 @@ def test_down_opens_the_events_children_up_goes_back_and_left_right_carry_on(bro
     pg, errs = _open(browser, _d(), tmp_path)
     kids = "()=>[].slice.call(document.querySelectorAll('.node.ln-kid-shut')).length"
     pg.mouse.move(800, 990)
-    pg.keyboard.press("ArrowRight")
+    pg.evaluate("window._altoLanesStep('warning')")          # (the first Right now goes past it: the opening's first two events share one view)
     pg.wait_for_timeout(1500)
     assert pg.evaluate("()=>window._altoLanesCurrent()") == "warning"
     pg.keyboard.press("ArrowDown")
@@ -305,7 +305,7 @@ def test_down_opens_the_events_children_up_goes_back_and_left_right_carry_on(bro
     pg.keyboard.press("ArrowRight")                      # on along the line from the parent
     pg.wait_for_timeout(1500)
     assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "" and pg.evaluate("()=>window._altoLanesCurrent()") == "great-storm"
-    pg.keyboard.press("Escape")
+    pg.evaluate("window._altoLanesKids.open('warning', false)")             # (Esc no longer tucks them away)
     pg.wait_for_timeout(500)
     assert pg.evaluate(kids) == 6
     assert not errs, errs
@@ -362,7 +362,8 @@ def test_the_parents_filter_dims_its_children_and_a_hit_inside_a_tucked_parent_o
     pg.evaluate("document.querySelector('#node-warning .node-card').classList.remove('ent-dimmed')")
     pg.wait_for_timeout(200)
     assert pg.evaluate("()=>document.querySelectorAll('.ln-kid-dim').length") == 0
-    pg.keyboard.press("Escape")
+    for fam in FAMS:
+        pg.evaluate("f => window._altoLanesKids.open(f, false)", fam)
     pg.wait_for_timeout(500)
     # search: the engine's own landing enlarges the card by its id; a child tucked behind its parent opens first
     assert pg.evaluate("()=>document.getElementById('node-council-vote').classList.contains('ln-kid-shut')")

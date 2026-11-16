@@ -42,12 +42,12 @@ M.settle=function(done, ms){ ms=ms||170; var t=0, n=0, s={busy:false};
    the first free one; with none free it stays where it was (o.hide: it is hidden). o.ok(x,y,w,h): may it stand there at all.
    Returns {id: {dx, dy, on}}. */
 M.place=function(items, st, o){ o=o||{}; var sl=o.slack==null ? 3 : o.slack, gap=o.gap||0, box=[], out={};
-  function free(x, y, w, h, s){ if(o.ok && !o.ok(x, y, w, h)) return false;
+  function free(x, y, w, h, s, m){ if(o.ok && !o.ok(x, y, w, h, m)) return false;   /* (m: the marker, for a rule of its own: the Blueprint's All floors keeps a chip on its floor) */
     for(var i=0;i<box.length;i++){ var b=box[i]; if(Math.abs(x-b[0])<(w+b[2])/2+gap-s && Math.abs(y-b[1])<(h+b[3])/2+gap-s) return false; } return true; }
   items.forEach(function(m){ var p=st[m.id]||(st[m.id]={i:0}), c=m.c||[[0, 0]], k=Math.min(p.i, c.length-1), pick=-1, i;
-    for(i=0;i<k && pick<0;i++) if(free(m.x+c[i][0], m.y+c[i][1], m.w, m.h, -sl)) pick=i;
-    if(pick<0 && free(m.x+c[k][0], m.y+c[k][1], m.w, m.h, sl)) pick=k;
-    for(i=0;i<c.length && pick<0;i++) if(free(m.x+c[i][0], m.y+c[i][1], m.w, m.h, 0)) pick=i;
+    for(i=0;i<k && pick<0;i++) if(free(m.x+c[i][0], m.y+c[i][1], m.w, m.h, -sl, m)) pick=i;
+    if(pick<0 && free(m.x+c[k][0], m.y+c[k][1], m.w, m.h, sl, m)) pick=k;
+    for(i=0;i<c.length && pick<0;i++) if(free(m.x+c[i][0], m.y+c[i][1], m.w, m.h, 0, m)) pick=i;
     var on=pick>=0 || !o.hide; if(pick<0) pick=k; p.i=pick;
     if(on) box.push([m.x+c[pick][0], m.y+c[pick][1], m.w, m.h]);
     out[m.id]={dx:c[pick][0], dy:c[pick][1], on:on}; });

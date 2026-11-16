@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 from alto import buildings  # noqa: E402
 from alto.build import building_schema as bs, palace_assets  # noqa: E402
 from alto.build.builder import build_timeline, load_brief  # noqa: E402
+from alto.build.palace_building_asset import BLUEPRINT_ALL_FLOORS  # noqa: E402
 from alto.buildings import pma_art  # noqa: E402
 
 try:
@@ -84,7 +85,7 @@ def test_every_level_draws_and_the_uncertainty_shows(browser):
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         tabs = page.eval_on_selector_all("#bldg-root .bl-tab", "els => els.map(e => e.textContent)")
-        assert sorted(tabs) == ["1", "2", "3", "G", "Outside"]
+        assert sorted(tabs) == ["1", "2", "3"] + (["All"] if BLUEPRINT_ALL_FLOORS else []) + ["G", "Outside"]                      # (All floors, 2026-11-13)
         want = {lv: sum(1 for r in PLAN["rm"] if r["l"] == lv) for lv in ("g", "l1", "l2", "l3")}
         for lv, n in want.items():
             page.evaluate(f"AltoBuilding.selectLevel('{lv}')")
@@ -131,7 +132,7 @@ def test_the_phone_layout_keeps_the_footer_and_tabs(browser):
     page, errors = _open(browser, _html(), width=390, height=780)
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
-        assert page.locator("#bldg-root .bl-dock").is_visible() and page.locator("#bldg-root .bl-tab").count() == 5
+        assert page.locator("#bldg-root .bl-dock").is_visible() and page.locator("#bldg-root .bl-tab").count() == 5 + BLUEPRINT_ALL_FLOORS
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
         assert errors == []
     finally:

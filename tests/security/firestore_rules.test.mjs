@@ -188,6 +188,35 @@ test("a timeline's chip bar choice (chips, chipsAt) syncs for its owner only", a
   await assertFails(who.carol.doc('users/carol/tl/t1').set(fields, { merge: true }));
 });
 
+test("a timeline's unit numbers (un, unAt) are written by its owner only; no share viewer reaches them", async () => {
+  // SECURITY. alto-cloud.js merges { un, unAt, updatedAt } into users/{uid}/tl/{tid} next to bg/bgAt and
+  // chips/chipsAt (unit_numbers.py). A share link's page is re-identified as s-<key> and never syncs a choice:
+  // it shows the owner's, stamped into the shared copy. No rules change was needed: the whole tl document is
+  // its owner's alone, so the new field is read and written exactly as bg is.
+  const fields = { un: 'numbers', unAt: 1762380000000, updatedAt: ts() };
+  await assertSucceeds(who.alice.doc('users/alice/tl/t1').set(fields, { merge: true }));
+  await assertSucceeds(who.alice.doc('users/alice/tl/t1').update({ un: 'roman', unAt: 1762380000001 }));
+  const got = await assertSucceeds(who.alice.doc('users/alice/tl/t1').get());
+  assert.equal(got.data().un, 'roman');
+  // anyone else — signed out (a share link's viewer), an anonymous session, another account, one off the
+  // allowlist, an unverified email, a token forging Alice's email — can neither write nor read it
+  for (const w of OTHERS) {
+    await assertFails(who[w].doc('users/alice/tl/t1').set({ un: 'numbers', unAt: 2 }, { merge: true }));
+    await assertFails(who[w].doc('users/alice/tl/t1').update({ un: 'numbers', unAt: 2 }));
+    await assertFails(who[w].doc('users/alice/tl/t1').get());
+    await assertFails(who[w].doc(`users/alice/tl/s-${KEY_A}`).set({ un: 'numbers', unAt: 2 }, { merge: true }));
+  }
+  // nor through the share itself: the share's public document takes content only
+  const b = who.alice.batch();
+  b.set(who.alice.doc(`shares/${KEY_NEW}/private/owner`), { owner: 'alice' });
+  b.set(who.alice.doc(`shares/${KEY_NEW}`), { z: bytes(10), enc: 'gzip', title: 'T', updatedAt: ts() });
+  await assertSucceeds(b.commit());
+  for (const w of [...OTHERS, 'alice'])
+    await assertFails(who[w].doc(`shares/${KEY_NEW}`).set({ un: 'numbers', unAt: 2 }, { merge: true }));
+  // Carol, signed in but off the allowlist, cannot write even her own
+  await assertFails(who.carol.doc('users/carol/tl/t1').set(fields, { merge: true }));
+});
+
 test('Alice creates, updates and revokes a share; the owner never changes', async () => {
   const db = who.alice;
   const b = db.batch();
@@ -544,4 +573,20 @@ test("only the share's owner writes or deletes its pictures, and only in the exa
     await assertSucceeds(who.alice.doc(`shares/${KEY_A}/${c}/${PIC}`).delete());
     await assertSucceeds(who.carol.doc(`shares/${KEY_C}/${c}/${PIC}`).delete());      // revoking never needs the allowlist
   }
+});
+
+// Add from Drive in "Edit this page": a chip's id and name sit in the owner's edit document and nowhere else. No new collection, no new rule.
+const DRIVE_OP = { v: 1, ops: { 'n|formation|s|0|t': { b: 'x', t: 1,
+  v: '<a class="note-link" data-gdrive="gd-abc123" data-gdrive-id="1AbCdEfGhIjKlMn" data-file-name="Syllabus.pdf" data-gdrive-share="0" href="#">the syllabus</a>' } } };
+
+test('a Drive chip in Alice\'s edits is hers alone: others and signed-out visitors cannot read, list, write or delete it', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => { await ctx.firestore().doc('users/alice/edits/tdrive').set(DRIVE_OP); });
+  await assertSucceeds(who.alice.doc('users/alice/edits/tdrive').get());
+  for (const who2 of [who.anon, who.anonUser, who.bob, who.carol, who.dave]) {
+    await assertFails(who2.doc('users/alice/edits/tdrive').get());
+    await assertFails(who2.collection('users/alice/edits').get());
+    await assertFails(who2.doc('users/alice/edits/tdrive').set(DRIVE_OP));
+    await assertFails(who2.doc('users/alice/edits/tdrive').delete());
+  }
+  await assertFails(env.authenticatedContext('bob', { email: 'Bob@Example.COM', email_verified: true }).firestore().collectionGroup('edits').get());
 });

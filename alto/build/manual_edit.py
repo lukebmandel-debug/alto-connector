@@ -21,7 +21,7 @@ Field keys ("|"-separated; ids are slugs):
   dt|<tree key>|<step>|when  to           a mini timeline's item: its date, a flag's end (layout "timeline"; the
                                           list op dt|<key>|tree carries its events, flags and box tags in order)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
-  p|<id>|slide                            a card slid on its own (Option-drag, Option-less arrow nudge), [dx, dy] (it alone)
+  p|<id>|slide                            a card moved on its own (the bar's Card switch, or Option), [dx, dy] (it alone)
   n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
   dt|<owner>-new-…|tree                   a new section's decision tree
   sd|<study key>|study                    a section's flash cards or quiz, whole (study.py; study_edit.py)
@@ -46,14 +46,15 @@ file on the owner's computer is <a data-file="file-…">: the file itself (or,
 in Chromium, its place on disk) stays in this browser's IndexedDB, and the
 connector finds it by name to record its path (edits.find_file).
 
-A drag lays the whole tree out again with the card where it is held
-(TREE_GLUE _altoTreeCalc), so the cards it lands on step aside
-(layout.make_room) and go back once it moves on; no two cards are left
-touching (layout.separate). A card dragged moves with all the cards under it
-(shift), in any direction, straight down its line included; with Option held
-it slides alone (slide), along its line. Arrow keys nudge the picked card (the
-last one pressed on) 10 px, Shift 40: the card alone (slide), or with Option
-the whole branch (shift); a quick burst of presses is one step of undo.
+A card of an outline is moved by dragging it or with the arrow keys (10 px,
+Shift 40; a quick burst of presses is one step of undo). The editing bar's
+"Branch | Card" switch says what moves: the card with all the cards under it
+(shift), or the one card (slide); Option flips it for one move. What is held
+follows the pointer exactly and no other card moves. A move never ends
+touching another card: a drop there lands in the nearest free spot (dashed
+outlines show it while the card is held) and an arrow key stops short. The
+room kept is layout.ROOM, the same as make_room and separate keep, so the
+build lands every card exactly where the page showed it.
 
 A solar outline (layout 'solar', alto/build/solar.py) places every circle from
 its place in the outline, so there is no dragging or sizing there, a card cannot
@@ -156,13 +157,19 @@ def manual_edit(b, nodes=()) -> str:
           .replace("/*__STUDY_DECORATE__*/", STUDY_EDIT_DECORATE)
           .replace("/*__STUDY_EDIT__*/", STUDY_EDIT_JS))
     css = MANUAL_CSS[:MANUAL_CSS.rindex("</style>")] + STUDY_EDIT_CSS + "\n</style>"
+    from .. import drive_common
+    dcfg = drive_common.DriveConfig.from_env()
+    pre = ""
+    if dcfg.available:                       # Add from Drive (below): all three identifiers set, else nothing changes at all
+        js, css = drive_patch(js, css, dcfg)
+        pre = drive_cfg_script(dcfg)
     from . import bass_ui
     if bass_ui.enabled():                    # Bass (bass_ui.py): its button in the Edit pill and the loader of its hosted bundle; off, the markers vanish and nothing changes
         js = js.replace("/*__BASS_FN__*/", bass_ui.PILL_FN).replace("/*__BASS_USE__*/", bass_ui.PILL_USE).replace("/*__BASS_WIRE__*/", bass_ui.PILL_WIRE)
         css = css.replace("</style>", bass_ui.PILL_CSS + "</style>")
-        return edit_keys(b, nodes) + css + "\n" + js + "\n" + bass_ui.pill_script()
+        return edit_keys(b, nodes) + pre + css + "\n" + js + "\n" + bass_ui.pill_script()
     js = js.replace("/*__BASS_FN__*/", "").replace("/*__BASS_USE__*/", "").replace("/*__BASS_WIRE__*/", "")
-    return edit_keys(b, nodes) + css + "\n" + js + "\n"
+    return edit_keys(b, nodes) + pre + css + "\n" + js + "\n"
 
 
 # How a linked file is shown (MANUAL_JS openFile). A Claude preview may not
@@ -251,7 +258,19 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing:not(.mobile) #title-text:hover{outline-color:color-mix(in srgb,var(--accent,#a78bfa) 70%,transparent);}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
-  .node.aed-moving{z-index:60 !important;}
+  .node.aed-moving{z-index:60 !important;transition:none !important;}
+  html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-selk > .node-card{outline:1.5px dashed color-mix(in srgb,var(--accent,#a78bfa) 60%,transparent);outline-offset:3px;}
+  /* where a held card will land, when that is not where it is held */
+  .aed-ghost{position:absolute;box-sizing:border-box;border:2.5px dashed var(--accent,#a78bfa);background:color-mix(in srgb,var(--accent,#a78bfa) 22%,transparent);box-shadow:0 0 0 1px rgba(255,255,255,.55);pointer-events:none;}
+  /* the editing bar's switch: what a drag (or an arrow key) moves */
+  #alto-edit-exit .ee-mv{display:none;align-items:center;height:28px;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.1);flex:none;}
+  html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-mv{display:inline-flex;}
+  #alto-edit-exit .ee-mv i{font-style:normal;font-size:11.5px;opacity:.78;padding:0 6px 0 11px;white-space:nowrap;}
+  #alto-edit-exit .ee-mv button{border-radius:14px;padding:0 11px;background:transparent;font-size:12.5px;opacity:.8;}
+  #alto-edit-exit .ee-mv button.on{background:#f4f6fc;color:#12151f;font-weight:600;opacity:1;}
+  #alto-edit-exit .ee-ext{display:none;padding:0 12px;font-size:12.5px;white-space:nowrap;}
+  html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-ext{display:inline-block;}
+  #alto-edit-exit .ee-ext.on{background:#f4f6fc;color:#12151f;font-weight:600;}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-sel > .node-card{outline:2px solid var(--accent,#a78bfa);outline-offset:3px;}
   /* a System circle dragged onto another to go under it (MANUAL_JS solar drag) */
   html.alto-editing.alto-solar-edit:not(.mobile) #canvas .node-card{cursor:grab;}
@@ -1737,8 +1756,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     var P = page(); if(P) rerenderPage(P);
     decorate(); decorateOv();
     if(structOK()){ drawFilters(); decorateCanvas(); }
-    navSync();
+    navSync(); treeSettle();
   }
+  // Editing gives some cards another height (a tag that wraps beside its number): the tree is laid out
+  // over the heights as they now are, so the first card moved does not shift every card below it.
+  function treeSettle(){ extSync(); if(plan() && window._altoTreeOn && !isSolar() && !root.classList.contains('mobile') && !PHONE) relayoutSoon(); }
   function exit(){
     if(!editing()) return;
     endField(true);
@@ -1748,6 +1770,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
     hideBar(); closeAsk(); navSync();
     if(FTOUCH || structOK()) drawFilters();
+    treeSettle();
   }
   // A page shown again in place: keeps where the reader was, and adds nothing
   // to Back (BACK_PREV counts a page opened from inside a page as a hop).
@@ -1781,14 +1804,15 @@ MANUAL_JS = r"""<script id="alto-manual">
     b = document.createElement('div'); b.id = 'alto-edit-exit';
     b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎ Editing</span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
+      + '<span class="ee-mv" role="group" aria-label="What dragging a card moves"><i aria-hidden="true">Drag moves</i><button type="button" data-mv="tree" title="Dragging a card, or the arrow keys, moves it with every card under it. Hold Option to move the one card.">Branch</button><button type="button" data-mv="card" title="Dragging a card, or the arrow keys, moves that card only: the cards under it stay. Hold Option to move the branch.">Card</button></span><button type="button" class="ee-ext" aria-pressed="false" title="Extend: open the board to the left and right without limit, to place cards out there. Off, cards stay on the page. Cards already out there always stay in view.">Extend</button>'
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + (window.AltoWorld && window.AltoWorld.pickCountry ? '<button type="button" class="ee-h ee-country" aria-label="Add a country" title="Add a country: a new card that stands on it">+ Country</button>' : '')
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
-      if(t.classList.contains('ee-country')) window.AltoWorld.pickCountry(t); else if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
+      if(t.hasAttribute('data-mv')) setMove(t.getAttribute('data-mv')); else if(t.classList.contains('ee-ext')) setExtend(!EXT); else if(t.classList.contains('ee-country')) window.AltoWorld.pickCountry(t); else if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     if(!document.getElementById('alto-edit-rail')){ var rl = document.createElement('div'); rl.id = 'alto-edit-rail'; rl.setAttribute('aria-hidden', 'true'); document.body.appendChild(rl); }
-    document.body.appendChild(b); placePill(); return b;
+    document.body.appendChild(b); placePill(); setMove(MOVE); extSync(); return b;
   }
   function placePill(){}
 
@@ -2467,6 +2491,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && LPICK){ e.preventDefault(); e.stopPropagation(); endLinePick(); } }, true);
   /* swapping places: with a card under the same card, or with that card */
   function numOf(id){ return (typeof NODE_ORDER_MAP !== 'undefined' && NODE_ORDER_MAP[id]) || ''; }
+  function numShow(id){ var n = numOf(id); return n && window._altoP ? window._altoP(n) : n; }   // as the cards write it (Roman or arabic units, unit_numbers.py); numOf stays the page's own arabic form
   // every card's number as it would be with the outline changed by fn(kids, par)
   function numsIf(fn){
     var K = JSON.parse(JSON.stringify((OUT && OUT.kids) || {})), P = Object.assign({}, (OUT && OUT.parent) || {}),
@@ -2501,7 +2526,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!field('so|' + p)) sib = [];
     sib.forEach(function(k, j){ if(k === id) return;
       var list = swapSibs(id, k, 'swap'), nn = numsIf(orderWith(p, list));
-      A.push({t: 'Swap with ' + (numOf(k) ? numOf(k) + ' ' : '') + '“' + titleOf(k) + '”' + (j === i - 1 ? ' (above)' : j === i + 1 ? ' (below)' : ''),
+      A.push({t: 'Swap with ' + (numOf(k) ? numShow(k) + ' ' : '') + '“' + titleOf(k) + '”' + (j === i - 1 ? ' (above)' : j === i + 1 ? ' (below)' : ''),
         sub: 'It becomes ' + nn[id] + ', and “' + titleOf(k) + '” ' + nn[k] + '. The cards under each go with it.',
         fn: function(){ doOrder(id, list, 'Swapped'); }}); });
     var g = P[p];
@@ -2511,7 +2536,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       K[id] = S.map(function(x){ return x === id ? p : x; }); K[id].forEach(function(x){ Q[x] = id; });
       if(Kc.length){ K[p] = Kc; Kc.forEach(function(x){ Q[x] = p; }); } else delete K[p]; });
     var kn = liveKids(id).length;
-    A.push({t: 'Trade places with ' + (numOf(p) ? numOf(p) + ' ' : '') + '“' + titleOf(p) + '”', off: !field('sx|' + id), why: 'Cards added here trade places once the ' + fmtWord() + ' is built again.',
+    A.push({t: 'Trade places with ' + (numOf(p) ? numShow(p) + ' ' : '') + '“' + titleOf(p) + '”', off: !field('sx|' + id), why: 'Cards added here trade places once the ' + fmtWord() + ' is built again.',
       sub: 'It becomes ' + nx[id] + (g ? '' : ', the top of its unit') + '; “' + titleOf(p) + '” and the cards under it go under it, as ' + nx[p] +
         (kn ? '. The ' + (kn === 1 ? 'card' : kn + ' cards') + ' under this one go under “' + titleOf(p) + '”.' : '.'),
       fn: function(){ doParentSwap(id); }});
@@ -2519,18 +2544,19 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   function swapMenu(id){
     var A = swapChoices(id); if(!A.length) return;
-    ask('Swap “' + titleOf(id) + '” (' + numOf(id) + ') with…', 'Cards trade places with a card under the same card, or with the card they sit under. You can also click a card’s number and type the one it should have.', A);
+    ask('Swap “' + titleOf(id) + '” (' + numShow(id) + ') with…', 'Cards trade places with a card under the same card, or with the card they sit under. You can also click a card’s number and type the one it should have.', A);
   }
   // A card's number, typed: it goes there. The number names the card it goes
   // under (all but the last mark) and its place among that card's children
   // (the last mark); the card that held that place and the ones after it move
   // along one. Always asked first, saying what each card becomes.
   function renumber(id, typed){
-    var want = String(typed || '').trim().toLowerCase().replace(/[.\s]+$/, ''); if(!want || want === numOf(id)) return;
-    var eg = numOf(id) || '1.a';
+    var want = String(typed || '').trim(); if(window._altoUN) want = window._altoUN.arabic(want);   // a Roman unit typed back to the page's own form
+    want = want.toLowerCase().replace(/[.\s]+$/, ''); if(!want || want === numOf(id)) return;
+    var eg = numShow(id) || '1.a';
     var pn = window._altoParseNum(want);
     if(!pn){ toast('Type a number like ' + eg + ' — the unit, then a letter, then .1, .1, -1, then letters again.'); return; }
-    if(!pn.idx.length){ toast(pn.unit + ' is the top card of unit ' + pn.unit + '. To put this card there, use ⇅ and trade places with it.'); return; }
+    if(!pn.idx.length){ var pu = window._altoU ? window._altoU(pn.unit, 'numbers') : pn.unit; toast(pu + ' is the top card of unit ' + pu + '. To put this card there, use ⇅ and trade places with it.'); return; }
     var P = (OUT && OUT.parent) || {}, p = P[id];
     var pnum = window._altoFormatNum(pn.unit, pn.idx.slice(0, -1)), pos = pn.idx[pn.idx.length - 1];
     var np = Object.keys(NODE_ORDER_MAP).filter(function(k){ return NODE_ORDER_MAP[k] === pnum && srcNode(k) && !cardGone(k); })[0];
@@ -2572,7 +2598,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       else later = true;
     }
     if(later){ if(changes(L)) toast('Moved under “' + titleOf(np) + '” — it takes its place by number once the ' + fmtWord() + ' is built again. ⌘Z puts it back.'); return; }
-    if(changes(L)) toast('Moved to ' + (numOf(id) || '') + ' — ⌘Z puts it back.');
+    if(changes(L)) toast('Moved to ' + (numShow(id) || '') + ' — ⌘Z puts it back.');
   }
   /* asking: a title, a line, and the answers (the last one cancels) */
   function ask(title, note, answers){
@@ -4038,7 +4064,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var ordEl = structOK() && OUT && t.closest('#canvas .node-card .node-order');
     if(ordEl){ var on = ordEl.closest('.node'), oid = on && on.id.slice(5);
       if(oid && srcNode(oid) && ((OUT.parent || {})[oid])){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true);
-        askName(ordEl, 'Type its new number', numOf(oid), function(v){ renumber(oid, v); }); return; } }
+        askName(ordEl, 'Type its new number', numShow(oid), function(v){ renumber(oid, v); }); return; } }
     // a card's chips on the timeline: clicking one opens the card's chips to change
     var chipEl = structOK() && t.closest('#canvas .node-card .csym-btn,#canvas .node-card .esym-btn,#canvas .node-card .tsym-btn');
     if(chipEl){ var cn = chipEl.closest('.node'); if(cn && srcNode(cn.id.slice(5))){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); chipPop(cn.id.slice(5), chipEl); return; } }
@@ -4076,13 +4102,35 @@ MANUAL_JS = r"""<script id="alto-manual">
     });
   }
 
-  // Drag a card of an outline (desktop). It moves with all the cards under it,
-  // in any direction. With Option held it slides alone along its own line (the
-  // one from its parent: down a spine, or across to a card beside its parent),
-  // the cards under it staying put. A card with nothing under it moves freely.
-  var drag = null, dragJustEnded = false;
+  // Move a card of an outline (desktop): press and drag, or the arrow keys. WHAT moves is the editing bar's
+  // "Branch | Card" switch (MOVE): the card with every card under it (shift), or the one card (slide), the
+  // cards under it staying put. Option held flips it for that one move. What is held follows the pointer
+  // exactly, both ways; no other card moves. A drop that would touch another card lands in the nearest
+  // free spot instead (shown by dashed outlines while held), so nothing is left for make-room to push.
+  var drag = null, dragJustEnded = false, MOVE = 'tree';
+  try{ if(localStorage.getItem('alto-drag-moves') === 'card') MOVE = 'card'; }catch(e){}
+  /* Extend (the editing bar's switch, off unless the owner turns it on; kept for this timeline in this browser):
+     on, the board is open to the left and right without limit: a stretch of open board stands each side, a card
+     dragged to the screen's edge opens more, and a card may be put anywhere out there. Off, cards are kept on
+     the page as before and nothing opens. Either way a card already out there stays where it is, on board that
+     reaches it (window._altoSideX): the board keeps the room its cards use. */
+  var EXT = false, EXT_KEY = 'alto-extend-' + TID, EXT_OPEN = 600;
+  try{ EXT = localStorage.getItem(EXT_KEY) === '1'; }catch(e){}
+  function extSync(){
+    document.querySelectorAll('#alto-edit-exit .ee-ext').forEach(function(b){ b.classList.toggle('on', EXT); b.setAttribute('aria-pressed', EXT ? 'true' : 'false'); });
+    var on = EXT && editing() && root.classList.contains('alto-drag-ok'), G = window._altoTreeGeo;
+    window._altoSideMin = on ? [EXT_OPEN, EXT_OPEN] : null;
+    if(G && window._altoSides) window._altoSides(G, G.h);
+  }
+  function setExtend(v){ EXT = !!v; try{ localStorage.setItem(EXT_KEY, EXT ? '1' : '0'); }catch(e){} extSync(); }
   function subtree(id){ var K = (window._ALTO_OUTLINE || {}).kids || {}, out = [id];
     for(var i = 0; i < out.length; i++) (K[out[i]] || []).forEach(function(c){ out.push(c); }); return out; }
+  function modeFor(id, alt){ return subtree(id).length > 1 && (MOVE === 'card') !== !!alt ? 'card' : 'tree'; }
+  function setMove(m){
+    MOVE = m === 'card' ? 'card' : 'tree'; try{ localStorage.setItem('alto-drag-moves', MOVE); }catch(e){}
+    document.querySelectorAll('#alto-edit-exit .ee-mv button').forEach(function(b){ var on = b.getAttribute('data-mv') === MOVE; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    selCard(SEL);
+  }
   // Screen px per world px, measured on the card itself: a 100px nudge and how
   // far it moved on screen. Engines disagree on how CSS zoom reaches
   // getBoundingClientRect and pointer events; this asks the one in use.
@@ -4093,101 +4141,231 @@ MANUAL_JS = r"""<script id="alto-manual">
       var k = (b - a) / 100; return k > 0.05 && k < 20 ? k : 1;
     }catch(e){ return 1; }
   }
-  // the way its line runs: across for a card beside its parent, else down
-  function lineOf(id){
-    var G = window._altoTreeGeo, p = ((OUT && OUT.parent) || {})[id];
-    if(G && p && G.y[p] != null && G.y[id] != null && Math.abs(G.y[p] - G.y[id]) < 1) return {ax: 'x', p: p};
-    return {ax: 'y', p: p || null};
+  // what scrolls the canvas (the window, or a box around it)
+  function scroller(el){
+    for(var p = el.parentElement; p && p !== document.body && p !== root; p = p.parentElement){
+      var o = getComputedStyle(p).overflowY; if((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight + 4) return p; }
+    return null;
+  }
+  // where the board is on screen: a drag is measured against it, so the page scrolling under a held card
+  // (or the board opening more room at its side) never moves the card off the pointer
+  function worldAt(){ var w = document.getElementById('world'), r = w ? w.getBoundingClientRect() : {left: 0, top: 0}; return [r.left, r.top]; }
+  function heldAt(d){ var s = worldAt(); d.wx = (d.px - d.x0 - (s[0] - d.s0[0])) / d.k; d.wy = (d.py - d.y0 - (s[1] - d.s0[1])) / d.k; }
+  /* Where a move may land. `ids` are the cards that move together (old: their stored offset); every other
+     card of the unit stays where it is. Offsets are counted from where the cards are now. A spot is free
+     when each moving card is clear of each other card by the room the layout keeps (layout.ROOM; the same
+     test as _altoMakeRoom's `near`), on the page, and not above the unit's top. */
+  function spots(id, ids, old){
+    var G = window._altoTreeGeo, T = plan() || {}, room = T.room || T.row_gap || 40, a = NODE_ACT[id], inM = {}, Z = [];
+    function dw(i){ var v = (T.w && T.w[i]) || 270; return v === 270 ? 290 : v; }
+    ids = ids.filter(function(i){ return G.y[i] != null && G.h[i] != null; }); ids.forEach(function(i){ inM[i] = 1; });
+    var others = Object.keys(G.y).filter(function(i){ return !inM[i] && NODE_ACT[i] === a && G.h[i] != null && document.getElementById('node-' + i); });
+    var lo = -1e9, hi = 1e9, top = -1e9, ut = Infinity, P = (OUT && OUT.parent) || {}, gap = T.row_gap || 40;
+    var mL = Infinity, mR = -Infinity, mT = Infinity, mB = -Infinity;
+    others.forEach(function(o){ ut = Math.min(ut, G.y[o] - G.h[o] / 2); });
+    ids.forEach(function(m){
+      mL = Math.min(mL, G.x[m] - dw(m) / 2); mR = Math.max(mR, G.x[m] + dw(m) / 2); mT = Math.min(mT, G.y[m] - G.h[m] / 2); mB = Math.max(mB, G.y[m] + G.h[m] / 2);
+      top = Math.max(top, (isFinite(ut) ? ut : G.y[m] - G.h[m] / 2) - (G.y[m] - G.h[m] / 2));
+      others.forEach(function(o){ var hx = (dw(m) + dw(o)) / 2 + 12, hy = (G.h[m] + G.h[o]) / 2;
+        Z.push([G.x[o] - G.x[m] - hx, G.x[o] - G.x[m] + hx, G.y[o] - G.y[m] - hy, G.y[o] - G.y[m] + hy]); });
+    });
+    if(!isFinite(ut)) top = Math.min(top, 0);             // a whole unit: never higher than it is
+    top = Math.min(top, 0);
+    // Extend off: on the page (a card already past its edge may stay where it is); on: no limit either side
+    if(EXT){ lo = -1e9; hi = 1e9; }
+    else { ids.forEach(function(m){ lo = Math.max(lo, dw(m) / 2 + 20 - G.x[m]); hi = Math.min(hi, 1700 - dw(m) / 2 - 20 - G.x[m]); }); lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    // offsets are stored whole: every candidate is one that stays clear once rounded
+    var ox = old[0] - Math.round(old[0]), oy = old[1] - Math.round(old[1]);
+    function dn(v, o){ return Math.floor(v + o + 1e-6) - o; } function up(v, o){ return Math.ceil(v + o - 1e-6) - o; }
+    function whole(v, o){ return Math.round(v + o) - o; }
+    function free(x, y, g){
+      if(!x && !y) return true;                           // where it is now
+      if(x < lo - 0.01 || x > hi + 0.01 || y < top - 0.01) return false;
+      for(var i = 0; i < Z.length; i++){ var z = Z[i]; if(x > z[0] && x < z[1] && y > z[2] - g && y < z[3] + g) return false; }
+      return true;
+    }
+    function tp(i){ return G.y[i] - G.h[i] / 2; } function bt(i){ return G.y[i] + G.h[i] / 2; }
+    function xnear(i, j, sx){ return Math.abs(G.x[i] + (sx || 0) - G.x[j]) < (dw(i) + dw(j)) / 2 + 12; }
+    /* Held on other cards at (x, y): the branch takes the place BESIDE the card it is held on (the side it is
+       held toward; held square on it, the side it came from), its top card level with that card, a column's gap from that card and the cards under it.
+       Room is made downward only, and only where it is needed (the layout's make-room): a card in the seated
+       branch's way moves down just clear of it, with its row and the cards under it, and so does any card
+       that one would then be in the way of. No other card moves. Returns {at: [x, y], push: {card: px down}, by: the card it sits beside}. */
+    function seat(x, y){
+      var m0 = ids[0], cx = G.x[m0] + x, cy = G.y[m0] + y, best = null, ba = 0;
+      others.forEach(function(o){
+        var a = 0; ids.forEach(function(m){ var w = Math.min(G.x[m] + x + dw(m) / 2, G.x[o] + dw(o) / 2) - Math.max(G.x[m] + x - dw(m) / 2, G.x[o] - dw(o) / 2),
+          hh = Math.min(bt(m) + y, bt(o)) - Math.max(tp(m) + y, tp(o)); if(w > -12 && hh > -room) a += (w + 12) * (hh + room) * (m === m0 ? 4 : 1); });
+        if(a > ba){ ba = a; best = o; } });
+      if(!best) return null;
+      // a card set beside its parent is one row with it: the seat is beside that whole row
+      for(var up2 = 0; up2 < 9; up2++){ var rp = P[best]; if(rp && !inM[rp] && G.y[rp] != null && G.h[rp] != null && Math.abs(G.y[rp] - G.y[best]) < 1) best = rp; else break; }
+      var ty = Math.max(top, tp(best) - tp(m0)), sT = mT + ty - gap, sB = mB + ty + gap;
+      // the card and the cards under it that stand in the seat's rows: the branch sits clear of them all
+      var kin = [best], K = (OUT && OUT.kids) || {}; for(var q = 0; q < kin.length; q++) (K[kin[q]] || []).forEach(function(c){ if(!inM[c] && G.y[c] != null && G.h[c] != null) kin.push(c); });
+      var bl = Infinity, br = -Infinity; kin.forEach(function(c){ if(c === best || (tp(c) < sB && bt(c) > sT)){ bl = Math.min(bl, G.x[c] - dw(c) / 2); br = Math.max(br, G.x[c] + dw(c) / 2); } });
+      var off = cx - (bl + br) / 2, side = (Math.abs(off) < (br - bl) / 4 ? G.x[m0] - (bl + br) / 2 : off) >= 0 ? 1 : -1;
+      var tx = side > 0 ? br + 24 - mL : bl - 24 - mR; tx = whole(tx, ox); ty = whole(ty, oy);
+      // the room: the layout's own make-room (layout.make_room, TREE_GLUE _altoMakeRoom) around the seated branch,
+      // with no card allowed up (top: Infinity), so a card in the way goes down with its row and the cards under it
+      var y = {}, x2 = {}, mv = {}, all = others.concat(ids), push = {};
+      all.forEach(function(i){ y[i] = G.y[i]; x2[i] = G.x[i]; });
+      ids.forEach(function(m){ x2[m] += tx; y[m] += ty; mv[m] = 1; });
+      window._altoMakeRoom(y, x2, G.h, T.w, all, mv, P, gap, Infinity);
+      others.forEach(function(o){ var dd = Math.ceil(y[o] - G.y[o] - 1e-6); if(dd > 0) push[o] = dd; });
+      return {at: [tx, ty], push: push, by: best};
+    }
+    return {room: room, free: free, whole: whole, seat: seat, top: up(top, oy), box: [mL, mR], lo: up(lo, ox), hi: dn(hi, ox),
+      // the free spot nearest (x, y), each zone grown to the rows' own gap g so the landing sits tidily
+      near: function(x, y, g){
+        var X = [whole(x, ox), 0], Y = [whole(y, oy), 0, up(top, oy)];
+        if(!EXT) X.push(up(lo, ox), dn(hi, ox));
+        Z.forEach(function(z){ X.push(dn(z[0], ox), up(z[1], ox)); Y.push(dn(z[2] - g, oy), up(z[3] + g, oy)); });
+        function uniq(A, c){ var s = {}; return A.filter(function(v){ var k = Math.round(v * 2); if(s[k]) return false; s[k] = 1; return true; })
+          .sort(function(p, q){ return Math.abs(p - c) - Math.abs(q - c); }); }
+        X = uniq(X, x); Y = uniq(Y, y);
+        var best = null, bd = Infinity;
+        for(var i = 0; i < X.length; i++){ var dx = X[i] - x, dx2 = dx * dx; if(dx2 >= bd) break;
+          for(var j = 0; j < Y.length; j++){ var dy = Y[j] - y, d = dx2 + dy * dy; if(d >= bd) break;
+            if(free(X[i], Y[j], g)){ best = [X[i], Y[j]]; bd = d; } } }
+        return best;
+      }};
+  }
+  // Where the held cards land, {at: [x, y], push?, by?}: where they are held if that spot is free; held on
+  // other cards, a branch takes the seat beside the card it is held on (the cards below making room); a
+  // card moved alone goes to the nearest free spot.
+  function landing(d){
+    var S = d.S, ox = d.old[0] - Math.round(d.old[0]), oy = d.old[1] - Math.round(d.old[1]);
+    var x = S.whole(Math.min(S.hi, Math.max(S.lo, d.wx)), ox), y = S.whole(Math.max(S.top, d.wy), oy);
+    if(S.free(x, y, S.room)) return {at: [x, y]};
+    var st = d.mode === 'tree' ? S.seat(x, y) : null; if(st && st.at[0] >= S.lo - 0.01 && st.at[0] <= S.hi + 0.01) return st;   // (Extend off: a seat is on the page, or it is not taken)
+    return {at: S.near(x, y, Math.max(S.room, (plan() || {}).row_gap || 40)) || S.near(x, y, S.room) || [0, 0]};
   }
   window.addEventListener('pointerdown', function(e){
     if(!editing() || isSolar() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-rz')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
-    var L = lineOf(id), sub = subtree(id);
-    drag = {id:id, x0:e.clientX, y0:e.clientY, k:scale(nodeEl), on:false, ax:L.ax, p:L.p, mode:'tree', n:sub.length - 1,
-      self:nodeEl, els: sub.map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean)};
+    var sc = scroller(nodeEl);
+    drag = {id:id, x0:e.clientX, y0:e.clientY, px:e.clientX, py:e.clientY, k:scale(nodeEl), on:false, self:nodeEl, sc:sc, s0:worldAt()};
   }, true);
-  function dragTip(d, e){
+  // (a press on a card's rim is outside its .node-card: the canvas's own drag-to-pan would start with it)
+  window.addEventListener('mousedown', function(e){ if(drag && e.target.closest && !e.target.closest('.node-card')) e.stopPropagation(); }, true);
+  function dragTip(d){
     var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
-    b.textContent = !d.n ? 'Drop it anywhere — the cards it lands on make room'
-      : d.mode === 'line' ? 'Sliding along its line alone — the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it stay'
-      : 'Moving with the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it — hold Option to move it alone';
-    b.style.left = (e.clientX + 16) + 'px'; b.style.top = (e.clientY + 16) + 'px'; b.classList.add('show');
+    var L = d.land && d.land.at, off = L && (Math.abs(L[0] - d.wx) > 1.5 || Math.abs(L[1] - d.wy) > 1.5), by = d.land && d.land.by && liveNode(d.land.by);
+    b.textContent = (d.mode === 'card' ? 'Moving this card only' : d.n ? 'Moving this card and the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it' : 'Moving this card')
+      + (by ? ' · it will sit beside ' + String(by.title || 'this card').replace(/<[^>]*>/g, '') + (Object.keys(d.land.push).length ? ', the cards below making room' : '')
+        : !off ? '' : L[0] || L[1] ? ' · it will land in the nearest free spot' : ' · no free spot near here: it will go back');
+    b.style.left = (d.px + 16) + 'px'; b.style.top = (d.py + 16) + 'px'; b.classList.add('show');
+  }
+  function startDrag(d, alt){
+    d.on = true; if(cur) endField(true);
+    d.mode = modeFor(d.id, alt); d.n = subtree(d.id).length - 1;
+    d.ids = d.mode === 'card' ? [d.id] : subtree(d.id);
+    d.els = d.ids.map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean);
+    var f = field('p|' + d.id + '|' + (d.mode === 'card' ? 'slide' : 'shift')); d.old = (f && f.get()) || [0, 0];
+    d.S = window._altoTreeGeo ? spots(d.id, d.ids, d.old) : null;
+    d.els.forEach(function(el){ el.classList.add('aed-moving'); });
+    root.classList.add('alto-dragging');
   }
   window.addEventListener('pointermove', function(e){
     if(!drag) return;
-    var dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
-    if(!drag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; drag.on = true; if(cur) endField(true);
-      root.classList.add('alto-dragging'); }
+    drag.px = e.clientX; drag.py = e.clientY;
+    if(!drag.on){ if(Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < 6) return; startDrag(drag, e.altKey); }
     e.preventDefault();
-    // everything under it comes along; Option held, it slides alone along its line
-    var mode = !drag.n ? 'tree' : e.altKey ? 'line' : 'tree';
-    if(!drag.n || mode !== drag.mode || !drag.painted){ drag.mode = mode; drag.painted = true;
-      drag.els.forEach(function(el){ el.classList.toggle('aed-moving', mode === 'tree' || el === drag.self); }); }
-    drag.wx = dx / drag.k; drag.wy = dy / drag.k;
-    if(drag.mode === 'line'){ if(drag.ax === 'y') drag.wx = 0; else drag.wy = 0; clampLine(drag); }
-    dragTip(drag, e);
-    if(!drag.raf) drag.raf = requestAnimationFrame(function(){ if(drag){ drag.raf = 0; preview(drag); } });
+    if(!drag.raf) drag.raf = requestAnimationFrame(frame);
   }, true);
-  // Along its line it stays on its side of its parent: below it on a spine,
-  // clear of it when it sits beside it.
-  function clampLine(d){
-    var G = window._altoTreeGeo; if(!G || !d.p || G.y[d.p] == null || G.y[d.id] == null) return;
-    var gap = (plan() || {}).row_gap || 40;
-    if(d.ax === 'y'){
-      if(G.y[d.p] >= G.y[d.id]) return;
-      var lo = G.y[d.p] + G.h[d.p] / 2 + gap - (G.y[d.id] - G.h[d.id] / 2);
-      if(d.wy < lo) d.wy = lo;
-    } else {
-      var side = G.x[d.id] > G.x[d.p] ? 1 : -1, room = (wOf(d.id) + wOf(d.p)) / 2 + 24;
-      var nx = G.x[d.id] + d.wx; if(side * (nx - G.x[d.p]) < room) d.wx = G.x[d.p] + side * room - G.x[d.id];
-    }
+  // one frame of a drag: the page scrolls when the pointer is at its top or bottom edge, the held cards
+  // go to the pointer, and the landing is shown
+  function frame(){
+    var d = drag; if(!d) return; d.raf = 0;
+    var E = 64, H = window.innerHeight, W = window.innerWidth, more = false;
+    function pace(p, size){ var v = p < E ? -(E - p) : p > size - E ? p - (size - E) : 0; return Math.max(-26, Math.min(26, v * 0.45)); }
+    var v = pace(d.py, H), u = Math.round(Math.max(-8, Math.min(8, pace(d.px, W)))), sc = d.sc || document.scrollingElement || root;
+    if(v){ var t0 = sc.scrollTop; sc.scrollTop += v; more = sc.scrollTop !== t0; }
+    if(u){ var l0 = sc.scrollLeft; sc.scrollLeft += u;
+      if(sc.scrollLeft !== l0) more = true;
+      else more = true; }                                                                    // (the board opens further that way: below)
+    // held at the screen's left edge with the board at its left end: the board opens further, a step a frame
+    d.least = EXT && u < 0 && sc.scrollLeft <= 0 && d.S ? (window._altoSideX || [0])[0] - u : 0;
+    if(d.least){ var G = window._altoTreeGeo; window._altoSides(G, G.h, d.ext && d.ext[0], d.ext && d.ext[1], d.least); }
+    heldAt(d);
+    preview(d); dragTip(d);
+    if(more && !d.raf) d.raf = requestAnimationFrame(frame);
   }
-  // the drag as hints: [shift, slide] with this card's own changed by (wx, wy)
-  function hintsWith(d, wx, wy){
-    var T = plan() || {}, sh = Object.assign({}, T.shift || {}), sl = Object.assign({}, T.slide || {});
-    var M = d.mode === 'line' ? sl : sh, o = M[d.id] || [0, 0];
-    M[d.id] = [o[0] + wx, o[1] + wy];
+  // the drag as hints: [shift, slide] with this card's own offset set to old + where it lands, and each card
+  // that makes room carried down (a shift takes the cards under it: each gives only what its parent has not)
+  function hintsWith(d, L){
+    var T = plan() || {}, sh = Object.assign({}, T.shift || {}), sl = Object.assign({}, T.slide || {}), P = (OUT && OUT.parent) || {};
+    (d.mode === 'card' ? sl : sh)[d.id] = [Math.round(d.old[0] + L.at[0]), Math.round(d.old[1] + L.at[1])];
+    Object.keys(L.push || {}).forEach(function(o){ var own = L.push[o] - (L.push[P[o]] || 0), f = field('p|' + o + '|shift'); if(!own || !f) return;
+      var was = f.get() || [0, 0]; sh[o] = [was[0], was[1] + own]; });
     return [sh, sl];
   }
-  // The whole tree as it would be with the card dropped here: the cards in its
-  // way step aside, and go back once it has moved on.
+  // The held cards at the pointer; the rest of the outline as it will be once they are dropped (a unit
+  // that grows moves the units below it); dashed outlines where the drop lands when that is not here.
   function preview(d){
-    var G = window._altoTreeGeo, T = plan(), R = null;
-    if(G && T){ var H = hintsWith(d, d.wx, d.wy); try{ R = layoutAll(G.h, H[0], H[1]); }catch(e){ R = null; } }
-    if(!R){ (d.mode === 'line' ? [d.self] : d.els).forEach(function(el){ el.style.translate = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px'; }); return; }
+    var G = window._altoTreeGeo, R = null, LD = d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD.at; d.land = LD;
+    if(G && d.S){ var H = hintsWith(d, LD); try{ R = layoutAll(G.h, H[0], H[1]); }catch(e){ R = null; } }
+    // the board reaches as far as the held cards and their landing, either side
+    if(R && d.S && EXT){ d.ext = [d.S.box[0] + Math.min(d.wx, L[0]), d.S.box[1] + Math.max(d.wx, L[0])]; window._altoSides(R, G.h, d.ext[0], d.ext[1], d.least); }
+    var held = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px', off = Math.abs(L[0] - d.wx) > 1.5 || Math.abs(L[1] - d.wy) > 1.5;
     document.querySelectorAll('#world .node').forEach(function(el){
-      var i = el.id.slice(5); if(G.y[i] == null || R.y[i] == null) return;
+      if(el.classList.contains('aed-moving')){ el.style.translate = held; ghost(el, off ? [L[0] - d.wx, L[1] - d.wy] : null); return; }
+      var i = el.id.slice(5); if(!R || G.y[i] == null || R.y[i] == null) return;
       var tx = Math.round(R.x[i] - G.x[i]), ty = Math.round(R.y[i] - G.y[i]);
-      if(!el.classList.contains('aed-moving') && (tx || ty || el.style.translate)) el.classList.add('aed-room');
+      if(tx || ty || el.style.translate) el.classList.add('aed-room');
       el.style.translate = (tx || ty) ? tx + 'px ' + ty + 'px' : '';
     });
   }
+  function ghost(el, at){
+    var g = el.querySelector(':scope > .aed-ghost'), c = el.querySelector('.node-card');
+    if(!at || !c){ if(g) g.remove(); return; }
+    if(!g){ g = document.createElement('div'); g.className = 'aed-ghost'; g.setAttribute('aria-hidden', 'true'); el.appendChild(g);
+      g.style.left = c.offsetLeft + 'px'; g.style.top = c.offsetTop + 'px'; g.style.width = c.offsetWidth + 'px'; g.style.height = c.offsetHeight + 'px';
+      g.style.borderRadius = getComputedStyle(c).borderRadius; }
+    g.style.translate = Math.round(at[0]) + 'px ' + Math.round(at[1]) + 'px';
+  }
   function clearPreview(){
     document.querySelectorAll('#world .node').forEach(function(el){ el.classList.remove('aed-room', 'aed-moving'); el.style.translate = ''; });
+    document.querySelectorAll('#world .aed-ghost').forEach(function(g){ g.remove(); });
     var b = document.getElementById('aed-rztip'); if(b) b.classList.remove('show');
   }
-  function endDrag(){
+  function endDrag(cancel){
     if(!drag) return; var d = drag; drag = null;
     if(d.raf) cancelAnimationFrame(d.raf);
     if(!d.on) return;
+    heldAt(d);
     dragJustEnded = true; setTimeout(function(){ dragJustEnded = false; }, 400);
     root.classList.remove('alto-dragging');
-    var hk = d.mode === 'line' ? 'slide' : 'shift';
-    var f = field('p|' + d.id + '|' + hk); if(!f){ clearPreview(); return; }
-    var w = keepIn(d.id, hk, d.wx || 0, d.wy || 0);
-    commitMove(d.id, hk, f, w[0], w[1]);
-    clearPreview();
+    var hk = d.mode === 'card' ? 'slide' : 'shift', f = field('p|' + d.id + '|' + hk);
+    var LD = cancel === true || !f ? null : d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD && LD.at;
+    var ok = L && commitMove(d.id, hk, f, L[0], L[1], false, LD.push);
+    clearPreview(); selCard(d.id);
+    if(!ok && window._altoTreeGeo) window._altoSides(window._altoTreeGeo, window._altoTreeGeo.h);     // (room opened for a move not made closes again)
+    // from where it was let go, the cards glide to where they land (or back home)
+    var gx = (d.wx || 0) - (ok ? L[0] : 0), gy = (d.wy || 0) - (ok ? L[1] : 0);
+    if(Math.abs(gx) > 1.5 || Math.abs(gy) > 1.5){
+      d.els.forEach(function(el){ el.style.translate = Math.round(gx) + 'px ' + Math.round(gy) + 'px'; });
+      void d.self.offsetWidth;
+      d.els.forEach(function(el){ el.classList.add('aed-room'); el.style.translate = ''; });
+      setTimeout(function(){ if(!drag) d.els.forEach(function(el){ el.classList.remove('aed-room'); }); }, 300);
+    }
   }
   // Store the move: this card's offset (hk 'shift' carries its branch, 'slide' is it alone) grows by (wx, wy).
   // The layout is worked out again at once, so nothing jumps back first. burst: a press of an arrow key
   // within a quick burst of the last joins its step of undo.
   var NUDGE = null;
-  function commitMove(id, hk, f, wx, wy, burst){
+  function commitMove(id, hk, f, wx, wy, burst, push){
     var old = f.get() || [0, 0], v = [Math.round(old[0] + wx), Math.round(old[1] + wy)], k = 'p|' + id + '|' + hk, val = (v[0] || v[1]) ? v : null;
-    var ok;
-    if(burst && NUDGE && NUDGE.k === k && Date.now() - NUDGE.t < 600 && HP === HIST.length && HIST[HP - 1] === NUDGE.h){
+    if(v[0] === Math.round(old[0]) && v[1] === Math.round(old[1])) return false;
+    var ok, list = [[k, val]], P = (OUT && OUT.parent) || {};
+    // the cards that make room for a seated branch move with it, as one step of undo
+    Object.keys(push || {}).forEach(function(o){ var own = push[o] - (push[P[o]] || 0), g = field('p|' + o + '|shift'); if(!own || !g) return;
+      var was = g.get() || [0, 0], nv = [Math.round(was[0]), Math.round(was[1] + own)]; list.push(['p|' + o + '|shift', (nv[0] || nv[1]) ? nv : null]); });
+    if(list.length > 1){ ok = changes(list); NUDGE = null; }
+    else if(burst && NUDGE && NUDGE.k === k && Date.now() - NUDGE.t < 600 && HP === HIST.length && HIST[HP - 1] === NUDGE.h){
       ok = apply(k, val); NUDGE.h[0].b = val; NUDGE.t = Date.now();
     } else {
       ok = change(k, val);
@@ -4196,28 +4374,17 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(ok){ clearTimeout(relayT); document.querySelectorAll('#world .node').forEach(function(x){ x.classList.remove('aed-room'); }); relayout(); }
     return ok;
   }
-  // keep a move on the page and inside its unit: (wx, wy) corrected for card id moved by hint hk
-  function keepIn(id, hk, wx, wy){
-    var n = liveNode(id), el = document.getElementById('node-' + id), card = el && el.querySelector('.node-card');
-    if(n && card){ var cx = (n.displayX != null ? n.displayX : 850) + wx, hw = card.offsetWidth / 2;
-      var lo = hw + 30, hi = 1700 - hw - 30; if(cx < lo) wx += lo - cx; if(cx > hi) wx -= cx - hi; }
-    var G = window._altoTreeGeo;
-    if(G){ try{
-      var a = NODE_ACT[id], H = hintsWith({id: id, mode: hk === 'slide' ? 'line' : 'tree'}, wx, wy), R1 = layoutAll(G.h, H[0], H[1]), R0 = layoutAll(G.h, {}, {});
-      var top = function(R){ return Math.min.apply(null, Object.keys(R.y).filter(function(i){ return NODE_ACT[i] === a && G.h[i] != null; })
-        .map(function(i){ return R.y[i] - G.h[i] / 2; })); };
-      if(R0 && R1){ var t0 = top(R0), t1 = top(R1); if(isFinite(t0) && isFinite(t1) && t1 < t0 - 0.5) wy += t0 - t1; }
-    }catch(e){} }
-    return [wx, wy];
-  }
-  /* Arrow keys nudge the picked card (the last one pressed on) in edit mode: the card alone by 10 px, Shift 40,
-     and with Option the whole branch. Never while a field, an input or a picker has the keys. The offsets are
-     the drag's (shift / slide), and a quick burst of presses is one step of undo. */
+  /* Arrow keys nudge the picked card (the last one pressed on) in edit mode by 10 px, Shift 40: what the
+     Branch | Card switch says, Option flipping it. Never while a field, an input or a picker has the keys.
+     It stops short of a card in its way (and says so when it cannot move at all); no other card moves.
+     The offsets are the drag's (shift / slide), and a quick burst of presses is one step of undo. */
   var SEL = null;
   function selCard(id){
     SEL = id || null;
-    document.querySelectorAll('#world .node.aed-sel').forEach(function(el){ el.classList.remove('aed-sel'); });
-    var el = SEL && document.getElementById('node-' + SEL); if(el) el.classList.add('aed-sel');
+    document.querySelectorAll('#world .node.aed-sel, #world .node.aed-selk').forEach(function(el){ el.classList.remove('aed-sel', 'aed-selk'); });
+    var el = SEL && document.getElementById('node-' + SEL); if(!el) return;
+    el.classList.add('aed-sel');
+    if(modeFor(SEL, false) === 'tree') subtree(SEL).slice(1).forEach(function(i){ var k = document.getElementById('node-' + i); if(k) k.classList.add('aed-selk'); });
   }
   window.addEventListener('pointerdown', function(e){
     if(!editing() || isSolar() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
@@ -4227,25 +4394,24 @@ MANUAL_JS = r"""<script id="alto-manual">
   }, true);
   function typingIn(a){ return !!(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))); }
   window.addEventListener('keydown', function(e){
+    if(drag && drag.on && e.key === 'Escape'){ e.preventDefault(); e.stopImmediatePropagation(); endDrag(true); return; }
     if(!SEL) return;
     if(!editing()){ selCard(null); return; }
     if(isSolar() || !root.classList.contains('alto-drag-ok') || e.metaKey || e.ctrlKey) return;
     var dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0, dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
     if(!dx && !dy) return;
     if(cur || drag || sdrag || PICK || LINK || LPICK || typingIn(document.activeElement) || typingIn(e.target)) return;
-    var id = SEL, hk = e.altKey ? 'shift' : 'slide', f = field('p|' + id + '|' + hk);
-    if(!f || !document.getElementById('node-' + id)) return;
+    var id = SEL, mode = modeFor(id, e.altKey), hk = mode === 'card' ? 'slide' : 'shift', f = field('p|' + id + '|' + hk);
+    if(!f || !document.getElementById('node-' + id) || !window._altoTreeGeo) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    var step = e.shiftKey ? 40 : 10, wx = dx * step, wy = dy * step;
-    if(hk === 'slide'){                       // alone: it stays on its side of its parent
-      var L = lineOf(id), d = {id: id, ax: L.ax, p: L.p, wx: wx, wy: wy}; clampLine(d); wx = d.wx; wy = d.wy;
-    }
-    var w = keepIn(id, hk, wx, wy);
-    commitMove(id, hk, f, w[0], w[1], true);
+    var step = e.shiftKey ? 40 : 10, S = spots(id, mode === 'card' ? [id] : subtree(id), f.get() || [0, 0]), n = 0, s;
+    for(s = step; s > 0 && !n; s--) if(S.free(dx * s, dy * s, S.room)) n = s;                 // as far as there is room
+    for(s = step + 1; s <= step + 60 && !n; s++) if(S.free(dx * s, dy * s, S.room)) n = s;    // (out of a spot that was already tight)
+    if(!n || !commitMove(id, hk, f, dx * n, dy * n, true)) toast('No room that way: drag it to a free spot.');
     selCard(id);
   }, true);
   window.addEventListener('pointerup', endDrag, true);
-  window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); clearPreview(); }, true);
+  window.addEventListener('pointercancel', function(){ endDrag(true); clearPreview(); }, true);
 
   /* A System circle dragged onto another circle goes under it, with
      everything that orbits it: the same move as the card menu's ⇄ (relink →
@@ -4339,3 +4505,179 @@ MANUAL_JS = r"""<script id="alto-manual">
   window.addEventListener('load', boot);
 })();
 </script>"""
+
+
+# ── Add from Drive in "Edit this page" (design (a): a chip that is a REFERENCE only; alto/drive_common.py) ─────────────────────────────────────
+# Built in ONLY when ALTO_DRIVE_CLIENT_ID, ALTO_DRIVE_API_KEY and ALTO_DRIVE_APP_ID are all set (drive_common.enabled()). Otherwise manual_edit() returns
+# exactly what it always did: byte for byte, nothing hidden, nothing to find. Each patch replaces ONE exact string of MANUAL_JS (checked: a patch that
+# no longer matches raises at build time rather than shipping a control that does nothing).
+_DRIVE_BOX_OLD = """      + '<h5 class="al-fh">or a file on this computer</h5>"""
+_DRIVE_BOX_NEW = """      + '<h5 class="al-fh">or a Google Drive file</h5><div class="al-go"><button type="button" data-a="drive">Choose from Drive…</button></div>'
+      + '<input class="al-dl" type="url" placeholder="or paste a Drive link" autocomplete="off"><input class="al-dn" type="text" placeholder="Name (optional)" maxlength="200" autocomplete="off">'
+      + '<div class="al-go"><button type="button" data-a="dlink">Link pasted file</button></div>'
+      + '<label class="al-k al-dsh"><input class="al-dsh-cb" type="checkbox"> Show it on share links</label>'
+      + '<div class="al-k al-fk">Alto keeps only the file\\'s name and its Drive address, never what is inside. Who can open it is decided by your Drive sharing. Double-click the words later to change whether share links show it.</div>'
+      + '<h5 class="al-fh">or a file on this computer</h5>"""
+_DRIVE_X_OLD = """    b.innerHTML = '<h5>Link to a page</h5>"""
+_DRIVE_X_NEW = """    b.innerHTML = '<div class="al-hd"><h5>Link to a page</h5><button type="button" class="al-x" data-a="cancel" aria-label="Close" title="Close">\u2715</button></div>"""
+_DRIVE_CANCEL_OLD = """<button type="button" data-a="cancel">Cancel</button><button type="button" data-a="url">Link website</button>"""
+_DRIVE_CANCEL_NEW = """<button type="button" data-a="url">Link website</button>"""
+_DRIVE_PLACE_OLD = """    var r = savedRange.getBoundingClientRect();
+    b.style.top = Math.round(Math.min(window.innerHeight - b.offsetHeight - 8, r.bottom + 10)) + 'px';
+    b.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - b.offsetWidth - 8, r.left))) + 'px';
+"""
+_DRIVE_PLACE_NEW = """    gdPlace(b, savedRange.getBoundingClientRect());
+"""
+_DRIVE_CLICK_OLD = """      if(a === 'file') linkFile();
+"""
+_DRIVE_CLICK_NEW = """      if(a === 'file') linkFile();
+      if(a === 'drive') linkDrive();
+      if(a === 'dlink') linkDriveUrl();
+"""
+_DRIVE_WALK_OLD = """        if(tag === 'A' && FILE_ID.test(n.getAttribute('data-file') || '')){
+          var fa = document.createElement('a');"""
+_DRIVE_WALK_NEW = """        if(tag === 'A' && GD_KEY.test(n.getAttribute('data-gdrive') || '')){
+          var gid = n.getAttribute('data-gdrive-id') || '';       // a chip hidden from share links has no id on the page: it opens from _ALTO_LOCAL.drive
+          var ga = gdChip(n.getAttribute('data-gdrive'), GD_ID.test(gid) ? gid : '', n.getAttribute('data-file-name'), n.getAttribute('data-gdrive-share') === '1');
+          walk(n, ga); dst.appendChild(ga); return; }
+        if(tag === 'A' && FILE_ID.test(n.getAttribute('data-file') || '')){
+          var fa = document.createElement('a');"""
+_DRIVE_FN_OLD = """  function linkFile(){
+    var b = linkBox(), keep = savedRange;"""
+_DRIVE_FN_NEW = r"""  /* a Google Drive file: a REFERENCE (alto/drive_common.py). The page keeps its id and name; the link is BUILT from a checked id, never copied; Alto never
+     reads the file. */
+  /* the panel stays inside the SAME measured safe box as an enlarged card (engine_patches _safeBox, handed over as window._altoSafeBox.box; the whole-window third argument exists only in a Drive build):
+     20px or more from every viewport edge, clear of the side rail and of every fixed chrome bar and the editing toolbar; if it does not fit it scrolls inside */
+  var gdLast = null;
+  function gdPlace(b, r){
+    gdLast = r; b.setAttribute('data-not-chrome', '');
+    var vw = window.innerWidth, vh = window.innerHeight, M = 10, PAD = 12;
+    function box(x, w){ return window._altoSafeBox && typeof window._altoSafeBox.box === 'function' ? window._altoSafeBox.box(x - PAD, x + w + PAD, true) : {l: 20, t: 20, r: vw - 20, b: vh - 20}; }
+    b.style.maxHeight = 'none'; b.style.width = '';
+    var Z = b.offsetWidth ? b.getBoundingClientRect().width / b.offsetWidth : 1; if(!(Z > 0.2 && Z < 5)) Z = 1;      // a zoomed page: boxes are measured on screen, set in page units
+    var S0 = box(0, 0), room = S0.r - S0.l;
+    if(b.offsetWidth * Z > room) b.style.width = Math.max(120, Math.floor(room / Z)) + 'px';
+    var w = b.offsetWidth * Z, h = b.offsetHeight * Z, lo = S0.l, hi = Math.max(S0.l, S0.r - w), want = Math.max(lo, Math.min(hi, r.left));
+    var xs = [want], x, i; for(x = lo; x < hi; x += 32) xs.push(x); xs.push(hi);
+    xs.sort(function(p, q){ return Math.abs(p - want) - Math.abs(q - want); });
+    var best = null;
+    for(i = 0; i < xs.length; i++){ var S = box(xs[i], w), sc = Math.min(h, S.b - S.t);
+      if(!best || sc > best.sc + 0.5) best = {x: xs[i], S: S, sc: sc};
+      if(sc >= h) break; }
+    var T = best.S.t, B = Math.max(T + 60, best.S.b), h2 = Math.min(h, B - T);
+    b.style.maxHeight = Math.floor((B - T) / Z) + 'px';
+    var top = r.bottom + M; if(top + h2 > B) top = r.top - M - h2;
+    top = Math.max(T, Math.min(B - h2, top));
+    b.style.top = Math.round(top / Z) + 'px'; b.style.left = Math.round(best.x / Z) + 'px';
+  }
+  window.addEventListener('resize', function(){ var b = document.getElementById('aed-link'); if(b && b.classList.contains('show') && gdLast) gdPlace(b, gdLast); });
+  var GD_KEY = /^gd-[a-z0-9]{6,12}$/, GD_ID = /^[A-Za-z0-9_-]{10,100}$/;
+  var GD_LINKS = [/^https:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation)\/d\/([A-Za-z0-9_-]{10,100})(?:[\/?#].*)?$/,
+                  /^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]{10,100})(?:[\/?#].*)?$/,
+                  /^https:\/\/drive\.google\.com\/(?:open|uc)\?(?:[^#\s]*&)?id=([A-Za-z0-9_-]{10,100})(?:[&#].*)?$/];
+  function gdCfg(){ var c = window['_ALTO_' + 'DRIVE']; return c && c.client_id && c.api_key && c.app_id ? c : null; }
+  function gdName(s){ return String(s || '').replace(/[\u0000-\u001f\u007f<>"]/g, '').trim().slice(0, 200); }
+  function gdParse(s){ var t = String(s || '').trim(); if(!t || t.length > 2000 || /[\u0000- <>"']/.test(t)) return null;
+    for(var i = 0; i < GD_LINKS.length; i++){ var m = GD_LINKS[i].exec(t); if(m) return m[1]; } return null; }
+  function gdChip(key, id, name, share, words){
+    var a = document.createElement('a'); a.className = 'note-link'; a.setAttribute('data-src', key); a.setAttribute('data-gdrive', key);
+    a.setAttribute('data-gdrive-share', share ? '1' : '0');
+    if(id){ a.setAttribute('href', 'https://drive.google.com/file/d/' + id + '/view'); a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); a.setAttribute('data-gdrive-id', id);
+      var nm = gdName(name); if(nm) a.setAttribute('data-file-name', nm); }
+    else a.setAttribute('href', '#');
+    a.setAttribute('title', (share ? 'Shown on share links. ' : 'Hidden on share links. ') + 'Opens in Google Drive.');
+    if(words) a.textContent = words; return a; }
+  // the id of a chip: on the chip, or (a chip hidden from share links) in the page's own _ALTO_LOCAL map, which a share drops
+  function gdIdOf(a){ var id = a.getAttribute('data-gdrive-id') || ''; if(GD_ID.test(id)) return id;
+    var L = (window['_ALTO_' + 'LOCAL'] || {}).drive || {}; id = L[a.getAttribute('data-gdrive') || '']; return typeof id === 'string' && GD_ID.test(id) ? id : ''; }
+  window.addEventListener('click', function(e){
+    var a = e.target && e.target.closest && e.target.closest('a[data-gdrive]');
+    if(!a || (editing() && cur && cur.el.contains(a))) return;
+    e.preventDefault(); e.stopPropagation(); var id = gdIdOf(a);
+    if(id) window.open('https://drive.google.com/file/d/' + id + '/view', '_blank', 'noopener,noreferrer');
+  }, true);
+  function gdMake(files){
+    var b = linkBox(), share = !!(b.querySelector('.al-dsh-cb') || {}).checked, keep = savedRange, first = null, last = null, n = 1;
+    files.slice(0, 5).forEach(function(f, i){
+      if(!f || !GD_ID.test(f.id || '')) return; var nm = gdName(f.name) || 'Drive file';
+      if(!first){ first = gdChip(rid('gd-'), f.id, nm, share); savedRange = keep; wrapSel(first); last = first; return; }
+      var sep = document.createTextNode(', '); last.parentNode.insertBefore(sep, last.nextSibling);
+      /* the words of a further file are NEUTRAL, never its Drive name: a chip's words go to share links, offline copies and previews even when the chip is hidden there */
+      var c = gdChip(rid('gd-'), f.id, nm, share, 'Drive file ' + (++n)); sep.parentNode.insertBefore(c, sep.nextSibling); last = c; });
+    if(!first) b.querySelector('.al-msg').textContent = 'That Drive file could not be linked.';
+  }
+  function linkDriveUrl(){
+    var b = linkBox(), id = gdParse(b.querySelector('.al-dl').value);
+    if(!id){ b.querySelector('.al-msg').textContent = 'Paste a Google Drive link (docs.google.com or drive.google.com).'; return; }
+    gdMake([{id: id, name: b.querySelector('.al-dn').value}]);
+  }
+  /* The Picker runs on its own page (/drive-picker/, "ref" mode): it posts back ONLY [{id, name, mimeType}] and revokes its token itself, so no token ever
+     reaches this page. window._altoDriveRefPick is the seam tests replace; it must resolve [{id, name}] or null. */
+  var gdWin = null;
+  function gdPick(){
+    return new Promise(function(res, rej){
+      var cfg = gdCfg(), o = location.origin; if(!cfg || !o || o === 'null') return rej(new Error('origin'));
+      var w = window.open('/drive-picker/', 'alto-drive-picker', 'popup=yes,width=980,height=680'); if(!w) return rej(new Error('popup'));
+      gdWin = w; var fin = false, t = null;
+      function end(v){ if(fin) return; fin = true; window.removeEventListener('message', on); if(t) clearInterval(t); gdWin = null; res(v); }
+      function on(e){ if(e.origin !== o || e.source !== w || !e.data) return;
+        if(e.data.alto === 'drive-ready'){
+          var u = window.AltoCloud && window.AltoCloud.user, mail = u && typeof u.email === 'string' ? u.email : '';
+          w.postMessage({alto: 'drive-config', cfg: {client_id: cfg.client_id, api_key: cfg.api_key, app_id: cfg.app_id, mode: 'ref', login_hint: mail}}, o); }
+        else if(e.data.alto === 'drive-picked'){ var r = e.data.result; end(r && Array.isArray(r.files) ? r.files : null); } }
+      window.addEventListener('message', on);
+      t = setInterval(function(){ try{ if(w.closed) return end(null);
+        if(window.AltoCloud && window.AltoCloud.enabled && !window.AltoCloud.user){ w.close(); end(null); } }catch(x){ end(null); } }, 500);
+    });
+  }
+  function linkDrive(){
+    var b = linkBox(), pick = window._altoDriveRefPick || gdPick;
+    b.querySelector('.al-msg').textContent = '';
+    Promise.resolve().then(function(){ return pick(gdCfg()); }).then(function(files){ if(files && files.length) gdMake(files); })
+      .catch(function(){ b.querySelector('.al-msg').textContent = 'Google Drive could not open here. Paste the file’s link instead, or use a computer to browse Drive.'; });
+  }
+  document.addEventListener('dblclick', function(e){
+    var a = e.target && e.target.closest && e.target.closest('a[data-gdrive]');
+    if(!a || !editing() || !cur || !cur.el.contains(a)) return;
+    e.preventDefault(); var on = a.getAttribute('data-gdrive-share') !== '1', id = gdIdOf(a);
+    if(!id){ toast('This Drive file cannot be changed from here.'); return; }
+    if(on && !a.getAttribute('data-gdrive-id')){ a.setAttribute('data-gdrive-id', id); a.setAttribute('href', 'https://drive.google.com/file/d/' + id + '/view'); }
+    a.setAttribute('data-gdrive-share', on ? '1' : '0'); a.setAttribute('title', (on ? 'Shown on share links. ' : 'Hidden on share links. ') + 'Opens in Google Drive.');
+    toast(on ? 'Share links will show this Drive file.' : 'Share links will not show this Drive file.');
+  }, true);
+  function linkFile(){
+    var b = linkBox(), keep = savedRange;"""
+_DRIVE_CSS = """
+  /* Add from Drive (alto/drive_common.py): a chip is a reference; on a phone the link box is a sheet at the foot of the screen */
+  a.note-link[data-gdrive]{text-decoration-style:dotted;}
+  a.note-link[data-gdrive]::after{content:" \\2197";font-size:.8em;opacity:.7;}
+  #aed-link .al-dl,#aed-link .al-dn{margin-top:6px;}
+  #aed-link .al-dsh{display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;}
+  #aed-link .al-dsh input{width:auto;margin:0;}
+  #aed-link{box-sizing:border-box;max-width:calc(100vw - 40px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;}
+  #aed-link .al-fk,#aed-link .al-dsh,#aed-link .al-msg{white-space:normal;overflow-wrap:anywhere;word-break:normal;}
+  #aed-link .al-fk{display:block;}
+  #aed-link .al-hd{position:sticky;top:-12px;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-12px -12px 8px;padding:8px 8px 8px 12px;
+    background:var(--surface);border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;}
+  #aed-link .al-hd h5{margin:0;}
+  #aed-link .al-x{flex:none;width:28px;height:28px;padding:0;margin:0;border:0;border-radius:14px;background:none;color:var(--muted);font:inherit;font-size:14px;line-height:28px;cursor:pointer;}
+  html.mobile #aed-link .al-go button{height:40px;}
+  html.mobile #aed-link .al-x{width:36px;height:36px;border-radius:18px;line-height:36px;}
+  html.mobile #aed-link input{font-size:16px;}
+"""
+
+
+def drive_patch(js: str, css: str, cfg=None) -> "tuple[str, str]":
+    """MANUAL_JS and its CSS with the Drive chip built in (see the block comment above). Each patch must match exactly once."""
+    for old, new in ((_DRIVE_X_OLD, _DRIVE_X_NEW), (_DRIVE_CANCEL_OLD, _DRIVE_CANCEL_NEW), (_DRIVE_PLACE_OLD, _DRIVE_PLACE_NEW), (_DRIVE_BOX_OLD, _DRIVE_BOX_NEW), (_DRIVE_CLICK_OLD, _DRIVE_CLICK_NEW), (_DRIVE_WALK_OLD, _DRIVE_WALK_NEW), (_DRIVE_FN_OLD, _DRIVE_FN_NEW)):
+        if js.count(old) != 1:
+            raise ValueError("manual_edit: the Drive patch no longer matches MANUAL_JS exactly once: " + old.strip()[:60])
+        js = js.replace(old, new, 1)
+    css = css.replace("</style>", _DRIVE_CSS + "</style>")
+    return js, css
+
+
+def drive_cfg_script(cfg) -> str:
+    """The three PUBLIC Picker identifiers, for the page (they ride in it by design; the client SECRET is never needed)."""
+    return ('<script id="alto-drive-cfg">window._ALTO_DRIVE='
+            + js_json({"client_id": cfg.client_id, "api_key": cfg.api_key, "app_id": cfg.app_id}) + ";</script>\n")

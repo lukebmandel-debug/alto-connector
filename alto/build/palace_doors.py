@@ -142,7 +142,7 @@ function head(kind, A, total, color, base, outline){
 var CHEV='<svg class="pd-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>';
 function door(d, i, unit, ns){
   var pm=(d.act!=null && typeof PHASE_META!=='undefined')?PHASE_META[d.act]:null, col=pm&&pm.colorRaw?pm.colorRaw:'var(--accent,#6d5bd0)';
-  var kick=pm?('Unit '+(pm.numeral||(d.act+1))+(pm.label&&!d.band?' \u00b7 '+pm.label:'')):'', id=ns+'-'+i;
+  var kick=pm?('Unit '+window._altoU(d.act+1, pm.numeral ? 'roman' : 'numbers')+(pm.label&&!d.band?' \u00b7 '+pm.label:'')):'', id=ns+'-'+i;
   var u=d.n===1?String(unit).replace(/s$/,''):unit;
   var name=(d.num?d.num+' ':'')+d.title;
   return '<div class="detail-section pd-dept" id="'+id+'" data-pd="'+esc(d.id)+'" style="--pd-c:'+col+'">'
@@ -224,7 +224,7 @@ def axis_index_glue() -> str:
         ("  groups.forEach(function(g){\n",
          "  if(window._palDoors){\n"
          "    var items = groups.map(function(g){\n"
-         "      var head = g.c.band ? '' : '<span class=\"alto-link\" data-sd-type=\"node\" data-sd-id=\"'+g.c.id+'\">Open '+(num[g.c.id]?num[g.c.id]+' ':'')+g.c.title+' \\u203a</span>';\n"
+         "      var head = g.c.band ? '' : '<span class=\"alto-link\" data-sd-type=\"node\" data-sd-id=\"'+g.c.id+'\">Open '+(num[g.c.id]?window._altoP(num[g.c.id])+' ':'')+g.c.title+' \\u203a</span>';\n"
          "      return {id:g.c.id, title:g.c.title, num:g.c.band?'':(num[g.c.id]||''), head:head, n:g.rows.length,\n"
          "        band:!!g.c.band, act:g.c.band ? +String(g.c.id).replace('act-','') : ((typeof NODE_ACT!=='undefined' && NODE_ACT[g.c.id]!=null) ? NODE_ACT[g.c.id] : null),\n"
          "        html:g.rows.map(function(r){ return row(r.id, r.via); }).join('')};\n"

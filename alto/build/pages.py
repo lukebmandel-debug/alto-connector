@@ -329,7 +329,7 @@ def build_home(projects: list[dict]) -> str:
     if bass_ui.enabled():                                      # Bass (bass_ui.py): the Bass | Claude switch in the new-project window, its Info line; off, the home page is untouched
         template = _rep(template, bass_ui.HOME_ANCHOR_CSS, bass_ui.HOME_CSS + bass_ui.HOME_ANCHOR_CSS, 1, "bass switch css")
         template = _rep(template, bass_ui.HOME_SWITCH_ANCHOR, bass_ui.HOME_SWITCH + bass_ui.HOME_SWITCH_ANCHOR, 1, "bass switch")
-        template = _rep(template, bass_ui.HOME_BOX_ANCHOR, bass_ui.HOME_BOX_ANCHOR + bass_ui.HOME_BOX, 1, "bass box")
+        template = _rep(template, bass_ui.HOME_BOX_ANCHOR, bass_ui.HOME_BOX + bass_ui.HOME_BOX_ANCHOR, 1, "bass box")
         template = _rep(template, bass_ui.HOME_ANCHOR_JS, bass_ui.home_js() + bass_ui.HOME_ANCHOR_JS, 1, "bass switch js")
         template = _rep(template, bass_ui.INFO_HOME_ANCHOR, bass_ui.INFO_HOME_NEW + bass_ui.INFO_HOME_ANCHOR, 1, "bass home info")
     template = _rep(template, _SEARCH_FOCUS_HOME_OLD,

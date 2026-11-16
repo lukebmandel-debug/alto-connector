@@ -200,8 +200,8 @@ def test_the_card_is_a_spread_inside_the_box_clear_of_the_edges_and_the_corner_c
         assert r[0] >= c[0] and r[2] <= c[2] + 0.5 and r[1] >= c[1] - 0.5 and r[3] <= c[3] + 0.5, (k, r, c)
 
 
-@pytest.mark.parametrize("key", LAND_KEYS, ids=lambda k: "-".join(map(str, k)))
-def test_c3_the_focus_button_sits_in_the_cards_corner_on_nothing_else(cells, key):
+@pytest.mark.parametrize("key", [k for k in LAND_KEYS if k[0] == "ol"], ids=lambda k: "-".join(map(str, k)))
+def test_c3_the_focus_button_sits_in_the_outline_cards_corner_on_nothing_else(cells, key):
     m = cells[key]
     af, c = m["af"], m["card"]
     assert m["afOn"] and af, "the focus button is shown on an enlarged card"
@@ -211,6 +211,13 @@ def test_c3_the_focus_button_sits_in_the_cards_corner_on_nothing_else(cells, key
         if m.get(k):
             assert not _inter(af, m[k], 1), (k, af, m[k])
     assert af[2] - af[0] >= 34 - .5 and af[3] - af[1] >= 34 - .5            # still a 34 pt button
+
+
+@pytest.mark.parametrize("key", [k for k in LAND_KEYS if k[0] == "tl"], ids=lambda k: "-".join(map(str, k)))
+def test_c3_a_timelines_enlarged_card_has_no_focus_button(cells, key):
+    """L-1114-focus: Focus mode lives on the normal outline only. (A timeline's card used to carry it in the corner, a 34 pt button.)"""
+    m = cells[key]
+    assert not m["afOn"] and not m["af"], (m["afOn"], m["af"])
 
 
 @pytest.mark.parametrize("st", STYLES)

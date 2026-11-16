@@ -14,6 +14,8 @@ rules_version = '2';
 // Layout written by alto-cloud.js (v3) and alto/store/cloud.py:
 //   users/{uid}                         { theme, homeSort, homeBg, ... }   account-wide
 //   users/{uid}/tl/{tid}                { highlights, hl_removed, ..., updatedAt }
+//                                       (bg/bgAt, chips/chipsAt, un/unAt: the owner's per-timeline
+//                                       settings; owner-only like the rest of the document)
 //   users/{uid}/tl/{tid}/reports/{id}   { data, deleted, ts }
 //   users/{uid}/pages/{key}             { z|html, title, shareKey, updatedAt }  private
 //   users/{uid}/pagemeta/{key}          { title, heading, shareKey, ... }

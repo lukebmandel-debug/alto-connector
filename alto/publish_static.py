@@ -49,6 +49,7 @@ from .build.pages import build_home, build_reports
 from .build.private_shell import shell as private_shell
 from .build.share_shell import shell as share_shell
 from .build.single_file import private_page
+from .build.engine_stamp import stamp as stamp_engine
 from .hosted import hosted_home, hosted_reports
 from .cloud import emit_cloud_js, load_config, write_cloud_js
 from .store.local import check_component
@@ -193,7 +194,10 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # This deploy's stamp, in every private shell: a page cached under an
     # older one is fetched fresh instead of shown and then swapped (see
     # private_shell, SITE_V). Opaque and compared only for equality.
-    site_v = secrets.token_hex(6)
+    # Derived from what the deploy ships (this code, the script), not random: a
+    # random one made every regenerate differ, so a one-timeline publish could
+    # never be told apart from a changed site and always redeployed it.
+    site_v = hashlib.sha256(f"{cloud_v}|{build_fingerprint()}".encode()).hexdigest()[:12]
     # A private timeline is opened by signing in; with no Firebase project there
     # is nothing to sign into, so the shell would be a locked door with no key —
     # and the page would never reach Firestore to begin with. Refuse rather than
@@ -224,7 +228,10 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             stale_notes.append(f"{tid}: {stale}")
         if raw:
             b, _, _ = load_brief({"brief": t["brief"]})
-            page = private_page(b, raw, name_by_pid.get(t.get("project_id", ""), ""))
+            # Stamped here too: this artifact REPLACES the one build_timeline
+            # stamped, and it is what gets stored. Unstamped, no page could say
+            # which Alto built it and the no-downgrade guard had nothing to compare.
+            page = stamp_engine(private_page(b, raw, name_by_pid.get(t.get("project_id", ""), "")))
             cmap_refs |= palace_tiles.page_refs(page)          # the city base the page loads (build/palace_tiles.py)
             store.put_artifact(uid, tid, "private.html", page)
 
@@ -257,7 +264,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         cdir.mkdir(parents=True, exist_ok=True)
         (cdir / "index.html").write_text(connect_page(cloud_v), encoding="utf-8")
 
-    # Bass "Add from Drive": the Picker's own page (build/drive_picker_page.py); written only when the Bass UI is built in with a proxy base
+    # Bass "Add from Drive": the Picker's own page (build/drive_picker_page.py); written only when the Bass UI is built in with a proxy base, or manual edit's Add from Drive is on (all three ALTO_DRIVE_* set)
     if _picker_csp():
         from .build.drive_picker_page import FOLDER as _PK, picker_js, picker_page
         pkdir = site / _PK
@@ -469,7 +476,8 @@ def _picker_csp() -> str | None:
     (ALTO_BASS_UI and a proxy base), so a site without Bass is byte-identical. Never applied to any other path."""
     from .build import bass_ui
     from .build.drive_picker_page import PICKER_CSP
-    return PICKER_CSP if bass_ui.enabled() and bass_ui.base_url() else None
+    from .drive_common import enabled as drive_on           # manual edit's Add from Drive (alto/drive_common.py): the same page, in "ref" mode
+    return PICKER_CSP if (bass_ui.enabled() and bass_ui.base_url()) or drive_on() else None
 
 
 def _csp(form_action: str, own: str = "") -> str:
@@ -678,6 +686,46 @@ def _cmap_rules(names) -> list:
     return rules
 
 
+def site_digest(site_dir: Path) -> str:
+    """One hash of everything a deploy ships: every file of the site, the
+    security rules and the headers. Equal digests mean a deploy would put the
+    same site on the web again."""
+    h = hashlib.sha256()
+    for p in sorted(Path(site_dir).rglob("*")):
+        if p.is_file():
+            h.update(p.relative_to(site_dir).as_posix().encode() + b"\0")
+            h.update(hashlib.sha256(p.read_bytes()).digest())
+    cfg = firebase_configured()
+    h.update(rules_path().read_bytes())
+    h.update(json.dumps(_security_headers(Path(site_dir), cfg[1] if cfg else None), sort_keys=True).encode())
+    return h.hexdigest()
+
+
+def deploy_if_changed(site_dir: Path) -> tuple[str, bool]:
+    """deploy_site, unless the site's own files are what the last successful
+    deploy shipped. Publishing one timeline only changes its page in Firestore,
+    so it no longer redeploys the whole site (and re-verifies it). Returns
+    (live url, deployed). A first publish, a changed file, key, rules or header
+    always deploys."""
+    marker = _marker(site_dir)
+    digest = site_digest(site_dir)
+    cfg = firebase_configured()
+    if cfg and marker.exists() and marker.read_text().strip() == digest:
+        return f"https://{cfg[1]}.web.app", False
+    live = deploy_site(site_dir)      # (deploy_site clears the marker; it is written again only by mark_deployed, after the live check passes)
+    return live, True
+
+
+def _marker(site_dir: Path) -> Path:
+    return Path(site_dir).parent / ".alto-deployed-digest"
+
+
+def mark_deployed(site_dir: Path) -> None:
+    """Record that this site's files are what is live AND verified (verify_live found no drift). Called by the publish only after that check, so a
+    live_mismatch leaves no record and the re-run it asks for deploys and verifies again (STAMP-233 pubstamp fix)."""
+    _marker(site_dir).write_text(site_digest(site_dir))
+
+
 def deploy_site(site_dir: Path) -> str:
     """firebase deploy --only hosting:<site> (CLI must be logged in to the
     project). Site/project come from ALTO_FIREBASE_SITE / ALTO_FIREBASE_PROJECT."""
@@ -688,6 +736,10 @@ def deploy_site(site_dir: Path) -> str:
             "the user their own site (never ask them to set it up) "
             "or share the offline file instead")
     fb, site, project = cfg
+    try:                              # a direct deploy changes what is live: any earlier "deployed and verified" record is void until a check passes again
+        _marker(site_dir).unlink()
+    except FileNotFoundError:
+        pass
     # The rules travel with the site. Everything Alto stores in Firestore is
     # governed by them, and until now deploying them was a README step nobody
     # was reminded of — a Firestore left in test mode is world-readable and

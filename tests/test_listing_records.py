@@ -162,7 +162,7 @@ def test_phones_follow_a_find_link_too():
 
 def test_section_headers_sit_inside_the_window_edges():
     t = apply_patches(engine_template("timeline_template.html"))
-    assert "bar.style.left='20px'; bar.style.right='20px';" in t
+    assert "bar.style.left='calc(20px - var(--xl,0px))'; bar.style.right='calc(20px - var(--xr,0px))';" in t
     assert "lbl.style.left='29px';" in t
     assert "right:29px !important;" in t
     assert "font-weight:700; text-transform:uppercase;" in t
