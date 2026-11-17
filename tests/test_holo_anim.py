@@ -26,8 +26,9 @@ except ImportError:
     pw = None
 
 IPHONE = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
-KIND = {"h-signal-rain": "rain", "h-grid-horizon": "sweep", "h-lightspeed": "drift", "h-neon-rain": "neon", "h-amber-haze": "haze", "h-targeting": "target"}
-COUNT = {"rain": 3, "sweep": 1, "drift": 2, "neon": 4, "haze": 3, "target": 3}
+KIND = {"h-signal-rain": "rain", "h-grid-horizon": "sweep", "h-lightspeed": "drift", "h-neon-rain": "neon", "h-amber-haze": "haze", "h-targeting": "target",
+        "h-rooftop-aurora": "aurora", "h-docking-bay": "bay", "h-jade-alley": "jade", "h-dune-beacon": "dune", "h-sky-tether": "tether"}
+COUNT = {"rain": 3, "sweep": 1, "drift": 2, "neon": 4, "haze": 3, "target": 3, "aurora": 0, "bay": 0, "jade": 0, "dune": 0, "tether": 0}
 
 
 def _outline():
@@ -392,7 +393,7 @@ def test_the_clip_is_hosted_off_the_page_by_content_hash_and_named_only_by_the_h
     if not holo_video.paths():
         pytest.skip("no clip file")
     fs = holo_video.files()
-    assert len(fs) == 6
+    assert len(fs) == 11
     for name, data in fs:
         assert holo_video.NAME_RE.match(name) and data[4:8] == b"ftyp" and len(data) < 6_000_000, (name, len(data))
     name = dict((n.rsplit("-", 1)[0], n) for n, _ in fs)["neon-rain"]

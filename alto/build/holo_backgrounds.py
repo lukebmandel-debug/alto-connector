@@ -206,6 +206,10 @@ HOLO_BGS = [
 ]
 
 
+from . import holo_scenes2 as _s2      # noqa: E402  (7-11, the round-2 scenes; it imports the helpers above)
+HOLO_BGS.extend(_s2.SCENES)
+
+
 def client_entries() -> dict:
     """Catalog entries the Holographic script adds while the style is on: {id: {g, k 'h', n, l, d}}."""
     out = {}

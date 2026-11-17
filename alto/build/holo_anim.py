@@ -34,7 +34,8 @@ from urllib.parse import quote, unquote
 
 from . import holo_backgrounds as _hb, holo_video as _hv
 
-IDS = {"h-signal-rain": "rain", "h-grid-horizon": "sweep", "h-lightspeed": "drift", "h-neon-rain": "neon", "h-amber-haze": "haze", "h-targeting": "target"}   # background id -> its animation
+IDS = {"h-signal-rain": "rain", "h-grid-horizon": "sweep", "h-lightspeed": "drift", "h-neon-rain": "neon", "h-amber-haze": "haze", "h-targeting": "target",
+       "h-rooftop-aurora": "aurora", "h-docking-bay": "bay", "h-jade-alley": "jade", "h-dune-beacon": "dune", "h-sky-tether": "tether"}   # background id -> its animation
 INK = "79,240,224"
 INK_HEX = "4ff0e0"          # the style's cyan light (holo.py TOKENS dark ac)
 LOOP = 12                   # seconds: Neon rain's loop. Every layer's period divides it (rain 4 s and 6 s a tile, both signs 12 s), so frame 360 is frame 0 and the video's seam is invisible
@@ -188,6 +189,7 @@ _RING = lambda r, op, dash: (f'<svg viewBox="{-r - 2} {-r - 2} {2 * r + 4} {2 * 
 HTML = {"rain": "<i></i><i></i><i></i>", "sweep": "<i></i>", "drift": "<div>" + _drift_svg() + "</div><div>" + _drift_svg() + "</div>",
         "neon": '<div class="rf"><i></i></div><div class="rn"><i></i></div><div class="ha-scene">' + _NEON_HTML + "</div>",
         "haze": '<div class="ha-scene"><i class="sun"></i></div><div class="dust df"></div><div class="dust dn"></div>',
+        "aurora": "", "bay": "", "jade": "", "dune": "", "tether": "",     # 7-11: video only (their motion is made in docs/holo-video/render_frames.py), no CSS layer
         "target": '<div class="ha-scene"><div class="pa"><i class="ping"></i></div><div class="ring r1">' + _RING(170, .35, "2 10") + '</div><div class="ring r2">' + _RING(380, .2, "40 14") + "</div></div>"}
 
 # the hosted script's part: the layer follows the painted background (window._altoBgId), on a computer, with Holographic on, Reduce Motion off
@@ -200,7 +202,7 @@ var HAM=(function(){ try{ var m=localStorage.getItem('alto-holo-anim'); if(HA.mo
 if(!haok) window.addEventListener('load', function(){ setTimeout(function(){ haok=true; hasync(); }, 0); });
 // Phone framing (390 wide shows a 1/4 slice of a 16:10 picture): per-background focal x (fraction of the picture's width), the picture and the clip both `cover` the viewport (fixed) and
 // are shifted so that point sits mid-screen. The poster's rule is in the page as soon as a Holographic background is painted (also for Reduce Motion / Save-Data), the clip follows via hafit.
-var HAFX={target:.719,haze:.62}, hapq=window.matchMedia ? window.matchMedia('(max-width:640px)') : null;
+var HAFX={target:.719,haze:.62,dune:.53,tether:.58}, hapq=window.matchMedia ? window.matchMedia('(max-width:640px)') : null;
 function haph(){ return !!(hapq && hapq.matches); }
 function hafp(k){ var W=innerWidth, w=Math.max(W,1.6*innerHeight), f=HAFX[k]==null?.5:HAFX[k]; return w>W+1 ? Math.max(0,Math.min(1,(W/2-f*w)/(W-w))) : .5; }
 function hafocus(){

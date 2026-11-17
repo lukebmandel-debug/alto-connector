@@ -196,7 +196,7 @@ def _worst_contrast(webkit, site, ground, dark, size, shot=None):
     return worst
 
 
-@pytest.mark.parametrize("ground,dark,size", [(g, d, z) for g in ("h-neon-rain", "h-amber-haze", "h-grid-horizon", "h-signal-rain", "h-targeting", "h-lightspeed", None) for d, z in ((True, (1440, 900)), (True, (402, 874)), (False, (402, 874)))])
+@pytest.mark.parametrize("ground,dark,size", [(g, d, z) for g in ("h-neon-rain", "h-amber-haze", "h-grid-horizon", "h-signal-rain", "h-targeting", "h-lightspeed", "h-rooftop-aurora", "h-docking-bay", "h-jade-alley", "h-dune-beacon", "h-sky-tether", None) for d, z in ((True, (1440, 900)), (True, (402, 874)), (False, (402, 874)))])
 def test_labels_clear_4_5_over_a_loaded_ground(webkit, site, ground, dark, size):
     w = _worst_contrast(webkit, site, ground, dark, size)
     assert {"title", "pname", "rprivate", "rsort", "units", "bars"} <= set(w) and ("spcard" in w) == (size[0] > 640) and ("spchip" in w) == (size[0] > 640), w   # (the study-plan line is a computer's)

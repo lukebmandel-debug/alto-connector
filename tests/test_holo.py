@@ -384,7 +384,7 @@ def test_a_system_keeps_its_planets_round(browser, site):
 def test_each_holographic_background_keeps_its_ground_under_the_text_tokens():
     """Text sits on solid plates, but the free labels' ink must still read on each scene's ground (top, middle, bottom), light and dark."""
     e = hb.client_entries()
-    assert len(e) == 6 and all(v["k"] == "h" and v["g"] == "Holographic" for v in e.values())
+    assert len(e) == 11 and all(v["k"] == "h" and v["g"] == "Holographic" for v in e.values())
     for hid, v in e.items():
         for theme, key in (("light", "l"), ("dark", "d")):
             grounds = re.findall(r"#[0-9a-f]{6}", v[key]["b"].rsplit("linear-gradient", 1)[1])

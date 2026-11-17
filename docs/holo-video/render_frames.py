@@ -13,7 +13,8 @@ sys.path.insert(0, str(ROOT))
 from playwright.sync_api import sync_playwright   # noqa: E402
 from alto.build import holo_anim as ha, holo_backgrounds as hb   # noqa: E402
 
-BG = {"neon": "h-neon-rain", "rain": "h-signal-rain", "sweep": "h-grid-horizon", "drift": "h-lightspeed", "haze": "h-amber-haze", "target": "h-targeting"}
+BG = {"neon": "h-neon-rain", "rain": "h-signal-rain", "sweep": "h-grid-horizon", "drift": "h-lightspeed", "haze": "h-amber-haze", "target": "h-targeting",
+      "aurora": "h-rooftop-aurora", "bay": "h-docking-bay", "jade": "h-jade-alley", "dune": "h-dune-beacon", "tether": "h-sky-tether"}
 LOOP = {k: ha.LOOP for k in BG}
 # Loop overrides (Art stage-2 notes): every period divides 12 s and no motion is faster than the CSS the sheet approved (same px/s, same degrees/s; the swing/fade ranges shrink to fit).
 def _loop_css(kind: str) -> str:
@@ -46,6 +47,9 @@ def _rings() -> str:    # one dotted ring and one dashed ring, each an exact num
     return ('<div class="ha-scene"><div class="pa"><i class="ping"></i></div><div class="ring r1">' + ring(170, 90, 2, .35) + '</div><div class="ring r2">' + ring(380, 45, 40, .2) + "</div></div>")
 LOOPKEYS = {"target": ".ha-target .r1{animation:ha-turn1 12s linear infinite}@keyframes ha-turn1{to{transform:rotate(72deg)}}.ha-target .r2{animation:ha-turn2 12s linear infinite}@keyframes ha-turn2{to{transform:rotate(-48deg)}}"}
 W, H = 1920, 1200
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import overlays2 as _o2   # noqa: E402
+_ov = _o2.overlay
 
 
 def page(kind: str) -> str:
@@ -53,8 +57,8 @@ def page(kind: str) -> str:
     if kind == "target":
         pic = ha._DA                                                       # Art FIX 2: no still dashed rings under the turning ones
     return ("<!doctype html><html class='alto-holo'><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}"
-            "#pic{position:fixed;inset:0;filter:brightness(1) blur(0px) saturate(1.15);background:" + pic + "}</style><style>" + ha.CSS + _loop_css(kind) + (LOOPKEYS.get(kind, "")) + "</style></head><body>"
-            "<div id='pic'></div><div id='alto-ha' class='ha ha-" + kind + "'><b class='zp'></b>" + (_rings() if kind == "target" else ha.HTML[kind]) + "</div></body></html>")
+            "#pic{position:fixed;inset:0;filter:brightness(1) blur(0px) saturate(1.15);background:" + pic + "}</style><style>" + ha.CSS + (_ov(kind)[1] if kind in _o2.KINDS else "") + _loop_css(kind) + (LOOPKEYS.get(kind, "")) + "</style></head><body>"
+            "<div id='pic'></div><div id='alto-ha' class='ha ha-" + kind + "'><b class='zp'></b>" + (_rings() if kind == "target" else _ov(kind)[0] if kind in _o2.KINDS else ha.HTML[kind]) + "</div></body></html>")
 
 
 def main():
@@ -73,7 +77,9 @@ def main():
         pg.evaluate("""(()=>{const s=document.querySelector('.ha-scene'); if(s){ s.style.cssText='left:0;bottom:0;width:100%;transform:none'; }
           document.querySelectorAll('.rn,.rf').forEach(e=>e.style.inset='-'+Math.ceil(.13*innerWidth)+'px')})()""")
         pg.wait_for_timeout(500)
-        for i in list(range(lim)) + (["end"] if lim == n else []):
+        import os
+        frames = [int(x) for x in os.environ['HV_FRAMES'].split(',')] if os.environ.get('HV_FRAMES') else list(range(lim)) + (["end"] if lim == n else [])
+        for i in frames:
             t = (n if i == "end" else i) / fps * 1000
             pg.evaluate("""t=>new Promise(r=>{ document.getAnimations().forEach(a=>{a.pause(); a.currentTime=t}); requestAnimationFrame(()=>requestAnimationFrame(r)) })""", t)
             pg.screenshot(path=str(out / (f"frame_{i:04d}.png" if i != "end" else "frame_end.png")))
