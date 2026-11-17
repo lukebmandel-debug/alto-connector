@@ -121,7 +121,7 @@ def _build():
                                  lambda: secrets.c.access_secret_version(name=hmac_name, timeout=10).payload.data.decode("utf-8"),   # 10 s, not the function's
                                  lambda: dt.datetime.now(dt.timezone.utc))
     return Proxy(cfg, GuardStore(db), verifier, secrets, ToolBox(AltoStore()),
-                 clock=lambda: dt.datetime.now(dt.timezone.utc), blobs=blobs, research=research)
+                 clock=lambda: dt.datetime.now(dt.timezone.utc), blobs=blobs, research=research, hosted=True)
 
 
 # -- hosted Bass for ONE account (alto/bass/hosted.py): the gate in front of the Proxy. NOT DEPLOYED; deploy/bass-proxy/fb_main.py is its
@@ -162,7 +162,7 @@ def build_hosted(adapters=None):
         DELETE_FIELD, SERVER_TIMESTAMP = getattr(db, "DELETE_FIELD", None), getattr(db, "SERVER_TIMESTAMP", None)
     alto_store = AdminCloudStore(db, uid, LocalStore(tempfile.mkdtemp(prefix="altoext-")), os.environ["ALTO_EXT_PROJECT"],
                                  delete_field=DELETE_FIELD, server_timestamp=SERVER_TIMESTAMP)
-    proxy = Proxy(cfg, store, verifier, secrets, HostedToolBox(alto_store, uid), clock=clock)
+    proxy = Proxy(cfg, store, verifier, secrets, HostedToolBox(alto_store, uid), clock=clock, hosted=True)
     from alto.bass import editbass                                  # Edit with Bass: preview / apply / undo on the pinned account's own timelines
 
     def owns(who, tid):                                             # the verified uid owns this timeline id (the store is pinned to one uid: any other raises)

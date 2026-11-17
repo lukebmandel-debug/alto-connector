@@ -52,6 +52,7 @@ EXPECTED_SKIPPED_WITHOUT_SDK = {
     "tests/test_bass_inert_public.py",
     "tests/test_bass_isolation_1111.py",
     "tests/test_bass_keystrip_1116.py",
+    "tests/test_bass_netguard_hotfix_1117.py",
     "tests/test_bass_live_check.py",
     "tests/test_bass_live_fixes.py",
     "tests/test_bass_local_server.py",
