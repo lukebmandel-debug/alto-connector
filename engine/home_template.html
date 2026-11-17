@@ -854,6 +854,25 @@
   .nt-claude{ width:100%; min-height:44px; padding:8px 12px; border-radius:10px; border:0; margin:0; cursor:pointer; background:#b4532f; color:#fff; font-family:inherit; font-size:13.5px; letter-spacing:.04em; }
   #nt-modal[data-tab]:not([data-tab="self"]) > :not(.nt-keep){ display:none !important; }
   @media (max-width:640px){ #nt-modal{ width:calc(100vw - 40px); max-width:none; } }
+  /* the ONE format picker, above the tabs: every way in uses the same choice, and it is kept when the tab changes */
+  .nt-fmt{ margin:0 0 14px; }
+  .nt-fl{ font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 8px; }
+  .nt-fmt .nt-kinds{ margin:0 0 10px; } .nt-fmt .nt-modes{ margin:0 0 10px; }
+  .nt-kind{ position:relative; }
+  .nt-kind .nt-t, .nt-kind small{ display:block; }
+  .nt-kind.on{ background:linear-gradient(color-mix(in srgb,var(--text) 9%,transparent),color-mix(in srgb,var(--text) 9%,transparent)),var(--card-glass-bg); }
+  .nt-kind.on::after{ content:"\2713"; position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; background:var(--text); color:var(--bg); font-size:12px; line-height:20px; text-align:center; font-weight:700; }
+  @media (max-width:640px){
+    #nt-modal{ padding:18px 18px 16px; }
+    #nt-fmt .nt-kinds:not(.nt-sck){ grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:1fr; gap:8px; margin:0 0 8px; }
+    #nt-fmt .nt-kinds:not(.nt-sck) .nt-kind{ grid-template-columns:40px minmax(0,1fr); min-height:56px; padding:7px 8px; column-gap:8px; row-gap:0; }
+    #nt-fmt .nt-kinds:not(.nt-sck) .nt-kind .nt-pv{ width:40px; }
+    #nt-fmt .nt-kinds:not(.nt-sck) .nt-kind small{ font-size:0; line-height:0; }
+    #nt-fmt .nt-kinds:not(.nt-sck) .nt-kind small::after{ content:attr(data-s); display:block; font-size:10.5px; line-height:1.3; white-space:normal; overflow-wrap:anywhere; }   /* the whole short line, wrapping (never an ellipsis) */
+    #nt-fmt .nt-kinds:not(.nt-sck) .nt-kind .nt-t{ white-space:normal; overflow-wrap:normal; hyphens:none; font-size:12px; line-height:1.25; }   /* a name wraps between words, never inside one */
+    #nt-fmt .nt-kind.on::after{ top:3px; left:3px; right:auto; width:16px; height:16px; line-height:16px; font-size:10px; }   /* over the picture's corner, never over the words */
+    .nt-tabs{ margin:0 0 8px; }
+  }
   @media print{ .nt-tabs, .nt-pane{ display:none !important; } }
   .nt-msg{ min-height:16px; font-size:12px; color:#c2410c; line-height:1.4; margin:0 0 6px; }
   @media print{ #nt-scrim{ display:none !important; } }
@@ -1073,7 +1092,7 @@
     <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches every project and tile, and the cards and pages inside them. A result jumps straight to the spot.</p>
     <p style="margin:5px 0"><strong>On a tile</strong> &#8212; the small buttons share one, download an offline copy, or open its saved reports. The &#8943; on your own tiles moves, prints or deletes; deleted ones wait in <em>Recently deleted</em> for a while.</p>
     <p style="margin:5px 0"><strong>Account</strong> &#8212; the person <span class="d-only">bubble at the bottom left</span><span class="m-only">tile at the top left</span> signs you in with Google so your work can follow you.</p>
-    <p style="margin:5px 0"><strong>Light / Dark</strong> &#8212; the <span class="d-only">toggle at the bottom right</span><span class="m-only">moon/sun tile at the top right</span> switches the whole surface; each page has its own toggle too.</p>
+    <p style="margin:5px 0" id="info-mode"><strong>Light / Dark</strong> &#8212; each page has its own toggle.</p>
   </div>
 </div>
 
@@ -1112,17 +1131,7 @@
   <div id="nt-modal" role="dialog" aria-modal="true" aria-labelledby="nt-head">
     <div class="acct-title nt-keep" id="nt-head">New</div>
     <div class="acct-sub nt-keep" id="nt-sub"></div>
-    <div class="nt-tabs nt-keep" id="nt-tabs" role="tablist" aria-label="How to start">
-      <button type="button" class="nt-tab on" role="tab" data-tab="claude" aria-selected="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5l2 7.2 6.8-3-3 6.8 7.2 2-7.2 2 3 6.8-6.8-3-2 7.2-2-7.2-6.8 3 3-6.8-7.2-2 7.2-2-3-6.8 6.8 3z" transform="scale(.8) translate(3 3)"/></svg><span>Claude</span></button>
-      <button type="button" class="nt-tab" role="tab" data-tab="self" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></svg><span>Write it yourself</span></button>
-    </div>
-    <div class="nt-pane nt-keep" data-p="claude">
-      <p><b>Build it with Claude</b></p>
-      <p class="nt-pn">Opens Claude with the Alto connector. Claude builds the project in your chat, then you fine-tune it here.</p>
-      <button type="button" class="nt-claude" id="nt-claude">Open Claude</button>
-    </div>
-    <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Fall term"></div>
-    <label for="nt-title">Name</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Course notes">
+    <div class="nt-fmt nt-keep" id="nt-fmt"><div class="nt-fl">Format</div>
     <div class="nt-kinds" role="group" aria-label="What to start">
       <button type="button" class="nt-kind" data-kind="timeline" data-mode="sketch" aria-pressed="false"><svg class="nt-pv" data-for="sketch" viewBox="0 0 200 120" aria-hidden="true">
           <rect class="pv-band" x="6" y="8" width="188" height="32" rx="6"/><rect class="pv-band" x="6" y="44" width="188" height="32" rx="6"/><rect class="pv-band" x="6" y="80" width="188" height="32" rx="6"/>
@@ -1141,7 +1150,7 @@
           <circle class="pv-dot" cx="20" cy="64" r="2.6"/><circle class="pv-dot" cx="144" cy="64" r="2.6"/><circle class="pv-dot" cx="224" cy="64" r="2.6"/><circle class="pv-dot" cx="300" cy="64" r="2.6"/>
           <circle class="pv-dot" cx="100" cy="22" r="2.2" style="fill:#b06ef0"/><circle class="pv-dot" cx="154" cy="90" r="2.2" style="fill:#2f9e8f"/><circle class="pv-dot" cx="300" cy="22" r="2.2" style="fill:#b06ef0"/>
         </g></svg>
-        <span class="nt-t">Timeline</span><small data-for="sketch">Cards in rough order, in bands. For sketching events and sorting your thoughts.</small><small data-for="horizontal">To scale, left to right. Concurrent lines branch off and rejoin the main line.</small></button>
+        <span class="nt-t">Timeline</span><small data-for="sketch" data-s="Cards in bands">Cards in rough order, in bands. For sketching events and sorting your thoughts.</small><small data-for="horizontal" data-s="To scale, left to right">To scale, left to right. Concurrent lines branch off and rejoin the main line.</small></button>
       <button type="button" class="nt-kind on" data-kind="outline" aria-pressed="true"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
           <path class="pv-ln" d="M100 26 V34 M100 34 H32 V46 M100 34 V46 M100 34 H168 V46 M100 66 V74 M100 74 H72 V84 M100 74 H128 V84"/>
           <rect class="pv-hub" x="72" y="8" width="56" height="18" rx="5"/><text class="pv-hubt" x="100" y="20">hub</text>
@@ -1151,7 +1160,7 @@
           <rect class="pv-card" x="54" y="84" width="36" height="20" rx="4"/><text x="72" y="97">b.1</text>
           <rect class="pv-card" x="110" y="84" width="36" height="20" rx="4"/><text x="128" y="97">b.2</text>
         </svg>
-        <span class="nt-t">Outline</span><small>Ideas that hold other ideas: a subject, a course.</small></button>
+        <span class="nt-t">Outline</span><small data-s="Ideas inside ideas">Ideas that hold other ideas: a subject, a course.</small></button>
       <button type="button" class="nt-kind" data-kind="solar" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
           <defs><radialGradient id="ntsun"><stop offset="0" stop-color="#fff3c4"/><stop offset=".45" stop-color="#ffc861"/><stop offset="1" stop-color="#f08a24"/></radialGradient>
             <radialGradient id="ntglow"><stop offset="0" stop-color="#ffc861" stop-opacity=".55"/><stop offset="1" stop-color="#ffc861" stop-opacity="0"/></radialGradient></defs>
@@ -1162,11 +1171,11 @@
             <g class="pv-om"><circle class="pv-dot" cx="78.9" cy="39.8" r="2.4"/></g></g>
           <g class="pv-o3"><circle class="pv-card" cx="118.5" cy="110.7" r="4.5"/></g>
         </svg>
-        <span class="nt-t">System</span><small>Concepts as a system: suns with planets, moons and satellites you can orbit between. Switch its style any time: System, Star chart, Retro or 3D Star chart.</small></button>
+        <span class="nt-t">System</span><small data-s="Suns and planets">Concepts as a system: suns with planets, moons and satellites you can orbit between. Switch its style any time: System, Star chart, Retro or 3D Star chart.</small></button>
       <button type="button" class="nt-kind" data-kind="palace" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
           <path class="pv-ln" d="M28 103H172M38 97H162"/><rect class="pv-card" x="42" y="72" width="24" height="25" rx="1.5"/><rect class="pv-card" x="134" y="72" width="24" height="25" rx="1.5"/><path class="pv-card" d="M72 60C72 41 85 31 100 26C115 31 128 41 128 60Z"/><rect class="pv-card" x="66" y="60" width="68" height="37" rx="1.5"/><path class="pv-ln" d="M100 26V14M76 67V97M86 67V97M114 67V97M124 67V97M54 80v9M146 80v9M87 35C82.500 43 81.500 51 81.500 60M113 35C117.500 43 118.500 51 118.500 60"/><path class="pv-hub" d="M93 97V83a7 7 0 0 1 14 0v14z"/>
         </svg>
-        <span class="nt-t">Memory Palace</span><small>Your outline as a place you walk through: a city, a building, or the world. Claude builds it with you.</small></button>
+        <span class="nt-t">Memory Palace</span><small data-s="A place to walk">Your outline as a place you walk through: a city, a building, or the world. Built with you.</small></button>
     </div>
     <div class="nt-kinds nt-sck nt-pal" id="nt-pal" role="group" aria-label="Which Memory Palace" hidden>
       <button type="button" class="nt-kind" data-mode="city" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true"><path class="pv-ln" d="M20 30H180M20 60H180M20 90H180M50 12V108M100 12V108M150 12V108"/><rect class="pv-card" x="56" y="36" width="38" height="18" rx="2"/><rect class="pv-card" x="106" y="66" width="38" height="18" rx="2"/><rect class="pv-card" x="56" y="66" width="38" height="18" rx="2"/><path class="pv-route" d="M50 90V60H100V30H150"/><circle class="pv-pin" cx="50" cy="90" r="3"/><circle class="pv-pin" cx="100" cy="60" r="3"/><circle class="pv-pin" cx="150" cy="30" r="3"/></svg><span class="nt-t">Memory Map</span><small>Your outline as a real city: sections are districts, concepts are buildings.</small></button>
@@ -1181,6 +1190,18 @@
     </div>
     <div class="nt-modes" data-for="timeline" role="group" aria-label="Which timeline" hidden><button type="button" class="nt-mode on" data-mode="sketch" aria-pressed="true">Sketch</button><button type="button" class="nt-mode" data-mode="horizontal" aria-pressed="false">Horizontal</button></div>
     <div class="nt-modes" data-for="palace" role="group" aria-label="Which Memory Palace" hidden><button type="button" class="nt-mode on" data-mode="city" aria-pressed="true"><span class="nt-sym" data-sym="palace" aria-hidden="true"></span>Memory Map</button><button type="button" class="nt-mode" data-mode="building" aria-pressed="false"><span class="nt-sym" data-sym="building" aria-hidden="true"></span>Memory Blueprint</button><button type="button" class="nt-mode" data-mode="world" aria-pressed="false"><span class="nt-sym" data-sym="world" aria-hidden="true"></span>Memory Atlas</button></div>
+    </div>
+    <div class="nt-tabs nt-keep" id="nt-tabs" role="tablist" aria-label="How to start">
+      <button type="button" class="nt-tab on" role="tab" data-tab="claude" aria-selected="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5l2 7.2 6.8-3-3 6.8 7.2 2-7.2 2 3 6.8-6.8-3-2 7.2-2-7.2-6.8 3 3-6.8-7.2-2 7.2-2-3-6.8 6.8 3z" transform="scale(.8) translate(3 3)"/></svg><span>Claude</span></button>
+      <button type="button" class="nt-tab" role="tab" data-tab="self" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></svg><span>Write it yourself</span></button>
+    </div>
+    <div class="nt-pane nt-keep" data-p="claude">
+      <p><b>Build it with Claude</b></p>
+      <p class="nt-pn">Opens Claude with the Alto connector. Claude builds the project in your chat, then you fine-tune it here.</p>
+      <button type="button" class="nt-claude" id="nt-claude">Open Claude</button>
+    </div>
+    <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Fall term"></div>
+    <label for="nt-title">Name</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Course notes">
     <div class="nt-scope" id="nt-scope" hidden>
       <div class="nt-kinds nt-sck" role="group" aria-label="Where the Atlas is">
         <button type="button" class="nt-kind on" data-scope="world" aria-pressed="true"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true"><use class="pv-land" href="#nt-atlas-land"/><use class="pv-coast" href="#nt-atlas-land" mask="url(#nt-atlas-m)" style="stroke-width:1.2"/><path class="pv-route" d="M66.6 41.3L101.0 36.6L114.9 47.8L164.9 44.3"/><circle class="pv-pin" cx="66.6" cy="41.3" r="2.7"/><circle class="pv-pin" cx="101.0" cy="36.6" r="2.7"/><circle class="pv-pin" cx="164.9" cy="44.3" r="2.7"/></svg><span class="nt-t">World</span><small>Every card on the whole map.</small></button>
@@ -2908,7 +2929,17 @@ alignSearch();
 // ── INFO — the broad Alto guide. WAAPI drives the expansion (CSS transition is the
 // fallback), and search + account slide left in lock-step so the panel never covers
 // them; same recipe as the course app's applyExpansion.
+// The Light / Dark line says only what is on screen: where the toggle really is (or that this look is always dark), worked out when the guide opens.
+function infoModeLine(){
+  const p = document.getElementById('info-mode'), t = document.getElementById('mode-toggle'); if(!p) return;
+  const r = t ? t.getBoundingClientRect() : null, shown = !!(t && r && r.width > 0 && getComputedStyle(t).display !== 'none' && getComputedStyle(t).visibility !== 'hidden');   // (fixed controls have no offsetParent)
+  let msg = ' each page has its own toggle.';
+  if(shown) msg = ' the ' + (document.documentElement.classList.contains('mobile') ? 'tile' : 'toggle') + ' at the ' + (r.top + r.height / 2 < innerHeight / 2 ? 'top' : 'bottom') + ' ' + (r.left + r.width / 2 < innerWidth / 2 ? 'left' : 'right') + ' switches the whole surface; each page has its own toggle too.';
+  else if(document.documentElement.classList.contains('dark') || document.documentElement.classList.contains('alto-retro')) msg = ' this look is always dark; each page has its own toggle.';
+  p.innerHTML = '<strong>Light / Dark</strong> &#8212;' + msg;
+}
 function toggleInfo(){
+  infoModeLine();
   document.getElementById('info-btn').classList.toggle('expanded');
 }
 (function(){

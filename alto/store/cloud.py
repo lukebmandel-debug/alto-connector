@@ -329,7 +329,7 @@ class CloudStore(Store):
         return (f.get("html") or {}).get("stringValue", "")
 
     def put_page(self, uid: str, key: str, html: str, title: str,
-                 meta: dict) -> None:
+                 meta: dict, *, _check: bool = True) -> None:
         """users/{uid}/pages/{key} + pagemeta/{key}, as alto-cloud.js _putPage
         does — so the homepage lists it and the private shell opens it, with no
         upload by hand. Update masks leave shareKey (set by the share flow)
@@ -340,7 +340,8 @@ class CloudStore(Store):
         This is the one place every publish passes through, and there is no
         way to switch it off."""
         from ..build.engine_stamp import check_no_downgrade
-        check_no_downgrade(self.get_page(uid, key), html)
+        if _check:                                   # False only for Edit with Bass's Undo, which puts the account's own earlier page back
+            check_no_downgrade(self.get_page(uid, key), html)
         page = {"z": {"bytesValue": base64.b64encode(pack_page(html)).decode("ascii")},
                 "enc": _sv(PAGE_ENCODING),
                 "title": _sv(title or ""), "tid": _sv(meta.get("tid", ""))}

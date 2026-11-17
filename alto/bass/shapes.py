@@ -4,6 +4,13 @@ BASS-SHAPES-DRAFT.md, which this file must equal word for word (tests/test_bass_
 from __future__ import annotations
 
 SHAPES = ("system", "atlas", "blueprint")
+# The formats the NEW dialog's picker offers (home_template ntResolve): the ONE list a request's `format` is checked against, by exact match. Never free text.
+FORMATS = ("timeline", "lanes", "outline", "solar", "palace", "building", "world")
+
+
+def format_line(fmt) -> str:
+    """One fixed line for the prompt, built only from a value that IS in FORMATS (anything else adds nothing)."""
+    return f"The student chose the format: {fmt}." if isinstance(fmt, str) and fmt in FORMATS else ""
 
 MENU = (
     "Shapes. Besides the usual timeline or outline, Bass can draw an outline as a System (each unit's main concept a sun, its concepts "

@@ -123,8 +123,9 @@ def test_the_picker_tiles_are_all_the_tallest_ones_height(site, size):
     hs = [round(q[2], 1) for q in t]
     assert max(hs) - min(hs) <= 0.5, t
     if size[0] <= 640:
-        assert len({round(q[1]) for q in t}) == 4, t                   # a phone: one tile a row
-        tops = sorted(q[1] for q in t)
+        # v1.9.235 (Board B-1116-115800, compact phone tiles): the shared format picker is two tiles a row so the tabs and the action stay on a 320 x 568 screen
+        tops = sorted({round(q[1]) for q in t})
+        assert len(tops) == 2, t
         assert all(b - a >= hs[0] for a, b in zip(tops, tops[1:])), t  # rows never overlap
 
 

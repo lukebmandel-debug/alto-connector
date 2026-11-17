@@ -278,7 +278,7 @@ html.alto-retro .bs-sw.on i{background:#000}
 .bs-dfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-top:1px solid var(--bs-bd);font-size:12px;color:var(--bs-mut)}
 .bs-using{display:flex;flex-direction:column;gap:6px}
 .bs-ul{display:flex;align-items:center;gap:7px;min-height:36px;padding:4px 10px;border:1px solid var(--bs-bd);border-radius:var(--bs-rad);background:var(--bs-glass);color:var(--bs-ink);font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
-.bs-ul span{flex:1}.bs-ul b{font-weight:650}.bs-ul>b{color:var(--bs-dis)}
+.bs-ul span{flex:1}.bs-ul b{font-weight:650}.bs-ul>b{color:var(--bs-link,var(--bs-dis))}
 .bs-pill.add{gap:4px;padding:0 10px;color:var(--bs-dis);cursor:pointer;font:inherit;font-size:12px}
 @media (max-width:640px){
   .bs-scrim>.bs-dsheet{height:100%;border-radius:calc(var(--bs-rad) + 4px)}

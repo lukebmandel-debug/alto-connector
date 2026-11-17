@@ -234,6 +234,12 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.mobile #alto-edit-exit{bottom:calc(66px + env(safe-area-inset-bottom,0px));height:42px;border-radius:21px;font-size:14px;padding:0 5px 0 14px;gap:6px;}
   html.mobile #alto-edit-exit .ee-st{display:none;}
   html.mobile #alto-edit-exit .ee-flag,html.mobile #alto-edit-exit .ee-box,html.mobile #alto-edit-exit .ee-country{display:none;}
+  /* phones: every control's TAP target is 44 x 44 (the Board, B-1116-1925) with the drawn size untouched: an invisible box around the control. Undo and Redo sit 6px apart, so their
+     boxes take the room beside them (Undo to its left, Redo 6px left and 4px right) and never overlap one another or the clef chip. */
+  html.mobile #alto-edit-exit .ee-h:not(.ee-clef),html.mobile #alto-edit-exit .ee-done{position:relative;}
+  html.mobile #alto-edit-exit .ee-h:not(.ee-clef)::before,html.mobile #alto-edit-exit .ee-done::before{content:"";position:absolute;top:-8px;bottom:-8px;left:0;right:0;}
+  html.mobile #alto-edit-exit .ee-h.ee-undo:not(.ee-clef)::before{left:-10px;}
+  html.mobile #alto-edit-exit .ee-h.ee-redo:not(.ee-clef)::before{left:-6px;right:-4px;}
   #alto-edit-exit .ee-country{width:auto;padding:0 10px;line-height:1;font:inherit;font-size:12.5px;white-space:nowrap;}
   html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}

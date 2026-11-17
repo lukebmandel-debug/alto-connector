@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
 import jsonschema
+
+# ONE process-wide lock around a tool call: the connector's store and uid are module globals (srv.set_store / current_uid), and Edit with Bass runs a
+# scratch belt next to the real one, so two belts must never interleave (a write meant for the scratch copy must not land in the account).
+STORE_LOCK = threading.RLock()
 
 BASS_TOOLS = (
     "list_projects", "create_project", "create_timeline", "record_materials_consent", "set_entities",
@@ -152,16 +157,17 @@ class ToolBox:
             return ToolOutcome(json.dumps({"error": "invalid_input", "message": f"{where}: {e.message[:300]}"}),
                                True, name=name)
         srv = self.srv
-        if self.store is not None and srv._store is not self.store:
-            srv.set_store(self.store)
-        tok = srv.current_uid.set(uid)
-        try:
-            result = self._tools[name].fn(**tool_input)
-        except Exception as e:      # a tool must never take the loop down: the model gets to see what went wrong
-            return ToolOutcome(json.dumps({"error": "tool_failed", "message": f"{type(e).__name__}: {e}"[:500]}),
-                               True, name=name)
-        finally:
-            srv.current_uid.reset(tok)
+        with STORE_LOCK:
+            if self.store is not None and srv._store is not self.store:
+                srv.set_store(self.store)
+            tok = srv.current_uid.set(uid)
+            try:
+                result = self._tools[name].fn(**tool_input)
+            except Exception as e:      # a tool must never take the loop down: the model gets to see what went wrong
+                return ToolOutcome(json.dumps({"error": "tool_failed", "message": f"{type(e).__name__}: {e}"[:500]}),
+                                   True, name=name)
+            finally:
+                srv.current_uid.reset(tok)
         is_error = isinstance(result, dict) and bool(result.get("error"))
         text = json.dumps(result, default=str, ensure_ascii=False)
         if len(text) > self.max_result_chars:

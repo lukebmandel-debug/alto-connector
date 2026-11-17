@@ -31,12 +31,13 @@ log = logging.getLogger("bass.beta")
 FREE = ("balance", "stop")                       # the only actions that send nothing upstream (estimate makes the free count_tokens
                                                  # call). ANY other action name is gated like spending (fail closed): a new Bass path
                                                  # (grading, hypotheticals, ...) meets the closed check and the allowance precheck first
-UPLOAD_ACTIONS = ("estimate", "propose", "build")  # the actions that take materials (and so may carry uploaded files)
+UPLOAD_ACTIONS = ("estimate", "propose", "build", "edit_preview")  # the actions that take materials (and so may carry uploaded files)
 from .research_share import RESEARCH                      # the opt-in conversation sharing action (alto/bass/research_share.py)
 DRIVE = "drive"                                  # Add from Drive (alto/bass/drive.py): config / connect / add / disconnect; sends nothing to Anthropic, spends nothing
 DOCS = "docs"                                    # the Documents library (alto/bass/documents.py): sends nothing upstream, spends nothing
-SCOPED = ("estimate", "propose", "build", "edit")  # the actions that may name a Documents scope (args.scope_id)
-SPENDING = ("build", "convert", "propose", "edit", "make_study_plan")          # what Actions dispatches today that spends (kept for the in-flight kinds)
+SCOPED = ("estimate", "propose", "build", "edit", "edit_preview")  # the actions that may name a Documents scope (args.scope_id)
+SPENDING = ("build", "convert", "propose", "edit", "make_study_plan", "edit_preview")          # what Actions dispatches today that spends (kept for the in-flight kinds)
+FREE_EDIT = ("edit_open", "edit_apply", "edit_undo")   # Edit with Bass (editbass.py): they send nothing upstream and charge nothing. edit_preview is the one that spends
 STATUS_FOR = {"beta_credits_used": "no_credits", "beta_tester_daily": "capped", "beta_daily_full": "paused"}
 
 
@@ -376,7 +377,7 @@ class BetaService:
 
     @staticmethod
     def _kind(name: str):
-        return {"build": "build", "convert": "build", "propose": "chat", "edit": "chat", "make_study_plan": "chat"}.get(name)
+        return {"build": "build", "convert": "build", "propose": "chat", "edit": "chat", "make_study_plan": "chat", "edit_preview": "chat"}.get(name)
 
     # -- the door -------------------------------------------------------------------------------------------------
     def handle(self, req: dict, on_event=None) -> dict:
@@ -432,6 +433,15 @@ class BetaService:
                 out = self.research.handle(uid, args)
             self.meta.write(uid=uid, action=action, status=out.get("status"), code=out.get("code"))
             return out
+        if action in FREE_EDIT:                       # open / apply / undo: allowlisted, rate-limited, terms accepted (above); no hold, no allowance, nothing upstream
+            out = self.actions.dispatch(uid, body, on_event=on_event)
+            self.meta.write(uid=uid, action=action, status=out.get("status"), code=out.get("code"))
+            return out
+        fargs = body.get("args") if isinstance(body.get("args"), dict) else {}
+        if "format" in fargs and action in ("estimate", "propose", "build"):   # the NEW dialog's format: an exact member of the picker's list, else the generic bad-input answer (nothing held, nothing sent)
+            from .shapes import FORMATS
+            if not isinstance(fargs["format"], str) or fargs["format"] not in FORMATS:
+                return _answer("bad_input", "error")
         spending = action not in FREE
         closed = self.ledger.closed_reason()          # kill switch, bass_beta/disabled (set or unreadable), period unconfirmed
         if spending and closed:

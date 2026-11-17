@@ -67,6 +67,12 @@ def keep_url(environ=None) -> str:
     return u if bass_hosted_ext.pin() == tree else ""
 
 
+def edit_link_on() -> bool:
+    """Edit with Bass's link in the editing bar: only in the publish that has the hook (ALTO_EXT_URL set and a pinned bundle). The private-timeline shell is the
+    one place it is added (alto/build/private_shell.py): a share, a public page, the connector's site and every default build carry none of it."""
+    return bool(url() and pin()[0])
+
+
 def origin() -> str:
     u = url()
     return re.match(r"https://[^/]+", u).group(0) if u and pin()[0] else ""

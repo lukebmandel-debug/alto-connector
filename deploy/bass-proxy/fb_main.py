@@ -14,7 +14,7 @@ import proxy_main
 
 # WARNING and up go to stderr, which Cloud Logging collects; INFO stays off on purpose (see LOG-AUDIT-keystrip.md)
 logging.basicConfig(level=logging.WARNING, stream=sys.stderr, format="%(levelname)s %(name)s %(message)s")
-for _n in ("anthropic", "httpx", "httpx2", "httpcore", "h11", "urllib3", "google", "grpc"):     # SDK DEBUG logs carry request bodies and headers: never emitted, whatever ANTHROPIC_LOG says
+for _n in ("anthropic", "httpx", "httpx2", "httpcore", "httpcore2", "h11", "urllib3", "google", "grpc"):     # SDK DEBUG logs carry request bodies and headers: never emitted, whatever ANTHROPIC_LOG says
     logging.getLogger(_n).setLevel(logging.WARNING)
 
 SERVICE_ACCOUNT = None

@@ -575,6 +575,38 @@ _JS = """
 """
 
 
+_EDIT_LINK_CSS = (
+    # Luke's look (L-1116-1850, ORG/notes-art/edit-bass/ONE-SHOT-for-Luke.png): a 44 x 36 chip before Done in the bar's own chip style, the clef in the bar's ink; its tap target is 44 high
+    "#alto-edit-exit .ee-clef{position:relative;display:inline-flex;align-items:center;justify-content:center;width:44px;height:36px;padding:0;border-radius:18px;"
+    "color:inherit;text-decoration:none;background:rgba(255,255,255,.1);flex:none}"
+    "#alto-edit-exit .ee-clef::after{content:\"\";position:absolute;left:0;right:0;top:-4px;bottom:-4px}"
+    "#alto-edit-exit .ee-clef:hover{background:rgba(255,255,255,.2)}"
+    "#alto-edit-exit .ee-clef svg{display:block;width:16px;height:20px}"
+    # a very narrow phone: the word goes, the pencil stays, so the bar keeps clear of INFO and MARK
+    "@media (max-width:340px){html.mobile #alto-edit-exit .ee-t{font-size:0}html.mobile #alto-edit-exit .ee-t::before{content:\"✎\";font-size:16px}}")
+
+
+def _edit_link_js(js: str) -> str:
+    """Add Edit with Bass's link to the editing bar of the page this shell writes: a plain <a href="/#bass-edit=<timeline id>"> and a few lines of style, no script,
+    no network. Only in owner edit mode (the bar is shown only then). The id is the page's own COURSE_ID, checked against the one id pattern."""
+    from .bass_ui import GLYPH_SMALL
+    glyph = GLYPH_SMALL.replace("<svg ", '<svg width="16" height="20" ')
+    assert "'" not in glyph and "\\" not in glyph and "\n" not in glyph
+    fn = (
+        "  function editLink(h){\n"
+        "    var m = /var COURSE_ID = '([a-z][a-z0-9-]{0,47})';/.exec(h), k = '<button type=\"button\" class=\"ee-done\">Done</button>';\n"
+        "    var i = h.indexOf(k), j = h.indexOf('<head>');\n"
+        "    if(!m || i < 0 || j < 0 || h.indexOf(k, i + 1) >= 0) return h;\n"
+        "    var a = '<a class=\"ee-h ee-clef\" href=\"/#bass-edit=' + m[1] + '\" title=\"Edit with Bass\" aria-label=\"Edit with Bass\">" + glyph + "</a>';\n"
+        "    return h.slice(0, j + 6) + '<style id=\"ee-clef-css\">" + _EDIT_LINK_CSS + "</style>' + h.slice(j + 6, i) + a + h.slice(i);\n"
+        "  }\n")
+    anchor = "  function render(pageHtml){"
+    call = "document.write(withHandoff(pageHtml));"
+    if js.count(anchor) != 1 or js.count(call) != 1:
+        raise RuntimeError("private shell changed shape: the edit link could not be placed")
+    return js.replace(anchor, fn + anchor, 1).replace(call, "document.write(editLink(withHandoff(pageHtml)));", 1)
+
+
 def shell(cloud_version: str = "", site_version: str = "") -> str:
     """Return the public shell page. Identical for every private timeline.
 
@@ -589,6 +621,9 @@ def shell(cloud_version: str = "", site_version: str = "") -> str:
     cached under another stamp is not shown before the fresh page is fetched.
     """
     js = _JS.replace("__STALE_CSS__", json.dumps(_STALE_CSS))
+    from ..cloud import ext_hook
+    if ext_hook.edit_link_on():                  # Edit with Bass: the luke-alto publish only (the hook's own switch); a default shell is byte for byte what it was
+        js = _edit_link_js(js)
     src = "/alto-cloud.js" + (f"?v={cloud_version}" if cloud_version else "")
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">\n'

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import base64
 import datetime as _dt
+import hashlib
+import json
 import urllib.parse
 
 from ..cloud.session import CloudError
@@ -162,3 +164,63 @@ class AdminCloudStore(CloudStore):
             else:
                 batch.set(ref, fields)
         batch.commit()
+
+
+    # -- Edit with Bass (alto/bass/editbass.py): one prior version per timeline, and exact writes ---------------------------------
+    # users/{uid}/bass_prior/{tid} = {n, sha, size, at} and users/{uid}/bass_prior/{tid}_p{i} = {z: bytes} (a chunk under Firestore's 1 MiB document
+    # limit). The chunks are written FIRST and the head document LAST, so a head that exists always names a complete, checksummed set.
+    PRIOR_CHUNK = 600_000
+
+    def _prior_head(self, uid, tid):
+        js = self._req("GET", self._doc(uid, "bass_prior", tid), ok404=True)
+        return (js or {}).get("fields") or None
+
+    def has_prior(self, uid, tid) -> bool:
+        return self._prior_head(uid, tid) is not None
+
+    def save_prior(self, uid, tid, obj: dict) -> None:
+        from ..build.private_shell import pack_page
+        raw = pack_page(json.dumps(obj, ensure_ascii=False))      # key order kept: the restore must write the same bytes
+        parts = [raw[i:i + self.PRIOR_CHUNK] for i in range(0, len(raw), self.PRIOR_CHUNK)] or [b""]
+        old = self._prior_head(uid, tid)
+        old_n = int(((old or {}).get("n") or {}).get("integerValue", 0) or 0)
+        writes = [{"update": {"name": self._doc(uid, "bass_prior", f"{tid}_p{i}"),
+                              "fields": {"z": {"bytesValue": base64.b64encode(p).decode("ascii")}}}} for i, p in enumerate(parts)]
+        writes += [{"delete": self._doc(uid, "bass_prior", f"{tid}_p{i}")} for i in range(len(parts), old_n)]
+        self._commit(writes)
+        head = {"n": {"integerValue": str(len(parts))}, "size": {"integerValue": str(len(raw))},
+                "sha": {"stringValue": hashlib.sha256(raw).hexdigest()}}
+        self._commit([{"update": {"name": self._doc(uid, "bass_prior", tid), "fields": head}}])
+
+    def load_prior(self, uid, tid):
+        head = self._prior_head(uid, tid)
+        if not head:
+            return None
+        n = int((head.get("n") or {}).get("integerValue", 0) or 0)
+        raw = b""
+        for i in range(n):
+            js = self._req("GET", self._doc(uid, "bass_prior", f"{tid}_p{i}"), ok404=True)
+            z = (((js or {}).get("fields") or {}).get("z") or {}).get("bytesValue")
+            if z is None:
+                raise CloudError("hosted store: the saved copy is incomplete")
+            raw += base64.b64decode(z)
+        if hashlib.sha256(raw).hexdigest() != (head.get("sha") or {}).get("stringValue"):
+            raise CloudError("hosted store: the saved copy does not match its checksum")
+        from ..build.private_shell import unpack_page
+        return json.loads(unpack_page(raw))
+
+    def drop_prior(self, uid, tid) -> None:
+        head = self._prior_head(uid, tid)
+        n = int(((head or {}).get("n") or {}).get("integerValue", 0) or 0)
+        self._commit([{"delete": self._doc(uid, "bass_prior", f"{tid}_p{i}")} for i in range(n)]
+                     + [{"delete": self._doc(uid, "bass_prior", tid)}])
+
+    def put_nodes_exact(self, uid, tid, nodes) -> None:
+        """Write these nodes with the `_seq` each already carries (a restore must keep the narrative order it had)."""
+        self._commit([{"update": {"name": self._doc(uid, "alto_timelines", tid, "nodes", n["id"]),
+                                  "fields": self._fields(n, {"_seq": n["_seq"]})}} for n in nodes])
+        self._nodes_cache.pop((uid, tid), None)
+
+    def restore_page(self, uid, key, html, title, meta) -> None:
+        """put_page without the engine-downgrade check: the account's own earlier page goes back, or a page the caller already checked."""
+        self.put_page(uid, key, html, title, meta, _check=False)

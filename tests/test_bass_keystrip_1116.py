@@ -136,7 +136,7 @@ def test_the_real_fb_main_logging_config_keeps_sdk_loggers_at_warning_or_above(m
     ff.options = types.SimpleNamespace(MemoryOption=types.SimpleNamespace(MB_512=512))
     monkeypatch.setitem(sys.modules, "firebase_functions", ff)
     monkeypatch.setitem(sys.modules, "proxy_main", types.ModuleType("proxy_main"))
-    names = ("anthropic", "httpx", "httpx2", "httpcore", "h11")
+    names = ("anthropic", "httpx", "httpx2", "httpcore", "httpcore2", "h11")
     saved = {n: logging.getLogger(n).level for n in names}
     try:
         for n in names:
