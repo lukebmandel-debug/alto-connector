@@ -206,15 +206,18 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-pill .aep-half::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
     padding:5px 10px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:12px;letter-spacing:.02em;
     white-space:nowrap;box-shadow:0 6px 18px var(--node-rest-shadow);opacity:0;pointer-events:none;transition:opacity .12s;}
-  #alto-edit-pill .aep-claude::after{left:auto;right:-50px;transform:none;}
-  #alto-edit-pill .aep-manual::after{left:auto;right:0;transform:none;}   /* the pill sits at the screen's edge: grow leftward */
+  #alto-edit-pill .aep-half{position:static;}
+  #alto-edit-pill .aep-half::after{left:auto;right:0;transform:none;}   /* the pill sits at the screen's edge: every tip hangs from its right end and grows leftward */
   #alto-edit-pill .aep-half:hover::after,#alto-edit-pill .aep-half:focus-visible::after{opacity:1;}
   html.dark:not(.mobile) #alto-edit-pill{color:var(--muted);}
   html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}
-  .alto-edit-pill.in-page{display:none;margin:52px auto 28px;width:max-content;height:42px;border-radius:21px;
+  .alto-edit-pill.in-page{display:none;margin:52px auto 28px;width:max-content;height:44px;border-radius:22px;
     background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
     box-shadow:0 8px 22px var(--node-rest-shadow);}
-  .alto-edit-pill.in-page .aep-half{border-radius:21px;padding:0 20px;font-size:14px;}
+  .alto-edit-pill.in-page .aep-half{border-radius:0;min-width:44px;height:44px;padding:0 18px;font-size:14px;}
+  .alto-edit-pill.in-page .aep-half:first-child{border-radius:22px 0 0 22px;}
+  .alto-edit-pill.in-page .aep-half:last-child{border-radius:0 22px 22px 0;}
+  .alto-edit-pill.in-page .aep-div{margin:10px 0;}
   html.mobile .alto-edit-pill.in-page{display:flex;}
   html.alto-editing .alto-edit-pill.in-page,html.printing .alto-edit-pill.in-page{display:none !important;}
 
@@ -1827,10 +1830,10 @@ MANUAL_JS = r"""<script id="alto-manual">
      (search, info and light/dark sit to its left): the building builds with Claude (detail_extras.EDIT_TILE's
      openClaude), the pencil edits by hand. A phone gets the pencil alone, at
      the foot of each page. While editing, the editing bar takes its place. */
-  var BUILD_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l7-3v18"/><path d="M11 9h9v12"/><path d="M2.5 21h19"/><path d="M7 8.5v.01M7 12v.01M7 15.5v.01M15 12.5v.01M15 16v.01"/></svg>';
+  var STAR_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M12 1.5L13.4 7.6L18.2 3.5L15.7 9.3L22 8.8L16.6 12L22 15.2L15.7 14.7L18.2 20.5L13.4 16.4L12 22.5L10.6 16.4L5.8 20.5L8.3 14.7L2 15.2L7.4 12L2 8.8L8.3 9.3L5.8 3.5L10.6 7.6Z"/></svg>';
   /*__BASS_FN__*/function pillHTML(phone){
-    return (phone ? '' : '<button type="button" class="aep-half aep-claude" data-tip="Edit with Claude: best for bigger changes" aria-label="Edit with Claude">' + BUILD_SVG + '</button><span class="aep-div" aria-hidden="true"></span>')
-      + /*__BASS_USE__*/'<button type="button" class="aep-half aep-manual" data-tip="Edit manually: best for small fixes" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span>' + (phone ? '<span>Edit this page</span>' : '') + '</button>';
+    return '<button type="button" class="aep-half aep-claude" data-tip="Edit with Claude: best for bigger changes" aria-label="Edit with Claude">' + STAR_SVG + '</button><span class="aep-div" aria-hidden="true"></span>'
+      + /*__BASS_USE__*/'<button type="button" class="aep-half aep-manual" data-tip="Edit manually: best for small fixes" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span></button>';
   }
   function wire(el){
     if(el._aed) return; el._aed = 1;

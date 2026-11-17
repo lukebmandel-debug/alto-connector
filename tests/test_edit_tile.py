@@ -67,7 +67,8 @@ def test_never_on_a_phone_or_in_print():
     from alto.build.manual_edit import MANUAL_CSS, MANUAL_JS
     assert "html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}" in MANUAL_CSS
     assert "html.mobile .alto-edit-pill.in-page{display:flex;}" in MANUAL_CSS
-    assert "(phone ? '' : '<button type=\"button\" class=\"aep-half aep-claude\"" in MANUAL_JS
+    assert "return '<button type=\"button\" class=\"aep-half aep-claude\"" in MANUAL_JS and "phone ? '' :" not in MANUAL_JS   # all three segments on a phone too (Board B-1117-TOGOK)
+    assert ".alto-edit-pill.in-page .aep-half{border-radius:0;min-width:44px;height:44px;" in MANUAL_CSS
     assert "#alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:var(--alto-row-b,24px);" in MANUAL_CSS
     js = dx.EDIT_TILE
     assert "nav-drawer" not in js and "drawer-edit-btn" not in js
@@ -140,8 +141,11 @@ def test_a_share_opens_nothing():
     assert _prompt("Torts", "alto-doc-s-" + KEY) == []
 
 
-def test_a_phone_gets_no_tile():
-    assert _prompt("Torts", "alto-doc-torts", IPHONE) == []
+def test_a_phone_gets_the_stars_way_to_claude_but_no_room_making():
+    went = _prompt("Torts", "alto-doc-torts", IPHONE)
+    assert len(went) == 1 and went[0].startswith("https://claude.ai/new?q=")      # a touch device opens the web address (the app intercepts it)
+    js = dx.EDIT_TILE
+    assert js.index("if(PH) return;") < js.index("var world = null;")
 
 
 def test_the_guide_explains_the_button():
@@ -157,9 +161,9 @@ def test_the_tile_sits_inside_the_last_band(built):
     b, html = built
     assert "bands[bands.length-1].endY += 100 + (window._altoEditRoom || 0);" in html
     js = dx.EDIT_TILE
-    ro = js.index("window._altoEditRoom = ROOM;")
+    ro = js.index("if(!PH) window._altoEditRoom = ROOM;")
     assert js.index("tid.indexOf('s-') === 0) return;") < ro   # not in a share
-    assert js.index("Windows Phone/i.test(navigator.userAgent)) return;") < ro  # nor on a phone
+    assert js.index("var PH = /iPhone|iPod|Android.*Mobile|Windows Phone/i.test(navigator.userAgent);") < ro  # nor on a phone (it gets the star's way to Claude only)
 
 
 def test_the_page_ends_where_the_background_ends():

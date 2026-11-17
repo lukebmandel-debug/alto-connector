@@ -23,7 +23,11 @@ STEM = holo_video.CLIPS
 def vsite(tmp_path_factory):
     if pw is None:
         pytest.skip("Playwright is not installed")
-    srv, url, key = _make_site(tmp_path_factory.mktemp("holovid"))
+    d = tmp_path_factory.mktemp("holovid")
+    srv, url, key = _make_site(d)
+    from alto.build import pages
+    from tests.test_holo import HOME
+    (d / "h.html").write_text(pages.build_home(HOME), encoding="utf-8")
     yield url, key
     srv.shutdown()
     srv.server_close()
@@ -157,4 +161,57 @@ def test_no_clip_is_fetched_until_holographic_and_a_background_are_active(browse
     pg.evaluate("window._altoBg.choose('h-lightspeed')")
     pg.wait_for_timeout(1500)
     assert pg.evaluate(HVID) >= 1
+    ctx.close()
+
+
+@pytest.mark.parametrize("bg", ["h-neon-rain", "h-grid-horizon"])
+@pytest.mark.parametrize("vp", [(1440, 900), (1000, 800), (390, 844)])
+@pytest.mark.parametrize("page", ["h.html", "t.html"])
+def test_the_clip_covers_the_viewport_from_the_top_exactly_where_the_still_sits(browser, vsite, page, vp, bg):
+    """Luke, real Safari (1.9.237): "why is the background not reaching the top?" The clip's box is the viewport (fixed, inset 0), the poster's is the same box, on home and a timeline, any zoom."""
+    url, key = vsite
+    phone = vp[0] < 500
+    ctx = browser.new_context(viewport={"width": vp[0], "height": vp[1]}, has_touch=phone, is_mobile=phone, user_agent=T.IPHONE if phone else None)
+    pg = ctx.new_page()
+    pg.goto(url + "/" + page)
+    pg.wait_for_timeout(300)
+    pg.evaluate("([k,b])=>{localStorage.clear(); localStorage.setItem(k+'-style','holo'); localStorage.setItem('alto-bg-home-v1-style','holo');"
+                " const v=JSON.stringify({v:b,t:Date.now()}); localStorage.setItem(k+'-bg', v); localStorage.setItem('alto-bg-home-v1', v)}", [key, bg])
+    pg.reload()
+    pg.wait_for_timeout(3000)
+    g = pg.evaluate("""(()=>{const r=e=>{const b=e.getBoundingClientRect();return [b.left,b.top,b.width,b.height].map(x=>Math.round(x))};
+      const v=document.querySelector('#alto-ha video'), cs=getComputedStyle(document.getElementById('page-bg'),'::before');
+      return {video:r(v), layer:r(document.getElementById('alto-ha')), pos:cs.position, edges:[cs.top,cs.left,cs.right,cs.bottom], fit:getComputedStyle(v).objectFit, vw:innerWidth, vh:innerHeight, clip:getComputedStyle(document.getElementById('alto-ha')).clipPath}})()""")
+    left, top, w, h = g["video"]
+    assert top <= 0 and top + h >= g["vh"] and left <= 0 and left + w >= g["vw"], g
+    assert g["video"] == g["layer"] == [0, 0, g["vw"], g["vh"]], g
+    assert g["pos"] == "fixed" and g["edges"] == ["0px"] * 4 and g["fit"] == "cover" and g["clip"] in ("none", "inset(0px)"), g       # the still scene sits in that same box
+    ctx.close()
+
+
+@pytest.mark.parametrize("vp,xs", [((1000, 800), (75, 340)), ((1440, 900), (75, 600)), ((390, 844), (45, 140))])
+def test_nothing_flat_is_painted_over_the_top_of_the_background_on_home(browser, vsite, vp, xs):
+    """Luke, real Safari: a flat band over the top of the clip (Retro's homepage top strip, retro.HOME_CSS, re-inked for Holographic). Rows 2..40 of the page must show the background (rain),
+    not one colour: max - min across the band over a stretch clear of the logo, HOME and Alto > 10."""
+    Image = pytest.importorskip("PIL.Image")
+    import io
+    url, key = vsite
+    phone = vp[0] < 500
+    ctx = browser.new_context(viewport={"width": vp[0], "height": vp[1]}, has_touch=phone, is_mobile=phone, user_agent=T.IPHONE if phone else None)
+    pg = ctx.new_page()
+    pg.goto(url + "/h.html")
+    pg.wait_for_timeout(300)
+    pg.evaluate("([b])=>{localStorage.clear(); localStorage.setItem('alto-bg-home-v1-style','holo'); localStorage.setItem('alto-bg-home-v1', JSON.stringify({v:b,t:Date.now()}))}", ["h-neon-rain"])
+    pg.reload()
+    pg.wait_for_timeout(3500)
+    pg.evaluate("(()=>{const v=document.querySelector('#alto-ha video'); if(v){ v.pause(); v.currentTime=6 }})()")
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("getComputedStyle(document.documentElement,'::before').display") == "none", "the homepage's solid top strip is off in Holographic"
+    if phone:       # (a phone's own header bar is solid by design, so its rows are never a measure of the background; the strip above is what Luke saw)
+        ctx.close()
+        return
+    im = Image.open(io.BytesIO(pg.screenshot())).convert("L")
+    sc = im.width / vp[0]
+    vals = [im.getpixel((int(x * sc), int(y * sc))) for x in range(*xs, 3) for y in range(2, 41)]
+    assert max(vals) - min(vals) > 10, (min(vals), max(vals))
     ctx.close()

@@ -158,6 +158,6 @@ def phone(key, sections):
               "or print it.")
     out += _h("Making and editing", "You can build one entirely by hand on a computer, but the suggested route is to "
               "have Claude build this " + fmt + " from your own notes, outlines or readings, then make small "
-              "adjustments yourself. On a phone, <strong>Edit this page</strong> (at the foot of a page) changes its "
+              "adjustments yourself. On a phone, <strong>Edit this page</strong> (the pencil at the foot of a page) changes its "
               "words; adding and moving are done on a computer.")
     return _bass_ui.info_phone(_h("Open a card" if key in ("timeline", "outline") else LABEL[key], _BODY_M[key].format(sec=sections)) + out)
