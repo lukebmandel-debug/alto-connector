@@ -44,7 +44,7 @@ W = 2560                    # the widest screen the streaks are laid over; a wid
 #   "still"  no layer at all (the default)          "video"  a background with a clip plays it; a clip that cannot play leaves the still background
 #   "all"    the design reference: clip where there is one, the CSS layer elsewhere and as the clip's fallback (QA and the Art sheet only)
 # A computer can try another for itself: localStorage 'alto-holo-anim' = still | video | all (QA; nothing in the UI sets it).
-MODE = "still"
+MODE = "video"
 MODES = ("still", "video", "all")
 
 
@@ -125,6 +125,13 @@ CSS = ("""
 #alto-ha{display:none;position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;contain:strict}
 #alto-ha,#alto-ha *{pointer-events:none}
 html.hp-hid #alto-ha *{animation-play-state:paused}
+@media screen and (prefers-reduced-motion:no-preference){html.alto-holo #alto-ha.hv{display:block}}   /* a clip plays on a phone too (the layer is made only for a clip, never for the CSS animation) */
+@media screen and (prefers-reduced-motion:no-preference){      /* a clip's scene box on a phone (the desktop rules below override these at 641px and wider); hafit sizes it to cover the viewport at the background's focal point */
+.ha-scene{position:absolute;bottom:0;left:0;aspect-ratio:16/10}
+.ha-scene>*{position:absolute}
+.ha-scene video{display:block;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity .9s ease-out}
+.ha-scene video.on{opacity:1}
+}
 @media screen and (min-width:641px) and (prefers-reduced-motion:no-preference){
 html.alto-holo:not(.mobile) #alto-ha{display:block}
 """ + _rain() + f"""
@@ -133,8 +140,8 @@ html.alto-holo:not(.mobile) #alto-ha{display:block}
  background:linear-gradient(180deg,rgba({INK},0),rgba({INK},.10) 55%,rgba({INK},.22) 96%,rgba(160,255,248,.7) 100%);animation:ha-sweep 16s cubic-bezier(.45,.05,.55,.95) infinite}}
 .ha-sweep i::after{{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(160,255,248,.8);box-shadow:0 0 16px 3px rgba({INK},.6)}}
 @keyframes ha-sweep{{0%{{transform:translateY(0)}}72%,100%{{transform:translateY(calc(100vh + 280px))}}}}
-.ha-drift div{{position:absolute;inset:0;will-change:transform,opacity;transform-origin:50% 50%;animation:ha-drift 14s ease-in infinite;opacity:0}}
-.ha-drift div+div{{animation-delay:-7s}}
+.ha-drift>div:not(.ha-scene){{position:absolute;inset:0;will-change:transform,opacity;transform-origin:50% 50%;animation:ha-drift 14s ease-in infinite;opacity:0}}
+.ha-drift>div:not(.ha-scene)+div{{animation-delay:-7s}}
 .ha-drift svg{{display:block;width:100%;height:100%}}
 @keyframes ha-drift{{0%{{transform:scale(.7);opacity:0}}15%{{opacity:.5}}100%{{transform:scale(1.7);opacity:0}}}}
 .ha-scene{{position:absolute;bottom:-40px;left:50%;width:125%;aspect-ratio:16/10;transform:translateX(-50%)}}
@@ -188,15 +195,27 @@ JS = r"""
 var HA=__HA__, rmq=window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null, hamo=null, haok=document.readyState==='complete', hasig='', hafail={};
 var HAM=(function(){ try{ var m=localStorage.getItem('alto-holo-anim'); if(HA.modes.indexOf(m)>=0) return m; }catch(e){} return HA.mode; })();
 if(!haok) window.addEventListener('load', function(){ setTimeout(function(){ haok=true; hasync(); }, 0); });
+// Phone framing (390 wide shows a 1/4 slice of a 16:10 picture): per-background focal x (fraction of the picture's width), the picture and the clip both `cover` the viewport (fixed) and
+// are shifted so that point sits mid-screen. The poster's rule is in the page as soon as a Holographic background is painted (also for Reduce Motion / Save-Data), the clip follows via hafit.
+var HAFX={target:.719,haze:.62}, hapq=window.matchMedia ? window.matchMedia('(max-width:640px)') : null;
+function haph(){ return !!(hapq && hapq.matches); }
+function hafp(k){ var W=innerWidth, w=Math.max(W,1.6*innerHeight), f=HAFX[k]==null?.5:HAFX[k]; return w>W+1 ? Math.max(0,Math.min(1,(W/2-f*w)/(W-w))) : .5; }
+function hafocus(){
+  var k=HA.ids[window._altoBgId||''], on=!!(k && r.classList.contains('alto-holo') && haph()), st=document.getElementById('alto-ha-fx');
+  if(on && !st){ st=document.createElement('style'); st.id='alto-ha-fx'; st.textContent='@media (max-width:640px){html.alto-holo.alto-bg-h #page-bg::before{position:fixed;left:0;right:0;top:0;bottom:0;background-position:var(--ha-fx,50%) 100%,0 0}}'; (document.head||r).appendChild(st); }
+  if(on) r.style.setProperty('--ha-fx', (hafp(k)*100).toFixed(2)+'%'); else if(r.style.getPropertyValue('--ha-fx')) r.style.removeProperty('--ha-fx');
+}
 function hasync(){
+  hafocus();
   var k=HA.ids[window._altoBgId||''], l=document.getElementById('alto-ha'), v=k && HAM!=='still' && HA.vid[k] && !hafail[k];
-  if(!(k && haok && (v || HAM==='all') && r.classList.contains('alto-holo') && desk() && !(rmq && rmq.matches) && document.body)){ hasig=''; if(l) l.remove(); hand(false); return; }
+  var sd=!!(navigator.connection && navigator.connection.saveData);    // Save-Data: the still only, the clip is never fetched
+  if(!(k && haok && (v || HAM==='all') && r.classList.contains('alto-holo') && (v ? !sd : desk()) && !(rmq && rmq.matches) && document.body)){ hasig=''; if(l) l.remove(); hand(false); return; }
   var sig=k+'|'+r.className+'|'+innerWidth+'x'+innerHeight;
   if(l && sig===hasig){ havis(l); return; }    // (the class watcher fires on every change of the root's classes: refit only when something that moves the box changed)
   hasig=sig;
   if(!document.getElementById('alto-ha-css')){ var c=document.createElement('style'); c.id='alto-ha-css'; c.textContent=HA.css; (document.head||r).appendChild(c); }
   if(!l){ l=document.createElement('div'); l.id='alto-ha'; l.setAttribute('aria-hidden','true'); document.body.insertBefore(l, document.body.firstChild); }
-  if(l.getAttribute('data-k')!==k){ l.setAttribute('data-k',k); l.className='ha ha-'+k; l.removeAttribute('data-v'); if(v){ l.innerHTML='<b class="zp"></b><div class="ha-scene"></div>'; havid(l,k); } else l.innerHTML='<b class="zp"></b>'+HA.html[k]; }
+  if(l.getAttribute('data-k')!==k){ l.setAttribute('data-k',k); l.className='ha ha-'+k+(v?' hv':''); l.removeAttribute('data-v'); if(v){ l.innerHTML='<b class="zp"></b><div class="ha-scene"></div>'; havid(l,k); } else l.innerHTML='<b class="zp"></b>'+HA.html[k]; }
   hafit(l); hand(k==='target' && !v); havis(l);
 }
 // a background with a clip (holo_video.py): the picture and its animation as one looping H.264 video in the scene box, muted, inline, fading in once it plays. If it cannot load
@@ -207,10 +226,11 @@ function havid(l,k){
     if(HAM==='all'){ l.removeAttribute('data-v'); l.innerHTML='<b class="zp"></b>'+HA.html[k]; hafit(l); hand(k==='target'); } else hasync(); };   // (video mode: the still background stays)
   v.muted=true; v.defaultMuted=true; v.loop=true; v.autoplay=true; v.playsInline=true; v.preload='auto'; v.disablePictureInPicture=true; v.setAttribute('aria-hidden','true'); v.tabIndex=-1;
   v.setAttribute('muted',''); v.setAttribute('playsinline','');
+  if(document.hidden || r.classList.contains('hp-hid')){ v.autoplay=false; }
   v.addEventListener('playing', function(){ v.classList.add('on'); l.setAttribute('data-v','1'); });
-  v.addEventListener('error', css);
+  v.addEventListener('error', css); v.addEventListener('canplay', function(){ havis(l); });
   v.src=HA.vid[k]; s.appendChild(v);
-  var p=v.play(); if(p && p.catch) p.catch(css);
+  var p=(document.hidden || r.classList.contains('hp-hid')) ? null : v.play(); if(p && p.catch) p.catch(css);
 }
 function havis(l){
   var v=l.querySelector('video'); if(!v) return;
@@ -222,7 +242,8 @@ function hand(on){ if(r.classList.contains('ha-nd')!==on) r.classList.toggle('ha
 function hafit(l){
   var p=l.firstChild, L=l.getBoundingClientRect(), z=(p && p.getBoundingClientRect().width/100)||1, s=l.querySelector('.ha-scene'), q=l.querySelectorAll('.rn,.rf');
   if(!L.width) return;
-  if(s){ var t=(parseFloat(getComputedStyle(r).getPropertyValue('--alto-t'))||0)*z, w=Math.max(L.width+80*z, 1.6*(L.height+80*z-t)); s.style.width=(w/L.width*100).toFixed(3)+'%'; }
+  if(s && haph()){ var w2=Math.max(L.width, 1.6*L.height); s.style.width=(w2/L.width*100).toFixed(3)+'%'; s.style.left=((L.width-w2)*hafp(l.getAttribute('data-k'))/L.width*100).toFixed(3)+'%'; }
+  else if(s){ s.style.left=''; var t=(parseFloat(getComputedStyle(r).getPropertyValue('--alto-t'))||0)*z, w=Math.max(L.width+80*z, 1.6*(L.height+80*z-t)); s.style.width=(w/L.width*100).toFixed(3)+'%'; }
   var g=l.querySelector('.ping');     // the ping swells about a zero-size anchor, so no transform-origin has to be worked out under the page zoom (WebKit got it wrong)
   if(g && s){ var u=s.getBoundingClientRect().width/1600/z; g.style.width=g.style.height=(1040*u).toFixed(2)+'px'; g.style.left=g.style.top=(-520*u).toFixed(2)+'px'; }
   for(var i=0;i<q.length;i++) q[i].style.inset='-'+Math.ceil(.13*Math.max(L.width,L.height)/z)+'px';
@@ -233,6 +254,7 @@ function hawatch(on){
 }
 window.addEventListener('alto-bg-painted', hasync); window.addEventListener('alto-bg', hasync);
 if(rmq && rmq.addEventListener) rmq.addEventListener('change', hasync);
+window.addEventListener('resize', function(){ hafocus(); });
 """
 
 

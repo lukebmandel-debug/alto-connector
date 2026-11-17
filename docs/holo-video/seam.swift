@@ -45,6 +45,7 @@ let inner = Array(d[0..<(n - 1)])
 let mean = inner.reduce(0, +) / Double(inner.count), mx = inner.max()!
 let srt = inner.sorted()
 print(String(format: "frames %d; consecutive-frame mean abs diff: interior mean %.4f, median %.4f, max %.4f (pair %d); WRAP last->first %.4f", n, mean, srt[srt.count / 2], mx, inner.firstIndex(of: mx)!, d[n - 1]))
+if n > 31 { print(String(format: "I-frame pair (keyint 30): frame 29->30 diff %.4f (neighbours 28->29 %.4f, 30->31 %.4f)", d[29], d[28], d[30])) }
 print(String(format: "frame level (mean of channels): first %.3f last %.3f min %.3f max %.3f; step first-vs-last %.3f, largest interior level step %.3f", levels[0], levels[n - 1], levels.min()!, levels.max()!, abs(levels[0] - levels[n - 1]),
              (0..<(n - 1)).map { abs(levels[$0 + 1] - levels[$0]) }.max()!))
 

@@ -21,7 +21,7 @@ VIDEO_DIR = Path(__file__).resolve().parent.parent / "assets" / "holo_video"
 FOLDER = "hvid"
 NAME_RE = re.compile(r"^[a-z]+(-[a-z]+)*-[0-9a-f]{10}\.mp4$")
 _SRC_RE = re.compile(r"^[a-z]+(-[a-z]+)*\.mp4$")
-CLIPS = {"neon": "neon-rain"}          # animation kind (holo_anim.IDS values) -> the clip's file stem
+CLIPS = {"neon": "neon-rain", "haze": "amber-haze", "sweep": "grid-horizon", "rain": "signal-rain", "target": "targeting", "drift": "lightspeed"}          # animation kind (holo_anim.IDS values) -> the clip's file stem
 
 
 def _hashed(p: Path) -> str:

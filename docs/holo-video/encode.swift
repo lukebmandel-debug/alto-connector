@@ -11,6 +11,7 @@ guard a.count >= 7 else { print("usage: encode dir out.mp4 w h fps kbps [keyint]
 let dir = a[1], out = URL(fileURLWithPath: a[2]), w = Int(a[3])!, h = Int(a[4])!, fps = Int32(a[5])!, kbps = Int(a[6])!
 let keyint = a.count > 7 ? Int(a[7])! : 60
 let quality: Double? = a.count > 8 ? Double(a[8]) : nil      // 0...1: constant quality instead of an average bit rate (kbps then only a ceiling hint)
+let dither: Int = a.count > 9 ? Int(a[9])! : 0      // 1 = about one level of fixed fine noise (Art stage-2 note a: hides banding on big smooth gradients)
 let names = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.hasPrefix("frame_") && $0.hasSuffix(".png") && $0 != "frame_end.png" }.sorted()
 try? FileManager.default.removeItem(at: out)
 let wr = try AVAssetWriter(outputURL: out, fileType: .mp4)
@@ -38,6 +39,14 @@ for (i, n) in names.enumerated() {
     let ctx = CGContext(data: CVPixelBufferGetBaseAddress(buf), width: w, height: h, bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buf), space: cs,
                         bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
     ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+    if dither > 0 {
+        let p = CVPixelBufferGetBaseAddress(buf)!.assumingMemoryBound(to: UInt8.self), bpr = CVPixelBufferGetBytesPerRow(buf)
+        for y in 0..<h { for x in 0..<w {
+            var hsh = UInt32(truncatingIfNeeded: x &* 73856093 ^ y &* 19349663); hsh ^= hsh >> 13; hsh = hsh &* 0x5bd1e995; hsh ^= hsh >> 15
+            let nz = Int(hsh % 3) - 1
+            if nz != 0 { let q = p + y * bpr + x * 4; for k in 0..<3 { q[k] = UInt8(max(0, min(255, Int(q[k]) + nz))) } }
+        } }
+    }
     CVPixelBufferUnlockBaseAddress(buf, [])
     ad.append(buf, withPresentationTime: CMTime(value: Int64(i), timescale: fps))
 }

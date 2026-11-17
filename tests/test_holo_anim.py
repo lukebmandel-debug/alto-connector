@@ -88,7 +88,7 @@ def _make_site(d, css_only=False):
 def site(tmp_path_factory):
     if pw is None:
         pytest.skip("Playwright is not installed")
-    srv, url, key = _make_site(tmp_path_factory.mktemp("holoanim"))
+    srv, url, key = _make_site(tmp_path_factory.mktemp("holoanim"), css_only=True)       # the CSS design reference; the clips are tested in test_holo_video.py
     yield url, key
     srv.shutdown()
     srv.server_close()
@@ -391,9 +391,12 @@ def test_neon_rain_is_periodic_over_its_loop_so_the_last_frame_runs_into_the_fir
 def test_the_clip_is_hosted_off_the_page_by_content_hash_and_named_only_by_the_hosted_script():
     if not holo_video.paths():
         pytest.skip("no clip file")
-    (name, data), = holo_video.files()
-    assert holo_video.NAME_RE.match(name) and data[4:8] == b"ftyp" and len(data) < 6_000_000, (name, len(data))
-    assert holo_video.paths() == {"neon": "/hvid/" + name}
+    fs = holo_video.files()
+    assert len(fs) == 6
+    for name, data in fs:
+        assert holo_video.NAME_RE.match(name) and data[4:8] == b"ftyp" and len(data) < 6_000_000, (name, len(data))
+    name = dict((n.rsplit("-", 1)[0], n) for n, _ in fs)["neon-rain"]
+    assert holo_video.paths()["neon"] == "/hvid/" + name
     assert name in holo.ASSET and "hvid" not in _outline()[0] and name not in _outline()[0], "the page holds no video and no path"
     from alto import publish_static as ps
     assert holo_video.FOLDER in ps.HOSTED_REF_RE.pattern
@@ -403,103 +406,6 @@ def test_the_clip_is_hosted_off_the_page_by_content_hash_and_named_only_by_the_h
 
 def _can_h264(pg):
     return bool(pg.evaluate("document.createElement('video').canPlayType('video/mp4; codecs=\"avc1.640028\"')"))
-
-
-def test_neon_rain_plays_as_a_muted_looping_inline_video_that_fills_the_scene_box(browser, site):
-    if not holo_video.paths():
-        pytest.skip("no clip file")
-    pg, ctx, errors = _open(browser, site, "h-neon-rain", wait=3500)
-    if not _can_h264(pg):                                     # a Chromium build without the proprietary codecs: the CSS layer takes over (next test); real Chrome and Safari have it
-        assert pg.evaluate(RUNNING) == 4 and not pg.evaluate("!!document.querySelector('#alto-ha video.on')")
-        ctx.close()
-        return
-    v = pg.evaluate("""(()=>{const v=document.querySelector('#alto-ha video'), s=document.querySelector('#alto-ha .ha-scene').getBoundingClientRect(), b=v.getBoundingClientRect();
-      return {muted:v.muted, loop:v.loop, inline:v.playsInline, auto:v.autoplay, paused:v.paused, t:v.currentTime, dur:v.duration, w:v.videoWidth, h:v.videoHeight, on:v.classList.contains('on'),
-              op:getComputedStyle(v).opacity, src:v.currentSrc, box:[b.left-s.left,b.top-s.top,b.width-s.width,b.height-s.height], nodes:document.querySelectorAll('#alto-ha .rn,#alto-ha .rf,#alto-ha .sg').length}})()""")
-    assert v["muted"] and v["loop"] and v["inline"] and v["auto"] and not v["paused"] and v["t"] > 0.5 and v["on"] and v["op"] == "1", v
-    assert abs(v["dur"] - holo_anim.LOOP) < .05 and v["w"] / v["h"] == 1.6, v
-    assert "/hvid/neon-rain-" in v["src"] and all(abs(x) < 1.5 for x in v["box"]) and v["nodes"] == 0, v
-    assert pg.evaluate(RUNNING) == 0, "no CSS animation runs behind the clip"
-    # it is the loop: it is still playing, and has wrapped, after a loop's worth of time
-    t1 = pg.evaluate("document.querySelector('#alto-ha video').currentTime")
-    pg.wait_for_timeout(1500)
-    assert pg.evaluate("document.querySelector('#alto-ha video').currentTime") != t1
-    assert not errors, errors
-    ctx.close()
-
-
-def test_a_clip_that_cannot_load_falls_back_to_the_css_animation(browser, site):
-    pg, ctx, errors = _open(browser, site, "h-neon-rain", no_clip=True, wait=2000)
-    assert pg.evaluate("!!document.querySelector('#alto-ha video')") is False
-    assert pg.evaluate(RUNNING) == 4 and pg.evaluate("document.querySelectorAll('#alto-ha .rn,#alto-ha .rf,#alto-ha .sg').length") == 4
-    assert not errors, errors
-    ctx.close()
-
-
-def test_reduce_motion_fetches_no_clip_and_a_phone_none_either(browser, site):
-    for kw in ({"reduce": True}, {"phone": True}):
-        pg, ctx, errors = _open(browser, site, "h-neon-rain", **kw)
-        assert pg.evaluate("!!document.getElementById('alto-ha')") is False
-        assert pg.evaluate("performance.getEntriesByType('resource').filter(e=>e.name.includes('/hvid/')).length") == 0
-        ctx.close()
-
-
-def test_a_hidden_tab_pauses_the_clip_and_showing_it_again_plays_it(browser, site):
-    if not holo_video.paths():
-        pytest.skip("no clip file")
-    pg, ctx, errors = _open(browser, site, "h-neon-rain", wait=3000)
-    if not _can_h264(pg):
-        ctx.close()
-        return
-    pg.evaluate("document.documentElement.classList.add('hp-hid')")
-    pg.wait_for_timeout(300)
-    assert pg.evaluate("document.querySelector('#alto-ha video').paused") is True
-    pg.evaluate("document.documentElement.classList.remove('hp-hid')")
-    pg.wait_for_timeout(500)
-    assert pg.evaluate("document.querySelector('#alto-ha video').paused") is False
-    ctx.close()
-
-
-# ---- what ships (holo_anim.MODE, Board B-1105-190000): still by default; Neon rain's clip behind the flag; never a CSS loop ----
-
-HA_NET = "performance.getEntriesByType('resource').filter(e=>e.name.includes('/hvid/')).length"
-
-
-def test_the_shipped_mode_is_still_and_the_flag_names_only_known_modes():
-    assert holo_anim.MODE == "still" and holo_anim.MODES == ("still", "video", "all")
-    assert '"mode":"still"' in holo.ASSET
-    assert "ha-nfall" not in holo.css(), "the layer's rules are not in the page's Holographic rules: they go in with a layer"
-
-
-@pytest.mark.parametrize("bg", list(KIND))
-def test_shipped_every_background_is_still_no_layer_no_rules_no_clip(browser, site, bg):
-    pg, ctx, errors = _open(browser, site, bg, mode=None, wait=1200)
-    assert pg.evaluate("[!!document.getElementById('alto-ha'), !!document.getElementById('alto-ha-css'), document.documentElement.classList.contains('ha-nd')]") == [False, False, False]
-    assert pg.evaluate(HA_NET) == 0
-    assert pg.evaluate("document.getAnimations().length") == 0 or pg.evaluate(RUNNING) == 0
-    assert not errors, errors
-    ctx.close()
-
-
-def test_video_mode_plays_only_neon_rains_clip_and_leaves_the_rest_still(browser, site):
-    for bg in KIND:
-        pg, ctx, errors = _open(browser, site, bg, mode="video", wait=2500 if bg == "h-neon-rain" else 1000)
-        has = pg.evaluate("!!document.getElementById('alto-ha')")
-        if KIND[bg] in holo_video.paths():
-            if _can_h264(pg):
-                assert has and pg.evaluate("!!document.querySelector('#alto-ha video.on')"), bg
-            assert pg.evaluate(RUNNING) == 0, "never a CSS loop"
-        else:
-            assert not has and pg.evaluate(HA_NET) == 0, bg
-        assert not errors, errors
-        ctx.close()
-
-
-def test_video_mode_a_clip_that_cannot_load_leaves_the_still_background(browser, site):
-    pg, ctx, errors = _open(browser, site, "h-neon-rain", mode="video", no_clip=True, wait=2000)
-    assert pg.evaluate("!!document.getElementById('alto-ha')") is False and pg.evaluate(RUNNING) == 0
-    assert not errors, errors
-    ctx.close()
 
 
 def test_no_layer_work_before_the_page_has_loaded(browser, site):
