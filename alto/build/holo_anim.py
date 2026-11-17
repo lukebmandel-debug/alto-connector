@@ -132,6 +132,9 @@ html.hp-hid #alto-ha *{animation-play-state:paused}
 .ha-scene video{display:block;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity .9s ease-out}
 .ha-scene video.on{opacity:1}
 }
+#alto-ha.hv{clip-path:none}
+#alto-ha.hv .ha-scene{position:absolute;left:0;top:0;right:0;bottom:0;width:auto;height:auto;transform:none;aspect-ratio:auto}   /* a clip fills the layer, the layer is the viewport (fixed, inset 0): never sized from the page's content area, its zoom or a probe */
+#alto-ha.hv video{width:100%;height:100%;object-fit:cover;object-position:var(--ha-fx,50%) 100%}
 @media screen and (min-width:641px) and (prefers-reduced-motion:no-preference){
 html.alto-holo:not(.mobile) #alto-ha{display:block}
 """ + _rain() + f"""
@@ -201,9 +204,10 @@ var HAFX={target:.719,haze:.62}, hapq=window.matchMedia ? window.matchMedia('(ma
 function haph(){ return !!(hapq && hapq.matches); }
 function hafp(k){ var W=innerWidth, w=Math.max(W,1.6*innerHeight), f=HAFX[k]==null?.5:HAFX[k]; return w>W+1 ? Math.max(0,Math.min(1,(W/2-f*w)/(W-w))) : .5; }
 function hafocus(){
-  var k=HA.ids[window._altoBgId||''], on=!!(k && r.classList.contains('alto-holo') && haph()), st=document.getElementById('alto-ha-fx');
-  if(on && !st){ st=document.createElement('style'); st.id='alto-ha-fx'; st.textContent='@media (max-width:640px){html.alto-holo.alto-bg-h #page-bg::before{position:fixed;left:0;right:0;top:0;bottom:0;background-position:var(--ha-fx,50%) 100%,0 0}}'; (document.head||r).appendChild(st); }
-  if(on) r.style.setProperty('--ha-fx', (hafp(k)*100).toFixed(2)+'%'); else if(r.style.getPropertyValue('--ha-fx')) r.style.removeProperty('--ha-fx');
+  var k=HA.ids[window._altoBgId||''], on=!!(k && r.classList.contains('alto-holo')), st=document.getElementById('alto-ha-fx');
+  // the poster (the page's own background) and the clip are the same box on every page: the viewport, fixed, `cover`, bottom-centred (a phone: at the background's focal point)
+  if(on && !st){ st=document.createElement('style'); st.id='alto-ha-fx'; st.textContent='html.alto-holo.alto-bg-h #page-bg::before{position:fixed;left:0;right:0;top:0;bottom:0;background-position:var(--ha-fx,50%) 100%,0 0}'; (document.head||r).appendChild(st); }
+  if(on && haph()) r.style.setProperty('--ha-fx', (hafp(k)*100).toFixed(2)+'%'); else if(r.style.getPropertyValue('--ha-fx')) r.style.removeProperty('--ha-fx');
 }
 function hasync(){
   hafocus();
@@ -240,10 +244,11 @@ function hand(on){ if(r.classList.contains('ha-nd')!==on) r.classList.toggle('ha
 // the scene box = the picture's area (#page-bg::before: the window and 40px past it on three sides, less --alto-t at the top; bottom-centred `cover`, 16:10); the rain's rotated sheets
 // reach past every corner. All in the layer's own pixels, found from a 100px probe so the page's zoom cancels out.
 function hafit(l){
+  if(l.classList.contains('hv')) return;      // (a clip fills the layer by CSS)
   var p=l.firstChild, L=l.getBoundingClientRect(), z=(p && p.getBoundingClientRect().width/100)||1, s=l.querySelector('.ha-scene'), q=l.querySelectorAll('.rn,.rf');
   if(!L.width) return;
-  if(s && haph()){ var w2=Math.max(L.width, 1.6*L.height); s.style.width=(w2/L.width*100).toFixed(3)+'%'; s.style.left=((L.width-w2)*hafp(l.getAttribute('data-k'))/L.width*100).toFixed(3)+'%'; }
-  else if(s){ s.style.left=''; var t=(parseFloat(getComputedStyle(r).getPropertyValue('--alto-t'))||0)*z, w=Math.max(L.width+80*z, 1.6*(L.height+80*z-t)); s.style.width=(w/L.width*100).toFixed(3)+'%'; }
+  if(s){ var w2=Math.max(L.width, 1.6*L.height); s.style.width=(w2/L.width*100).toFixed(3)+'%'; s.style.bottom='0'; s.style.transform='none';     // the poster's box is the viewport, `cover`, bottom-centred (a phone: at the focal point)
+    s.style.left=((L.width-w2)*(haph() ? hafp(l.getAttribute('data-k')) : .5)/L.width*100).toFixed(3)+'%'; }
   var g=l.querySelector('.ping');     // the ping swells about a zero-size anchor, so no transform-origin has to be worked out under the page zoom (WebKit got it wrong)
   if(g && s){ var u=s.getBoundingClientRect().width/1600/z; g.style.width=g.style.height=(1040*u).toFixed(2)+'px'; g.style.left=g.style.top=(-520*u).toFixed(2)+'px'; }
   for(var i=0;i<q.length;i++) q[i].style.inset='-'+Math.ceil(.13*Math.max(L.width,L.height)/z)+'px';

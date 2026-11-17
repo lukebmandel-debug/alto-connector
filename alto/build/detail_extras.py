@@ -920,13 +920,13 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   // share — so a share reads back 's-…' here, like its COURSE_ID.
   var tid = String(E.key || '').replace(/^alto-doc-/, '');
   if(!tid || tid.indexOf('s-') === 0) return;
-  // Not on a phone: timelines are made and changed with Claude on a computer.
-  if(/iPhone|iPod|Android.*Mobile|Windows Phone/i.test(navigator.userAgent)) return;
+  // A phone gets the way back to Claude (the toggle's star) and nothing of the desktop's room-making below.
+  var PH = /iPhone|iPod|Android.*Mobile|Windows Phone/i.test(navigator.userAgent);
   // The last unit's band grows by this much (engine patch
   // edit-tile-inside-the-last-band), so the tile sits inside the timeline's
   // own background. Set while the page parses — the first layout runs later.
   var ROOM = 70;
-  window._altoEditRoom = ROOM;
+  if(!PH) window._altoEditRoom = ROOM;
   var TITLE = E.title || document.title;
   var GET = 'https://alto-get.web.app';
   // The address of this page (…/pv/<key>/) names the account's site and the
@@ -978,6 +978,7 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   // A request of its own (a quiz for this page, say): the same way in, with the
   // timeline named ahead of it so a chat that cannot see the draft can find it.
   window._altoAskClaude = function(text){ openClaude(prompt(String(text || ""))); };
+  if(PH) return;
   var world = null;
   // The editing controls live in the edit toggle beside light/dark
   // (manual_edit.py); the last unit's band keeps a little room under its cards

@@ -75,6 +75,8 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
+  /* the homepage's solid top strip (Retro's rule: tiles tuck under it, retro.HOME_CSS X.alto-home::before) would paint a flat slab over a Holographic background's own top: the background reaches the top and the bars stay clear (Luke, real Safari 1.9.237). The labels keep their own plates, so nothing reads through them. */
+  X.alto-home:not(#_):not(#__)::before{display:none !important;}
   X.alto-bg-h #page-bg:not(#_):not(#__){background:var(--alto-top) !important;}
   X.alto-bg-h #page-bg:not(#_)::before{display:block !important;}
   X.alto-bg-h :is(body,#app,#canvas):not(#_):not(#__){background:transparent !important;}

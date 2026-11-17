@@ -586,6 +586,19 @@ _EDIT_LINK_CSS = (
     "@media (max-width:340px){html.mobile #alto-edit-exit .ee-t{font-size:0}html.mobile #alto-edit-exit .ee-t::before{content:\"✎\";font-size:16px}}")
 
 
+_PILL_BASS_FN = r"""  function pillBass(h){
+    var m = /var COURSE_ID = '([a-z][a-z0-9-]{0,47})';/.exec(h), k = "+ '<button type=\"button\" class=\"aep-half aep-manual\"";
+    var i = h.indexOf(k), j = h.indexOf('<head>');
+    if(!m || i < 0 || j < 0 || h.indexOf(k, i + 1) >= 0) return h;
+    var a = "+ '" + '<a class="aep-half aep-bass" href="/#bass-edit=' + m[1] + '" data-tip="Edit with Bass: describe a change, preview it, then apply" aria-label="Edit with Bass">__GLYPH__</a><span class="aep-div" aria-hidden="true"></span>' + "'";
+    return h.slice(0, j + 6) + '<style id="aep-bass-css">__CSS__</style>' + h.slice(j + 6, i) + a + h.slice(i);
+  }
+"""
+_PILL_BASS_CSS = (
+    "#alto-edit-pill .aep-bass{padding:0 12px;text-decoration:none}"
+    ".alto-edit-pill .aep-bass svg{display:block;width:16px;height:20px}")
+
+
 def _edit_link_js(js: str) -> str:
     """Add Edit with Bass's link to the editing bar of the page this shell writes: a plain <a href="/#bass-edit=<timeline id>"> and a few lines of style, no script,
     no network. Only in owner edit mode (the bar is shown only then). The id is the page's own COURSE_ID, checked against the one id pattern."""
@@ -600,11 +613,13 @@ def _edit_link_js(js: str) -> str:
         "    var a = '<a class=\"ee-h ee-clef\" href=\"/#bass-edit=' + m[1] + '\" title=\"Edit with Bass\" aria-label=\"Edit with Bass\">" + glyph + "</a>';\n"
         "    return h.slice(0, j + 6) + '<style id=\"ee-clef-css\">" + _EDIT_LINK_CSS + "</style>' + h.slice(j + 6, i) + a + h.slice(i);\n"
         "  }\n")
+    # the edit toggle's Bass segment (manual_edit.py pillHTML: Claude star | Bass | pencil): a plain link between the star and the pencil, the same address as the bar's link
+    fn2 = _PILL_BASS_FN.replace("__GLYPH__", glyph).replace("__CSS__", _PILL_BASS_CSS)
     anchor = "  function render(pageHtml){"
     call = "document.write(withHandoff(pageHtml));"
     if js.count(anchor) != 1 or js.count(call) != 1:
         raise RuntimeError("private shell changed shape: the edit link could not be placed")
-    return js.replace(anchor, fn + anchor, 1).replace(call, "document.write(editLink(withHandoff(pageHtml)));", 1)
+    return js.replace(anchor, fn + fn2 + anchor, 1).replace(call, "document.write(pillBass(editLink(withHandoff(pageHtml))));", 1)
 
 
 def shell(cloud_version: str = "", site_version: str = "") -> str:

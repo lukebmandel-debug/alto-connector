@@ -282,7 +282,9 @@ function chat(){ var h=(S.mode==='panel'?usingView():'')+((S.log.length||S.typin
   if(S.log.length||S.typing) h+='</div>';
   if(S.alert) h+=alertView(S.alert);
   return h; }
-function inputRow(){ return '<div class="bs-inp"><input type="text" class="bs-say" placeholder="Ask Bass to change this timeline" aria-label="Ask Bass to change this timeline" maxlength="600"><button type="button" class="bs-ib" data-a="send" title="Send" aria-label="Send">'+IC.send+'</button></div>'; }
+function greet(){ return (S.tid||D.querySelector('script[data-tid]'))?'Ask me to change a card, an act or a link in this timeline.':'Ask me about your projects, or open a timeline to change its cards.'; }
+function sayHint(){ return (S.tid||D.querySelector('script[data-tid]'))?'Ask Bass to change this timeline':'Ask Bass anything about your projects'; }   /* on the home with no timeline open the old words are wrong */
+function inputRow(){ var sh=sayHint(); return '<div class="bs-inp"><input type="text" class="bs-say" placeholder="'+sh+'" aria-label="'+sh+'" maxlength="600"><button type="button" class="bs-ib" data-a="send" title="Send" aria-label="Send">'+IC.send+'</button></div>'; }
 
 function bodyWizard(){
   var st=S.step, b='', a='';
@@ -359,6 +361,7 @@ function draw(){
   var dfi=root.querySelector('#bs-dfile'); if(dfi) dfi.addEventListener('change',function(){ addDocFiles(dfi.files); dfi.value=''; });
   root.classList.toggle('bs-sharing',!!S.sharesheet);                                  /* one close x while the sheet is open: the sheet's (= No thanks) */
   root.setAttribute('data-step',S.mode==='wizard'?String(S.step):'panel'); root.classList.toggle('bs-emb',!!S.emb);
+  headMark(); posApply();
 }
 function addFiles(list){ Array.prototype.forEach.call(list||[],function(f){ var n=f.name;
   var isT=/\.(txt|md|markdown|csv|html?|rtf)$/i.test(n)||/^text\//.test(f.type), m={name:n,kind:'notes',text:'',size:f.size,needs_extraction:!isT};
@@ -465,14 +468,44 @@ function onKey(e){
   if(e.key==='Escape'&&root){ e.stopPropagation(); if(S.notice) notNow(); else if(S.sharesheet) shareNo(); else if(S.dopen) closeDocs(); else close(); return; }
   if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('bs-say')){ e.preventDefault(); var ans=root.querySelector('[data-a="ans"]'); if(ans) ans.click(); else doSend(); }
 }
-function close(){ try{ R.classList.remove('bs-side'); }catch(e){} if(root){ root.remove(); root=null; D.removeEventListener('keydown',onKey,true); } }
+function close(){ try{ R.classList.remove('bs-side'); }catch(e){} if(root){ dragEnd(); root.remove(); root=null; D.removeEventListener('keydown',onKey,true); try{ window.removeEventListener('resize',onResize); }catch(e){} } }
 function sideTop(){ var t=112; try{ Array.prototype.forEach.call(D.querySelectorAll('.home-sort,.hr-chip'),function(e){ var b=e.getBoundingClientRect(), y=b.bottom+(window.pageYOffset||0); if(y<360) t=Math.max(t,Math.round(y+8)); }); }catch(e){} return t; }
+/* the side panel moves: drag the header (pointer events: mouse, pen, touch laptops); at least 20px from every window edge and below the fixed top row; remembered per device;
+   double-click the header (or Home) puts it back in its dock; a phone keeps its bottom sheet. */
+var POSK='alto-bass-panel-pos-v1', POS=null, POSLOADED=false, drag=null;
+function posLoad(){ if(POSLOADED) return; POSLOADED=true; try{ var v=JSON.parse(localStorage.getItem(POSK)); if(v&&isFinite(v.x)&&isFinite(v.y)) POS={x:+v.x,y:+v.y}; }catch(e){} }
+function posSave(){ try{ if(POS) localStorage.setItem(POSK,JSON.stringify({x:Math.round(POS.x),y:Math.round(POS.y)})); else localStorage.removeItem(POSK); }catch(e){} }
+function dragOK(){ return !!root&&S.mode==='panel'&&!S.emb&&!R.classList.contains('mobile')&&window.innerWidth>640; }
+function topRow(){ var t=20; try{ Array.prototype.forEach.call(D.querySelectorAll('#title-bar,#title-bar *,.brand-mark,#home-btn,.home-btn,#desk-back,#timeline-return-pill'),function(e){ if(root&&root.contains(e)) return; var c=getComputedStyle(e); if(c.display==='none'||c.visibility==='hidden') return; var b=e.getBoundingClientRect(); if(b.width>1&&b.height>1&&b.top<140&&b.bottom>0) t=Math.max(t,Math.round(b.bottom+8)); }); }catch(e){} return t; }
+function dock(){ var vw=window.innerWidth, vh=window.innerHeight, top=parseFloat(root&&root.style.getPropertyValue('--bs-top'))||112; return {w:Math.min(330,vw-92),h:Math.max(240,vh-top-84)}; }
+function clampPos(x,y,w,h){ var vw=window.innerWidth, vh=window.innerHeight, t=topRow(); w=Math.min(w,vw-40); h=Math.min(h,vh-t-20);
+  return {x:Math.round(Math.max(20,Math.min(x,vw-20-w))),y:Math.round(Math.max(t,Math.min(y,vh-20-h))),w:w,h:h}; }
+function posApply(){ if(!root) return; if(!dragOK()||!POS){ root.classList.remove('bs-moved'); return; }
+  var d=dock(), c=clampPos(POS.x,POS.y,d.w,d.h); POS.x=c.x; POS.y=c.y;
+  root.style.setProperty('--bs-x',c.x+'px'); root.style.setProperty('--bs-y',c.y+'px'); root.style.setProperty('--bs-w',c.w+'px'); root.style.setProperty('--bs-hh',c.h+'px'); root.classList.add('bs-moved'); }
+function posReset(){ POS=null; posSave(); posApply(); }
+function dragMove(e){ if(!drag||e.pointerId!==drag.id) return; var c=clampPos(e.clientX-drag.dx,e.clientY-drag.dy,drag.w,drag.h); POS={x:c.x,y:c.y}; posApply(); }
+function dragEnd(e){ if(!drag||(e&&e.pointerId!==drag.id)) return; drag=null; D.removeEventListener('pointermove',dragMove,true); D.removeEventListener('pointerup',dragEnd,true); D.removeEventListener('pointercancel',dragEnd,true);
+  if(root) root.classList.remove('bs-drag'); posSave(); }
+function dragStart(e){ if(!dragOK()||(e.pointerType==='mouse'&&e.button!==0)) return; var t=e.target; if(!t||!t.closest) return; var h=t.closest('.bs-panel .bs-h'); if(!h||!root.contains(h)) return;
+  if(t.closest('button,a,input,textarea,select,label,.bs-chip,[data-a]')) return;
+  try{ var sel=window.getSelection(); if(sel&&!sel.isCollapsed&&sel.containsNode&&sel.containsNode(t,true)) return; }catch(x){}
+  var pn=h.closest('.bs-panel'), r=pn.getBoundingClientRect(); drag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top,w:r.width,h:r.height};
+  root.classList.add('bs-drag'); e.preventDefault();
+  D.addEventListener('pointermove',dragMove,true); D.addEventListener('pointerup',dragEnd,true); D.addEventListener('pointercancel',dragEnd,true); }
+function headKey(e){ if(!dragOK()||!e.target.closest) return; var h=e.target.closest('.bs-panel .bs-h'); if(!h||e.target!==h) return; var st=e.shiftKey?80:20, dx=0, dy=0;
+  if(e.key==='ArrowLeft') dx=-st; else if(e.key==='ArrowRight') dx=st; else if(e.key==='ArrowUp') dy=-st; else if(e.key==='ArrowDown') dy=st; else if(e.key==='Home'){ e.preventDefault(); posReset(); return; } else return;
+  e.preventDefault(); var r=h.closest('.bs-panel').getBoundingClientRect(), c=clampPos(r.left+dx,r.top+dy,r.width,r.height); POS={x:c.x,y:c.y}; posApply(); posSave(); }
+function headDbl(e){ if(!dragOK()||!e.target.closest) return; if(e.target.closest('button,a,input,textarea,select,.bs-chip,[data-a]')) return; if(e.target.closest('.bs-panel .bs-h')) posReset(); }
+function headMark(){ if(!root) return; var h=root.querySelector('.bs-panel .bs-h'); if(!h) return; if(dragOK()){ h.tabIndex=0; h.setAttribute('title','Drag to move. Double-click to put it back.'); } else { h.removeAttribute('tabindex'); h.removeAttribute('title'); } }
+function onResize(){ posApply(); }
 function mount(){ close(); RUN++; root=D.createElement('div'); root.className='bs-root'+(S.emb?' bs-emb':''); root.id='bass-root'; (S.emb&&D.getElementById('nt-bass')||D.body).appendChild(root);
   try{ R.classList.toggle('bs-side',S.mode==='panel'&&!S.emb); if(S.mode==='panel'&&!S.emb) root.style.setProperty('--bs-top',sideTop()+'px'); }catch(e){}   /* the side panel starts below the home's PRIVATE / sort row, and the footer's credits make room for it */
   root.addEventListener('click',onClick); root.addEventListener('change',function(e){ if(e.target.matches('[data-a="consent"]')) onClick({target:e.target}); else if(e.target.matches('select[data-a^="d-"]')) docsClick(e.target,e.target.getAttribute('data-a')); });
   root.addEventListener('dragover',function(e){ var d=e.target.closest('[data-drop]'); if(d){ e.preventDefault(); d.classList.add('over'); } });
   root.addEventListener('dragleave',function(e){ var d=e.target.closest('[data-drop]'); if(d) d.classList.remove('over'); });
   root.addEventListener('drop',function(e){ var d=e.target.closest('[data-drop]'); if(d){ e.preventDefault(); d.classList.remove('over'); (d.getAttribute('data-drop')==='docs'?addDocFiles:addFiles)(e.dataTransfer&&e.dataTransfer.files); } });
+  root.addEventListener('pointerdown',dragStart); root.addEventListener('keydown',headKey); root.addEventListener('dblclick',headDbl); posLoad(); posApply(); try{ window.addEventListener('resize',onResize); }catch(e){}
   D.addEventListener('keydown',onKey,true); }
 
 /* ───────────────────────── every state, on demand: #bass=<name> or _altoBass.dev(name) ───────────────────────── */
@@ -511,7 +544,7 @@ function dev(name,mode){
   }
   if(name==='home'||name===''){ S.mode='wizard'; S.step=emb?0:1; S.files=[]; S.paste=''; S.chips=null; S.log=[]; }
   if(S.mode==='panel'&&!/^(live|edit|offtopic)$/.test(name)&&!S.alert&&name!=='') S.log=[];
-  if(S.mode==='panel'&&name===''){ S.log=[{r:'a',t:'Ask me to change a card, an act or a link in this timeline.'}]; }
+  if(S.mode==='panel'&&name===''){ S.log=[{r:'a',t:greet()}]; }
   if(/^(busy|paused|error|refused|capped|nocredits|outofcredits|offtopic|stopped|estimate|build|question)$/.test(name)) SIM.force={nocredits:'nocredits',outofcredits:'nocredits',offtopic:'offtopic'}[name]||name;
   if(name==='live') SIM.force=null;
   draw();
@@ -522,7 +555,7 @@ function open(mode,o){
   S.dopen=false; S.using=null; S.uexp=false; S.scope=null;
   if(mode==='docs'){ S.emb=false; S.out=null; S.mode='docs'; mount(); openDocs('docs'); call('balance').then(function(r){ if(r&&typeof r.credits==='number') setBal(r.credits); }); return; }
   S.emb=mode==='embed'; S.place='philadelphia'; S.mode=(mode==='wizard'||S.emb)?'wizard':'panel'; S.alert=null; S.est=null; S.running=false; S.typing=false; S.consent=false; S.step=S.emb?0:1; S.files=[]; S.paste=''; S.chips=null;
-  S.log=S.mode==='panel'?[{r:'a',t:'Ask me to change a card, an act or a link in this timeline.'}]:[];
+  S.log=S.mode==='panel'?[{r:'a',t:greet()}]:[];
   S.xfmt=(o&&typeof o.fmt==='string'&&/^[a-z]{1,12}$/.test(o.fmt))?o.fmt:null;      /* the NEW dialog's picked format: sent as is; the server accepts only its own list */
   S.plan=!!(o&&o.plan&&typeof o.tid==='string'&&o.tid&&S.mode==='panel'); S.pw=null;
   if(S.plan){ S.tid=o.tid; S.log=[{r:'a',t:'Let us make your study plan. Tell me when your exam is, about how much time you have each day, and what you find hard.'}]; }
@@ -530,7 +563,7 @@ function open(mode,o){
   draw(); S.scope=scopeRead(); usingLoad(); call('balance').then(function(r){ if(r&&typeof r.ack==='string'&&r.ack) S.ack=r.ack; if(typeof r.credits==='number'){ SIM.bal=BASE?r.credits:SIM.bal; setBal(r.credits); }
     if(S.out){ S.alert={status:S.out.status==='off'?'paused':S.out.status,code:S.out.code,message:S.out.message}; if(S.mode==='wizard'&&!S.emb) S.step=1; } else if(r&&r.research) shareApply(r.research); draw(); });
   var f=root.querySelector('button.bs-btn.pri,.bs-say'); }
-function leave(){ try{ R.classList.remove('bs-side'); }catch(e){} if(root){ root.remove(); root=null; D.removeEventListener('keydown',onKey,true); } S.emb=false; }
+function leave(){ try{ R.classList.remove('bs-side'); }catch(e){} if(root){ dragEnd(); root.remove(); root=null; D.removeEventListener('keydown',onKey,true); try{ window.removeEventListener('resize',onResize); }catch(e){} } S.emb=false; }
 __DOCS__
 window._altoBass={convert:doConvert,share:{no:shareNo,yes:shareYes,toggle:shareToggle},open:open,openDocs:openDocs,drive:{flow:driveFlow,pick:drivePick,popup:googlePick},close:close,leave:leave,dev:dev,propose:doPropose,build:doBuild,ok:noticeOk,notNow:notNow,NOTICE_TEXT:NOTICE_TEXT,NOTICE_V:NOTICE_V,sim:SIM,call:call,state:S,version:'ui-2'};
 /* Signing out revokes a Drive token that is still live (a flow whose last disconnect did not get through): the server's sign_out line
