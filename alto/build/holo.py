@@ -417,6 +417,21 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           "X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half + .aep-half:not(#_):not(#__){box-shadow:inset 1px 0 0 rgba(47,167,157,.45) !important;}\n"
           # a phone's controls keep their 1px border box (transparent now) so the guide that drops from the info tile, and every width, sit exactly where they did
           "@media (max-width:640px){" + _s1() + "{border:1px solid transparent !important;}}\n"
+          # v1.9.234 (Luke L-1116-104958, Art's mock notes-art/holo-toggles/234-sort/): on a phone the homepage's PRIVATE chip / Private|Shared switch and Sort chip wear the same glass
+          # (their 1px border box stays, transparent, so the size and every position are unchanged; worst glyph pixel 9.19:1 or better on Lightspeed and Amber haze)
+          "@media (max-width:640px){" + ",".join(f"X.alto-home #home-row {t}{_S1_NOT}" for t in (".hr-chip.hr-plain", ".home-sort", ".hr-switch")) + "{border:1px solid transparent !important;border-radius:999px !important;"
+          "background:radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%)," + S1_PLATE + " !important;"
+          "box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 0 16px rgba(var(--ho-rgb),.30) !important;"
+          "-webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;color:var(--ho-ac) !important;}\n"
+          "X.alto-home #home-row .home-sort:is(:hover,:focus-visible,[aria-expanded=\"true\"])" + _S1_NOT + "{box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 0 16px rgba(var(--ho-rgb),.3),0 0 22px rgba(var(--ho-rgb),.55) !important;}\n"
+          "X.alto-home #home-row .hr-switch .hr-chip[aria-checked=\"true\"]" + _S1_NOT + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26)) !important;border-radius:999px !important;box-shadow:none !important;}}\n"
+          # v1.9.234 (Luke L-1116-110333): the OPEN info guide on a computer is a rounded rectangle on a SOLID plate (the 999px S1 circle had been carried into its expanded state and cut its text
+          # off), never taller than the window less its 20px margins; a phone's open guide is its own child panel, the round tile keeps the circle
+          "@media (min-width:641px){X #info-btn.expanded" + _S1_NOT + "{border-radius:14px !important;background:radial-gradient(circle at 32% 24%,rgba(255,255,255,.10),transparent 55%),rgb(var(--ho-bgrgb)) !important;"
+          "max-height:min(660px,calc(100vh - 124px)) !important;translate:-16px 0;}}\n"
+          "@media (min-width:641px){X:not(.mobile) #info-btn.expanded #info-icon" + _S1_NOT + "{width:44px !important;height:44px !important;border:1px solid transparent !important;border-radius:999px !important;translate:16px 0;background:radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%)," + S1_PLATE + " !important;"
+          "box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 0 16px rgba(var(--ho-rgb),.30) !important;color:var(--ho-ac) !important;}}\n"
+          "@media (max-width:640px){X #info-btn.expanded #info-content" + _S1_NOT + "{background:rgb(var(--ho-bgrgb)) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}}\n"
           # the focused Search keeps its one teal rim (border and ring one colour), over the glass
           "X #search-btn:focus-within" + _S1_NOT + "{border-color:var(--ho-ac) !important;box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}\n"
           # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)

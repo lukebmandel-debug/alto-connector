@@ -228,6 +228,22 @@ def test_print_removes_the_rings(fmt, browser, tmp_path):
         _close(pg)
 
 
+@needs_render
+def test_system_print_has_no_sun_glow_or_lift_shadow(browser, tmp_path):
+    """v1.9.234: the System format kept its sun-glow (and every body's lift shadow) box-shadow in ink print; screen is unchanged."""
+    pg = _open(browser, tmp_path, _page(copy.deepcopy(FORMATS["system"]())))
+    try:
+        JS = "() => [].slice.call(document.querySelectorAll('#world .node-card')).map(function(e){ return getComputedStyle(e).boxShadow; })"
+        pg.evaluate("document.documentElement.classList.add('sk-real')")      # the Realistic style (its glow is what print kept)
+        pg.wait_for_timeout(700)
+        assert any(x != "none" for x in pg.evaluate(JS)), "on screen the bodies keep their shadow and the sun its glow"
+        pg.emulate_media(media="print")
+        pg.wait_for_timeout(50)                                  # no wait for a fade: print must have no glow from its first frame
+        assert set(pg.evaluate(JS)) == {"none"}, "in print no card carries a glow or shadow"
+    finally:
+        _close(pg)
+
+
 # ── 3. the tool round trip ─────────────────────────────────────────────────────────────
 
 @pytest.fixture

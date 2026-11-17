@@ -646,7 +646,8 @@ REAL_CSS = r"""
   html.sk-real.alto-stars:not(.mobile) #world .node[data-solar]:not(.focused) .node-card:not(#_){box-shadow:0 10px 30px rgba(0,0,0,.45) !important;}
   html.sk-real.alto-stars:not(.mobile) #world .node[data-solar=sun]:not(.focused) .node-card:not(#_){
     box-shadow:0 0 60px 18px rgba(255,214,150,.30),0 0 180px 60px rgba(255,170,90,.14),0 0 420px 140px rgba(255,140,70,.06) !important;}
-  @media print{ .sk-rot,.sk-par{display:none !important;} }
+  @media print{ .sk-rot,.sk-par{display:none !important;}
+    html.sk-real.alto-stars:not(.mobile) #world .node[data-solar]:not(.focused) .node-card:not(#_),html.sk-real.alto-stars:not(.mobile) #world .node[data-solar=sun]:not(.focused) .node-card:not(#_){box-shadow:none !important;transition:none !important;} }   /* ink print: no lift shadow, no sun glow, and no fade of it either (a transition leaves the glow on the first printed frames) */
 """
 STARS_CSS += REAL_CSS
 

@@ -55,7 +55,7 @@ def _hits(page, query, sels, w=402, h=874):
 
 
 @pytest.mark.parametrize("page,query,sels,draw", [
-    ("home", "", ["#account-btn", "#mode-toggle", "#bg-toggle", "#info-icon", ".slab-share"], {"#account-btn": [34, 34], ".slab-share": [30, 30]}),
+    ("home", "", ["#account-btn", "#mode-toggle", "#bg-toggle", "#info-icon", ".slab-share"], {"#account-btn": [44, 44], ".slab-share": [30, 30]}),
     ("timeline", "view=card", [".csym-btn", ".esym-btn"], {".csym-btn": [34, 34]}),
     ("outline-long", "view=card", ["#af-btn"], {"#af-btn": [34, 34]}),                     # (Focus mode: the normal outline only, L-1114-focus)
 ])

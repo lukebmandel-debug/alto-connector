@@ -16,6 +16,7 @@ action can be resumed.
 from __future__ import annotations
 
 import collections
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -29,6 +30,8 @@ from . import config as P
 from .errors import (CapReached, Flags, InsufficientCredits, POLICIES, BassError, UpstreamError, classify)
 from .ledger import Ledger
 from .tools import ToolBox
+
+log = logging.getLogger("bass.upstream")
 
 SYSTEM_PROMPT = """You are Bass, the assistant inside Alto that turns a student's own study materials into an interactive timeline or outline.
 
@@ -408,6 +411,9 @@ class Engine:
                 raise
             except (anthropic.APIError, httpx2.HTTPError, httpx2.StreamError, OSError) as exc:   # SDK errors + raw httpx ones
                 err = classify(exc)
+                if err.code in ("connection", "timeout", "upstream"):
+                    # class names and the code ONLY: never str/repr/args of the exception (the SDK's connection error can carry the key), headers, uid, text
+                    log.warning("bass upstream failure code=%s exc=%s cause=%s", err.code, type(exc).__name__, type(exc.__cause__).__name__ if exc.__cause__ is not None else "None")
                 if sent is not None and self._maybe_billed(exc, sent):
                     err.maybe_billed = True
                     raise err from exc

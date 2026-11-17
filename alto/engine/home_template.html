@@ -381,7 +381,7 @@
                border-radius .35s cubic-bezier(.4,0,.2,1);
   }
   #info-btn.expanded{
-    width:360px; max-height:660px; border-radius:12px;
+    width:360px; max-height:min(660px, calc(100vh - 44px)); border-radius:12px;
     box-shadow:0 18px 48px var(--node-hover-shadow), inset 0 1px 0 var(--card-glass-hi);
     background:var(--panel-glass-bg);
     -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
@@ -406,7 +406,12 @@
      lands in the right place too. A computer's layout only (the phone's guide drops down from the top row). */
   @media (min-width:641px){
     #search-btn, #bin-btn{ transition:transform .35s cubic-bezier(.4,0,.2,1); }
-    html.info-open #search-btn, html.info-open #bin-btn{ transform:translateX(-324px); }
+    /* v1.9.234: the open guide stands ABOVE the bottom-right row (12px clear of its top), so nothing slides aside and no control is beside or under it; the info
+       button keeps its own place in the row as a round plate below the panel (a click on it closes the guide) */
+    html:not(.mobile) #info-btn.expanded{ bottom:calc(var(--alto-row-b, 24px) + 58px) !important; overflow:visible !important; max-height:min(660px, calc(100vh - 124px)) !important; }
+    html:not(.mobile) #info-btn.expanded #info-icon{ inset:auto !important; right:0 !important; bottom:-58px !important; width:35px !important; height:35px !important; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      background:var(--card-glass-bg); border:1px solid var(--card-glass-border); box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
+      -webkit-backdrop-filter:blur(18px) saturate(190%); backdrop-filter:blur(18px) saturate(190%); box-sizing:border-box; }
   }
 
   /* ── ACCOUNT — 36px person bubble in the bottom-LEFT slot (the spot the account
@@ -525,15 +530,16 @@
       -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%);
     }
     /* order: account (far left) · search — · · · — info · light/dark (far right) */
-    #account-btn{ left:14px !important; }
-    #info-btn{ right:66px !important; left:auto !important; }
-    #mode-toggle{ right:14px !important; color:var(--text); }
+    #account-btn{ left:20px !important; }   /* the top row keeps a 20px gap from the screen edge (v1.9.234) */
+    #info-btn{ right:72px !important; left:auto !important; }
+    #mode-toggle{ right:20px !important; color:var(--text); }
     /* Holographic and Retro are dark only, with no light/dark button (Luke 2026-11-13, "light mode is still available incorrectly on mobile holo"):
        info and the Scene tile close up into its place, and the open search pill keeps its reach up to info */
-    html:is(.alto-holo,.alto-retro) #info-btn, html:is(.alto-holo,.alto-retro) #info-btn.expanded{ right:14px !important; }
-    html:is(.alto-holo,.alto-retro):not(.mobile) body > #bg-toggle{ right:66px; }
-    html:is(.alto-holo,.alto-retro) #search-btn.expanded{ width:min(340px, calc(100vw - 132px)) !important; }
+    html:is(.alto-holo,.alto-retro) #info-btn, html:is(.alto-holo,.alto-retro) #info-btn.expanded{ right:20px !important; }
+    html:is(.alto-holo,.alto-retro):not(.mobile) body > #bg-toggle{ right:72px; }
+    html:is(.alto-holo,.alto-retro) #search-btn.expanded{ width:min(340px, calc(100vw - 144px)) !important; }
     /* glyph-only in the compact bar — no ::after text labels */
+    html:is(.alto-holo,.alto-retro) #info-btn.expanded #info-content{ right:-1px; }
     #info-btn:not(.expanded)::after, #account-btn::after{ content:none !important; }
     #info-btn:not(.expanded) #info-icon{ position:absolute !important; inset:0 !important; display:flex; align-items:center; justify-content:center; width:auto; height:auto; }
     #info-btn:not(.expanded) #info-icon svg{ position:static !important; inset:auto !important; margin:0 !important; width:18px; height:18px; transform:none !important; }
@@ -545,7 +551,7 @@
        glyph + label centred inside the bubble; expands rightward, results drop DOWN */
     #search-btn{
       position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)) !important; bottom:auto !important;
-      left:66px !important; right:auto !important; transform:none !important;
+      left:72px !important; right:auto !important; transform:none !important;
       width:auto !important; height:44px !important; max-height:44px !important; border-radius:22px !important;
       display:flex; align-items:center; justify-content:center; gap:6px; padding:0 15px !important; overflow:visible !important; z-index:300;
       box-shadow:none !important;
@@ -557,17 +563,19 @@
     #search-label{ display:inline; font-size:13px; color:var(--muted); white-space:nowrap;
       font-family:Georgia,'Times New Roman',serif; }
     /* expanded pill grows rightward from its left anchor and stops 8px short of the
-       INFO tile (which spans right:66–110px) — never covers the other buttons */
-    #search-btn.expanded{ width:min(340px, calc(100vw - 184px)) !important; padding:0 12px !important; justify-content:flex-start; }
+       INFO tile (which spans right:72–116px) — never covers the other buttons */
+    #search-btn.expanded{ width:min(340px, calc(100vw - 196px)) !important; padding:0 12px !important; justify-content:flex-start; }
+    /* the narrowest phones (320): the closed search pill gives up its word and is the same 44pt round glyph, so it never meets the Scene tile */
+    @media (max-width:349px){ #search-btn:not(.expanded){ width:44px !important; padding:0 !important; gap:0 !important; } #search-btn:not(.expanded) #search-label{ display:none; } }
     #search-input{ font-size:16px; }   /* 16px suppresses iOS focus-zoom (keyboard viewport jumps) */
     #search-btn.expanded #search-label{ display:none; }
     #search-btn:not(.expanded) #search-input{ display:none; }
     #search-btn.expanded #search-input{ position:static; flex:1 1 auto; min-width:0; width:auto; opacity:1; }
     /* results overlay BELOW the toolbar pill (absolute within the fixed pill) */
     #search-results{
-      left:-52px !important; right:auto !important; transform:none !important;   /* pill left = 66px → panel left = 14px */
+      left:-52px !important; right:auto !important; transform:none !important;   /* pill left = 72px → panel left = 20px */
       top:52px !important; bottom:auto !important;
-      width:calc(100vw - 28px); max-width:440px; max-height:62dvh;
+      width:calc(100vw - 40px); max-width:440px; max-height:62dvh;
       /* near-opaque plate + hairline: results must read AGAINST the vivid wallpaper */
       background:rgba(252,252,255,0.97); border:1px solid rgba(90,90,128,0.32);
       box-shadow:0 18px 44px rgba(20,28,60,0.26);
@@ -578,7 +586,7 @@
        bottom-RIGHT corner as a separate overlay panel (nothing gets pushed aside). */
     #info-btn.expanded{
       top:calc(63px + env(safe-area-inset-top,0px)) !important; bottom:auto !important;
-      right:66px !important; left:auto !important;
+      right:72px !important; left:auto !important;
       width:44px !important; height:44px !important; max-height:44px !important;
       border-radius:12px !important; overflow:visible !important;
       border-color:var(--muted) !important;   /* active hint while the guide is open */
@@ -591,8 +599,8 @@
          same box in every browser. top:34 = tile height → panel top-RIGHT corner meets
          the tile's bottom-RIGHT corner. */
       display:block; position:absolute; z-index:400;
-      top:43px; right:-1px; left:auto;   /* −1px each: absolute anchors inside the tile's 1px border */
-      width:min(360px, calc(100vw - 70px)); max-height:65dvh; overflow-y:auto;
+      top:45px; right:-53px; left:auto;   /* full width: the panel's right edge is 20px in from the window whatever the tile's own inset (72px here; 20px in Holo and Retro, below) */   /* −1px each: absolute anchors inside the tile's 1px border */
+      width:calc(100vw - 40px); max-height:65dvh; overflow-y:auto;
       -webkit-overflow-scrolling:touch;
       padding:15px 16px 17px; opacity:1;
       background:rgba(252,252,255,0.97); border:1px solid rgba(90,90,128,0.32);
@@ -2907,10 +2915,22 @@ function toggleInfo(){
   const btn = document.getElementById('info-btn');
   if(!btn || typeof btn.animate !== 'function') return;
   let cur = null;
+  function fitInfoRow(){
+    const root = document.documentElement;
+    if(window.innerWidth <= 640){ root.style.removeProperty('--info-shift'); return; }
+    if(!root.classList.contains('info-open')){ root.style.removeProperty('--info-shift'); return; }
+    const cs = parseFloat(getComputedStyle(root).getPropertyValue('--info-shift')) || 324, left = btn.getBoundingClientRect().left;
+    let need = 0;
+    ['search-btn', 'bin-btn'].forEach(function(id){ const e = document.getElementById(id); if(!e) return; const st = getComputedStyle(e);
+      if(st.display === 'none' || st.visibility === 'hidden') return; need = Math.max(need, e.getBoundingClientRect().right + cs - (left - 16)); });
+    if(need > 0) root.style.setProperty('--info-shift', need + 'px');
+  }
+  window.addEventListener('resize', function(){ clearTimeout(window._infoFitT); window._infoFitT = setTimeout(fitInfoRow, 200); });
   function applyInfoExpansion(){
     const expanded = btn.classList.contains('expanded');
     document.documentElement.classList.toggle('info-open', expanded);   // the whole bottom-right row (search, bin, ...) slides aside by CSS
     if(expanded && typeof window._homeSearchClose === 'function'){ try{ window._homeSearchClose(); }catch(e){} }
+    clearTimeout(window._infoFitT); window._infoFitT = setTimeout(fitInfoRow, 480);   // once the panel has its size: the row stands 16px clear of its left edge
     if(window.innerWidth <= 640) return;   // mobile: pure-CSS corner dropdown — no WAAPI, nothing slides aside
     const fromW = btn.offsetWidth, fromH = btn.offsetHeight;
     if(cur){ try{ cur.cancel(); }catch(e){} }

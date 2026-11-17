@@ -661,8 +661,8 @@ HOME_CSS = """
 html:not(.mobile) body > #bg-toggle{ position:fixed; right:0; top:calc(50% - 17px); z-index:300; }
 @media (max-width:640px){
   /* On a phone the tab joins the top row of toggles as a little rounded box: [account] [search] ... [scene] [info] [light/dark],
-     the same 44 pt box, 8px gap and glass as its neighbours (info sits at right 66, light/dark at right 14). */
-  html:not(.mobile) body > #bg-toggle, html:not(.mobile) #bg-toggle{ position:fixed; top:calc(63px + env(safe-area-inset-top,0px)); right:118px; bottom:auto; left:auto;
+     the same 44 pt box, 8px gap and glass as its neighbours (info sits at right 72, light/dark at right 20). */
+  html:not(.mobile) body > #bg-toggle, html:not(.mobile) #bg-toggle{ position:fixed; top:calc(63px + env(safe-area-inset-top,0px)); right:124px; bottom:auto; left:auto;
     width:44px; height:44px; z-index:300; border-radius:12px; border:1px solid var(--card-glass-border); box-shadow:none; color:var(--muted);
     background:var(--card-glass-bg); -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%); }
   html:not(.mobile) #bg-toggle svg{ width:18px; height:18px; }

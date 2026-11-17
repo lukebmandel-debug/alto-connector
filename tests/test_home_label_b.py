@@ -30,7 +30,7 @@ def test_row_b_replaces_the_two_group_labels_and_keeps_the_corner_toggles():
     assert "wrap.insertBefore(homeRow, wrap.firstChild)" in h
     # the home search still finds shared items while the Private view is up: both groups are always built
     assert "_searchExtra('shared', found)" in h and "classList.toggle('hr-off'" in h
-    assert "html.info-open #search-btn, html.info-open #bin-btn{ transform:translateX(-324px); }" in h   # the corner row is untouched
+    assert "html:not(.mobile) #info-btn.expanded{ bottom:calc(var(--alto-row-b, 24px) + 58px) !important;" in h   # the corner row is untouched (v1.9.234: the open guide now stands above it)
 
 
 @pytest.fixture(scope="module")

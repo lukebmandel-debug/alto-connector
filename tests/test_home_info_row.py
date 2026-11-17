@@ -25,7 +25,7 @@ except ImportError:
 
 def test_the_row_slides_by_one_rule_not_button_by_button():
     p = pages.build_home([])
-    assert "html.info-open #search-btn, html.info-open #bin-btn{ transform:translateX(-324px); }" in p
+    assert "html:not(.mobile) #info-btn.expanded{ bottom:calc(var(--alto-row-b, 24px) + 58px) !important;" in p
     assert "slideAside(" not in p
     assert "classList.toggle('info-open', expanded)" in p
 
@@ -122,13 +122,11 @@ def test_the_corner_row_moves_as_one(browser, site, style, dark, size):
         panel = op["guide"] if size[0] <= 640 else op["info-btn"]      # a computer's guide IS the info box; a phone's drops from the tile
         moved = [k for k in ("search-btn", "bin-btn") if abs(op[k]["l"] - shut[k]["l"]) > 1]
         if size[0] > 640:
-            dxs = {round(op[k]["l"] - shut[k]["l"]) for k in ("search-btn", "bin-btn")}
-            assert len(dxs) == 1 and moved == ["search-btn", "bin-btn"], (dxs, moved)        # the same shift: they travel together
-            assert abs(op["mode-toggle"]["l"] - shut["mode-toggle"]["l"]) < 1 if "mode-toggle" in op else True
+            assert moved == [], moved                       # v1.9.234: the guide stands ABOVE the row, so nothing slides aside
             for k in ("search-btn", "bin-btn"):
                 assert not _hit(op[k], panel), ("covered by the guide", k, op)
+                assert panel["b"] <= op[k]["t"] - 8 + 0.5, ("the guide ends 8px+ above the row", k, op)
             assert not _hit(op["search-btn"], op["bin-btn"])
-            assert op["bin-btn"]["r"] <= panel["l"] + 0.5
         else:
             assert moved == [], moved                                       # a phone's guide drops down: nothing slides
             for k in ("search-btn", "bin-btn"):
