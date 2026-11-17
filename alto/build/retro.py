@@ -492,6 +492,7 @@ HOME_CSS = r"""
   X.alto-home .bin-row button{border-radius:0;border-color:rgba(217,174,85,.6);color:#d9ae55;background:#000;}
   /* the corner controls: square chips with a gold rim (the light / dark button is gone: Retro is always dark) */
   X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
+  @media (min-width:641px){X.alto-home:not(.mobile) #info-btn.expanded #info-icon:not(#_):not(#__){border:1.5px solid #d9ae55 !important;border-radius:0 !important;background:#000 !important;color:#d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}}   /* the open guide's info button keeps its own square in the row (v1.9.234) */
   X.alto-home :is(#search-btn,#info-btn):not(.expanded) :is(#search-glyph,#info-icon){color:#d9ae55;}
   X.alto-home #search-btn.expanded{background:#000 !important;}
   X.alto-home #info-btn.expanded:not(#_){background:#05070a !important;}

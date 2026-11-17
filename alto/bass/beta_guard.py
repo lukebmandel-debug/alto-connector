@@ -310,7 +310,7 @@ class MetaLog:
         line = {k: rec[k] for k in LOG_FIELDS if k in rec}
         line["t"] = self.clock().isoformat()
         self.lines.append(line)
-        log.info(json.dumps(line, sort_keys=True))
+        log.info(json.dumps({k: v for k, v in line.items() if k != "uid"}, sort_keys=True))     # the uid stays in the store line, never in a log
         uid = line.get("uid")
         if self.store is None or not isinstance(uid, str) or not re.match(r"^[A-Za-z0-9_-]{1,128}$", uid):
             return

@@ -63,11 +63,12 @@ class SecretKeyProvider(keys.KeyProvider):
         with self._lock:
             if self._key is None:
                 try:
-                    self._key = self.reader.read(self.secret)
+                    key = self.reader.read(self.secret).strip()      # a hand-saved secret ends in \n; the header then fails. strip() only
                 except Exception:
                     raise NotConfigured("the Bass key is not available", code="bass_paused") from None
-                if not self._key:
-                    raise NotConfigured("the Bass key is empty", code="bass_paused")
+                if not key:
+                    raise NotConfigured("the Bass key is empty", code="bass_paused")     # nothing cached: a later fixed version is read again
+                self._key = key
             return self._key
 
     def describe(self) -> dict:

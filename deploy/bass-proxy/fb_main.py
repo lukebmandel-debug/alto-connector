@@ -5,9 +5,17 @@ deploys it. The function id is generic on purpose: its URL is in the CSP and the
 Options are fixed here, not in the Console: one instance with four requests at most (the in-flight limit is per process), 512 MiB, the
 BetaConfig function timeout, public invoker (callers prove themselves with a Firebase ID token in the gate). SERVICE_ACCOUNT is written by
 build_bundle.py (--service-account); None = the project's default compute account (see HOSTED-BUILD.md: a dedicated one is the plan)."""
+import logging
+import sys
+
 from firebase_functions import https_fn, options
 
 import proxy_main
+
+# WARNING and up go to stderr, which Cloud Logging collects; INFO stays off on purpose (see LOG-AUDIT-keystrip.md)
+logging.basicConfig(level=logging.WARNING, stream=sys.stderr, format="%(levelname)s %(name)s %(message)s")
+for _n in ("anthropic", "httpx", "httpx2", "httpcore", "h11", "urllib3", "google", "grpc"):     # SDK DEBUG logs carry request bodies and headers: never emitted, whatever ANTHROPIC_LOG says
+    logging.getLogger(_n).setLevel(logging.WARNING)
 
 SERVICE_ACCOUNT = None
 _gate = None
