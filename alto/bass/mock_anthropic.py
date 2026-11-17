@@ -307,8 +307,9 @@ def stream_drop(after_events: int = 3, times: int = 1) -> Fault:
 # ── the simulated server ─────────────────────────────────────────────────────────────────────────────────────
 
 class MockAnthropic:
-    def __init__(self, scenario: Scenario | None = None):
-        net_guard.install()          # belt and braces: a real Anthropic host is refused from here on
+    def __init__(self, scenario: Scenario | None = None, install_guard: bool = True):
+        if install_guard:            # the hosted function passes False: it makes real calls in the same process, so it never installs the guard
+            net_guard.install()      # belt and braces: a real Anthropic host is refused from here on
         self.scenario = scenario
         self.faults: list[Fault] = []
         self.requests: list[dict] = []        # every request the mock saw: {method, path, body, headers}

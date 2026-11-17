@@ -80,13 +80,14 @@ class Proxy:
 
     def __init__(self, cfg: BetaConfig, store, verifier: TokenVerifier, secrets: SecretReader, tools, *,
                  clock: Callable, origins=None, sink=None, mock: MockAnthropic | None = None, sleep=None, mock_tools=None,
-                 blobs=None, research=None):
+                 blobs=None, research=None, hosted: bool = False):
         from . import engine as E
         from .actions import Actions
         self.cfg, self.store, self.verifier, self.clock = cfg, store, verifier, clock
         self.origins = frozenset(cfg.allowed_origins if origins is None else origins)
         self.sink = sink if sink is not None else RecordingSink()
-        self.mock = mock or MockAnthropic()
+        self._hosted = hosted                                      # the hosted function: its mock never installs net_guard (it makes real calls in the same process)
+        self._mock = mock                                          # built lazily, ONLY in mock mode: MockAnthropic() installs net_guard process-wide, which would refuse our own live calls
         self.keyprov = SecretKeyProvider(secrets)
         self.kill = KillSwitch(store, self.sink, clock)
         self.ledger = BetaLedger(store, cfg, clock, sink=self.sink, kill=self.kill, sleep=sleep or (lambda s: None))
@@ -108,6 +109,12 @@ class Proxy:
         bad = cfg.problems()
         if bad:
             raise ValueError("the beta config is not safe to serve: " + "; ".join(bad))
+
+    @property
+    def mock(self) -> MockAnthropic:
+        if self._mock is None:
+            self._mock = MockAnthropic(install_guard=not self._hosted)
+        return self._mock
 
     # -- the client: mock unless the server's own flag says go ------------------------------------------------------
     def live_go(self) -> bool:
