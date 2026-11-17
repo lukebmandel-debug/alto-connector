@@ -24,6 +24,7 @@ from typing import Callable
 from . import promo
 from .beta_config import BetaConfig
 from .beta_guard import Allowlist, _answer
+from . import editbass
 
 HOSTED_KEY = "bass_beta/hosted"                 # {uids: [<uid>, ...]}: server only (firestore.rules: bass_beta/** denies every client)
 PIN_ENV = "ALTO_EXT_UIDS"                       # the deploy's own pin, comma separated
@@ -78,8 +79,10 @@ def pinned_uids(raw: str | None) -> frozenset:
 
 
 class HostedGate:
-    def __init__(self, proxy, store, verifier, *, cfg: BetaConfig, pins: frozenset, clock: Callable, bundle: Callable[[], str] | None = None):
+    def __init__(self, proxy, store, verifier, *, cfg: BetaConfig, pins: frozenset, clock: Callable, bundle: Callable[[], str] | None = None,
+                 owns: Callable[[str, str], bool] | None = None):
         self.proxy, self.store, self.verifier, self.cfg, self.clock = proxy, store, verifier, cfg, clock
+        self.owns = owns                                           # (verified uid, timeline id) -> does this account own it; None = Edit with Bass answers EMPTY (fail closed)
         self.pins = frozenset(pins) if len(pins) <= int(cfg.testers) else frozenset()
         self.origins = frozenset(cfg.allowed_origins)
         self.allow = Allowlist(store, cfg)
@@ -123,6 +126,16 @@ class HostedGate:
             return None
         return uid, email
 
+    def _owns(self, uid: str, request: dict) -> bool:
+        """Edit with Bass: the body names no account at all, the timeline id has the one id shape, and the verified uid owns it. Never raises."""
+        try:
+            if self.owns is None or editbass.smuggled(request):
+                return False
+            tid = request["args"].get("timeline_id") if isinstance(request.get("args"), dict) else None
+            return editbass.valid_tid(tid) and bool(self.owns(uid, tid))
+        except Exception:
+            return False
+
     def handle_http(self, method: str, headers: dict, body):
         h = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
         origin = h.get("origin")
@@ -137,9 +150,12 @@ class HostedGate:
             if len(raw) > self.cfg.max_request_bytes:
                 return self.empty(origin)
             request = json.loads(raw.decode("utf-8"))
-            if not isinstance(request, dict) or self.who(h, request) is None:
+            who = self.who(h, request) if isinstance(request, dict) else None
+            if who is None:
                 return self.empty(origin)
             action = request.get("action")
+            if action in editbass.EDIT_ACTIONS and not self._owns(who[0], request):   # Edit with Bass: the id is untrusted; the uid is the token's; a non-owned, unknown or
+                return self.empty(origin)                                                # malformed id gets the same answer as a bad token (checked on EVERY request, Apply included)
             if action == EXT_ACTION:
                 js = self._bundle()
                 return 200, self._headers(origin), json.dumps({"x": js}, separators=(",", ":")).encode("utf-8")

@@ -12,15 +12,17 @@ html.alto-retro .bs-root{--bs-dis:#d9ae55;--bs-bg:#05070b;--bs-glass:#000;--bs-i
 .bs-root svg{display:block;flex:none}
 .bs-g{height:var(--s,18px);width:calc(var(--s,18px) * .796)}
 .bs-root .bs-gc{display:block}.bs-root .bs-gr{display:none}
+html.dark .bs-root{--bs-link:#c9bcff}html.alto-retro .bs-root{--bs-link:#d9ae55}
 html.alto-retro .bs-root .bs-gc{display:none}html.alto-retro .bs-root .bs-gr{display:block}
 .bs-i{width:1em;height:1em}
 .bs-scrim{position:fixed;inset:0;background:rgba(8,9,16,.42);pointer-events:auto;display:flex;align-items:center;justify-content:center;padding:20px}
 html.alto-retro .bs-scrim{background:rgba(0,0,0,.62)}
 .bs-win,.bs-panel{pointer-events:auto;background:var(--bs-bg);border:1px solid var(--bs-bd);border-radius:calc(var(--bs-rad) + 2px);box-shadow:var(--bs-shadow);display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .bs-win{width:580px;max-width:100%;height:min(520px,100%)}
-.bs-panel{position:fixed;right:64px;top:112px;bottom:84px;width:330px;border-radius:var(--bs-rad)}
+.bs-panel{position:fixed;right:72px;top:var(--bs-top,112px);bottom:84px;width:min(330px,calc(100vw - 92px));max-width:calc(100vw - 40px);border-radius:var(--bs-rad)}
 .bs-h{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid var(--bs-bd);font-size:13px;letter-spacing:var(--bs-ls);text-transform:var(--bs-up)}
-.bs-h .bs-name{font-weight:600}.bs-h .bs-sp{flex:1}
+.bs-h{min-width:0}.bs-h .bs-name{font-weight:600;flex:none;white-space:nowrap}.bs-h .bs-sp{flex:1 1 0;min-width:0}.bs-h .bs-chip{flex:0 0 auto}.bs-h.bs-short .bs-cf{font-size:0}.bs-h.bs-short .bs-cf::after{content:attr(data-s);font-size:12px}
+.bs-h.bs-wrap{flex-wrap:wrap;row-gap:6px}.bs-h.bs-wrap>.bs-ib:last-child{order:2;margin-left:auto}.bs-h.bs-wrap .bs-sp{display:none}.bs-h.bs-wrap .bs-name{margin-right:auto}.bs-h.bs-wrap .bs-chip{order:3;flex:1 0 100%;justify-content:center}.bs-h>.bs-ib:last-child{flex:none}
 .bs-h .bs-g{color:var(--bs-acc)}
 .bs-b{flex:1;min-height:0;padding:14px 16px;display:flex;flex-direction:column;gap:11px;overflow:auto;-webkit-overflow-scrolling:touch}
 .bs-f{padding:7px 14px;border-top:1px solid var(--bs-bd);font-size:10.5px;color:var(--bs-mut)}
@@ -109,14 +111,14 @@ html.alto-retro .bs-bar{border-radius:0}
 @media (max-width:640px){
   .bs-scrim{padding:0;align-items:stretch}
   .bs-win{width:100%;height:100%;border-radius:0;border:0}
-  .bs-panel{left:0;right:0;top:auto;bottom:0;width:auto;height:min(52vh,460px);border-radius:var(--bs-rad) var(--bs-rad) 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .bs-panel{left:20px;right:20px;top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:auto;max-width:none;height:min(52vh,460px);border-radius:var(--bs-rad)}
   .bs-win{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
   .bs-toast{bottom:calc(30px + env(safe-area-inset-bottom,0px))}
   .bs-paste{height:120px;min-height:96px}   /* (a phone's step is the whole screen; the desktop window is 520px tall, so there the whole field has to fit above Next) */
   .bs-btn,.bs-ib,.bs-pill button{min-height:40px}.bs-ib{width:40px;height:40px}.bs-pill button{width:32px;height:32px}
   .bs-act{flex-wrap:nowrap}
 }
-html.mobile .bs-panel{left:0;right:0;top:auto;bottom:0;width:auto;height:min(52vh,460px);border-radius:var(--bs-rad) var(--bs-rad) 0 0}
+html.mobile .bs-panel{left:20px;right:20px;top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:auto;max-width:none;height:min(52vh,460px);border-radius:var(--bs-rad)}
 /* embedded in the New window (alto/engine/home_template.html #nt-modal): no scrim, window or panel of its own */
 .bs-emb{position:static;display:block;pointer-events:auto;--bs-acc:var(--bs-dis)}
 .bs-ew{display:flex;flex-direction:column;min-height:0}
@@ -180,5 +182,8 @@ html.alto-retro .bs-sbtn:focus-visible{outline-color:#fff}
   .bs-sact{bottom:calc(-1 * max(16px,env(safe-area-inset-bottom,0px)));margin-bottom:calc(-1 * max(16px,env(safe-area-inset-bottom,0px)));padding:10px 0 max(16px,env(safe-area-inset-bottom,0px))}
   .bs-sbtns{flex-direction:column;gap:10px}.bs-sbtns .bs-sbtn{flex:0 0 auto;width:100%}
 }
+/* the home's footer (Privacy, Beta Terms, the map credit) is never hidden by the side panel: it keeps to the left of it, and on a phone sits above the sheet */
+html.bs-side #home-legal{max-width:none;margin-left:20px;margin-right:calc(min(330px,100vw - 92px) + 92px)}
+@media (max-width:640px){html.bs-side #home-legal{margin:32px 20px calc(min(52vh,460px) + 24px)}}
 @media print{.bs-root,.bs-toast{display:none !important}}
 """

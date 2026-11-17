@@ -163,7 +163,12 @@ def build_hosted(adapters=None):
     alto_store = AdminCloudStore(db, uid, LocalStore(tempfile.mkdtemp(prefix="altoext-")), os.environ["ALTO_EXT_PROJECT"],
                                  delete_field=DELETE_FIELD, server_timestamp=SERVER_TIMESTAMP)
     proxy = Proxy(cfg, store, verifier, secrets, HostedToolBox(alto_store, uid), clock=clock)
-    return HostedGate(proxy, store, verifier, cfg=cfg, pins=pins, clock=clock)
+    from alto.bass import editbass                                  # Edit with Bass: preview / apply / undo on the pinned account's own timelines
+
+    def owns(who, tid):                                             # the verified uid owns this timeline id (the store is pinned to one uid: any other raises)
+        return alto_store.get_timeline(who, tid) is not None
+    editbass.attach(proxy, clock=lambda: clock().timestamp())
+    return HostedGate(proxy, store, verifier, cfg=cfg, pins=pins, clock=clock, owns=owns)
 
 
 @_http

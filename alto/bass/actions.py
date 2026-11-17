@@ -153,6 +153,7 @@ class Actions:
         self.max_materials_chars = max_materials_chars
         self.keep_messages = keep_messages
         self.conversations: dict = {}      # (uid, timeline_id) -> messages; in memory: the hosted server swaps in a store
+        self.editbass = None               # alto.bass.editbass.EditBass, set by editbass.attach() on the hosted function only
 
     # -- the one door -------------------------------------------------------------------------------------------
     def dispatch(self, uid: str, request: dict, on_event: Callable[[dict], None] | None = None) -> dict:
@@ -160,11 +161,12 @@ class Actions:
             return self._bad("request must be {action, args}")
         name, args = request.get("action"), request.get("args", {})
         table = {"balance": self.balance, "estimate": self.estimate, "propose": self.propose, "build": self.build,
-                 "edit": self.edit, "convert": self.convert, "make_study_plan": self.make_study_plan, "stop": self.stop}
+                 "edit": self.edit, "convert": self.convert, "make_study_plan": self.make_study_plan, "stop": self.stop,
+                 "edit_open": self.edit_open, "edit_preview": self.edit_preview, "edit_apply": self.edit_apply, "edit_undo": self.edit_undo}
         fn = table.get(name)
         if fn is None:
             return self._bad(f"unknown action {name!r}; one of {sorted(table)}")
-        if name in ("build", "propose", "edit", "convert", "make_study_plan"):
+        if name in ("build", "propose", "edit", "convert", "make_study_plan", "edit_preview", "edit_apply"):
             args = {**args, "on_event": on_event}
         try:
             inspect.signature(fn).bind(uid, **args)
@@ -179,7 +181,7 @@ class Actions:
                 "available": self.engine.flags.bass_enabled}
 
     def estimate(self, uid: str, kind: str = "build", materials: list | None = None, text: str = "",
-                 library: list | None = None) -> dict:
+                 library: list | None = None, format: str | None = None) -> dict:
         bad = self._check_kind(kind, ("build", "propose", "edit"))
         if bad:
             return bad
@@ -193,7 +195,8 @@ class Actions:
         n_in = self.engine.count_input(engine_kind, body or "x")
         return self._estimate_dict(uid, kind, self.engine.estimate(engine_kind, n_in))
 
-    def propose(self, uid: str, materials: list | None = None, note: str = "", on_event=None, library: list | None = None) -> dict:
+    def propose(self, uid: str, materials: list | None = None, note: str = "", on_event=None, library: list | None = None,
+                format: str | None = None) -> dict:
         materials = materials if materials is not None or not library else []
         err = self._check_materials(materials, library)
         if err:
@@ -203,7 +206,7 @@ class Actions:
         tools = ProposeTools()
         text = ("Read the student's materials and propose the chips for their timeline. If the materials are not enough "
                 "to propose anything, ask ONE short question instead.\n\n" + GUIDED_START + "\n\n" + shapes.MENU + "\n\n" + materials_text(materials)
-                + (f"\n\nStudent's note: {note}" if note else ""))
+                + (f"\n\nStudent's note: {note}" if note else "") + (("\n\n" + shapes.format_line(format)) if shapes.format_line(format) else ""))
         res = self.engine.run_action(uid, _with_library(text, library), kind="propose", action_id=action_id, tools=tools)
         out = self._result(uid, res, events, on_event)
         out["chips"] = tools.chips
@@ -211,7 +214,7 @@ class Actions:
         return out
 
     def build(self, uid: str, chips: dict, materials: list | None = None, consent: bool = False, accepted: bool = False,
-              on_event=None, library: list | None = None) -> dict:
+              on_event=None, library: list | None = None, format: str | None = None, place: str | None = None) -> dict:
         if not isinstance(chips, dict) or not chips.get("title") or not chips.get("acts"):
             return self._bad("chips needs at least a title and acts")
         materials = materials if materials is not None or not library else []
@@ -228,6 +231,8 @@ class Actions:
                                 "tree or a mini timeline on the named concept pages): build exactly those, from the materials only.\n\nConfirmed plan:", 1)
         if shapes.section(chips.get("shape")):
             body += "\n\n" + shapes.section(chips.get("shape"))
+        if shapes.format_line(format):
+            body += "\n\n" + shapes.format_line(format)
         body = _with_library(body, library)
         est = self.engine.estimate("build", self.engine.count_input("build", body))
         if est.show_prompt and not accepted:
@@ -409,6 +414,19 @@ class Actions:
         out = self._result(uid, res, events, on_event)
         out.update(timeline_id=timeline_id, changed=bool(res.wrote))
         return out
+
+    # -- Edit with Bass (editbass.py): the hosted function attaches it; anywhere else these answer "paused" -----------------
+    def edit_open(self, uid: str, timeline_id: str) -> dict:
+        return self.editbass.open(uid, timeline_id) if self.editbass else self._error("bass_paused")
+
+    def edit_preview(self, uid: str, timeline_id: str, text: str, materials: list | None = None, on_event=None, library: list | None = None) -> dict:
+        return self.editbass.preview(uid, timeline_id, text, materials, on_event, library) if self.editbass else self._error("bass_paused")
+
+    def edit_apply(self, uid: str, timeline_id: str, preview_id: str, on_event=None) -> dict:
+        return self.editbass.apply(uid, timeline_id, preview_id, on_event) if self.editbass else self._error("bass_paused")
+
+    def edit_undo(self, uid: str, timeline_id: str) -> dict:
+        return self.editbass.undo(uid, timeline_id) if self.editbass else self._error("bass_paused")
 
     def stop(self, uid: str, action_id: str) -> dict:
         self.engine.cancel(action_id, uid)                  # fails closed: only the account that started a running action can stop it

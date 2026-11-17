@@ -201,7 +201,7 @@ function isCity(){ return kindNow()==='palace'; }                            /* 
 function setBal(b){ if(typeof b!=='number') return; S.bal=b;
   try{ localStorage.setItem('alto-bass-bal',String(fl(b))); }catch(e){}
   var h=D.querySelector('.bt-bal'); if(h) h.textContent=balLab(b); var m=root&&root.querySelector('.bs-chip'); if(m) swap(m,meter()); var e=root&&root.querySelector('.bs-bal'); if(e) e.textContent=balLab(b); }
-function meter(){ if(S.bal==null) return ''; if(BETA) return '<span class="bs-chip" title="'+balLab(S.bal)+'"><span class="bs-coin">'+IC.coin+'</span>'+balLab(S.bal)+'</span>';
+function meter(){ if(S.bal==null) return ''; if(BETA) return '<span class="bs-chip" title="'+balLab(S.bal)+'"><span class="bs-coin">'+IC.coin+'</span><span class="bs-cf" data-s="'+fl(S.bal)+' credits">'+balLab(S.bal)+'</span></span>';
   return '<span class="bs-chip" title="Credits: '+fl(S.bal)+' (about '+usd(fl(S.bal)*1)+')"><span class="bs-coin">'+IC.coin+'</span>'+fl(S.bal)+'</span>'; }
 function toast(t){ var e=D.createElement('div'); e.className='bs-toast bs-root-toast'; e.textContent=t; D.body.appendChild(e); setTimeout(function(){ e.remove(); },3200); }
 
@@ -346,6 +346,9 @@ function draw(){
   }
   if(dsh&&!S.emb) inner+='<div class="bs-scrim bs-dscrim">'+dsh+'</div>';     /* over the panel or the wizard: the sheet needs the room */
   put(root,inner);
+  var hh=root.querySelector('.bs-h');      /* nothing in the header is ever cut off: the pill shortens ("400 credits"), then drops to its own row */
+  if(hh){ hh.classList.remove('bs-short','bs-wrap'); var over=function(){ return hh.scrollWidth>hh.clientWidth+1||Array.prototype.some.call(hh.querySelectorAll('.bs-name,.bs-chip'),function(e){ return e.scrollWidth>e.clientWidth+1; }); };
+    if(over()){ hh.classList.add('bs-short'); if(over()) hh.classList.add('bs-wrap'); } }
   var lg=root.querySelector('.bs-log'); if(lg) lg.scrollTop=lg.scrollHeight;
   if(keep&&val!=null&&ae===keep){ var k=root.querySelector('.'+cls.split(' ')[0]); if(k){ k.value=val; k.focus(); } }
   if(S.notice){ var okb=root.querySelector('[data-a="noticeok"]'); if(okb&&okb.focus) okb.focus(); }
@@ -372,14 +375,14 @@ function doPropose(extra){
   if(!acked()){ ask(function(){ doPropose(extra); }); return; }
   var my=RUN; S.running=true; S.alert=null; S.step=2; draw();
   var ms=mats(); if(extra) ms.push({name:'answer.txt',kind:'notes',text:extra});
-  call('propose',{materials:ms,format:S.emb?kindNow():undefined,scope_id:S.scope||undefined}).then(function(r){ if(my!==RUN) return; applyBal(r); S.running=false;
+  call('propose',{materials:ms,format:S.emb?kindNow():(S.xfmt||undefined),scope_id:S.scope||undefined}).then(function(r){ if(my!==RUN) return; applyBal(r); S.running=false;
     if(r.status!=='ok') return failed(r);
     if(r.chips){ S.chips=r.chips; S.q=null; } else { S.chips=null; S.q=r.message; } draw(); }); }
 function doBuild(accepted){
   if(!acked()){ ask(function(){ doBuild(accepted); }); return; }
   var my=RUN; S.alert=null; S.step=3; S.running=!!accepted; if(accepted) S.prog={stage:0,done:0,total:S.chips.card_estimate||0}; S.est=null; draw();
   var st={setup:0,consent:0,chips:1,cards:2,links:3,layout:3,build:3,look:3,work:3};
-  call('build',{format:S.emb?kindNow():undefined,place:S.emb&&isCity()?(S.place||undefined):undefined,chips:S.chips,materials:mats(),consent:true,accepted:!!accepted,scope_id:S.scope||undefined},function(e){
+  call('build',{format:S.emb?kindNow():(S.xfmt||undefined),place:S.emb&&isCity()?(S.place||undefined):undefined,chips:S.chips,materials:mats(),consent:true,accepted:!!accepted,scope_id:S.scope||undefined},function(e){
     if(my!==RUN) return; if(e.event==='progress'){ S.prog={stage:st[e.step]||0,done:e.cards_done||0,total:e.cards_total||(S.prog&&S.prog.total)||0}; if(S.step===3) draw(); } })
   .then(function(r){ if(my!==RUN) return; applyBal(r); S.running=false;
     if(r.status==='estimate'){ S.est=r; return draw(); }
@@ -462,8 +465,10 @@ function onKey(e){
   if(e.key==='Escape'&&root){ e.stopPropagation(); if(S.notice) notNow(); else if(S.sharesheet) shareNo(); else if(S.dopen) closeDocs(); else close(); return; }
   if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('bs-say')){ e.preventDefault(); var ans=root.querySelector('[data-a="ans"]'); if(ans) ans.click(); else doSend(); }
 }
-function close(){ if(root){ root.remove(); root=null; D.removeEventListener('keydown',onKey,true); } }
+function close(){ try{ R.classList.remove('bs-side'); }catch(e){} if(root){ root.remove(); root=null; D.removeEventListener('keydown',onKey,true); } }
+function sideTop(){ var t=112; try{ Array.prototype.forEach.call(D.querySelectorAll('.home-sort,.hr-chip'),function(e){ var b=e.getBoundingClientRect(), y=b.bottom+(window.pageYOffset||0); if(y<360) t=Math.max(t,Math.round(y+8)); }); }catch(e){} return t; }
 function mount(){ close(); RUN++; root=D.createElement('div'); root.className='bs-root'+(S.emb?' bs-emb':''); root.id='bass-root'; (S.emb&&D.getElementById('nt-bass')||D.body).appendChild(root);
+  try{ R.classList.toggle('bs-side',S.mode==='panel'&&!S.emb); if(S.mode==='panel'&&!S.emb) root.style.setProperty('--bs-top',sideTop()+'px'); }catch(e){}   /* the side panel starts below the home's PRIVATE / sort row, and the footer's credits make room for it */
   root.addEventListener('click',onClick); root.addEventListener('change',function(e){ if(e.target.matches('[data-a="consent"]')) onClick({target:e.target}); else if(e.target.matches('select[data-a^="d-"]')) docsClick(e.target,e.target.getAttribute('data-a')); });
   root.addEventListener('dragover',function(e){ var d=e.target.closest('[data-drop]'); if(d){ e.preventDefault(); d.classList.add('over'); } });
   root.addEventListener('dragleave',function(e){ var d=e.target.closest('[data-drop]'); if(d) d.classList.remove('over'); });
@@ -518,13 +523,14 @@ function open(mode,o){
   if(mode==='docs'){ S.emb=false; S.out=null; S.mode='docs'; mount(); openDocs('docs'); call('balance').then(function(r){ if(r&&typeof r.credits==='number') setBal(r.credits); }); return; }
   S.emb=mode==='embed'; S.place='philadelphia'; S.mode=(mode==='wizard'||S.emb)?'wizard':'panel'; S.alert=null; S.est=null; S.running=false; S.typing=false; S.consent=false; S.step=S.emb?0:1; S.files=[]; S.paste=''; S.chips=null;
   S.log=S.mode==='panel'?[{r:'a',t:'Ask me to change a card, an act or a link in this timeline.'}]:[];
+  S.xfmt=(o&&typeof o.fmt==='string'&&/^[a-z]{1,12}$/.test(o.fmt))?o.fmt:null;      /* the NEW dialog's picked format: sent as is; the server accepts only its own list */
   S.plan=!!(o&&o.plan&&typeof o.tid==='string'&&o.tid&&S.mode==='panel'); S.pw=null;
   if(S.plan){ S.tid=o.tid; S.log=[{r:'a',t:'Let us make your study plan. Tell me when your exam is, about how much time you have each day, and what you find hard.'}]; }
   S.out=null; mount(); if(S.bal==null&&!BASE) S.bal=SIM.bal;   /* with a real backend the chip stays blank until its first answer: never the simulator's number */
   draw(); S.scope=scopeRead(); usingLoad(); call('balance').then(function(r){ if(r&&typeof r.ack==='string'&&r.ack) S.ack=r.ack; if(typeof r.credits==='number'){ SIM.bal=BASE?r.credits:SIM.bal; setBal(r.credits); }
     if(S.out){ S.alert={status:S.out.status==='off'?'paused':S.out.status,code:S.out.code,message:S.out.message}; if(S.mode==='wizard'&&!S.emb) S.step=1; } else if(r&&r.research) shareApply(r.research); draw(); });
   var f=root.querySelector('button.bs-btn.pri,.bs-say'); }
-function leave(){ if(root){ root.remove(); root=null; D.removeEventListener('keydown',onKey,true); } S.emb=false; }
+function leave(){ try{ R.classList.remove('bs-side'); }catch(e){} if(root){ root.remove(); root=null; D.removeEventListener('keydown',onKey,true); } S.emb=false; }
 __DOCS__
 window._altoBass={convert:doConvert,share:{no:shareNo,yes:shareYes,toggle:shareToggle},open:open,openDocs:openDocs,drive:{flow:driveFlow,pick:drivePick,popup:googlePick},close:close,leave:leave,dev:dev,propose:doPropose,build:doBuild,ok:noticeOk,notNow:notNow,NOTICE_TEXT:NOTICE_TEXT,NOTICE_V:NOTICE_V,sim:SIM,call:call,state:S,version:'ui-2'};
 /* Signing out revokes a Drive token that is still live (a flow whose last disconnect did not get through): the server's sign_out line

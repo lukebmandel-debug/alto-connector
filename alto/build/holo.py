@@ -398,7 +398,7 @@ FORMAT_CSS = r"""
 # The toggles as glass (S1 Glass, Luke 2026-11-15, Board B-1115-190321: "s1 is best"): a frosted round lens (a pill for Search, the Edit pill and the return pill), no
 # outline, a soft glint and glow, the glyph in the accent. Art's sheet had the glyph dipping to 2.5 over a bright streak, so the lens carries a deeper plate of the page's own
 # colour under the glow: the worst pixel around a glyph stays at 4.5:1 or better on every Holo ground (ORG/notes-art/holo-toggles/S1-final/). Holo is dark-only.
-_S1_IDS = ("#search-btn", "#info-btn", "#account-btn", "#bin-btn", "#bg-toggle", "#download-all", "#drawer-scene-btn", "#tab-rail>button", "#key-toggle", ".alto-edit-pill", "#timeline-return-pill")
+_S1_IDS = ("#search-btn", "#info-btn", "#account-btn", "#bin-btn", "#bg-toggle", "#download-all", "#drawer-scene-btn", "#tab-rail>button", "#key-toggle", ".alto-edit-pill", "#timeline-return-pill", "#nt-tabs .nt-tab", "#nt-cancel")
 _S1_NOT = ":not(#_):not(#__):not(#___):not(#____):not(#_____)"
 S1_PLATE = "rgba(var(--ho-bgrgb),.86)"
 
@@ -413,6 +413,11 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           "-webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;filter:none !important;color:var(--ho-ac) !important;}\n"
           + ",".join(_s1(":is(:hover,:focus-visible)").split(",")) + "{box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 0 16px rgba(var(--ho-rgb),.3),0 0 22px rgba(var(--ho-rgb),.55) !important;}\n"
           + _s1(':is(.on,.active,.open,[aria-pressed="true"],[aria-expanded="true"])') + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26))," + S1_PLATE + " !important;}\n"
+          # the NEW dialog's tabs and Cancel: the same glass, in a rounded rectangle (not a lens); the Claude tab keeps its orange when chosen
+          "X #nt-tabs .nt-tab" + _S1_NOT + ",X #nt-cancel" + _S1_NOT + "{border-radius:12px !important;}\n"
+          "X #nt-tabs .nt-tab.on" + _S1_NOT + "{color:var(--text) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 0 1px var(--ho-ac),0 0 16px rgba(var(--ho-rgb),.30) !important;}\n"
+          "X #nt-tabs .nt-tab[data-tab=\"claude\"].on" + _S1_NOT + "{box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 0 1px #e8845f,0 0 16px rgba(232,132,95,.35) !important;"
+          "background:linear-gradient(rgba(232,132,95,.2),rgba(232,132,95,.2))," + S1_PLATE + " !important;}\n"
           "X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half:not(#_):not(#__){box-shadow:none !important;}\n"
           "X:not(.mobile):not(.pmin) .alto-edit-pill .aep-half + .aep-half:not(#_):not(#__){box-shadow:inset 1px 0 0 rgba(47,167,157,.45) !important;}\n"
           # a phone's controls keep their 1px border box (transparent now) so the guide that drops from the info tile, and every width, sit exactly where they did
