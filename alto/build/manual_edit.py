@@ -268,9 +268,18 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;transition:none !important;}
+  html.alto-dragging.aed-lines-held #world > svg{visibility:hidden;}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-selk > .node-card{outline:1.5px dashed color-mix(in srgb,var(--accent,#a78bfa) 60%,transparent);outline-offset:3px;}
-  /* where a held card will land, when that is not where it is held */
-  .aed-ghost{position:absolute;box-sizing:border-box;border:2.5px dashed var(--accent,#a78bfa);background:color-mix(in srgb,var(--accent,#a78bfa) 22%,transparent);box-shadow:0 0 0 1px rgba(255,255,255,.55);pointer-events:none;}
+  /* a card held on another card: the outline is drawn as the drop leaves it; the held cards (where they land)
+     wear a ring, the card they are held on its mark: a ring (under it), a bar on the edge (before / after) */
+  .node.aed-land > .node-card{outline:3px solid var(--accent,#a78bfa);outline-offset:3px;box-shadow:0 0 0 7px color-mix(in srgb,var(--accent,#a78bfa) 24%,transparent),0 14px 36px var(--node-hover-shadow) !important;}
+  .node.aed-land{z-index:58 !important;}
+  html.alto-dragging #canvas .node-card > :is(.aed-cc,.aed-rz){display:none !important;}
+  html.alto-editing.alto-drag-ok #canvas .node-card{-webkit-touch-callout:none;}
+  html.alto-touch-drag, html.alto-touch-drag body{overscroll-behavior:none;touch-action:none;}
+  html.alto-editing #canvas .node.aed-no > .node-card{outline:2.5px dashed #d9534f !important;outline-offset:3px;filter:grayscale(.7);}
+  .aed-mark{position:absolute;box-sizing:border-box;pointer-events:none;z-index:3;border-radius:3px;background:var(--accent,#a78bfa);box-shadow:0 0 0 2px rgba(255,255,255,.85),0 0 14px var(--accent,#a78bfa);}
+  .aed-mark-in{background:color-mix(in srgb,var(--accent,#a78bfa) 14%,transparent);border:3px dashed var(--accent,#a78bfa);box-shadow:none;}
   /* the editing bar's switch: what a drag (or an arrow key) moves */
   #alto-edit-exit .ee-mv{display:none;align-items:center;height:28px;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.1);flex:none;}
   html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-mv{display:inline-flex;}
@@ -440,6 +449,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-rztip{position:fixed;z-index:8500;display:none;padding:3px 8px;border-radius:6px;background:var(--surface);color:var(--muted);border:1px solid var(--border);
     font:11px system-ui,-apple-system,sans-serif;pointer-events:none;}
   #aed-rztip.show{display:block;}
+  #aed-rztip.st,#aed-rztip.no{padding:7px 12px;border-radius:10px;font-size:13px;line-height:1.35;max-width:min(340px,calc(100vw - 40px));background:#171a24;color:#f4f6fc;border-color:var(--accent,#a78bfa);box-shadow:0 8px 26px rgba(0,0,0,.34);}
+  #aed-rztip.no{border-color:#d9534f;}
   /* the glyph library, for a chip made here */
   #aed-glyph{position:fixed;z-index:8360;display:none;width:330px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
     color:var(--text);border:1px solid var(--border);box-shadow:0 14px 40px var(--node-rest-shadow);}
@@ -897,7 +908,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     SWAPPED = []; REORD = [];
     if(kids){
       // in the order they were made: a swap moves what an order named, and the other way round
-      var opT = function(k){ return ((typeof STORE !== 'undefined' && STORE.ops[k]) || {}).t || 0; };
+      var opT = function(k){ return (typeof TENT_T !== 'undefined' && TENT_T[k]) || ((typeof STORE !== 'undefined' && STORE.ops[k]) || {}).t || 0; };
       var evs = SXO.map(function(c){ return ['x', c, opT('sx|' + c)]; }).concat(SOO.map(function(q){ return ['o', q, opT('so|' + q)]; }))
         .sort(function(a, b){ return a[2] - b[2]; });
       var swapOne = function(c){
@@ -4111,11 +4122,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     });
   }
 
-  // Move a card of an outline (desktop): press and drag, or the arrow keys. WHAT moves is the editing bar's
-  // "Branch | Card" switch (MOVE): the card with every card under it (shift), or the one card (slide), the
-  // cards under it staying put. Option held flips it for that one move. What is held follows the pointer
-  // exactly, both ways; no other card moves. A drop that would touch another card lands in the nearest
-  // free spot instead (shown by dashed outlines while held), so nothing is left for make-room to push.
+  // Move a card of an outline: press and drag (a finger: press and hold first), or the arrow keys. WHAT moves is
+  // the bar's "Branch | Card" switch (Option flips it for one move). WHERE it goes is on screen while it is held,
+  // as the drop will leave the page: held ON a card it goes into the outline there (under / before / after it,
+  // by where on the card; Shift: never); on open board it stays where it is held, the cards below making room,
+  // or it goes back. It is never sent somewhere the pointer is not.
   var drag = null, dragJustEnded = false, MOVE = 'tree';
   try{ if(localStorage.getItem('alto-drag-moves') === 'card') MOVE = 'card'; }catch(e){}
   /* Extend (the editing bar's switch, off unless the owner turns it on; kept for this timeline in this browser):
@@ -4195,36 +4206,29 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     function tp(i){ return G.y[i] - G.h[i] / 2; } function bt(i){ return G.y[i] + G.h[i] / 2; }
     function xnear(i, j, sx){ return Math.abs(G.x[i] + (sx || 0) - G.x[j]) < (dw(i) + dw(j)) / 2 + 12; }
-    /* Held on other cards at (x, y): the branch takes the place BESIDE the card it is held on (the side it is
-       held toward; held square on it, the side it came from), its top card level with that card, a column's gap from that card and the cards under it.
-       Room is made downward only, and only where it is needed (the layout's make-room): a card in the seated
-       branch's way moves down just clear of it, with its row and the cards under it, and so does any card
-       that one would then be in the way of. No other card moves. Returns {at: [x, y], push: {card: px down}, by: the card it sits beside}. */
-    function seat(x, y){
-      var m0 = ids[0], cx = G.x[m0] + x, cy = G.y[m0] + y, best = null, ba = 0;
-      others.forEach(function(o){
-        var a = 0; ids.forEach(function(m){ var w = Math.min(G.x[m] + x + dw(m) / 2, G.x[o] + dw(o) / 2) - Math.max(G.x[m] + x - dw(m) / 2, G.x[o] - dw(o) / 2),
-          hh = Math.min(bt(m) + y, bt(o)) - Math.max(tp(m) + y, tp(o)); if(w > -12 && hh > -room) a += (w + 12) * (hh + room) * (m === m0 ? 4 : 1); });
-        if(a > ba){ ba = a; best = o; } });
-      if(!best) return null;
-      // a card set beside its parent is one row with it: the seat is beside that whole row
-      for(var up2 = 0; up2 < 9; up2++){ var rp = P[best]; if(rp && !inM[rp] && G.y[rp] != null && G.h[rp] != null && Math.abs(G.y[rp] - G.y[best]) < 1) best = rp; else break; }
-      var ty = Math.max(top, tp(best) - tp(m0)), sT = mT + ty - gap, sB = mB + ty + gap;
-      // the card and the cards under it that stand in the seat's rows: the branch sits clear of them all
-      var kin = [best], K = (OUT && OUT.kids) || {}; for(var q = 0; q < kin.length; q++) (K[kin[q]] || []).forEach(function(c){ if(!inM[c] && G.y[c] != null && G.h[c] != null) kin.push(c); });
-      var bl = Infinity, br = -Infinity; kin.forEach(function(c){ if(c === best || (tp(c) < sB && bt(c) > sT)){ bl = Math.min(bl, G.x[c] - dw(c) / 2); br = Math.max(br, G.x[c] + dw(c) / 2); } });
-      var off = cx - (bl + br) / 2, side = (Math.abs(off) < (br - bl) / 4 ? G.x[m0] - (bl + br) / 2 : off) >= 0 ? 1 : -1;
-      var tx = side > 0 ? br + 24 - mL : bl - 24 - mR; tx = whole(tx, ox); ty = whole(ty, oy);
-      // the room: the layout's own make-room (layout.make_room, TREE_GLUE _altoMakeRoom) around the seated branch,
-      // with no card allowed up (top: Infinity), so a card in the way goes down with its row and the cards under it
-      var y = {}, x2 = {}, mv = {}, all = others.concat(ids), push = {};
-      all.forEach(function(i){ y[i] = G.y[i]; x2[i] = G.x[i]; });
-      ids.forEach(function(m){ x2[m] += tx; y[m] += ty; mv[m] = 1; });
-      window._altoMakeRoom(y, x2, G.h, T.w, all, mv, P, gap, Infinity);
-      others.forEach(function(o){ var dd = Math.ceil(y[o] - G.y[o] - 1e-6); if(dd > 0) push[o] = dd; });
-      return {at: [tx, ty], push: push, by: best};
+    /* Held on other cards at (x, y), where it stays: the cards in its way step down just clear (make-room, none
+       going up). A card above it, or one it hangs under, never moves for it: it is set just below that card.
+       {at, push: {card: px down}, slid} or null (more than a card from where it is held). */
+    function pushAt(x, y){
+      var m0 = ids[0], all = others.concat(ids), anc = {}, y1 = y;
+      for(var c = P[m0], n = 0; c && n < 99; c = P[c], n++) anc[c] = 1;
+      for(var go = 0; go < 8; go++){
+        var yy = {}, xx = {}, mv = {}, push = {}, t0 = tp(m0) + y1, low = -Infinity;
+        all.forEach(function(i){ yy[i] = G.y[i]; xx[i] = G.x[i]; });
+        ids.forEach(function(m){ xx[m] += x; yy[m] += y1; mv[m] = 1; });
+        window._altoMakeRoom(yy, xx, G.h, T.w, all, mv, P, gap, Infinity);
+        others.forEach(function(o){ var dd = Math.ceil(yy[o] - G.y[o] - 1e-6), bad = false;
+          if(dd > 0){ if(anc[o] || G.y[o] < t0) bad = true; else push[o] = dd; }
+          // (a card it could not move and still touches)
+          else ids.forEach(function(m){ if(Math.abs(xx[m] - xx[o]) < (dw(m) + dw(o)) / 2 + 12 && Math.abs(yy[m] - yy[o]) < (G.h[m] + G.h[o]) / 2 + room - 0.5) bad = true; });
+          if(bad) ids.forEach(function(m){ if(Math.abs(G.x[m] + x - G.x[o]) < (dw(m) + dw(o)) / 2 + 12 && tp(m) + y1 < bt(o) + gap && bt(m) + y1 > tp(o) - gap) low = Math.max(low, bt(o) + gap - tp(m)); }); });
+        if(low === -Infinity) return {at: [x, y1], push: push, slid: y1 - y};
+        low = up(low, oy); if(low <= y1 || low - y > 240) return null;
+        y1 = low;
+      }
+      return null;
     }
-    return {room: room, free: free, whole: whole, seat: seat, top: up(top, oy), box: [mL, mR], lo: up(lo, ox), hi: dn(hi, ox),
+    return {room: room, free: free, whole: whole, pushAt: pushAt, top: up(top, oy), box: [mL, mR], lo: up(lo, ox), hi: dn(hi, ox),
       // the free spot nearest (x, y), each zone grown to the rows' own gap g so the landing sits tidily
       near: function(x, y, g){
         var X = [whole(x, ox), 0], Y = [whole(y, oy), 0, up(top, oy)];
@@ -4240,15 +4244,107 @@ MANUAL_JS = r"""<script id="alto-manual">
         return best;
       }};
   }
-  // Where the held cards land, {at: [x, y], push?, by?}: where they are held if that spot is free; held on
-  // other cards, a branch takes the seat beside the card it is held on (the cards below making room); a
-  // card moved alone goes to the nearest free spot.
+  // Where cards held on open board land, {at, push?, snap?, slid?, edge?, no?, home?}: where they are held; touching
+  // cards there, a free spot within SNAP px, else there with the cards below stepping down, else nowhere (they go back).
+  var SNAP = 60;
   function landing(d){
     var S = d.S, ox = d.old[0] - Math.round(d.old[0]), oy = d.old[1] - Math.round(d.old[1]);
-    var x = S.whole(Math.min(S.hi, Math.max(S.lo, d.wx)), ox), y = S.whole(Math.max(S.top, d.wy), oy);
-    if(S.free(x, y, S.room)) return {at: [x, y]};
-    var st = d.mode === 'tree' ? S.seat(x, y) : null; if(st && st.at[0] >= S.lo - 0.01 && st.at[0] <= S.hi + 0.01) return st;   // (Extend off: a seat is on the page, or it is not taken)
-    return {at: S.near(x, y, Math.max(S.room, (plan() || {}).row_gap || 40)) || S.near(x, y, S.room) || [0, 0]};
+    if(Math.abs(d.wx) < 8 && Math.abs(d.wy) < 8) return {at: [0, 0], home: 1};
+    var x = S.whole(Math.min(S.hi, Math.max(S.lo, d.wx)), ox), y = S.whole(Math.max(S.top, d.wy), oy), edge = Math.abs(x - d.wx) > 30 ? 1 : 0;
+    if(S.free(x, y, S.room)) return {at: [x, y], edge: edge};
+    var n = S.near(x, y, Math.max(S.room, (plan() || {}).row_gap || 40)) || S.near(x, y, S.room);
+    var far = n && (n[0] || n[1]) ? Math.sqrt((n[0] - x) * (n[0] - x) + (n[1] - y) * (n[1] - y)) : Infinity;
+    if(far <= SNAP) return {at: n, snap: 1};
+    var ps = S.pushAt(x, y); if(ps) return ps;
+    return far <= SNAP * 2.5 ? {at: n, snap: 1} : {at: [0, 0], no: 1};
+  }
+  /* Held ON another card: what the drop does to the outline, read against the outline as it was picked up (d.B,
+     d.K0, d.P0), never the projection on screen, so cards stepping aside do not change what the pointer is on.
+     The zones lie the way the card's row runs: toward the card before it, before; toward the next, after; the
+     middle, under it (as its last card). {T, zone, o, sgn, key, L (the changes), noop} or null. */
+  function structOps(d, T, zone){
+    var id = d.id, K = d.K0, P = d.P0, p = P[id], np = zone === 'in' ? T : P[T];
+    if(!p || !np || d.inM[np] || cardGone(np) || !srcNode(np)) return null;
+    var same = np === p, have = K[np] || [], full = have.filter(function(x){ return x !== id; });
+    var at = zone === 'in' ? full.length : full.indexOf(T) + (zone === 'after' ? 1 : 0);
+    full.splice(at, 0, id);
+    if(same && full.join('|') === have.join('|')) return {noop: 1};
+    var L = [];
+    if(!same){ if(!field('rp|' + id)) return null; L.push(['rp|' + id, np]); }
+    if(same || at < full.length - 1){ if(!field('so|' + np)) return null; L.push(['so|' + np, full]); }
+    ['shift', 'slide'].forEach(function(hk){ var sf = field('p|' + id + '|' + hk); if(sf && sf.get()) L.push(['p|' + id + '|' + hk, null]); });
+    return {L: L, np: np};
+  }
+  function ptWorld(d){ var s = worldAt(); return [(d.px - s[0] - d.o0[0]) / d.k, (d.py - s[1] - d.o0[1]) / d.k]; }
+  function target(d){
+    var B = d.B, p = ptWorld(d), hit = null;
+    function inBox(i, g){ return B.y[i] != null && Math.abs(p[0] - B.x[i]) <= B.w[i] / 2 + g && Math.abs(p[1] - B.y[i]) <= B.h[i] / 2 + g; }
+    if(d.tg && inBox(d.tg, 14)) hit = d.tg;
+    else if(!inBox(d.id, 0)) for(var i = 0; i < B.ids.length && !hit; i++) if(inBox(B.ids[i], 0)) hit = B.ids[i];
+    d.tg = hit; if(!hit) return null;
+    var par = d.P0[hit], o = 'v', sgn = 1, zone = 'in';
+    if(par && !d.inM[par]){
+      var sib = (d.K0[par] || []).filter(function(q){ return q !== d.id && B.y[q] != null; }), j = sib.indexOf(hit), nb = sib[j + 1] || sib[j - 1], dir = sib[j + 1] ? 1 : -1;
+      if(nb){ var dx = (B.x[nb] - B.x[hit]) * dir, dy = (B.y[nb] - B.y[hit]) * dir; if(Math.abs(dx) > Math.abs(dy)){ o = 'h'; sgn = dx >= 0 ? 1 : -1; } else sgn = dy >= 0 ? 1 : -1; }
+      var f = (o === 'h' ? (p[0] - B.x[hit]) / B.w[hit] : (p[1] - B.y[hit]) / B.h[hit]) * sgn, was = d.tz && d.tz[0] === hit ? d.tz[1] : '';
+      // (a zone, once taken, is kept a little past its edge)
+      zone = f < (was === 'before' ? -0.14 : -0.22) ? 'before' : f > (was === 'after' ? 0.14 : 0.22) ? 'after' : 'in';
+    }
+    var ops = structOps(d, hit, zone); if(!ops && zone !== 'in'){ zone = 'in'; ops = structOps(d, hit, zone); }
+    d.tz = [hit, zone]; if(!ops) return null;
+    return {T: hit, zone: zone, o: o, sgn: sgn, key: hit + '|' + zone, L: ops.L, noop: ops.noop, np: ops.np};
+  }
+  /* The change shown: laid on the page's own tables (nothing stored, no undo step) and laid out by the page's own
+     layout, so the screen is what the drop leaves, to the px. tentOff puts the tables back. */
+  var TENT = null, TENT_T = {};
+  function tentOn(t){
+    var T = plan() || {};
+    TENT = {key: t.key, t: t, R: Object.assign({}, REPAR), RO: REPO.slice(), S: JSON.parse(JSON.stringify(SO)), SOO: SOO.slice(),
+      sh: T.shift ? JSON.parse(JSON.stringify(T.shift)) : null, sl: T.slide ? JSON.parse(JSON.stringify(T.slide)) : null};
+    t.L.forEach(function(kv){ if(kv[0].slice(0, 3) === 'so|') TENT_T[kv[0]] = Date.now(); var f = field(kv[0]); if(f) f.set(kv[1]); });
+  }
+  function tentOff(){
+    if(!TENT) return; var T = plan() || {}, s = TENT; TENT = null; TENT_T = {};
+    REPAR = s.R; REPO = s.RO; SO = s.S; SOO = s.SOO;
+    if(s.sh) T.shift = s.sh; else delete T.shift; if(s.sl) T.slide = s.sl; else delete T.slide;
+    syncCards();
+  }
+  // the cards glide from where they are drawn now to where fn() leaves them
+  function trOf(el){ var m = /^(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/.exec(el.style.translate || ''); return m ? [+m[1], +(m[2] || 0)] : [0, 0]; }
+  function flip(fn){
+    var was = {}; document.querySelectorAll('#world .node').forEach(function(el){ var t = trOf(el); was[el.id] = [parseFloat(el.style.left) + t[0], parseFloat(el.style.top) + t[1]]; });
+    fn();
+    var els = [].slice.call(document.querySelectorAll('#world .node'));           // (the layout may have made the cards afresh)
+    els.forEach(function(el){ el.classList.remove('aed-room'); var w = was[el.id], dx = w ? Math.round(w[0] - parseFloat(el.style.left)) : 0, dy = w ? Math.round(w[1] - parseFloat(el.style.top)) : 0;
+      el.style.translate = (dx || dy) && isFinite(dx + dy) ? dx + 'px ' + dy + 'px' : ''; });
+    void root.offsetWidth;
+    els.forEach(function(el){ if(el.style.translate){ el.classList.add('aed-room'); el.style.translate = ''; } });
+  }
+  function markTarget(d, t){
+    document.querySelectorAll('#world .aed-mark').forEach(function(g){ g.remove(); });
+    document.querySelectorAll('#world .node.aed-tg').forEach(function(el){ el.classList.remove('aed-tg'); });
+    d.els = d.ids.map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean); d.self = d.els[0] || d.self;
+    d.els.forEach(function(el){ el.classList.toggle('aed-moving', !t); el.classList.toggle('aed-land', !!t); el.classList.remove('aed-no'); });
+    var el = t && document.getElementById('node-' + t.T), c = el && el.querySelector('.node-card'); if(!c) return;
+    el.classList.add('aed-tg');
+    var g = document.createElement('div'); g.className = 'aed-mark aed-mark-' + (t.zone === 'in' ? 'in' : t.o); g.setAttribute('aria-hidden', 'true');
+    var L = c.offsetLeft, Tp = c.offsetTop, W = c.offsetWidth, H = c.offsetHeight, lead = (t.zone === 'before') === (t.sgn > 0), st = g.style;
+    if(t.zone === 'in'){ st.left = (L - 7) + 'px'; st.top = (Tp - 7) + 'px'; st.width = (W + 14) + 'px'; st.height = (H + 14) + 'px'; st.borderRadius = (parseFloat(getComputedStyle(c).borderRadius) || 0) + 7 + 'px'; }
+    else if(t.o === 'h'){ st.left = (lead ? L - 15 : L + W + 9) + 'px'; st.top = Tp + 'px'; st.width = '6px'; st.height = H + 'px'; }
+    else { st.left = L + 'px'; st.top = (lead ? Tp - 15 : Tp + H + 9) + 'px'; st.width = W + 'px'; st.height = '6px'; }
+    el.appendChild(g);
+  }
+  function showTent(d, t){
+    if(TENT && TENT.key === t.key) return;
+    flip(function(){ tentOff(); if(!t.noop) tentOn(t); else TENT = {key: t.key, t: t, noop: 1, R: REPAR, RO: REPO, S: SO, SOO: SOO, sh: (plan() || {}).shift, sl: (plan() || {}).slide}; relayout(); });
+    markTarget(d, t);
+    var el = document.getElementById('node-' + d.id), r = el && el.getBoundingClientRect();
+    t.num = numShow(d.id); t.off = r ? (r.top > window.innerHeight - 40 ? 'below' : r.bottom < 40 ? 'above' : '') : '';
+  }
+  function hideTent(d, keep){
+    if(!TENT) return;
+    flip(function(){ tentOff(); relayout(); if(keep && d) d.els.forEach(function(el){ el.style.translate = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px'; }); });
+    if(d) markTarget(d, null);
   }
   window.addEventListener('pointerdown', function(e){
     if(!editing() || isSolar() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
@@ -4256,17 +4352,34 @@ MANUAL_JS = r"""<script id="alto-manual">
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-rz')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
     var sc = scroller(nodeEl);
-    drag = {id:id, x0:e.clientX, y0:e.clientY, px:e.clientX, py:e.clientY, k:scale(nodeEl), on:false, self:nodeEl, sc:sc, s0:worldAt()};
+    var d = drag = {id:id, x0:e.clientX, y0:e.clientY, px:e.clientX, py:e.clientY, k:scale(nodeEl), on:false, self:nodeEl, sc:sc, s0:worldAt()};
+    // a finger: a drag across a card pans the page as ever; pressed and held still for a moment, the card is picked up
+    if(e.pointerType === 'touch'){ d.touch = true; d.hold = setTimeout(function(){ if(drag !== d || d.on) return;
+      root.classList.add('alto-touch-drag'); startDrag(d, false); try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){} if(!d.raf) d.raf = requestAnimationFrame(frame); }, 380); }
   }, true);
+  // (a held card under a finger: the page does not scroll with it)
+  window.addEventListener('touchmove', function(e){ if(drag && drag.on && e.cancelable) e.preventDefault(); }, {capture: true, passive: false});
+  window.addEventListener('contextmenu', function(e){ if(drag && drag.touch) e.preventDefault(); }, true);
   // (a press on a card's rim is outside its .node-card: the canvas's own drag-to-pan would start with it)
   window.addEventListener('mousedown', function(e){ if(drag && e.target.closest && !e.target.closest('.node-card')) e.stopPropagation(); }, true);
   function dragTip(d){
     var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
-    var L = d.land && d.land.at, off = L && (Math.abs(L[0] - d.wx) > 1.5 || Math.abs(L[1] - d.wy) > 1.5), by = d.land && d.land.by && liveNode(d.land.by);
-    b.textContent = (d.mode === 'card' ? 'Moving this card only' : d.n ? 'Moving this card and the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it' : 'Moving this card')
-      + (by ? ' · it will sit beside ' + String(by.title || 'this card').replace(/<[^>]*>/g, '') + (Object.keys(d.land.push).length ? ', the cards below making room' : '')
-        : !off ? '' : L[0] || L[1] ? ' · it will land in the nearest free spot' : ' · no free spot near here: it will go back');
-    b.style.left = (d.px + 16) + 'px'; b.style.top = (d.py + 16) + 'px'; b.classList.add('show');
+    var L = d.land || {}, t = TENT && TENT.t, n = d.mode === 'tree' ? d.n : 0, with_ = n ? ', with the ' + (n === 1 ? 'card' : n + ' cards') + ' under it' : '';
+    function nm(i){ var s = titleOf(i); return '“' + (s.length > 34 ? s.slice(0, 32) + '…' : s) + '”'; }
+    b.textContent = t ? (t.noop ? 'It is already ' + (t.zone === 'in' ? 'the last card under ' : t.zone + ' ') + nm(t.T) + ': nothing changes'
+        : (t.zone === 'in' ? 'Goes under ' : t.zone === 'before' ? 'Goes before ' : 'Goes after ') + nm(t.T) + (t.num ? ', as ' + t.num : '') + with_
+          + (t.off ? ' · it lands ' + t.off + ' the screen' : '') + ' · Shift: place it freely')
+      : (d.mode === 'card' ? 'Moving this card only' : n ? 'Moving this card and the ' + (n === 1 ? 'card' : n + ' cards') + ' under it' : 'Moving this card')
+        + (L.home ? ' · back where it was' : L.edge ? ' · the page ends here (Extend opens more board)' : L.slid ? ' · set just below the card above it' : L.no ? ' · no room here: it will go back' : L.snap ? ' · in the nearest free spot' : L.push && Object.keys(L.push).length ? ' · the cards below make room' : '');
+    b.classList.add('st', 'show'); b.classList.toggle('no', !!L.no && !t);
+    // (the page may be drawn under a zoom: the plate is placed in screen px, its style in its own)
+    var f = b.getBoundingClientRect().width / (b.offsetWidth || 1) || 1, w = b.offsetWidth * f, h = b.offsetHeight * f, x = d.px + 18, y = d.py + (d.touch ? -h - 34 : 20);
+    var vw = window.innerWidth, vh = window.innerHeight, hn = d.self || (d.els && d.els[0]), cc = !d.touch && hn && hn.querySelector('.node-card'), cr = cc && cc.getBoundingClientRect();
+    // (the plate sits below, beside or above the held card, never on it: its title stays readable)
+    if(cr){ var g = 12, c = [[cr.left, cr.bottom + g], [cr.right + g, cr.top], [cr.left, cr.top - h - g], [cr.left - w - g, cr.top]], q = null;
+      for(var i = 0; i < c.length && !q; i++){ var u = c[i]; u[0] = Math.max(20, Math.min(u[0], vw - w - 20)); if(u[1] >= 20 && u[1] + h <= vh - 20 && (u[0] >= cr.right || u[0] + w <= cr.left || u[1] >= cr.bottom || u[1] + h <= cr.top)) q = u; }
+      if(q){ x = q[0]; y = q[1]; } }
+    b.style.left = Math.max(20, Math.min(x, vw - w - 20)) / f + 'px'; b.style.top = Math.max(20, Math.min(y, vh - h - 20)) / f + 'px';
   }
   function startDrag(d, alt){
     d.on = true; if(cur) endField(true);
@@ -4275,12 +4388,21 @@ MANUAL_JS = r"""<script id="alto-manual">
     d.els = d.ids.map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean);
     var f = field('p|' + d.id + '|' + (d.mode === 'card' ? 'slide' : 'shift')); d.old = (f && f.get()) || [0, 0];
     d.S = window._altoTreeGeo ? spots(d.id, d.ids, d.old) : null;
+    // the outline as it is now: what the pointer is on is read against this, whatever is being shown
+    var G = window._altoTreeGeo, T = plan() || {}, B = d.B = {x: {}, y: {}, h: {}, w: {}, ids: []}; d.inM = {}; d.ids.forEach(function(i){ d.inM[i] = 1; });
+    d.K0 = JSON.parse(JSON.stringify((OUT && OUT.kids) || {})); d.P0 = Object.assign({}, (OUT && OUT.parent) || {});
+    if(G) Object.keys(G.y).forEach(function(i){ var el = document.getElementById('node-' + i); if(G.h[i] == null || !el || !el.offsetWidth) return;
+      B.x[i] = G.x[i]; B.y[i] = G.y[i]; B.h[i] = G.h[i]; B.w[i] = (T.w && T.w[i]) || 290; if(B.w[i] === 270) B.w[i] = 290; if(!d.inM[i]) B.ids.push(i); });
+    // where the outline's own px are on screen, from a card that is not under the pointer (that one is drawn larger)
+    d.o0 = [0, 0]; var ref = B.ids[0], rc = ref && document.querySelector('#node-' + ref + ' .node-card');
+    if(rc){ var rr = rc.getBoundingClientRect(), ws = worldAt(); d.o0 = [rr.left + rr.width / 2 - B.x[ref] * d.k - ws[0], rr.top + rr.height / 2 - B.y[ref] * d.k - ws[1]]; }
     d.els.forEach(function(el){ el.classList.add('aed-moving'); });
     root.classList.add('alto-dragging');
   }
   window.addEventListener('pointermove', function(e){
     if(!drag) return;
-    drag.px = e.clientX; drag.py = e.clientY;
+    drag.px = e.clientX; drag.py = e.clientY; drag.free = e.shiftKey;
+    if(!drag.on && drag.touch){ if(Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) > 10){ clearTimeout(drag.hold); drag = null; } return; }
     if(!drag.on){ if(Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < 6) return; startDrag(drag, e.altKey); }
     e.preventDefault();
     if(!drag.raf) drag.raf = requestAnimationFrame(frame);
@@ -4312,47 +4434,64 @@ MANUAL_JS = r"""<script id="alto-manual">
       var was = f.get() || [0, 0]; sh[o] = [was[0], was[1] + own]; });
     return [sh, sl];
   }
-  // The held cards at the pointer; the rest of the outline as it will be once they are dropped (a unit
-  // that grows moves the units below it); dashed outlines where the drop lands when that is not here.
+  // On screen while held: the page as the drop leaves it (on a card: showTent; on open board: the held cards where
+  // they land, the cards that make room where they will be). With no room they stay at the pointer, marked.
   function preview(d){
+    var t = d.mode === 'tree' && !d.free && d.B && OUT ? target(d) : null;
+    if(!t) d.tg = null;
+    if(t){ showTent(d, t); d.land = {at: [0, 0], st: t}; holdEdges(); return; }
+    if(TENT) hideTent(d, true);
     var G = window._altoTreeGeo, R = null, LD = d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD.at; d.land = LD;
     if(G && d.S){ var H = hintsWith(d, LD); try{ R = layoutAll(G.h, H[0], H[1]); }catch(e){ R = null; } }
     // the board reaches as far as the held cards and their landing, either side
     if(R && d.S && EXT){ d.ext = [d.S.box[0] + Math.min(d.wx, L[0]), d.S.box[1] + Math.max(d.wx, L[0])]; window._altoSides(R, G.h, d.ext[0], d.ext[1], d.least); }
-    var held = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px', off = Math.abs(L[0] - d.wx) > 1.5 || Math.abs(L[1] - d.wy) > 1.5;
+    var at = LD.no || LD.home ? [d.wx, d.wy] : L, held = Math.round(at[0]) + 'px ' + Math.round(at[1]) + 'px';
     document.querySelectorAll('#world .node').forEach(function(el){
-      if(el.classList.contains('aed-moving')){ el.style.translate = held; ghost(el, off ? [L[0] - d.wx, L[1] - d.wy] : null); return; }
+      if(el.classList.contains('aed-moving')){ el.style.translate = held; el.classList.toggle('aed-no', !!LD.no); return; }
       var i = el.id.slice(5); if(!R || G.y[i] == null || R.y[i] == null) return;
       var tx = Math.round(R.x[i] - G.x[i]), ty = Math.round(R.y[i] - G.y[i]);
       if(tx || ty || el.style.translate) el.classList.add('aed-room');
       el.style.translate = (tx || ty) ? tx + 'px ' + ty + 'px' : '';
     });
+    holdEdges();
   }
-  function ghost(el, at){
-    var g = el.querySelector(':scope > .aed-ghost'), c = el.querySelector('.node-card');
-    if(!at || !c){ if(g) g.remove(); return; }
-    if(!g){ g = document.createElement('div'); g.className = 'aed-ghost'; g.setAttribute('aria-hidden', 'true'); el.appendChild(g);
-      g.style.left = c.offsetLeft + 'px'; g.style.top = c.offsetTop + 'px'; g.style.width = c.offsetWidth + 'px'; g.style.height = c.offsetHeight + 'px';
-      g.style.borderRadius = getComputedStyle(c).borderRadius; }
-    g.style.translate = Math.round(at[0]) + 'px ' + Math.round(at[1]) + 'px';
+  // connectors are drawn where the cards were laid out; while any card is carried off its place (the held ones, the ones
+  // making room) a line would run through the cards now sitting on it, so none is shown until the drop settles them
+  // (the drop redraws every line); a projection laid out afresh on another card draws its own, and shows them
+  function holdEdges(on){
+    var h = false; if(on !== false) document.querySelectorAll('#world .node').forEach(function(el){ if(h) return; var t = trOf(el); if(t[0] || t[1]) h = true; });
+    root.classList.toggle('aed-lines-held', h);
   }
   function clearPreview(){
-    document.querySelectorAll('#world .node').forEach(function(el){ el.classList.remove('aed-room', 'aed-moving'); el.style.translate = ''; });
-    document.querySelectorAll('#world .aed-ghost').forEach(function(g){ g.remove(); });
-    var b = document.getElementById('aed-rztip'); if(b) b.classList.remove('show');
+    holdEdges(false);
+    document.querySelectorAll('#world .node').forEach(function(el){ el.classList.remove('aed-room', 'aed-moving', 'aed-land', 'aed-no', 'aed-tg'); el.style.translate = ''; });
+    document.querySelectorAll('#world .aed-mark').forEach(function(g){ g.remove(); });
+    var b = document.getElementById('aed-rztip'); if(b) b.classList.remove('show', 'st', 'no');
   }
   function endDrag(cancel){
     if(!drag) return; var d = drag; drag = null;
     if(d.raf) cancelAnimationFrame(d.raf);
+    clearTimeout(d.hold);
     if(!d.on) return;
     heldAt(d);
     dragJustEnded = true; setTimeout(function(){ dragJustEnded = false; }, 400);
-    root.classList.remove('alto-dragging');
+    root.classList.remove('alto-dragging', 'alto-touch-drag');
+    // held on another card: the change that is on screen is the change made (one step of undo)
+    if(TENT){
+      var t = TENT.t;
+      if(cancel === true || t.noop){ hideTent(null); clearPreview(); selCard(d.id); return; }
+      tentOff();
+      var done = changes(t.L);
+      if(done){ clearTimeout(relayT); relayout(); toast('“' + titleOf(d.id) + '” now goes ' + (t.zone === 'in' ? 'under' : t.zone) + ' “' + titleOf(t.T) + '”' + (numShow(d.id) ? ', as ' + numShow(d.id) : '') + ' — ⌘Z puts it back.'); }
+      else relayout();
+      clearPreview(); selCard(d.id); return;
+    }
     var hk = d.mode === 'card' ? 'slide' : 'shift', f = field('p|' + d.id + '|' + hk);
-    var LD = cancel === true || !f ? null : d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD && LD.at;
+    var LD = cancel === true || !f ? null : d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD && !LD.no && !LD.home && LD.at;
     var ok = L && commitMove(d.id, hk, f, L[0], L[1], false, LD.push);
     clearPreview(); selCard(d.id);
     if(!ok && window._altoTreeGeo) window._altoSides(window._altoTreeGeo, window._altoTreeGeo.h);     // (room opened for a move not made closes again)
+    if(LD && LD.no) toast('No room there, so it went back. Drop it on a card to put it under, before or after that card.');
     // from where it was let go, the cards glide to where they land (or back home)
     var gx = (d.wx || 0) - (ok ? L[0] : 0), gy = (d.wy || 0) - (ok ? L[1] : 0);
     if(Math.abs(gx) > 1.5 || Math.abs(gy) > 1.5){
