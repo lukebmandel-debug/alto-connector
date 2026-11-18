@@ -105,6 +105,10 @@ def stamp_owner(page_html: str, choice) -> str:
 # read-only, with the owner's choice lit.
 PANEL_CSS = """
 #bg-panel #bg-units .bg-solar-seg .bg-segb{ font-variant-numeric:lining-nums; letter-spacing:.06em; }
+#bg-panel #bg-units .bg-solar-seg .bg-segb{ height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:0 6px; line-height:1.2; }
+#bg-panel #bg-units .bg-un-l{ font-size:13px; font-weight:600; letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+#bg-panel #bg-units .bg-un-c{ font-size:10px; letter-spacing:.14em; text-transform:uppercase; font-weight:500; opacity:1; }
+html:not(.alto-retro):not(.sk-retro):not(.alto-holo) #bg-panel :is(#bg-units,#bg-style) .bg-h{ color:var(--text); }
 #bg-panel #bg-units .bg-segb[disabled]{ cursor:default; }
 #bg-panel #bg-units .bg-segb[disabled]:not(.on){ opacity:.55; }
 #bg-panel #bg-units .bg-un-note{ font-size:11px; line-height:1.4; color:var(--muted); margin:6px 2px 0; }
@@ -112,8 +116,11 @@ PANEL_CSS = """
 
 PANEL_JS = r"""(function(){
   var U=window._altoUN; if(!U) return;
-  function mark(row){ var c=U.cur(); [].forEach.call(row.querySelectorAll('.bg-segb'), function(b){ var on=b.getAttribute('data-un')===c;
-    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+  function eg(){ var m=null; try{ m=PHASE_META; }catch(e){} var i=m && m.length ? Math.min(2, m.length-1) : 2, n=i+1, nm=(m && m[i] && m[i].label) ? String(m[i].label).replace(/^\s*(?:Unit\s+)?(\d+|[IVXLCDM]+)[.\s:\u00b7\u2014\u2013-]+/i, '') : 'Duty';
+    return {roman:'Unit '+U.roman(n)+' \u00b7 '+nm, numbers:'Unit '+n+' \u00b7 '+nm}; }
+  function mark(row){ var c=U.cur(), x=eg(); [].forEach.call(row.querySelectorAll('.bg-un-l'), function(l){ l.textContent=x[l.getAttribute('data-n')]; });
+    [].forEach.call(row.querySelectorAll('.bg-segb'), function(b){ var l=b.querySelector('.bg-un-l'); if(l) b.setAttribute('aria-label', (b.getAttribute('data-un')==='roman' ? 'Roman numerals: ' : 'Plain numbers: ')+l.textContent); }); [].forEach.call(row.querySelectorAll('.bg-segb'), function(b){ var on=b.getAttribute('data-un')===c;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); if(window._altoOnAcc) window._altoOnAcc(b); [].forEach.call(b.querySelectorAll('span'), function(x){ x.style.color=b.style.color; }); }); }
   function add(){
     var p=document.getElementById('bg-panel'), body=p && p.querySelector('.bg-body'); if(!body) return;
     var row=document.getElementById('bg-units');
@@ -121,8 +128,10 @@ PANEL_JS = r"""(function(){
       row=document.createElement('div'); row.className='bg-sec'; row.id='bg-units';
       var h=document.createElement('div'); h.className='bg-h'; h.textContent='Unit numbers'; row.appendChild(h);
       var seg=document.createElement('div'); seg.className='bg-solar-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Unit numbers');
-      [['roman', 'I II III', 'Roman numerals: I, II, III'], ['numbers', '1 2 3', 'Numbers: 1, 2, 3']].forEach(function(o){
-        var b=document.createElement('button'); b.type='button'; b.className='bg-segb'; b.setAttribute('data-un', o[0]); b.textContent=o[1];
+      [['roman', 'ROMAN', 'Roman numerals: I, II, III'], ['numbers', 'PLAIN', 'Numbers: 1, 2, 3']].forEach(function(o){
+        /* Luke's pick B (2026-11-16): each chip is a real unit label, "Unit III · Name" / "Unit 3 · Name", the example being the control */
+        var b=document.createElement('button'); b.type='button'; b.className='bg-segb'; b.setAttribute('data-un', o[0]);
+        var l=document.createElement('span'); l.className='bg-un-l'; l.setAttribute('data-n', o[0]); var c=document.createElement('span'); c.className='bg-un-c'; c.textContent=o[1]; b.appendChild(l); b.appendChild(c);
         b.setAttribute('aria-label', o[2]); b.title=U.share ? 'Set by the owner of this timeline' : o[2];
         if(U.share) b.disabled=true;
         else b.addEventListener('click', function(e){ e.stopPropagation(); U.set(o[0]); mark(row); });
