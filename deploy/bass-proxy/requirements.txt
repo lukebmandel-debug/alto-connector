@@ -1,6 +1,6 @@
 # The tested set: Python 3.12, anthropic as in the test venv. build_bundle.py appends the connector's own requirements.txt
 # (mcp, jsonschema, ...) and keeps the pins below when a package appears twice.
-functions-framework==3.8.2
+functions-framework==3.10.2
 firebase-admin==6.6.0
 google-cloud-firestore==2.19.0
 google-cloud-secret-manager==2.21.1
@@ -8,3 +8,25 @@ google-cloud-storage==2.18.2
 anthropic==2.3.0
 tzdata==2024.2        # BetaConfig uses ZoneInfo("America/New_York") at cold start; a slim image may have no zone database
 pypdf==6.21.4           # PDF text for uploads (alto/bass/extract_worker.py); pure Python, no dependencies, text only (no native PDF blocks go to Claude)
+# Transitive and connector deps pinned to the live v1.9.238 bundle (so a rebuild resolves the same tree); build_bundle.py keeps these over the connector's ranges.
+mcp==1.30.0
+fastapi==0.163.2
+uvicorn==0.54.0
+itsdangerous==2.2.0
+starlette==1.10.0
+pydantic==2.14.3
+pydantic-core==2.50.4
+pydantic-settings==2.16.3
+httpx==0.28.1
+httpx-sse==0.4.3
+sse-starlette==3.7.0
+anyio==4.16.0
+h11==0.16.0
+jsonschema==4.26.0
+python-multipart==0.0.34
+protobuf==5.29.6
+grpcio==1.85.1
+google-auth==2.62.2
+google-api-core==2.33.0
+requests==2.34.2
+cryptography==50.0.2

@@ -104,7 +104,7 @@ def test_city_tags_keep_their_size_while_the_board_is_scaled():
     pv = js[js.index("function pvSet(z, sxT, syT){"):js.index("function placeAll(){")]
     assert "c.style.scale=k" in pv and "pfz(z)/pfz(PV.zc)*PV.zc/z" in pv       # each tag scaled back by itself ...
     assert "setProperty('--pvk'" not in pv and "setProperty('--pz'" not in pv  # ... never a variable on #world / the drawing (restyles the whole city: ~140-300 ms a frame in WebKit)
-    assert "requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); })" in pv   # settled = no input up to the next frame, not a bare timer
+    assert "requestAnimationFrame(function(){ if(PV && PV.n===n) setTimeout(function(){ if(PV && PV.n===n) placeAll(); }, 0); })" in pv   # settled = no input up to the next frame, not a bare timer (laid out in a task after it: test_palace_pan_paint)
 
 
 def test_city_tags_are_held():

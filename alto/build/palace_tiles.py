@@ -481,7 +481,8 @@ function ctTargets(){ var t=[]; if(svgD && palaceOn()){ var v=ctView(); if(v) t.
   return t; }
 /* drawing a tile, fitting the names and laying the buildings again wait until the view has settled (docs/markers.md: layout once, after
    the gesture): while a pan or zoom runs, tiles are only fetched */
-var CTmv=0, CTlast='';
+var CTmv=0, CTlast='', CTsc=-1e9;
+function ctScW(){ var cv=document.getElementById('canvas'); if(cv && !cv._ctSc){ cv._ctSc=1; cv.addEventListener('scroll', function(){ CTsc=CTmv=performance.now(); }, {passive:true}); } }   /* a pan is seen at once, not at the next tick */
 function ctMoving(){ if(PV){ CTmv=performance.now(); return true; } return performance.now()-CTmv<CT_SETTLE; }   /* a zoom glide runs (PV) */
 /* the close-in buildings' canvas (palace_fillin) is set aside while a zoom glide scales the board (WebKit re-scales a painted canvas of the
    window's size every frame: 350 ms a frame with a borough's buildings on it) and comes back, painted for the new zoom, when it settles */
@@ -493,7 +494,7 @@ function ctWatchZoom(){ if(CTwo) return; var w=document.getElementById('world');
        at each such pause made the next frame slow, and the next) */
     if(c.style.visibility && !CTwt) CTwt=setTimeout(function(){ CTwt=0; if(w.style.transform) return; c.style.visibility=''; if(typeof fillSoon==='function') fillSoon(); }, CT_SETTLE+50); });
   CTwo.observe(w, {attributes:true, attributeFilter:['style']}); }
-function ctTick(){ if(!CT) return; ctWatchZoom(); var tv=ctTargets(), key=tv.map(function(t){ return t[1].map(Math.round).join(','); }).join('|');
+function ctTick(){ if(!CT) return; ctWatchZoom(); ctScW(); var tv=ctTargets(), key=tv.map(function(t){ return t[1].map(Math.round).join(','); }).join('|');
   if(key!==CTlast){ CTlast=key; CTmv=performance.now(); }
   CTpend=[];                                         /* what to draw is decided afresh each tick, nearest the view's middle first: never a queue of the last place's tiles */
   tv.forEach(function(t){ ctTick1(t[0], t[1]); }); if(CTpend.length && !CTraf && !ctMoving()) CTraf=requestAnimationFrame(ctStep); }
@@ -520,7 +521,8 @@ function ctStep(){ CTraf=0; if(ctMoving()) return; var t0=performance.now(), n=0
 /* a fade on the group's own inline opacity, taken off when it ends (no standing transparency layer: see TILES_CSS) */
 function ctFade(g, to, done){ var t0=performance.now(), from=to?0:1;
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches){ g.style.opacity=''; if(done) done(); return; }
-  g.style.opacity=from; (function f(t){ var k=Math.min(1,(t-t0)/CT_FADE); g.style.opacity=from+(to-from)*k*k*(3-2*k);
+  g.style.opacity=from; (function f(t){ var k=Math.min(1,(t-t0)/CT_FADE); if(PV || performance.now()-CTsc<150) k=1;   /* the view moves: no fade (a fading group repaints as a layer every frame) */
+    g.style.opacity=from+(to-from)*k*k*(3-2*k);
     if(k<1) requestAnimationFrame(f); else { g.style.opacity=''; if(done) done(); } })(t0); }
 function ctShow(c, svg, how){ var sid=svg._sid||''; var gs=c.g[sid]||[];
   if(how==='drop'){ gs.forEach(function(g){ if(g.parentNode) g.parentNode.removeChild(g); }); c.g[sid]=null; c.on[sid]=0; if(c.fs) ctFillSoon(); return; }

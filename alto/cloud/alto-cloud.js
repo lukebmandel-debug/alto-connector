@@ -525,9 +525,9 @@
         let ls = null;
         try { ls = JSON.parse(origGet(HBG_KEY) || 'null'); } catch (e) {}
         const rs = remoteUser && remoteUser.homeBgAt
-          ? { v: String(remoteUser.homeBg || ''), t: Number(remoteUser.homeBgAt) || 0 } : null;
+          ? { v: String(remoteUser.homeBg || ''), t: Number(remoteUser.homeBgAt) || 0, ...(remoteUser.homeBgM === 'still' ? { m: 'still' } : {}) } : null;
         if (ls && typeof ls.v === 'string' && (!rs || (Number(ls.t) || 0) > rs.t)) {
-          await setDoc(userRef, { homeBg: ls.v, homeBgAt: Number(ls.t) || Date.now(),
+          await setDoc(userRef, { homeBg: ls.v, homeBgAt: Number(ls.t) || Date.now(), homeBgM: ls.m === 'still' ? 'still' : '',
                                   updatedAt: serverTimestamp() }, { merge: true });
         } else if (rs && (!ls || rs.t > (Number(ls.t) || 0))) {
           origSet(HBG_KEY, JSON.stringify(rs));
@@ -543,9 +543,9 @@
           let ls = null;
           try { ls = JSON.parse(origGet(BG_KEY) || 'null'); } catch (e) {}
           const rs = remoteMain && remoteMain.bgAt
-            ? { v: String(remoteMain.bg || ''), t: Number(remoteMain.bgAt) || 0 } : null;
+            ? { v: String(remoteMain.bg || ''), t: Number(remoteMain.bgAt) || 0, ...(remoteMain.bgM === 'still' ? { m: 'still' } : {}) } : null;
           if (ls && typeof ls.v === 'string' && (!rs || (Number(ls.t) || 0) > rs.t)) {
-            await setDoc(mainRef, { bg: ls.v, bgAt: Number(ls.t) || Date.now(),
+            await setDoc(mainRef, { bg: ls.v, bgAt: Number(ls.t) || Date.now(), bgM: ls.m === 'still' ? 'still' : '',
                                     updatedAt: serverTimestamp() }, { merge: true });
           } else if (rs && (!ls || rs.t > (Number(ls.t) || 0))) {
             origSet(BG_KEY, JSON.stringify(rs));

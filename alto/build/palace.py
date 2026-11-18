@@ -782,7 +782,7 @@ PALACE_CSS = KEY_CSS + r"""
   #palace-svg .pl-hit{vector-effect:none;stroke-width:calc(var(--nss,1) * 14px);} #palace-svg .pl-route-hit{vector-effect:none;stroke-width:calc(var(--nss,1) * 18px);}
   #palace-svg .pl-pk{vector-effect:none;stroke-width:calc(var(--nss,1) * 1.5px);} #palace-svg .pl-glass{vector-effect:none;stroke-width:calc(var(--nss,1) * 1.5px);}
   #palace-svg :is(.pl-hits,.pl-tr-hits,.pl-route-hits){visibility:hidden;}
-  #palace-svg :is(.lz-f,.lz-sd,.lz-tp,.lz-ln,.lz-mu,.lz-col-l,.lz-hi,.lz-seal,.lz-mark){vector-effect:none;stroke-width:calc(var(--nss,1) * var(--lzw,1px));}
+  #palace-svg :is(.lz-f,.lz-sd,.lz-tp,.lz-ln,.lz-mu,.lz-col-l,.lz-hi,.lz-seal,.lz-mark){vector-effect:none;stroke-width:calc(var(--nss,1) * var(--lzw,1px) / var(--lzk,1));}
   #palace-svg .lz-mu,#palace-svg .lz-mark{--lzw:.8px;} #palace-svg .lz-mu.lz-mu2{--lzw:1.3px;} #palace-svg .lz-col-l{--lzw:1.6px;} #palace-svg .lz-hi{--lzw:1.2px;}
   .pal-svg .pl-route{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:7;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-route-sh{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.4;vector-effect:non-scaling-stroke;
@@ -1710,7 +1710,8 @@ function pvSet(z, sxT, syT){
   world.style.transform='translate('+(PV.sx-sxT+Math.round(gx)-Math.round(PV.gx))+'px,'+(PV.sy-syT+g-PV.gy)+'px) scale('+(z/PV.zc)+')';
   if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
   /* settled: 160 ms with no input, confirmed a frame later */
-  PV.n=(PV.n||0)+1; clearTimeout(pvTimer); pvTimer=setTimeout(function(){ var n=PV&&PV.n; requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); }); }, 160);
+  PV.n=(PV.n||0)+1; clearTimeout(pvTimer); pvTimer=setTimeout(function(){ var n=PV&&PV.n; requestAnimationFrame(function(){ if(PV && PV.n===n) setTimeout(function(){ if(PV && PV.n===n) placeAll(); }, 0); }); }, 160);
+  /* (the settle's restyle and layout run in a task between frames, so the preview stays up while they run and the next frame only paints) */
 }
 function placeAll(){
   var cvh=document.getElementById('canvas'); if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;   /* hidden under a detail page: laid out when it closes */

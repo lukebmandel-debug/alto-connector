@@ -369,6 +369,7 @@ function relayout(svg, Z){
     /* the building at the ONE scale: its footprint (a.fp in the symbol) laid exactly on its card */
     var a=ART[L.key], k=scaleOf(L.l, L.key, a), fp=a.fp;
     L.use.setAttribute('x', L.x-(fp[0]+6)*k[0]); L.use.setAttribute('y', L.y-(fp[1]+8)*k[1]); L.use.setAttribute('width', (a.w+12)*k[0]); L.use.setAttribute('height', (a.h+14)*k[1]);
+    var lzk=Math.sqrt(Math.abs(k[0]*k[1]))||1, lzs=Math.abs(lzk-1)<1e-3?'':lzk.toFixed(4); if(L.use._lzk!==lzs){ L.use._lzk=lzs; if(lzs) L.use.style.setProperty('--lzk', lzs); else L.use.style.removeProperty('--lzk'); }   /* the art's scale: its lines keep their screen width (palace.py --nss) */
     if(L.tag){ var full=L.info.count?(String(L.info.count).length+(far?0:L.info.unit.length+1)):6, tw=Math.max(full,6)*6.6+34;
       L.tbg.setAttribute('width',tw); L.tag.querySelector('.lm-tag-sh').setAttribute('width',tw);
       L.tag.querySelector('.lm-tag-sh').setAttribute('x',2); L.tag.querySelector('.lm-tag-sh').setAttribute('y',-5);

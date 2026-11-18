@@ -43,7 +43,7 @@ def firebase_bundle(out: Path, service_account=None) -> Path:
     if f"SERVICE_ACCOUNT = {service_account!r}" not in src:
         raise SystemExit("refused: fb_main.py changed shape; the service account could not be written")
     (fn / "main.py").write_text(src, "utf-8")
-    reqs = merged_requirements().replace("functions-framework==3.8.2\n", "")
+    reqs = "".join(l + "\n" for l in merged_requirements().splitlines() if not l.startswith("functions-framework=="))   # (the Firebase CLI brings its own)
     (fn / "requirements.txt").write_text("firebase-functions==" + FIREBASE_FUNCTIONS_PIN + "\n" + reqs, "utf-8")
     (out / "firebase.json").write_text(FIREBASE_JSON, "utf-8")
     check_pin(fn)

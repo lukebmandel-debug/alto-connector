@@ -329,7 +329,13 @@ HEAD_JS = r"""(function(){
   }
   function apply(id){ LB=null; ov=id; var w=want(); lw=w; cur=get(w) ? w : ''; sig=''; paint(); }
   window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, only:only, auto:AUTO, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
-    choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(); }};
+    choose:function(id){ try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} var n={v:id||'', t:Date.now()}; if(o && o.m==='still') n.m='still'; localStorage.setItem(KEY, JSON.stringify(n)); }catch(e){} apply(); }};
+  // Holographic's Motion, On | Still (Luke 2026-11-18): kept in the SAME record as the background choice ({v, t, m:'still'}; On = no m, the default), so it syncs with it.
+  // Still: the poster only, the clip is never fetched (holo_anim.py reads window._altoMotion and the 'alto-bg' event).
+  window._altoMotion={get:function(){ try{ var o=JSON.parse(localStorage.getItem(KEY)||'null'); return o && o.m==='still' ? 'still' : 'on'; }catch(e){ return 'on'; } },
+    set:function(m){ try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} o=(o && typeof o==='object') ? o : {t:0};
+      if(m==='still') o.m='still'; else delete o.m; if(typeof o.v==='string') o.t=Date.now(); localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){}
+      try{ window.dispatchEvent(new Event('alto-bg')); }catch(e){} return window._altoMotion.get(); }};
   window._altoBgId='';
   apply();
   // the style, Classic, Retro (retro.py) or Holographic (holo.py), kept per timeline; the two looks are hosted scripts, fetched only when chosen
@@ -481,6 +487,8 @@ html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#00
 #bg-panel .bg-solar-seg .bg-segb:nth-child(-n+2){ border-top:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(odd){ border-left:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(even){ border-left:1px solid var(--border); }
+#bg-motion .bg-segb{ min-height:34px; }
+@media (max-width:640px), (pointer:coarse){ #bg-motion .bg-segb{ min-height:44px; min-width:44px; } }
 html.printing #bg-toggle, html.printing #bg-panel{ display:none !important; }
 /* on a phone the sheet runs under the bottom bar too (the runway, 140px): lift its last rows and its credit line above it */
 html.rw #bg-panel:not(#_), html.mobile.rw #bg-panel:not(#_){ padding-bottom:calc(154px + env(safe-area-inset-bottom, 0px)) !important; }
@@ -659,6 +667,8 @@ UI_JS = r"""(function(){
 # there and the picker narrows to the screen on a phone.
 HOME_CSS = """
 html:not(.mobile) body > #bg-toggle{ position:fixed; right:0; top:calc(50% - 17px); z-index:300; }
+/* the open Info guide (20px in from the edge, clear of every button) takes the Scene button's place on a computer: the button, 20px in as well, stands aside while it is open (as it does for an open Search pill) */
+@media (min-width:641px){ html:not(.mobile):has(#info-btn.expanded) body > #bg-toggle{ opacity:0; pointer-events:none; } }
 @media (max-width:640px){
   /* On a phone the tab joins the top row of toggles as a little rounded box: [account] [search] ... [scene] [info] [light/dark],
      the same 44 pt box, 8px gap and glass as its neighbours (info sits at right 72, light/dark at right 20). */

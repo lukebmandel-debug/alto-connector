@@ -75,7 +75,7 @@ opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), t
   X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:8px;--tt-i:var(--tt-syd) !important;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
     box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
     clip-path:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X.alto-home:not(.mobile) #title-bar #title-text:not(#_){box-shadow:none !important;border:1.5px solid #d9ae55 !important;border-top-width:0 !important;}
+  X:is(.alto-home,.alto-rep):not(.mobile) #title-bar #title-text:not(#_){box-shadow:none !important;border:1.5px solid #d9ae55 !important;border-top-width:0 !important;}
   }
   X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
     background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */
@@ -443,13 +443,14 @@ HOME_CSS = r"""
   @media (max-width:640px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:calc(108px + env(safe-area-inset-top,0px));background:linear-gradient(#000 calc(100% - 12px),transparent);z-index:101;pointer-events:none;} }
   @media (min-width:641px) and (max-height:500px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:60px;background:linear-gradient(#000 calc(100% - 10px),transparent);z-index:101;pointer-events:none;} }
   @media (min-width:641px) and (min-height:501px){ X.alto-home::before{content:'';position:fixed;left:0;right:0;top:0;height:54px;background:linear-gradient(#000 calc(100% - 10px),transparent);z-index:101;pointer-events:none;} }   /* (desktop Home: tiles tuck under the rule, not through it) */
-  X.alto-home #sk-frame b:not(#_){top:40px;width:min(46vw,520px);}   /* (Art option D: on Home the same plain line under the HOME tab) */
-  @media (max-width:640px){ X.alto-home #sk-frame b:not(#_){top:54px;width:88vw;} }
-  @media (max-height:500px) and (orientation:landscape){ X.alto-home #sk-frame b:not(#_){top:44px;} }
+  X:is(.alto-home,.alto-rep) #sk-frame b:not(#_){top:40px;width:min(46vw,520px);}   /* (Art option D: on Home the same plain line under the HOME tab) */
+  @media (max-width:640px){ X:is(.alto-home,.alto-rep) #sk-frame b:not(#_){top:54px;width:88vw;} }
+  @media (max-height:500px) and (orientation:landscape){ X:is(.alto-home,.alto-rep) #sk-frame b:not(#_){top:44px;} }
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
+  X.alto-rep #sk-mark{display:none !important;}   /* (the Reports page: the same as the homepage, its name hangs from the top) */
   /* the top row: the Home pill a square chip in gold capitals */
-  X.alto-home:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
-  @media (max-width:640px){ X.alto-home #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
+  X:is(.alto-home,.alto-rep):not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
+  @media (max-width:640px){ X:is(.alto-home,.alto-rep) #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
   /* projects: no glass, a fine gold rim, the name in gold capitals */
   X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X.alto-home .project-slab .slab-kicker:not(#_){color:#d9ae55;font-family:var(--rt-f);font-size:12px;letter-spacing:.14em;font-weight:400;}
@@ -494,6 +495,11 @@ HOME_CSS = r"""
   X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
   @media (min-width:641px){X.alto-home:not(.mobile) #info-btn.expanded #info-icon:not(#_):not(#__){border:1.5px solid #d9ae55 !important;border-radius:0 !important;background:#000 !important;color:#d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}}   /* the open guide's info button keeps its own square in the row (v1.9.234) */
   X.alto-home :is(#search-btn,#info-btn):not(.expanded) :is(#search-glyph,#info-icon){color:#d9ae55;}
+  /* the Reports page (alto-rep) wears the same corner chips and a square gold Home link */
+  X.alto-rep :is(#bg-toggle,#drawer-scene-btn):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
+  X.alto-rep #home-link:not(#_){border-radius:0 !important;background:#000 !important;border:1px solid rgba(217,174,85,.7) !important;color:#d9ae55 !important;font-family:var(--rt-f);letter-spacing:.14em;text-transform:uppercase;font-size:11px;}
+  @media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle:not(#_):not(#__){right:20px !important;}}
+  @media (min-width:641px){X:not(.mobile):not(.pmin):not(.alto-home) #tab-rail:not(#_):not(#__){right:calc(var(--np-dock,0px) + 20px / var(--alto-zoom,.8)) !important;}}   /* the timeline's rail (Scene button and its tabs) sits 20 screen px in from the edge (the page is zoomed), beside the docked notes panel when it is open */   /* the Scene button sits in the page's 20px margin, not flush on the edge (as the Holographic home does) */
   X.alto-home #search-btn.expanded{background:#000 !important;}
   X.alto-home #info-btn.expanded:not(#_){background:#05070a !important;}
   X.alto-home #search-results:not(#_){background:#05070a;border:1px solid #d9ae55;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}

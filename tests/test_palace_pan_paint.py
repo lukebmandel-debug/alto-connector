@@ -60,6 +60,24 @@ def test_the_widths_are_the_ones_the_non_scaling_rules_had():
         assert old and re.search(r"stroke-width:%s(px)?;" % re.escape(str(w)), old[0]), (cls, old)
 
 
+def test_pass2_tile_fades_stop_while_the_view_moves_and_the_settle_waits_for_a_task():
+    """A tile group fading in or out repaints as a transparency layer every frame (a pan over fading tiles ran at 30-50 ms frames): a fade
+    jumps to its end while the view moves, and a scroll marks the view moving at once. The zoom settle's restyle and layout run in a task
+    after the confirming frame, so the preview stays up while they run (the 210-250 ms settle frame becomes two of ~120)."""
+    from alto.build import palace_tiles
+    js = palace_tiles.TILES_JS
+    assert "if(PV || performance.now()-CTsc<150) k=1;" in js
+    assert "CTsc=CTmv=performance.now();" in js and "ctWatchZoom(); ctScW();" in js
+    assert "if(PV && PV.n===n) setTimeout(function(){ if(PV && PV.n===n) placeAll(); }, 0);" in palace.PALACE_JS
+
+
+def test_pass2_landmark_art_in_a_scaled_symbol_keeps_its_line_width():
+    from alto.build import palace_landmarks
+    src = (ROOT / "alto" / "build" / "palace_landmarks.py").read_text("utf-8")
+    assert "L.use.style.setProperty('--lzk', lzs)" in src
+    assert "calc(var(--nss,1) * var(--lzw,1px) / var(--lzk,1))" in palace.PALACE_CSS
+
+
 def test_the_phone_map_keeps_its_own_rules():
     """The phone's map (#palace-svg-m) is untouched: only the desktop board (#palace-svg) is overridden."""
     css = palace.PALACE_CSS
@@ -70,7 +88,7 @@ def test_the_phone_map_keeps_its_own_rules():
 # ── in WebKit: the cost it measures, on a synthetic city full of long streets ──
 pw = pytest.importorskip("playwright.sync_api")
 
-N = 70          # streets each way
+N = 110         # streets each way
 W = H = 7000    # map units
 
 
@@ -82,8 +100,8 @@ def _big_city():
     for i in range(N):
         for horiz in (0, 1):
             pts = []
-            for j in range(0, 141):
-                t = j * W / 140
+            for j in range(0, 201):
+                t = j * W / 200
                 rnd = (rnd * 16807) % 2147483647
                 wob = (rnd % 9) - 4
                 c = (i + .5) * W / N + wob
@@ -126,15 +144,15 @@ def _webkit(p):
         pytest.skip(f"no WebKit build: {str(e).splitlines()[0][:120]}")
 
 
-# The cost of one 300 px scroll into map not painted before (jump far away, let it paint, then step), median of 8.
+# The cost of one 300 px scroll into map not painted before (jump far away, let it paint, then step), median of 16, after a warm-up pass.
 STEP = r"""async (css) => {
   const cv = document.getElementById('canvas'), st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const fr = () => new Promise(r => requestAnimationFrame(() => r(performance.now()))), sl = ms => new Promise(r => setTimeout(r, ms));
   await sl(400); const W = cv.scrollWidth - cv.clientWidth, H = cv.scrollHeight - cv.clientHeight; let seed = 7, v = [];
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 8; i++) { cv.scrollLeft = W * (.15 + .7 * rnd()); cv.scrollTop = H * (.15 + .7 * rnd()); await sl(450);
+  for (let i = 0; i < 16; i++) { cv.scrollLeft = W * (.15 + .7 * rnd()); cv.scrollTop = H * (.15 + .7 * rnd()); await sl(450);
     const t0 = await fr(); cv.scrollTop += 300; v.push(await fr() - t0); }
-  st.remove(); v.sort((a, b) => a - b); return (v[3] + v[4]) / 2; }"""
+  st.remove(); v.sort((a, b) => a - b); return (v[7] + v[8]) / 2; }"""
 # what the board's layers were before (non-scaling strokes, painted hit lines)
 OLD = ("#palace-svg .pl-hit,#palace-svg .pl-pk{vector-effect:non-scaling-stroke !important;}"
        "#palace-svg .pl-hit{stroke-width:14px !important;} #palace-svg .pl-pk{stroke-width:1.5px !important;}"
@@ -165,6 +183,17 @@ def test_in_webkit_a_pan_into_new_map_paints_without_the_stroke_re_transform(pag
                 if (x < 60 || y < 60 || x > 1380 || y > 840) continue; tried++; const t = document.elementFromPoint(x, y);
                 if (t && t.closest && t.closest('.pl-hit')) hit++; if (tried >= 12) break; } return [tried, hit]; }""")
             assert hit[0] >= 4 and hit[1] >= hit[0] - 1, hit
+            # --nss follows every zoom (not only the first, nor only a window resize): ctrl-wheel in and out, let it settle each time
+            for dy in (-30, 30, 30, -30):
+                pg.mouse.move(720, 450); pg.keyboard.down("Control")
+                for _ in range(6):
+                    pg.mouse.wheel(0, dy); pg.wait_for_timeout(16)
+                pg.keyboard.up("Control"); pg.mouse.move(5, 450); pg.wait_for_timeout(900)
+                z = pg.evaluate("""() => { const s = document.getElementById('palace-svg'), cv = document.getElementById('canvas'), h = s.querySelector('.pl-hit');
+                    return {Z: window._altoPalaceGeo.Z, nss: +s.style.getPropertyValue('--nss'), k: cv.getBoundingClientRect().width / cv.clientWidth,
+                            w: parseFloat(getComputedStyle(h).strokeWidth) * h.getScreenCTM().a}; }""")
+                assert abs(z["nss"] * z["Z"] * z["k"] - 1) < 1e-3 and abs(z["w"] - 14) < .2, z
+            pg.evaluate(STEP, "")                           # warm-up: the jump targets and their tiles are loaded once before anything is timed
             old = pg.evaluate(STEP, OLD)
             new = pg.evaluate(STEP, "")
             old2 = pg.evaluate(STEP, OLD)
