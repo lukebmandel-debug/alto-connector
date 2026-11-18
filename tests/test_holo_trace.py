@@ -344,7 +344,7 @@ def test_the_phone_timeline_has_it_in_the_header_in_both_themes(browser, site, d
     assert 20 < b["w"][3] < 22 and b["o"][0] + b["o"][2] <= 390 - 10, b          # 21 px high, 14 px in from the right edge
     assert b["o"][1] >= 0 and b["o"][1] + b["o"][3] <= 52, b                     # inside the 52 px band
     core = pg.evaluate("getComputedStyle(document.querySelector('.ho-trace .tc')).stroke")
-    assert core == ("rgb(232, 255, 253)" if dark else "rgb(18, 181, 214)"), core
+    assert core == "rgb(232, 255, 253)", core     # Holographic holds html.dark on every screen, a phone's too (holo.py hdark, 2026-11-13): a light choice leaves the trace in its dark ink
     assert pg.evaluate(LIVE) >= 6
     assert not errors, errors
     ctx.close()
@@ -402,7 +402,7 @@ def test_a_card_runner_paints_one_colour_and_laps_calmly(browser, site, dark):
     r = pg.evaluate("""(()=>{var out=[]; [...document.querySelectorAll('.ho-nt')].slice(0,6).forEach(s=>{ [...s.children].forEach(i=>{ var cs=getComputedStyle(i), a=i.getAnimations()[0];
       out.push({k:i.className, bg:cs.backgroundImage, d:a.effect.getTiming().duration, n:i.getAnimations().length, f:cs.filter, sh:cs.boxShadow, kf:a.effect.getKeyframes().map(k=>Object.keys(k).filter(p=>!/^(offset|computedOffset|easing|composite)$/.test(p)).join())}); }); }); return out;})()""")
     assert len(r) >= 8, r
-    want = holo_trace.NODE_RGB["dark" if dark else "light"].split(",")
+    want = holo_trace.NODE_RGB["dark"].split(",")                               # (dark on every screen since 2026-11-13, holo.py hdark: the light flag changes nothing)
     for x in r:
         cols = re.findall(r"rgba?\(([^)]*)\)", x["bg"])
         assert len(cols) == 8, x                                                # two gradients of four stops, nothing else painted
@@ -714,7 +714,7 @@ def test_a_new_theme_renders_a_new_sheet_in_its_own_colours(browser, site):
     pg.wait_for_timeout(300); _baked(pg)
     assert pg.evaluate(GO) and pg.evaluate(ANIMS) == [["ho-pipe", "running"]]
     lt = pg.evaluate(PIX, {"cell": 44})
-    assert d["lum"] - lt["lum"] > 40 and abs(d["w"] - lt["w"]) < 1.5, (d["lum"], lt["lum"])       # the pale page's deep teal pipe, the same shape
+    assert abs(d["lum"] - lt["lum"]) < 1 and abs(d["w"] - lt["w"]) < 1.5, (d["lum"], lt["lum"])   # Holographic holds html.dark on every screen (holo.py hdark, 2026-11-13): removing it brings nothing pale, the sheet stays the dark one
     assert _round(lt["bar"]) and _round(d["bar"])
     assert not errors, errors
     ctx.close()

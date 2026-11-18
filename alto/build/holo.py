@@ -71,7 +71,7 @@ HOLO_CSS = r"""
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) body:not(#_):not(#__){background:transparent !important;}
   /* the Background picker in Holographic lists the style's own backgrounds and nothing else (Luke, 2026-11-10: "Only the holo backgrounds should be available"; the Import tile stays); a photograph or colour chosen
      earlier stays stored and comes back with Classic. A phone's picker too; the palaces and the Star chart keep theirs. */
-  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-yours):not(#bg-units):not(:has(.bg-tile[data-bg^="h-"])){display:none !important;}
+  X:not(.alto-palace):not(.alto-stars) #bg-panel .bg-sec:not(#_):not(#__):not(.bg-auto):not(#bg-style):not(#bg-motion):not(#bg-yours):not(#bg-units):not(:has(.bg-tile[data-bg^="h-"])){display:none !important;}
   X:not(.alto-palace):not(.alto-stars):not(.alto-bg-h) #bg-panel .bg-foot:not(#_):not(#__){display:none !important;}   /* (the credit of a photograph that is not showing) */
   /* one of the style's own backgrounds chosen (holo_backgrounds.py): the background layer paints it again (Retro's rules, re-inked, hide it)
      and the plates under the board let it through */
@@ -83,8 +83,8 @@ HOLO_CSS = r"""
   /* the bars: where a page keeps them (a detail page, a phone) they are solid, so a card or a line passing under a label never shows
      through it; a desktop timeline or the homepage has no top bars (clear_top.py, Luke 2026-10-21/22), so there each label carries its
      own solid square plate instead (the floor on text over anything) */
-  X:not(.ct-on):not(.alto-home.alto-clear-top) :is(#title-bar,#nav,#node-nav-bar):not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;}
-  X:not(.ct-on):not(.alto-home.alto-clear-top) #title-bar:not(#_):not(#__){border-bottom:1px solid rgba(var(--ho-rgb),.5) !important;box-shadow:var(--ho-glow) !important;}
+  X:not(.ct-on):not(.alto-home.alto-clear-top):not(.alto-rep.alto-clear-top) :is(#title-bar,#nav,#node-nav-bar):not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;}
+  X:not(.ct-on):not(.alto-home.alto-clear-top):not(.alto-rep.alto-clear-top) #title-bar:not(#_):not(#__){border-bottom:1px solid rgba(var(--ho-rgb),.5) !important;box-shadow:var(--ho-glow) !important;}
   /* a phone's one-card view, upright: the previous / next names strip under the header kept Classic's unit tint (grey-beige on the light theme, brown on the dark; sim1112a). It is the
      header's own solid bar, as the same strip on a detail page (#node-nav-bar) is. On its side the strip has no ground of its own (phone_minimal.py), and keeps none */
   X.pmin.mobile:not(.sh-landscape) #timeline-label-bar:not(#_):not(#__){--header-tint:transparent !important;background:rgba(var(--ho-bgrgb),.97) !important;border-bottom:1px solid rgba(var(--ho-rgb),.35) !important;
@@ -448,9 +448,9 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           # the focused Search keeps its one teal rim (border and ring one colour), over the glass
           "X #search-btn:focus-within" + _S1_NOT + "{border-color:var(--ho-ac) !important;box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}\n"
           # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)
-          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 20px) !important;}}\n"
+          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 20px / var(--alto-zoom,.8)) !important;}}\n"
           # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
-          "@media (min-width:641px){X.alto-home:not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
+          "@media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
 
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
 

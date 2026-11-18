@@ -215,7 +215,8 @@ function hasync(){
   hafocus();
   var k=HA.ids[window._altoBgId||''], l=document.getElementById('alto-ha'), v=k && HAM!=='still' && HA.vid[k] && !hafail[k];
   var sd=!!(navigator.connection && navigator.connection.saveData);    // Save-Data: the still only, the clip is never fetched
-  if(!(k && haok && (v || HAM==='all') && r.classList.contains('alto-holo') && (v ? !sd : desk()) && !(rmq && rmq.matches) && document.body)){ hasig=''; if(l) l.remove(); hand(false); return; }
+  var mst=!!(window._altoMotion && window._altoMotion.get()==='still');   // the picker's Motion: Still = the poster only, no layer, no clip (a playing one is removed)
+  if(!(k && haok && !mst && (v || HAM==='all') && r.classList.contains('alto-holo') && (v ? !sd : desk()) && !(rmq && rmq.matches) && document.body)){ hasig=''; if(l){ var pv=l.querySelector('video'); if(pv){ try{ pv.pause(); pv.removeAttribute('src'); pv.load(); }catch(e){} } l.remove(); } hand(false); return; }
   var sig=k+'|'+r.className+'|'+innerWidth+'x'+innerHeight;
   if(l && sig===hasig){ havis(l); return; }    // (the class watcher fires on every change of the root's classes: refit only when something that moves the box changed)
   hasig=sig;

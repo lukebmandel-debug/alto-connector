@@ -240,6 +240,15 @@ LIB_JS = r"""(function(){
       b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : v[0]==='holo' ? 'Holographic: one cyan light, square wireframe cards, a faint grid' : 'Classic: Alto\u2019s own look, with the background below';
       b.addEventListener('click', function(e){ e.stopPropagation(); S.set(v[0]); mark(); }); seg.appendChild(b); });
     row.appendChild(el('div', 'bg-h', 'Style')); row.appendChild(seg); ui.body.insertBefore(row, ui.body.firstChild); mark();
+    // Holographic's backgrounds move (looping clips); Motion: On | Still keeps them still. Shown with that style, kept with the background choice (window._altoMotion)
+    var M=window._altoMotion; if(!M || (S.list && S.list.indexOf('holo')<0)) return;
+    var mr=el('div', 'bg-sec'), ms=el('div', 'bg-seg'); mr.id='bg-motion'; ms.setAttribute('role', 'group'); ms.setAttribute('aria-label', 'Motion');
+    function mm(){ var c=M.get(); [].forEach.call(ms.children, function(b){ var on=b.getAttribute('data-mo')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); mr.hidden=S.get()!=='holo'; }
+    [['on', 'On', 'Motion on: the background plays as a looping video'], ['still', 'Still', 'Motion off: the still picture only, no video is loaded']].forEach(function(v){
+      var b=el('button', 'bg-segb', v[1]); b.type='button'; b.setAttribute('data-mo', v[0]); b.title=v[2];
+      b.addEventListener('click', function(e){ e.stopPropagation(); M.set(v[0]); mm(); }); ms.appendChild(b); });
+    mr.appendChild(el('div', 'bg-h', 'Motion')); mr.appendChild(ms); row.parentNode.insertBefore(mr, row.nextSibling); mm();
+    [].forEach.call(seg.children, function(b){ b.addEventListener('click', mm); });
   }
   function order(L){ return Object.keys(L).sort(function(a, b){ return (L[b].c||0)-(L[a].c||0); }); }
   function redraw(){

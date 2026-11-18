@@ -303,8 +303,11 @@ _HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=
 # bars top and bottom there. Its viewport tag gets cover from the start, and
 # the same head block (it has no theme-color tag to anchor on).
 _REPORTS_RW_HEAD_OLD = '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+# Reports gets the homepage's bar treatment too (a bare bar on a computer: the background runs to the top of the window, not under a ~90px opaque strip; Luke 2026-11-18),
+# with `alto-rep` in place of `alto-home` (that one is the homepage's own look). Classic | Retro | Holographic like the homepage.
+_REPORTS_CLEAR_TOP = (_HOME_CLEAR_TOP.replace("r.classList.add('alto-home');", "r.classList.add('alto-rep');").replace('id="alto-home-clear-top"', 'id="alto-reports-clear-top"'))
 _REPORTS_RW_HEAD_NEW = ('<meta name="viewport" content="width=device-width, initial-scale=1.0, '
-                        'viewport-fit=cover">' + backgrounds.head_block(HOME_BG_KEY)
+                        'viewport-fit=cover">' + _REPORTS_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY, retro=True)
                         + '<style id="alto-title-tab">' + title_tab.home_css() + "</style>"
                         + _rw_head("#reports-wrap", _REPORTS_RW_FIXED, "#account-scrim, #bg-panel"))
 _HOME_RW_TAIL_OLD = "</body>"
