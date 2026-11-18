@@ -42,6 +42,14 @@ def test_all_six_have_a_clip_and_video_is_the_shipped_mode():
     assert '"mode":"video"' in holo.ASSET and all(p in holo.ASSET for p in holo_video.paths().values())
 
 
+def test_the_eleven_backgrounds_are_in_the_catalog_with_small_builders():
+    ids = [i for i, _, _ in hb.HOLO_BGS]
+    assert len(ids) == 11 and ids[6:] == ["h-rooftop-aurora", "h-docking-bay", "h-jade-alley", "h-dune-beacon", "h-sky-tether"]
+    for hid, light, dark in ((i, *f()) for i, _, f in hb.HOLO_BGS[6:]):
+        assert len(dark["b"]) <= 15_000 and dark["b"].startswith('url("data:image/svg+xml'), (hid, len(dark["b"]))
+        assert "data:image" not in light["b"], "the light half is the plain ground"
+
+
 def test_the_clips_are_hosted_assets_not_page_bytes():
     from alto.build.private_shell import stored_bytes
     page, _ = _outline()
