@@ -778,6 +778,12 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-bld.pal-hot .b-card,.pal-svg .pl-bld:hover .b-card{stroke-width:3;}
   .pal-svg .pl-bld.pal-dim{opacity:.3;}
   .pal-svg .pl-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;vector-effect:non-scaling-stroke;}
+  /* widths from --nss (a screen px in map units), not non-scaling-stroke: WebKit re-transforms those paths for every tile it paints */
+  #palace-svg .pl-hit{vector-effect:none;stroke-width:calc(var(--nss,1) * 14px);} #palace-svg .pl-route-hit{vector-effect:none;stroke-width:calc(var(--nss,1) * 18px);}
+  #palace-svg .pl-pk{vector-effect:none;stroke-width:calc(var(--nss,1) * 1.5px);} #palace-svg .pl-glass{vector-effect:none;stroke-width:calc(var(--nss,1) * 1.5px);}
+  #palace-svg :is(.pl-hits,.pl-tr-hits,.pl-route-hits){visibility:hidden;}
+  #palace-svg :is(.lz-f,.lz-sd,.lz-tp,.lz-ln,.lz-mu,.lz-col-l,.lz-hi,.lz-seal,.lz-mark){vector-effect:none;stroke-width:calc(var(--nss,1) * var(--lzw,1px));}
+  #palace-svg .lz-mu,#palace-svg .lz-mark{--lzw:.8px;} #palace-svg .lz-mu.lz-mu2{--lzw:1.3px;} #palace-svg .lz-col-l{--lzw:1.6px;} #palace-svg .lz-hi{--lzw:1.2px;}
   .pal-svg .pl-route{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:7;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-route-sh{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.4;vector-effect:non-scaling-stroke;
     stroke:rgba(255,255,255,.8);stroke-dasharray:10 12;animation:pal-flow 1.1s linear infinite;}
@@ -1811,6 +1817,9 @@ function nbSpread(){
     var x1=t.rx-e._nbx, y1=t.ry-e._nby, x2=t.ax+t.dx-e._nbx, y2=t.ay+t.dy-e._nby, l=ld.firstChild, c=ld.lastChild;
     l.setAttribute('x1',x1.toFixed(1)); l.setAttribute('y1',y1.toFixed(1)); l.setAttribute('x2',x2.toFixed(1)); l.setAttribute('y2',y2.toFixed(1)); c.setAttribute('cx',x1.toFixed(1)); c.setAttribute('cy',y1.toFixed(1)); });
 }
+/* screen px per CSS px: the page's CSS zoom (engine #alto-fit), read once per window width */
+var PGK=null;
+function pgK(){ if(!PGK || PGK[0]!==innerWidth){ var z=(parseFloat(getComputedStyle(de).zoom)||1)*(parseFloat(getComputedStyle(document.body).zoom)||1); PGK=[innerWidth, z]; } return PGK[1]; }
 function placeBoard(world, cv){
   world.style.setProperty('--z', Z); world.style.setProperty('width', Math.round(VW*Z)+'px', 'important'); world.style.minHeight=Math.round(VH*Z+WORLD_PAD_TOP)+'px';
   /* a city smaller than the window sits in the middle of it */
@@ -1820,7 +1829,7 @@ function placeBoard(world, cv){
      city's own top edge is where the page stops scrolling, so panning up never shows bare
      background between the bars and the map. A city shorter than the window is centred. */
   world.style.setProperty('margin-top', Math.round(gy()-WORLD_PAD_TOP)+'px', 'important');
-  if(svgD){ svgD.setAttribute('width', Math.round(VW*Z)); svgD.setAttribute('height', Math.round(VH*Z+WORLD_PAD_TOP)-WORLD_PAD_TOP); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.top=WORLD_PAD_TOP+'px'; }
+  if(svgD){ svgD.setAttribute('width', Math.round(VW*Z)); svgD.setAttribute('height', Math.round(VH*Z+WORLD_PAD_TOP)-WORLD_PAD_TOP); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.setProperty('--nss', (1/(Z*pgK())).toFixed(5)); svgD.style.top=WORLD_PAD_TOP+'px'; }
   setClasses();
   var nzRank={}; (typeof NODES!=='undefined'?NODES:[]).map(function(n){ var q=isB(n.id)?lot(P.at[n.id]):null; return q?[n.id, q[1]+q[3]/2]:null; }).filter(Boolean)
     .sort(function(p,q){ return p[1]-q[1]; }).forEach(function(p,i){ nzRank[p[0]]=i; });       /* back to front: a building stands in front of the ones behind it */
