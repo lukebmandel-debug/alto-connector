@@ -41,7 +41,9 @@ _CLASSIC = """
   .course-tile:not(.new-tile) .tile-title{ margin-right:115px; overflow-wrap:break-word; -webkit-hyphens:manual; hyphens:manual; }
   .course-tile.has-more .tile-title{ padding-right:0; }
 }
-html.dark .tile-emblem{ opacity:.22; }
+/* inverted format glyphs: a solid plate with the mark cut out, so the watermark needs more strength to keep mark-to-plate contrast at 3:1 or better */
+.tile-emblem{ opacity:.65; }
+html.dark .tile-emblem{ opacity:.55; }
 /* Q3B: the strip is the timeline's own colours; in the dark theme the same hues a tenth dimmer */
 html.dark .course-tile .unit-strip{ filter:brightness(.9); }
 /* Q7A: two cards to a row on a phone, three on a tablet; a card is smaller: title top left, the symbol bottom right, the buttons along the bottom */
@@ -74,6 +76,27 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .course-tile{ --em:72px; }
   .course-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
   .project-slab{ padding:26px 12px 28px; }
+}
+/* Classic only (Retro and Holo keep their own plates): the format plate sits wholly inside the card, with the card's own inner padding, and the three action buttons
+   stand in their own row at the bottom left under the lock line, so no button ever touches the plate (Luke: nothing overlaps, nothing runs off an edge) */
+@media (min-width:901px){
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile){ min-height:190px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-body{ padding-bottom:62px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ width:88px; height:88px; right:24px; bottom:58px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile :is(.tile-reports, .tile-share, .tile-download){ bottom:16px; right:auto !important; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-share{ left:24px !important; } html:not(.alto-retro):not(.alto-holo) .course-tile .tile-reports{ left:58px !important; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-download{ left:24px !important; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-share{ left:58px !important; } html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-reports{ left:92px !important; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(:has(.tile-share)) .tile-reports{ left:24px !important; }
+}
+@media (max-width:900px){
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-body{ padding-bottom:48px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ right:14px; bottom:52px; }
+}
+@media (max-width:640px){   /* (a phone draws no download button, so the row starts at the card's left padding) */
+  html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-share{ left:12px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-reports{ left:46px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(:has(.tile-share)) .tile-reports{ left:12px; }
 }
 """
 

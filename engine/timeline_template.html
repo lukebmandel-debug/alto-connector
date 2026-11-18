@@ -11727,6 +11727,9 @@ html:not(.mobile) .node-card .tsym-btn:hover ~ .chip-tip{
     q=0;
     var ns=c.querySelectorAll('.phase-numeral'); if(!ns.length) return;
     var edge=c.getBoundingClientRect().right-9, cur=0;
+    /* ...and stop 20px short of the Alto wordmark and the side rail, so a chip never sits under either (1.9.244) */
+    ['#title-bar .brand-word','#tab-rail'].forEach(function(q){ var o=document.querySelector(q), r=o&&o.getBoundingClientRect();
+      if(r && r.width && r.height && getComputedStyle(o).visibility!=='hidden') edge=Math.min(edge, r.left-20); });
     try{ cur=parseFloat(ns[0].style.getPropertyValue('--num-shift'))||0; }catch(e){}
     var b=ns[0].getBoundingClientRect(), k=(b.width/ns[0].offsetWidth)||1;
     var s=Math.min(0, Math.round(cur+(edge-b.right)/k));

@@ -533,6 +533,7 @@ HOME_CSS = r"""
   X.alto-home .course-tile .tile-emblem svg{width:48px;height:48px;stroke-width:.95}
   X.alto-home .course-tile .tile-emblem .tile-sub{position:absolute !important;left:6px;top:6px;display:flex;color:#d9ae55}
   X.alto-home .course-tile .tile-emblem .tile-sub svg{width:15px;height:15px}
+  X.alto-home .course-tile .tile-emblem .tile-sub:not(:has(.priv-sym)){display:none}   /* a static course's count ("3 units") is plain text: the card already says its count once, in its own row, so never twice and never over the plate's corner (the lock glyph stays) */
   X.alto-home .course-tile .tile-emblem .priv-sym svg[viewBox="0 0 36 24"]{width:22px;height:15px}
   X.alto-home .course-tile .t-main{grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:12px 12px 12px;min-width:0}
   X.alto-home .course-tile .t-top{display:flex;gap:10px;align-items:center;margin-bottom:8px}
