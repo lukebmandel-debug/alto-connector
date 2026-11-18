@@ -329,7 +329,13 @@ HEAD_JS = r"""(function(){
   }
   function apply(id){ LB=null; ov=id; var w=want(); lw=w; cur=get(w) ? w : ''; sig=''; paint(); }
   window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, only:only, auto:AUTO, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
-    choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(); }};
+    choose:function(id){ try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} var n={v:id||'', t:Date.now()}; if(o && o.m==='still') n.m='still'; localStorage.setItem(KEY, JSON.stringify(n)); }catch(e){} apply(); }};
+  // Holographic's Motion, On | Still (Luke 2026-11-18): kept in the SAME record as the background choice ({v, t, m:'still'}; On = no m, the default), so it syncs with it.
+  // Still: the poster only, the clip is never fetched (holo_anim.py reads window._altoMotion and the 'alto-bg' event).
+  window._altoMotion={get:function(){ try{ var o=JSON.parse(localStorage.getItem(KEY)||'null'); return o && o.m==='still' ? 'still' : 'on'; }catch(e){ return 'on'; } },
+    set:function(m){ try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} o=(o && typeof o==='object') ? o : {t:0};
+      if(m==='still') o.m='still'; else delete o.m; if(typeof o.v==='string') o.t=Date.now(); localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){}
+      try{ window.dispatchEvent(new Event('alto-bg')); }catch(e){} return window._altoMotion.get(); }};
   window._altoBgId='';
   apply();
   // the style, Classic, Retro (retro.py) or Holographic (holo.py), kept per timeline; the two looks are hosted scripts, fetched only when chosen
@@ -481,6 +487,8 @@ html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#00
 #bg-panel .bg-solar-seg .bg-segb:nth-child(-n+2){ border-top:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(odd){ border-left:0; }
 #bg-panel .bg-solar-seg .bg-segb:nth-child(even){ border-left:1px solid var(--border); }
+#bg-motion .bg-segb{ min-height:34px; }
+@media (max-width:640px), (pointer:coarse){ #bg-motion .bg-segb{ min-height:44px; min-width:44px; } }
 html.printing #bg-toggle, html.printing #bg-panel{ display:none !important; }
 /* on a phone the sheet runs under the bottom bar too (the runway, 140px): lift its last rows and its credit line above it */
 html.rw #bg-panel:not(#_), html.mobile.rw #bg-panel:not(#_){ padding-bottom:calc(154px + env(safe-area-inset-bottom, 0px)) !important; }
