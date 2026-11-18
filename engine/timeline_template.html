@@ -6295,11 +6295,20 @@ html:not(.mobile) #info-content       { max-height:620px !important; }
    the geometric centre, over the text. */
 html:not(.mobile) #info-btn.expanded #info-icon{
   inset:auto !important;
-  bottom:10px !important;
-  right:10px !important;
-  width:20px !important;
-  height:20px !important;
+  bottom:calc(-1 * var(--info-drop, 47px)) !important;
+  right:-1px !important;
+  width:35px !important;
+  height:35px !important;
+  box-sizing:border-box; border-radius:var(--info-r-shut, 50%); display:flex; align-items:center; justify-content:center;
+  background:var(--card-glass-bg, var(--surface)); border:1px solid var(--card-glass-border, var(--border)); box-shadow:0 10px 26px var(--node-rest-shadow, var(--card-shadow));
+  -webkit-backdrop-filter:blur(18px) saturate(190%); backdrop-filter:blur(18px) saturate(190%);
 }
+/* The open guide stands ABOVE the bottom-right row (alignInfo lifts it; the homepage's way, v1.9.234): it ends clear of
+   Search, the key and its own button, which keeps its round plate in the row below it (a click there closes it), and
+   it is never taller than the room between the top bars and that row (--info-h, patchInfoExpand): it scrolls inside. */
+html:not(.mobile) #info-btn.expanded:not(#_){ overflow:visible !important; height:calc(var(--info-h, 658px) + 2px) !important; max-height:calc(var(--info-h, 658px) + 2px) !important; }
+/* (its words fill the guide's own box and scroll there: nothing of them shows outside it while it opens) */
+html:not(.mobile) #info-btn.expanded #info-content{ position:absolute; inset:0; max-height:none !important; box-sizing:border-box; padding-bottom:16px; overflow-y:auto; overscroll-behavior:contain; border-radius:inherit; }
 /* Wrap-around warning. Color: #ff4500 (OrangeRed). Half-tint covers the
    FULL HEIGHT of the nav-bar half (top to bottom edge, center divider to
    screen edge). Class toggled by every label-updater path:
@@ -6536,8 +6545,14 @@ html:not(.mobile) .note-dialog-btn {
     if(bottomCSS < 0) bottomCSS = 30;
     // Same anchor whether collapsed or expanded — the bottom-right corner is the
     // fixed pivot the panel grows out of, so this is safe to set every call.
+    // Open, the guide stands above the row (12px clear of the tallest control in it); its own button stays in the row.
+    var lift = 0;
+    if(infoBtn.classList.contains('expanded')){ lift = COLLAPSED_H;
+      [mt, document.getElementById('alto-edit-pill'), document.getElementById('search-btn'), document.getElementById('key-toggle')].forEach(function(e){ if(e && e.offsetHeight < 90) lift = Math.max(lift, e.offsetHeight); });
+      lift += MARGIN; }
+    infoBtn.style.setProperty('--info-drop', lift + 'px');
     infoBtn.style.setProperty('right',  rightCSS  + 'px', 'important');
-    infoBtn.style.setProperty('bottom', bottomCSS + 'px', 'important');
+    infoBtn.style.setProperty('bottom', (bottomCSS + lift) + 'px', 'important');
     infoBtn.style.setProperty('left', 'auto', 'important');
     infoBtn.style.setProperty('top',  'auto', 'important');
     // Chain the SEARCH bubble directly LEFT of INFO (same 12px rhythm, same
@@ -6627,6 +6642,15 @@ html:not(.mobile) .note-dialog-btn {
       var fromH = infoBtn.offsetHeight;
       var toW = expanded ? 360 : 36;
       var toH = expanded ? 660 : 36;
+      if(expanded){
+        try { alignInfo(); } catch(e){}
+        // the room it has: from 8px under the top bars (20px from the window's top at least) down to its own bottom edge
+        var z = (infoBtn.getBoundingClientRect().width / (infoBtn.offsetWidth || 1)) || 1, nv = document.getElementById('nav');
+        var topPx = Math.max(20, nv ? nv.getBoundingClientRect().bottom + 8 : 0);
+        var room = (window.innerHeight - topPx) / z - (parseFloat(infoBtn.style.bottom) || 0);
+        toH = Math.max(120, Math.min(660, Math.floor(room)));
+        infoBtn.style.setProperty('--info-h', (toH - 2) + 'px');
+      } else { try { alignInfo(); } catch(e){} }
       // (a style may set its own corners: Retro's are square open and shut, retro.py --info-r-open / --info-r-shut)
       var toBR = getComputedStyle(infoBtn).getPropertyValue(expanded ? '--info-r-open' : '--info-r-shut').trim() || (expanded ? '12px' : '50%');
       if(current) try { current.cancel(); } catch(e){}
@@ -6637,36 +6661,16 @@ html:not(.mobile) .note-dialog-btn {
         ],
         { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }
       );
+      if(!expanded){ var an = current; an.onfinish = function(){ if(current === an && !infoBtn.classList.contains('expanded')) try { an.cancel(); } catch(e){} }; }
       // Border-radius can be set immediately — no Chrome bug for it.
       infoBtn.style.setProperty('border-radius', toBR, 'important');
-      // Slide the SEARCH bubble aside in the SAME animation (INFO grows 360−36
-      // = 324px leftward). transform is untouched by alignInfo's inline
-      // right !important, so there is no cascade fight; identical duration/
-      // easing/fill keeps the two frame-locked.
+      // An open Search shuts as the guide opens.
       var sb = document.getElementById('search-btn');
       if(sb){
         if(expanded && window._searchOpen && typeof window._searchClose === 'function'){
           try { window._searchClose(); } catch(e){}
         }
-        var fromT = getComputedStyle(sb).transform;
-        if(!fromT || fromT === 'none') fromT = 'translateX(0px)';
-        if(currentSb) try { currentSb.cancel(); } catch(e){}
-        currentSb = sb.animate(
-          [
-            { transform: fromT },
-            { transform: expanded ? 'translateX(-324px)' : 'translateX(0px)' }
-          ],
-          { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }
-        );
-      }
-      // the key's toggle sits between INFO and search: it steps aside with search, in the same frames
-      var kb = document.getElementById('key-toggle');
-      if(kb){
-        var kFrom = getComputedStyle(kb).transform;
-        if(!kFrom || kFrom === 'none') kFrom = 'translateX(0px)';
-        if(currentKt) try { currentKt.cancel(); } catch(e){}
-        currentKt = kb.animate([{ transform: kFrom }, { transform: expanded ? 'translateX(-324px)' : 'translateX(0px)' }],
-          { duration: 350, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+        // (the guide stands above the row now: Search and the key stay where they are, with no transform left on them)
       }
     }
     new MutationObserver(applyExpansion).observe(infoBtn, {attributes:true, attributeFilter:['class']});

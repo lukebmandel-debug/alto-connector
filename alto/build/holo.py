@@ -439,6 +439,12 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           "@media (min-width:641px){X:not(.mobile) #info-btn.expanded #info-icon" + _S1_NOT + "{width:44px !important;height:44px !important;border:1px solid transparent !important;border-radius:999px !important;translate:16px 0;background:radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%)," + S1_PLATE + " !important;"
           "box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 0 16px rgba(var(--ho-rgb),.30) !important;color:var(--ho-ac) !important;}}\n"
           "@media (max-width:640px){X #info-btn.expanded #info-content" + _S1_NOT + "{background:rgb(var(--ho-bgrgb)) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}}\n"
+          # the engine's open / shut animation writes the info button's corners inline (timeline_template patchInfoExpand, --info-r-open / --info-r-shut). The rules here are Retro's,
+          # whose corners are square: left at that, a timeline's info button came back from its guide a SQUARE with no lens (Luke 2026-11-17: "this glitch happened to info toggle when
+          # i collapsed it again"). The lens when shut, the rounded rectangle when open; and on a timeline its button in the row below the guide is the row's own size
+          "X #info-btn" + _S1_NOT + "{--info-r-open:14px;--info-r-shut:999px;}\n"
+          "@media (min-width:641px){X:not(.alto-home):not(.mobile) #info-btn.expanded #info-icon" + _S1_NOT + "{width:35px !important;height:35px !important;}}\n"
+          "@media (min-width:641px){X:not(.alto-home) #info-btn.expanded" + _S1_NOT + "{max-height:calc(var(--info-h, 658px) + 2px) !important;height:calc(var(--info-h, 658px) + 2px) !important;}}\n"
           # the focused Search keeps its one teal rim (border and ring one colour), over the glass
           "X #search-btn:focus-within" + _S1_NOT + "{border-color:var(--ho-ac) !important;box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}\n"
           # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)

@@ -290,14 +290,15 @@ def _xr(g, ids):
 
 
 def _seated_beside(pg, card, wx, wy):
-    """Held on other cards, a branch takes the seat beside the card it is held on: the dashed outlines show it,
-    the cards below make room downward by just what is needed, no other card moves, the lines hold."""
+    """Held on other cards on open board, a branch stays where it is held (Luke, 2026-11-17: "its still jumping stuff
+    to places that make no sense"; before, it was sent to a seat beside the card with the most overlap, hundreds of px
+    from the pointer): the cards below make room downward by just what is needed, a card above it never moves (the
+    branch is set just below that one), no other card moves, the lines hold."""
     g0, sub = pg.evaluate(GEO), _branch(pg, card)
     par = pg.evaluate("window._ALTO_OUTLINE.parent")
     r = _drag(pg, card, wx, wy)
-    assert "under it" in r["tip"] and "sit beside" in r["tip"], r["tip"]
-    assert r["moving"] == r["ghosts"] == len(sub), r                            # the seat is shown
-    assert all(abs(a) <= 1 and abs(b) <= 1 for a, b in r["off"]), r["off"]      # held, it is on the pointer all the same
+    assert "under it" in r["tip"] and ("make room" in r["tip"] or "just below" in r["tip"]), r["tip"]
+    assert r["moving"] == len(sub) and r["ghosts"] == 0, r
     g1 = pg.evaluate(GEO)
     d = _val(pg, f"p|{card}|shift")
     assert d and _went(g1, g0, sub, d)                                          # the branch is still one piece
@@ -333,7 +334,7 @@ def test_cards_follow_the_pointer_and_never_land_on_another_card_in_every_style(
     _card_alone_follows_the_pointer(pg, ["expectation-damages"], "option")
     _card_alone_follows_the_pointer(pg, ["foreseeability", "mitigation", "restitution", "reliance-damages", "damage-limits", "certainty"], "switch")
     g0 = pg.evaluate(GEO)
-    # onto the column beside it, full of cards: it is seated beside the card it is held on, and room is made below
+    # onto the column beside it, full of cards: it stays where it is held (set just below a card above it), room is made below
     d, moved = _seated_beside(pg, "reliance-damages", 760, 60)
     assert d != [0, 0] and moved
     _undo(pg)                                                       # one step: the branch and the cards that made room
@@ -352,15 +353,15 @@ def test_cards_follow_the_pointer_and_never_land_on_another_card_in_every_style(
     assert _same(pg.evaluate(GEO), g0) == []
 
 
-def test_a_branch_sits_beside_another_between_tight_branches_and_escape_cancels(page):
+def test_a_branch_held_on_another_stays_where_it_is_held_the_cards_below_making_room_and_escape_cancels(page):
     """Luke, 2026-11-13: "i should be able to draw a branch to be side by side another branch, and have both extend
-    vertically to fit". x2's branch, stacked under x1's, is dragged up beside it: the column it lands in moves down."""
+    vertically to fit". Definiteness's branch is dragged onto the branch beside it: it stays there, that branch moves down."""
     g0 = page.evaluate(GEO)
-    d, moved = _seated_beside(page, "x2", 300, -200)
+    d, moved = _seated_beside(page, "definiteness", 300, 0)
     g1 = page.evaluate(GEO)
-    assert moved and abs(g1["x2"]["t"] - g1["x1"]["t"]) <= 1 and (g1["x1"]["l"], g1["x1"]["t"]) == (g0["x1"]["l"], g0["x1"]["t"])     # level with the card it sits beside, which stays
-    assert g1["x65"]["l"] >= g1["x64"]["l"] + g1["x64"]["w"] + 12            # the whole branch clear of that card's whole row
-    assert _same(g1, g0, skip=_branch(page, "x2") + moved) == []
+    assert moved and abs(d[0] - 300) <= 1 and 0 <= d[1] <= 240              # where it was held: its x, and no more than a card lower
+    assert (g1["formation"]["l"], g1["formation"]["t"]) == (g0["formation"]["l"], g0["formation"]["t"])       # the card above it stays
+    assert _same(g1, g0, skip=_branch(page, "definiteness") + moved) == []
     _undo(page)
     assert _same(page.evaluate(GEO), g0) == [] and not [k for k, o in _ops(page).items() if k.startswith("p|") and o["v"]]
     page.click("#alto-edit-exit .ee-redo")
