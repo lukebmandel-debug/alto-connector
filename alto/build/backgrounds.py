@@ -434,6 +434,8 @@ html.mobile #bg-panel{ inset:0; width:auto; max-height:none; padding:0 0 calc(14
   transform:translateX(-100%); -webkit-backdrop-filter:blur(24px) saturate(185%); backdrop-filter:blur(24px) saturate(185%);
   box-shadow:none; transition:transform .22s cubic-bezier(.4,0,.2,1); -webkit-overflow-scrolling:touch; touch-action:manipulation; }
 html.mobile #bg-panel.open{ pointer-events:auto; transform:none; }
+/* v1.9.243: the phone's Scene sheet covers the page, so it is opaque: the glass tint is laid over the page's own background colour and nothing of the page reads through it */
+html.mobile #bg-panel:not(#_){ background-color:var(--bg,#0b0b12); background-image:linear-gradient(var(--panel-glass-bg, var(--surface)),var(--panel-glass-bg, var(--surface))); }
 html.mobile.rw #bg-panel .bg-head{ position:relative; }
 #bg-panel .bg-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:10px;
   letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 2px 8px; min-height:20px; }
@@ -576,9 +578,15 @@ UI_JS = r"""(function(){
   }
   // A page that makes its own background, and Retro, hold the style picker and nothing else; the System's own style switch is mirrored here (its row is drawn in this file, not by the hosted library)
   var SS={system:'System', chart:'Star chart', retro:'Retro', '3d':'3D Star chart', holo:'Holographic'};
+  // Classic's active tab (white on the page's lilac measured 2.72:1): the label takes whichever of white and near-black reads better on the accent in force (Retro and Holo have their own, left alone)
+  function onAcc(b){ var de=document.documentElement; if(!b.classList.contains('on') || /(^|\s)(alto-retro|sk-retro|alto-holo)(\s|$)/.test(de.className)){ b.style.removeProperty('color'); return; }
+    var m=/(\d+)[, ]+(\d+)[, ]+(\d+)/.exec(getComputedStyle(b).backgroundColor); if(!m) return;
+    function L(v){ v/=255; return v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); } var l=.2126*L(+m[1])+.7152*L(+m[2])+.0722*L(+m[3]);
+    b.style.color=(1.05/(l+.05) >= (l+.05)/.05) ? '#fff' : '#000'; }
+  window._altoOnAcc=onAcc;
   function solarMark(){
     var S=window._altoSolarStyles, row=document.getElementById('bg-style'); if(!S || !row || !row.getAttribute('data-solar')) return;
-    var c=S.get(); [].forEach.call(row.querySelectorAll('.bg-segb'), function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    var c=S.get(); [].forEach.call(row.querySelectorAll('.bg-segb'), function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); onAcc(b); });
   }
   function solarRow(){
     var S=window._altoSolarStyles; if(!S || !body || document.getElementById('bg-style')) return solarMark();

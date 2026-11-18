@@ -298,10 +298,12 @@ def test_the_scene_panel_switch_changes_and_keeps_the_choice(browser, site, phon
         pg.wait_for_timeout(2200)
     _open_panel(pg, phone)
     row = pg.evaluate("""() => { const r = document.getElementById('bg-units'), b = r && r.getBoundingClientRect(), p = document.getElementById('bg-panel').getBoundingClientRect();
-      return r && {w: b.width, h: b.height, inside: b.left >= p.left - .5 && b.right <= p.right + .5, labels: [...r.querySelectorAll('.bg-segb')].map(e => e.textContent),
+      return r && {w: b.width, h: b.height, inside: b.left >= p.left - .5 && b.right <= p.right + .5, labels: [...r.querySelectorAll('.bg-segb')].map(e => e.textContent), heights: [...r.querySelectorAll('.bg-segb')].map(e => e.getBoundingClientRect().height),
                    on: [...r.querySelectorAll('.bg-segb.on')].length, shown: getComputedStyle(r).display !== 'none'}; }""")
     assert row and row["shown"] and row["w"] > 100 and row["inside"], row
-    assert row["labels"] == ["I II III", "1 2 3"] and row["on"] == 0
+    import re as _re
+    assert _re.fullmatch(r"Unit III \u00b7 .+ROMAN", row["labels"][0]) and _re.fullmatch(r"Unit 3 \u00b7 .+PLAIN", row["labels"][1]) and row["on"] == 0   # (v1.9.236, Luke's pick B: each chip is a real unit label)
+    assert all(h >= 44 for h in row["heights"]), row
     pg.evaluate("document.querySelector('#bg-units .bg-segb[data-un=numbers]').click()")
     pg.wait_for_timeout(200)
     r = pg.evaluate(GRAB)
@@ -416,3 +418,97 @@ def test_a_share_page_never_syncs_a_choice(browser, cloud_site):
     assert "un" not in d and "unAt" not in d
     _, ls = _sync(browser, cloud_site, tid=tid, docs={f"users/u1/tl/{tid}": {"un": "roman", "unAt": 500}})
     assert ls is None
+
+
+# ── v1.9.236: the Unit numbers picker, Luke's pick B (L-1116-1905): two real-label chips, same setting, 44pt, and the Classic contrast fixes ──
+
+def _lum(rgb):
+    c = [v / 255 for v in rgb[:3]]
+    c = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in c]
+    return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]
+
+
+def _worst_glyph_contrast(pg, sel, which=0):
+    """Art's method: the element's text drawn, then drawn transparent; the pixels that differ are its glyphs, each judged against what is behind it."""
+    import io
+    PIL = pytest.importorskip("PIL.Image")
+    box = pg.evaluate("([s, i]) => { const e = [...document.querySelectorAll(s)][i]; e.scrollIntoView({block: 'center'}); const r = e.getBoundingClientRect(); return {x: r.x, y: r.y, width: r.width, height: r.height}; }", [sel, which])
+    pg.wait_for_timeout(150)
+    box = pg.evaluate("([s, i]) => { const r = [...document.querySelectorAll(s)][i].getBoundingClientRect(); return {x: r.x, y: r.y, width: r.width, height: r.height}; }", [sel, which])
+    a = PIL.open(io.BytesIO(pg.screenshot(clip=box))).convert("RGB")
+    pg.evaluate("([s, i]) => { const st = document.createElement('style'); st.id = '__tr'; st.textContent = s + ',' + s + ' *{color:transparent !important;-webkit-text-fill-color:transparent !important;text-shadow:none !important}'; document.head.appendChild(st); }", [sel, which])
+    pg.evaluate("([s, i]) => { const e = [...document.querySelectorAll(s)][i]; e.setAttribute('data-tr', '1'); }", [sel, which])
+    b = PIL.open(io.BytesIO(pg.screenshot(clip=box))).convert("RGB")
+    pg.evaluate("() => { document.getElementById('__tr').remove(); document.querySelectorAll('[data-tr]').forEach(e => e.removeAttribute('data-tr')); }")
+    pa, pb = a.load(), b.load()
+    diffs = [(abs(pa[x, y][0] - pb[x, y][0]) + abs(pa[x, y][1] - pb[x, y][1]) + abs(pa[x, y][2] - pb[x, y][2]), x, y) for y in range(a.height) for x in range(a.width)]
+    top = max(d[0] for d in diffs)
+    if top < 40:
+        return None
+    worst = 99
+    for d, x, y in diffs:
+        if d >= top * .75:                                     # a glyph's core pixels, not its anti-aliased edge
+            la, lb = _lum(pa[x, y]), _lum(pb[x, y])
+            worst = min(worst, (max(la, lb) + .05) / (min(la, lb) + .05))
+    return worst
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("phone", [False, True], ids=["desktop", "phone"])
+def test_unit_chips_are_real_labels_set_the_same_setting_and_read_clearly(browser, site, phone, style):
+    pg, ctx, errors = _open(browser, site, "system", phone=phone)
+    if style != "classic":
+        pg.evaluate("s => localStorage.setItem(window._altoUN.key.replace(/-un$/, '-style'), s)", style)
+        pg.reload()
+        pg.wait_for_timeout(2200)
+    _open_panel(pg, phone)
+    if style == "retro":                                      # (the System page's own style switch: the key above only reaches the hosted layer)
+        pg.evaluate("window._altoSolarStyles && window._altoSolarStyles.set('retro')")
+        pg.wait_for_timeout(1500)
+        assert pg.evaluate("document.documentElement.classList.contains('alto-retro') || document.documentElement.classList.contains('sk-retro')")
+    pg.add_style_tag(content="*,*::before,*::after{animation:none !important;transition:none !important}")
+    row = pg.evaluate("""() => [...document.querySelectorAll('#bg-units .bg-segb')].map(b => { const r = b.getBoundingClientRect(); return {t: b.querySelector('.bg-un-l').textContent, c: b.querySelector('.bg-un-c').textContent, w: r.width, h: r.height, u: b.getAttribute('data-un')}; })""")
+    assert [r["u"] for r in row] == ["roman", "numbers"]
+    assert re.fullmatch(r"Unit III · \S.*", row[0]["t"]) and re.fullmatch(r"Unit 3 · \S.*", row[1]["t"]) and [r["c"] for r in row] == ["ROMAN", "PLAIN"], row
+    assert all(r["h"] >= 44 and r["w"] >= 100 for r in row), ("44pt", row)
+    for v, rx in (("numbers", ARABIC), ("roman", ROMAN)):
+        pg.evaluate(f"document.querySelector('#bg-units .bg-segb[data-un={v}]').click()")       # the same setting, stored the same way
+        pg.wait_for_timeout(250)
+        g = pg.evaluate(GRAB)
+        assert g["mode"] == v and all(rx.match(t) for t in g["numerals"] if t), g
+        stored = json.loads(pg.evaluate("localStorage.getItem(window._altoUN.key)"))
+        assert stored["v"] == v and stored["t"] > 0
+        assert pg.evaluate("document.querySelector('#bg-units .bg-segb.on').getAttribute('data-un')") == v
+    for sel in ("#bg-units .bg-h", "#bg-style .bg-h", "#bg-units .bg-segb.on .bg-un-l", "#bg-units .bg-segb.on .bg-un-c", "#bg-units .bg-segb:not(.on) .bg-un-l", "#bg-style .bg-segb.on"):
+        if not pg.evaluate("s => !!document.querySelector(s)", sel):
+            continue
+        w = _worst_glyph_contrast(pg, sel)
+        assert w is None or w >= 4.5, (style, phone, sel, round(w, 2))
+    assert not _real(errors), errors
+    ctx.close()
+
+
+# ── v1.9.243: on a phone the open Scene panel covers the page: nothing of the page is on top of it or reads through it ──
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_the_phone_scene_panel_has_no_page_text_over_or_under_it(browser, site, style):
+    pg, ctx, errors = _open(browser, site, "system", phone=True)
+    if style != "classic":
+        pg.evaluate("s => localStorage.setItem(window._altoUN.key.replace(/-un$/, '-style'), s)", style)
+        pg.reload()
+        pg.wait_for_timeout(2200)
+    _open_panel(pg, True)
+    if style == "retro":
+        pg.evaluate("window._altoSolarStyles && window._altoSolarStyles.set('retro')")
+        pg.wait_for_timeout(1500)
+    pg.add_style_tag(content="*,*::before,*::after{animation:none !important;transition:none !important}")
+    pg.wait_for_timeout(300)
+    r = pg.evaluate("""() => { const p = document.getElementById('bg-panel'), bad = [];
+      for (let y = 8; y < innerHeight - 8; y += 24) for (let x = 8; x < innerWidth - 8; x += 24) {
+        const e = document.elementFromPoint(x, y); if (e && !p.contains(e) && e !== p) bad.push([x, y, e.id || e.tagName]); }
+      const cs = getComputedStyle(p), m = /rgba?\\(([^)]*)\\)/.exec(cs.backgroundColor), a = m ? (m[1].split(',')[3] === undefined ? 1 : +m[1].split(',')[3]) : 0;
+      return {bad: bad.slice(0, 6), n: bad.length, alpha: a, blur: cs.backdropFilter || cs.webkitBackdropFilter}; }""")
+    assert r["n"] == 0, r
+    assert r["alpha"] >= .9, r     # opaque enough that the page cannot be read through it
+    assert not _real(errors), errors
+    ctx.close()
