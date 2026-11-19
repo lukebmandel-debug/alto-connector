@@ -336,3 +336,35 @@ def test_classic_phone_cards_are_back_to_about_their_old_height_with_the_plate_c
         assert 50 <= c["ew"] <= 66 and c["inside"], (dark, i, c)
         assert all(not b["touchesPlate"] and b["w"] >= 28 and b["h"] >= 28 and b["left"] >= 10 for b in c["btn"] if b["w"]), (dark, i, c)      # (a phone draws no download button)
     ctx.close()
+
+
+@pytest.mark.parametrize("style,dark", [("classic", False), ("classic", True), ("holo", False), ("retro", False)])
+@pytest.mark.parametrize("phone", [False, True])
+def test_the_study_plan_line_is_a_real_button_and_never_makes_a_card_taller(browser, site, style, dark, phone):
+    """Luke 2026-11-19, "make the study plan button more of a button" (1.9.250): "+ Make a study plan" and "Study plan [Today 2]" are a tinted pill (Classic), a glass outline
+    (Holo) or a gold-ruled box (Retro), with the + kept and hover and pressed states. A computer's page only (the line is hidden at 640 and under, as it always was: a phone card
+    has no room for it and the cards must not grow). The card is exactly as tall as with the old plain text."""
+    ctx = browser.new_context(viewport={"width": 390, "height": 844} if phone else {"width": 1440, "height": 900}, has_touch=phone, is_mobile=phone, device_scale_factor=2 if phone else 1)
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','%s');%s}catch(e){}" % (style, "localStorage.setItem('alto-theme-v1','dark')" if dark else ""))
+    pg.goto(f"{site}/h.html")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("(P) => { drawPrivate(P); }", [dict(PRIV[0], plan={"days": ["2099-01-01", "2099-01-02"]})] + PRIV[1:])
+    pg.wait_for_timeout(1500)
+    pg.add_style_tag(content="*,*::before,*::after{animation:none !important;transition:none !important}")
+    q = """() => [...document.querySelectorAll('.course-tile:not(.new-tile) .sp-card')].map(e => { const s = getComputedStyle(e), t = e.closest('.course-tile').getBoundingClientRect();
+        return {text: e.textContent.trim(), make: e.classList.contains('sp-make'), disp: s.display, h: e.getBoundingClientRect().height, bw: parseFloat(s.borderTopWidth), bg: s.backgroundColor, card: t.height}; })"""
+    lines = pg.evaluate(q)
+    assert len(lines) == 3 and [l["make"] for l in lines] == [False, True, True], lines
+    if phone:
+        assert all(l["disp"] == "none" for l in lines), lines            # (hidden at 640 and under, unchanged)
+    else:
+        for l in lines:
+            assert l["disp"] != "none" and l["h"] >= 24 and (l["bw"] >= 1 or l["bg"] not in ("rgba(0, 0, 0, 0)", "transparent")), ("not a button", style, dark, l)
+        assert lines[1]["text"].startswith("+ Make a study plan") and lines[0]["text"].startswith("Study plan"), lines
+        pg.hover(".sp-card.sp-make")
+        hov = pg.evaluate("getComputedStyle(document.querySelector('.sp-card.sp-make')).backgroundColor")
+        assert hov != lines[1]["bg"], (style, dark, "no hover state", hov)
+    base = {("classic", False): 150, ("classic", True): 132, ("holo", False): 170, ("holo", True): 215.9, ("retro", False): 172.5, ("retro", True): 221.9}[(style, phone)]
+    assert all(abs(l["card"] - base) <= 1 for l in lines), (style, dark, phone, [l["card"] for l in lines], base)    # (the heights the cards had in 1.9.248, with the plain text: the button makes none taller)
+    ctx.close()
