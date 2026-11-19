@@ -80,18 +80,22 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
 /* Classic only (Retro and Holo keep their own plates): the format plate sits wholly inside the card, with the card's own inner padding, and the three action buttons
    stand in their own row at the bottom left under the lock line, so no button ever touches the plate (Luke: nothing overlaps, nothing runs off an edge) */
 @media (min-width:901px){
-  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile){ min-height:190px; }
-  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-body{ padding-bottom:62px; }
-  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ width:88px; height:88px; right:24px; bottom:58px; }
-  html:not(.alto-retro):not(.alto-holo) .course-tile :is(.tile-reports, .tile-share, .tile-download){ bottom:16px; right:auto !important; }
+  /* 1.9.248 (Luke: "file cards in classic are too tall now"): the plate is 60px in the card's top-right corner, under the card's own ⋯, and the title keeps its line beside it; the card is
+     as tall as its words and its button row need (about its 1.9.243 height), not a fixed 190px */
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-body{ padding-bottom:50px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-title{ margin-right:84px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ width:60px; height:60px; right:20px; top:42px; bottom:auto; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile :is(.tile-reports, .tile-share, .tile-download){ bottom:12px; right:auto !important; }
   html:not(.alto-retro):not(.alto-holo) .course-tile .tile-share{ left:24px !important; } html:not(.alto-retro):not(.alto-holo) .course-tile .tile-reports{ left:58px !important; }
   html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-download{ left:24px !important; }
   html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-share{ left:58px !important; } html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-reports{ left:92px !important; }
   html:not(.alto-retro):not(.alto-holo) .course-tile:not(:has(.tile-share)) .tile-reports{ left:24px !important; }
 }
 @media (max-width:900px){
-  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-body{ padding-bottom:48px; }
-  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ right:14px; bottom:52px; }
+  /* 1.9.248, a phone too: the card is as tall as its words and its button row (about its 1.9.243 156px); the plate is 56px at the bottom right, clear of the two buttons at the left */
+  html:not(.alto-retro):not(.alto-holo) .course-tile:not(.new-tile) .tile-body{ padding-bottom:50px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-sub{ min-height:0; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ width:56px; height:56px; right:10px; bottom:10px; top:auto; }
 }
 @media (max-width:640px){   /* (a phone draws no download button, so the row starts at the card's left padding) */
   html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-share{ left:12px; }

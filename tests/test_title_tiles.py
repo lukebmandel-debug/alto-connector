@@ -6,6 +6,7 @@ its own header; the New tiles and the Import tile lose their dashed outline in R
 words are centred in them."""
 import http.server
 import json
+import re
 import socketserver
 import sys
 import threading
@@ -288,3 +289,50 @@ def test_every_home_tile_wears_a_visible_glyph_plate_and_says_its_count_once(bro
         pg.evaluate("(i) => document.querySelectorAll('.course-tile:not(.new-tile)')[i].querySelector('.tile-emblem').style.visibility = ''", i)
         assert shown != hidden, (style, dark, i, "the plate draws no pixel")
     pg.close()
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_classic_cards_stay_about_as_tall_as_before_the_plates_with_a_small_plate_in_the_corner(browser, site, dark):
+    """Luke 2026-11-18, "file cards in classic are too tall now" (1.9.244 made them 190px; 1.9.243's were 120px for a card the page ships and 145px for an account's).
+    At 1440: each card within 10% of its 243 height, the title on one line where it fits, a 56-70px plate inside the top-right corner, the unit count shown once."""
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','classic');%s}catch(e){}" % ("localStorage.setItem('alto-theme-v1','dark')" if dark else ""))
+    pg.goto(f"{site}/h.html")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("(P) => { drawPrivate(P); }", [dict(PRIV[0], title="Civil Procedure", units=["#4a9eff"] * 7)] + PRIV[1:])
+    pg.wait_for_timeout(1500)
+    cards = pg.evaluate("""() => [...document.querySelectorAll('.course-tile:not(.new-tile)')].map(t => { const r = t.getBoundingClientRect(), ti = t.querySelector('.tile-title'), e = t.querySelector('.tile-emblem').getBoundingClientRect(),
+        sub = t.querySelector('.tile-sub'), lh = parseFloat(getComputedStyle(ti).fontSize) * 1.5;
+        return {h: r.height, oneLine: ti.getBoundingClientRect().height < lh, ew: e.width, top: e.top - r.top, right: r.right - e.right, left: e.left - r.left, bottom: e.bottom - r.top, w: r.width,
+                subText: sub && getComputedStyle(sub).display !== 'none' ? sub.textContent.trim() : '', lock: !!(sub && sub.querySelector('.priv-sym'))}; })""")
+    assert len(cards) == 5
+    for i, c in enumerate(cards):
+        base = 120 if i < 2 else 145                              # (the page's own cards, then the account's: their 1.9.243 heights)
+        assert c["h"] <= base * 1.10 and c["h"] >= base * 0.9, (dark, i, c)
+        assert c["oneLine"], (dark, i, c)
+        assert 56 <= c["ew"] <= 70 and 0 <= c["right"] <= 24 and 0 <= c["top"] <= 50 and c["bottom"] < c["h"] * 0.9 and c["left"] > c["w"] * 0.5, (dark, i, c)
+        assert re.fullmatch(r"\d+ units?", c["subText"]) or c["lock"], (dark, i, c)     # (a card the page ships says its count; an account's says its lock)
+    pg.close()
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_classic_phone_cards_are_back_to_about_their_old_height_with_the_plate_clear_of_the_buttons(browser, site, dark):
+    """The same ask on a phone (390 wide; Luke's asks ship to phones): 1.9.244 made a card 204px against 156px before the plates. Now within 10% of 156 or shorter
+    (never taller), a 50-66px plate wholly inside the card, and no button touching it."""
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True, device_scale_factor=2)
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','classic');%s}catch(e){}" % ("localStorage.setItem('alto-theme-v1','dark')" if dark else ""))
+    pg.goto(f"{site}/h.html")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("(P) => { drawPrivate(P); }", PRIV)
+    pg.wait_for_timeout(1500)
+    cards = pg.evaluate("""() => [...document.querySelectorAll('.course-tile:not(.new-tile)')].map(t => { const r = t.getBoundingClientRect(), e = t.querySelector('.tile-emblem').getBoundingClientRect(),
+        hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+        return {h: r.height, ew: e.width, inside: e.left >= r.left && e.right <= r.right && e.top >= r.top && e.bottom <= r.bottom,
+                btn: [...t.querySelectorAll('.tile-reports,.tile-share,.tile-download')].map(b => { const q = b.getBoundingClientRect(); return {w: q.width, h: q.height, touchesPlate: hit(q, e), left: q.left - r.left}; })}; })""")
+    assert len(cards) == 5
+    for i, c in enumerate(cards):
+        assert c["h"] <= 156 * 1.10 and c["h"] >= 120, (dark, i, c)
+        assert 50 <= c["ew"] <= 66 and c["inside"], (dark, i, c)
+        assert all(not b["touchesPlate"] and b["w"] >= 28 and b["h"] >= 28 and b["left"] >= 10 for b in c["btn"] if b["w"]), (dark, i, c)      # (a phone draws no download button)
+    ctx.close()
