@@ -25,12 +25,13 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
     assert blk.count('class="nt-pv"') == 10                      # one each, and a second for the two with modes (Horizontal, Building), a third for the Atlas, a fourth and fifth for its scope tiles (World, A country)
-    for want in ("Timeline", "Outline", ">System<", "Memory Palace", ">Sketch<", ">Horizontal<", "Memory Map</button>", "Memory Blueprint</button>", "Memory Atlas</button>"):
+    for want in ("Timeline", "Outline", ">System<", "Memory Palace", ">Sketch<", ">Horizontal<", ">Memory Map<", ">Memory Blueprint<", ">Memory Atlas<"):
         assert want in blk, want
     assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
-    pal = h[h.index('class="nt-modes" data-for="palace"'):]
-    pal = pal[:pal.index("</div>")]
-    assert re.findall(r'data-mode="(\w+)"', pal) == ["city", "building", "world"]    # Memory Palace: City | Building | Atlas
+    pal = h[h.index('id="nt-pal"'):]
+    pal = pal[:pal.index('id="nt-scope"')]
+    assert re.findall(r'<button type="button" class="nt-kind" data-mode="(\w+)"', pal) == ["city", "building", "world"]    # Memory Palace: Map | Blueprint | Atlas (the picture cards are the only control)
+    assert 'data-for="palace"' not in h                                                # Luke 2026-11-18: no second chip row under the cards
     hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
     assert "Switch its style any time: System, Star chart, Retro or 3D Star chart." in hub and "planets, moons and satellites you can orbit between" in hub
 
