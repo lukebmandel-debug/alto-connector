@@ -567,7 +567,8 @@ function ctDraw(svg, c, fade, lite){
   if(L.lb && (sts.length || pkn.length || nbs.length)){ var lg=ctG(L.lb, c, sid, fade), M0=M, mj=T.mj||sts.map(function(s){ return s.n; }).filter(Boolean);
     if(sts.length){ M={streets:sts, majors:mj, top:[]}; try{ streetLabels(svg, L.defs, lg); } finally { M=M0; } }
     pkn.forEach(function(pk){ var t=lbl(lg, 'pl-pkt', pk.n, pk.t[0], pk.t[1]); t._g=[pk.t[0], pk.t[1], 0]; t._up=.35; });
-    nbs.forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':4, 'aria-hidden':'true'},lg); t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; }); }
+    var bz=Math.max(.02, svg===svgD?Z:(MM.z||1)), bns=(M0&&M0.banners)||[];    /* a name never stands on a banner's giant letters (text on text): its text, ~6.4 px a letter at this zoom, is kept out of the word's box */
+    nbs.forEach(function(a){ var hw=(String(a.n).length*3.2+8)/bz; if(bns.some(function(b){ var q=b.box; return q && a.x+hw>=q[0] && a.x-hw<=q[2] && a.y>=q[1]-14/bz && a.y<=q[3]+14/bz; })) return; var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':4, 'aria-hidden':'true'},lg); t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; }); }
   if(L.hit && sts.length){ var hg=ctG(L.hit, c, sid, false); sts.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hg); h._n=s.n; }); }
   if(T.f && !c.fl){ c.fl=1; ctFillAdd(T.f, c); } else if(c.fs) ctFillSoon();
   if(fade) (c.g[sid]||[]).forEach(function(g){ ctFade(g, 1); });

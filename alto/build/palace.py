@@ -328,7 +328,10 @@ def palace_data(b, nodes) -> str:
     claims = claimed_shapes(b.placement, {i for u in units for i in u} - set(tw))      # footprints claimed from the fill-in (palace_claim.py)
     fixed = {k: v["lot"] for k, v in (b.placement or {}).items() if isinstance(v, dict) and v.get("lot") and k not in claims}
     districts = [d for d in pal.get("districts") or []]
-    at = pp.place(m, blocks, [[i for i in u if i not in claims] for u in units], districts, fixed)
+    from .palace_areas import hell_for, banners_layout, clear_of_banners
+    far_, bns_ = hell_for(m, pal.get("banners"))                 # New York's New Jersey is named Hell, in giant letters
+    banners = banners_layout(m, bns_)
+    at = pp.place(m, clear_of_banners(blocks, banners), [[i for i in u if i not in claims] for u in units], districts, fixed)
     nb0 = len(blocks)
     blocks = tower_lots(m, blocks, at, tw)         # a tower stands on its landmark's block, not on a lot
     blocks = claim_lots(blocks, claims, at)        # a claimed footprint is a block of one lot after them
@@ -345,9 +348,12 @@ def palace_data(b, nodes) -> str:
         dist.append({"u": d["unit"], "n": d.get("name") or "", "box": [round(x0), round(y0), round(x1), round(y1)]})
     mp = {k: v for k, v in m.items() if k not in ("bbox", "street")}   # "street": the retired city first-person view's data (_cold-storage/memory-map-fpv), never on a page
     from .palace_areas import layout as area_layout
-    mp["areas"] = area_layout(m, pal.get("areas"), [d.get("name") or "" for d in districts])
-    from .palace_areas import banners_layout
-    mp["banners"] = banners_layout(m, pal.get("banners"))
+    if far_ is None:
+        mp.pop("far", None)
+    else:
+        mp["far"] = far_
+    mp["areas"] = area_layout(dict(m, far=far_) if far_ is not None else m, pal.get("areas"), [d.get("name") or "" for d in districts])
+    mp["banners"] = banners
     # the parks, less the blocks a building stands on (a park never moves a building)
     from .palace_parks import shape as shape_parks
     g_ = m.get("grid") or {}
@@ -764,8 +770,8 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-rtrail-c{stroke:rgba(255,255,255,.7);stroke-width:calc(var(--tw,1) * 5px);stroke-dasharray:none;}
   .pal-svg .pl-rtname{font-size:calc(11px / var(--pz,1));font-style:italic;font-weight:650;fill:#2f6f3d;stroke:rgba(255,255,255,.75);stroke-width:calc(3px / var(--pz,1));paint-order:stroke;pointer-events:none;} html.dark .pal-svg .pl-rtname{fill:#8fd29b;stroke:rgba(0,0,0,.45);}
   .pal-svg.far .pl-rtname{display:none;}
-  .pal-svg .pl-banner{font-weight:900;letter-spacing:.04em;fill:rgba(176,38,28,.5);stroke:rgba(255,255,255,.55);stroke-width:calc(5px / var(--pz,1));paint-order:stroke;stroke-linejoin:round;pointer-events:none;text-transform:none;}
-  html.dark .pal-svg .pl-banner{fill:rgba(255,110,90,.55);stroke:rgba(0,0,0,.4);}
+  .pal-svg .pl-banner{font-weight:900;letter-spacing:.04em;fill:#d6897d;stroke:#f6ede4;stroke-width:calc(5px / var(--pz,1));paint-order:stroke;stroke-linejoin:round;pointer-events:none;text-transform:none;}
+  html.dark .pal-svg .pl-banner{fill:#a45242;stroke:#171110;}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
   .pal-svg .pl-bld .b-card{fill:rgba(255,255,255,.9);stroke-width:1.4;vector-effect:non-scaling-stroke;}
@@ -1586,7 +1592,7 @@ function lblFit(svg, viewOnly){
     function leadCrossesArea(ld, lf){ if(!ld) return false; var a=lmToBoard([ld[0], ld[1]], lf), c=lmToBoard([ld[2], ld[3]], lf), ax=(a[0]+MX)*k, ay=(a[1]+MY)*k, cx=(c[0]+MX)*k, cy=(c[1]+MY)*k, L=Math.hypot(cx-ax, cy-ay); if(L<1) return false;
       var th=obb((ax+cx)/2, (ay+cy)/2, Math.atan2(cy-ay, cx-ax), L/2, 1.5), hit=false; cells(th, function(g){ if(!hit) (grid[g]||[]).some(function(o){ return o.it && o.it.k==='pl-area' && (hit=obbHit(th, o)); }); }); return hit; }
     function hitKept(b){ var hit=false; cells(b, function(c){ if(!hit) (grid[c]||[]).some(function(o){ return (hit=obbHit(b, o)) && (hitBy=o); }); }); return hit; }
-    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl,.pl-portal'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); b.el=e; b.portal=e.classList.contains('pl-portal'); obs.push(b); } });
+    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl,.pl-portal,.pl-banner'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); b.el=e; b.portal=e.classList.contains('pl-portal'); obs.push(b); } });
     if(!phone) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0) { var nb=rbox(r, sr); nb.el=e; nodes.push(nb);
       /* a landmark's name also keeps off what hangs over the node's box: its number card above it and its tall building (the 3D art) */
       var u=[r.left, r.top, r.right, r.bottom]; [].forEach.call(e.querySelectorAll(':scope > .nb3d, :scope > .node-card'), function(c){ var q=c.getBoundingClientRect(); if(q.width>0 && q.height>0){ u[0]=Math.min(u[0], q.left); u[1]=Math.min(u[1], q.top); u[2]=Math.max(u[2], q.right); u[3]=Math.max(u[3], q.bottom); } });
