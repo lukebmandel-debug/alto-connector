@@ -203,19 +203,15 @@ def test_the_train_never_turns_upside_down_keeps_its_cars_apart_and_its_steam_ri
         page.close()
 
 
-def test_the_scope_pill_names_the_scope_and_opens_the_homepage_setup_for_this_timeline(browser, origin):  # noqa: F811
-    """CEO ruling 6 Nov: the pill shows the scope; tapping it goes to the homepage set-up prefilled for THIS timeline (no in-page rebuild)."""
+def test_the_scope_pill_is_gone_on_a_country_map(browser, origin):  # noqa: F811
+    """Luke 18 Nov (L-1118-WORLDTOG): the 'World' / country dropdown pill under the title is removed; the homepage ?rescope= set-up itself stays."""
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     try:
         page.goto(origin + "/index.html")
         page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
-        assert page.evaluate("document.querySelector('#wpal-root .wp-scope .n').textContent") == "United States"
-        assert page.evaluate("document.querySelector('#wpal-root .wp-scope').getAttribute('aria-haspopup')") == "dialog"
-        page.evaluate("document.title = 'Civ Pro'; window.__go = null; window.__altoGo = function(u){ window.__go = u; }")
-        page.click("#wpal-root .wp-scope")
-        assert page.evaluate("window.__go") == "index.html?rescope=USA&tl=Civ%20Pro"
+        assert page.evaluate("document.querySelectorAll('#wpal-root .wp-scope').length") == 0
         assert not errors, errors
     finally:
         page.close()

@@ -163,8 +163,7 @@ def _usbox(page):
     return page.evaluate("""(() => { var b = [1e9, 1e9, -1e9, -1e9];
       [document.querySelector('#wpal-root .wp-sts'), ...document.querySelectorAll('#wpal-root .wp-frame')].forEach(e => { var r = e.getBoundingClientRect(); if (!r.width) return;
         b = [Math.min(b[0], r.left), Math.min(b[1], r.top), Math.max(b[2], r.right), Math.max(b[3], r.bottom)]; });
-      var p = document.querySelector('#wpal-root .wp-scope').getBoundingClientRect();
-      return {b: b, pill: [p.left, p.top, p.right, p.bottom], v: AltoWorld.view()}; })()""")
+      return {b: b, v: AltoWorld.view()}; })()""")
 
 
 @pytest.mark.parametrize("start", [{"width": 874, "height": 250}, PHONE], ids=["late-layout", "turned"])
@@ -182,8 +181,6 @@ def test_5_the_country_refits_on_a_turn_or_a_late_landscape_layout_and_clears_th
         assert abs(got["v"]["k"] / want["v"]["k"] - 1) < .02, (got["v"], want["v"])        # the same fit as a fresh landscape load
         w = got["b"][2] - got["b"][0]
         assert w > LAND["width"] * .3, got                                                  # not tiny: the US, its insets in, a good part of the screen
-        p, b = got["pill"], got["b"]
-        assert b[1] >= p[3] - 1 or b[2] <= p[0] or b[0] >= p[2], got                         # nothing of the country under the scope pill
         assert not errors, errors
     finally:
         page.close()
@@ -300,8 +297,8 @@ def test_9_in_safaris_real_landscape_box_the_country_is_big_and_clear_of_the_pil
         got = _usbox(page)
         b = got["b"]
         assert b[2] - b[0] > SAFARI_L["width"] * .28, got                               # (was ~14%)
-        rects = page.evaluate("""[...document.querySelectorAll('#wpal-root .wp-scope, #wpal-root .wp-tour')].filter(e => !e.hidden).map(e => { var r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })""")
-        assert len(rects) == 2, rects
+        rects = page.evaluate("""[...document.querySelectorAll('#wpal-root .wp-tour')].filter(e => !e.hidden).map(e => { var r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })""")
+        assert len(rects) == 1, rects
         for r in rects:
             assert b[1] >= r[3] - 1 or b[3] <= r[1] + 1 or b[2] <= r[0] + 1 or b[0] >= r[2] - 1, (got, r)   # no part of the country under a panel
         top = page.evaluate("document.getElementById('title-bar') ? document.getElementById('title-bar').getBoundingClientRect().bottom : 0")
@@ -321,7 +318,7 @@ def test_10_in_safaris_real_boxes_the_inset_names_clear_pins_card_names_and_each
           var pins = [...document.querySelectorAll('#wpal-root .wp-pin')].filter(p => p.style.visibility !== 'hidden' && R(p).width > 0 && R(p).left > -500);
           var ins = [...document.querySelectorAll('#wpal-root .wp-inl')].filter(l => l.style.display !== 'none' && !l.classList.contains('wp-off'));
           var names = [...document.querySelectorAll('#wpal-root .wp-lbl')].filter(l => !l.classList.contains('wp-stn') && !l.classList.contains('wp-off') && getComputedStyle(l).display !== 'none');
-          var bars = [...document.querySelectorAll('#wpal-root .wp-scope, #wpal-root .wp-tour')].filter(e => !e.hidden), bad = [];
+          var bars = [...document.querySelectorAll('#wpal-root .wp-tour')].filter(e => !e.hidden), bad = [];
           ins.forEach(l => { pins.forEach(p => { if (hit(R(l), R(p))) bad.push(l.textContent + ' x pin ' + p.textContent); });
                              names.forEach(n => { if (hit(R(l), R(n))) bad.push(l.textContent + ' x name ' + n.textContent); });
                              bars.forEach(b => { if (hit(R(l), R(b))) bad.push(l.textContent + ' x ' + b.className); });
@@ -350,7 +347,7 @@ _E8 = """(() => { var R = e => { var r = e.getBoundingClientRect(); return [r.le
   var b = [1e9, 1e9, -1e9, -1e9]; [document.querySelector('#wpal-root .wp-sts'), ...document.querySelectorAll('#wpal-root .wp-frame')].forEach(e => { var r = e.getBoundingClientRect(); if (!r.width) return;
     b = [Math.min(b[0], r.left), Math.min(b[1], r.top), Math.max(b[2], r.right), Math.max(b[3], r.bottom)]; });
   var tb = document.getElementById('title-bar');
-  return {us: b, pins: out, frames: [...document.querySelectorAll('#wpal-root .wp-frame')].map(R), pill: R(document.querySelector('#wpal-root .wp-scope')), tour: R(document.querySelector('#wpal-root .wp-tour')),
+  return {us: b, pins: out, frames: [...document.querySelectorAll('#wpal-root .wp-frame')].map(R), tour: R(document.querySelector('#wpal-root .wp-tour')),
     top: tb ? tb.getBoundingClientRect().bottom : 0, inl: [...document.querySelectorAll('#wpal-root .wp-inl')].map(R)}; })()"""
 
 
@@ -376,9 +373,8 @@ def test_11_safari_landscape_the_country_fills_the_box_and_every_pin_sits_on_its
         assert b[2] - b[0] >= W * .40, got["us"]                                           # (the failed map: 258 px = 29.5%)
         assert b[3] - b[1] >= (H - got["top"]) * .88, (got["us"], got["top"])              # the box's height is what limits a wide country: it takes nearly all of it (was 62%)
         assert b[1] >= got["top"] - 1 and b[3] <= H and b[0] >= 0 and b[2] <= W, got["us"]
-        for r in (got["pill"], got["tour"]):
-            assert b[2] <= r[0] + 1 or b[0] >= r[2] - 1 or b[1] >= r[3] - 1 or b[3] <= r[1] + 1, (got["us"], r)    # no part of the country under the pill or the Tour block
-        assert got["pill"][0] < 80 and got["pill"][1] < got["top"] + 12, got["pill"]       # the pill: top left
+        for r in (got["tour"],):
+            assert b[2] <= r[0] + 1 or b[0] >= r[2] - 1 or b[1] >= r[3] - 1 or b[3] <= r[1] + 1, (got["us"], r)    # no part of the country under the Tour block
         P = got["pins"]
         for k in ("1.1-1", "1.1-2", "1.1-3", "1.1-4", "1.1-5", "1.1-6", "2.3"):             # the lower 48: each pin's centre on its own state (6 px for a coast city: San Diego)
             p, hb = P[k]["pin"], P[k]["hb"]
