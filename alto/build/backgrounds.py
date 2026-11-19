@@ -435,7 +435,10 @@ html.mobile #bg-panel{ inset:0; width:auto; max-height:none; padding:0 0 calc(14
   box-shadow:none; transition:transform .22s cubic-bezier(.4,0,.2,1); -webkit-overflow-scrolling:touch; touch-action:manipulation; }
 html.mobile #bg-panel.open{ pointer-events:auto; transform:none; }
 /* v1.9.243: the phone's Scene sheet covers the page, so it is opaque: the glass tint is laid over the page's own background colour and nothing of the page reads through it */
-html.mobile #bg-panel:not(#_){ background-color:var(--bg,#0b0b12); background-image:linear-gradient(var(--panel-glass-bg, var(--surface)),var(--panel-glass-bg, var(--surface))); }
+/* the picker is opaque in every style (Luke 2026-11-18: the card text behind it ghosted through): the style's glass over the page's own ground */
+#bg-panel:not(#_):not(#__){ background-color:var(--bg,#0b0b12) !important; background-image:linear-gradient(var(--panel-glass-bg, var(--surface)),var(--panel-glass-bg, var(--surface))) !important; }
+/* its side tab steps aside while it is open, as the handoff sheets' do (the panel's own close button shuts it) */
+html:not(.mobile):has(#bg-panel.open) body > #bg-toggle, html:not(.mobile):has(#bg-panel.open) #tab-rail > #bg-toggle{ opacity:0 !important; pointer-events:none !important; }
 html.mobile.rw #bg-panel .bg-head{ position:relative; }
 #bg-panel .bg-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:10px;
   letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 2px 8px; min-height:20px; }
@@ -447,7 +450,9 @@ html.mobile #bg-panel .bg-head{ position:sticky; top:0; z-index:1; margin:0 0 12
 html.mobile #bg-close{ display:flex; }
 #bg-panel .bg-body{ flex:1 1 auto; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 /* the picker's body clips at its own edge: on a computer a few pixels of air inside it keep the last column's ring and the style switch's last border from being clipped (Retro and Holographic draw them in a line that shows) */
-@media (min-width:641px){ html:not(.mobile) #bg-panel .bg-body{ padding:3px 3px 1px; } }
+@media (min-width:641px){ html:not(.mobile) #bg-panel .bg-body{ padding:3px 3px 16px; } }   /* (air under the last row so its label is never cut at the scroll edge) */
+#bg-panel .bg-body::after{ content:''; display:block; height:14px; flex:none; }
+@media (min-width:641px){ html:not(.mobile) #bg-panel .bg-body{ -webkit-mask-image:linear-gradient(#000 calc(100% - 22px), transparent); mask-image:linear-gradient(#000 calc(100% - 22px), transparent); } }   /* (a row cut by the scroll edge fades out instead of ending in a hard slice) */
 #bg-panel .bg-head, #bg-panel .bg-foot{ flex:none; }
 #bg-panel .bg-sec{ margin:0 0 12px; }
 html.mobile #bg-panel .bg-sec{ padding:0 16px; margin-bottom:18px; }
@@ -533,7 +538,8 @@ UI_JS = r"""(function(){
       var v=variant(c), im=t.querySelector('img'), nm=t.querySelector('.bg-name');
       var src=c.th||B.base+'t/'+v.f; if(im && im.getAttribute('src')!==src) im.src=src; if(nm) nm.textContent=v.n; t.setAttribute('aria-label',v.n+', '+c.g);
     } else if(c.k==='m'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', for the map'); }
-    else if(c.k==='h'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', Holographic'); }
+    else if(c.k==='h'){ t.style.background=c.d.b;     // (Holographic is dark-only: a tile is always its dark scene, whatever the theme class says when it is drawn)
+      t.setAttribute('aria-label',c.n+', Holographic'); }
     else if(c.k==='c'){ var w=dark() ? c.d : c.l; t.style.background='linear-gradient(160deg,'+w[0]+','+w[1]+')'; }
     else { var q=B.pattern(c.p, dark() ? c.d : c.l); t.style.background=q; }
   }
