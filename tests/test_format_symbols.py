@@ -142,9 +142,7 @@ def test_the_title_tab_ink_of_the_blueprint_keeps_its_mask_and_escapes_the_marku
 
 def test_the_picker_wears_the_table_drawings():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
-    chip = h[h.index('<span class="nt-sym" data-sym="building"'):][:60]
-    assert 'data-sym="building"' in chip and "FMT_SYMBOLS[e.dataset.sym]" in h        # the Memory Palace chips are drawn from the table (real symbols, filled in at load)
-    assert "M4 20.5V10l5-2.5" not in h[h.index('class="nt-modes" data-for="palace"'):][:900]     # not the old 14px skyline glyph
+    assert "nt-sym" not in h and 'data-for="palace"' not in h        # Luke 2026-11-18: the Memory Palace chip row (and its symbol filler) is gone; the picture cards are the only control
     # the Palace tile is the domed building, always; Blueprint's tile is a light plan on a solid panel
     i = h.index('data-kind="palace"'); city = h[i:h.index("</svg>", i)]
     assert "M100 26V14" in city and "pv-hub" in city

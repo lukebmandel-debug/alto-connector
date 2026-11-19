@@ -143,7 +143,7 @@ def test_the_other_tiles_hide_the_palace_row_and_the_dome_stays_when_atlas_is_ch
         _click(page, "#nt-pal .nt-kind[data-mode=world]")
         assert page.locator("#nt-modal .nt-kind[data-kind=palace] .nt-pv").count() == 1       # one picture: the dome, whatever is chosen
         assert page.locator("#nt-modal .nt-kind[data-kind=palace] small").count() == 1
-        assert page.locator("#nt-modal > .nt-modes[data-for=palace]").evaluate("e => getComputedStyle(e).display") == "none"
+        assert page.locator("#nt-modal .nt-modes[data-for=palace]").count() == 0
     finally:
         ctx.close()
 
@@ -155,18 +155,6 @@ def test_rescope_opens_on_the_atlas(browser, site):
         page.wait_for_timeout(150)
         assert page.is_visible("#nt-pal") and page.is_visible("#nt-scope")
         assert page.get_attribute("#nt-pal .nt-kind[data-mode=world]", "aria-pressed") == "true"
-    finally:
-        ctx.close()
-
-
-def test_the_map_chip_wears_the_real_symbol(browser, site):
-    ctx, page = _open(browser, site)
-    try:
-        for key in ("palace", "building", "world"):
-            got = page.inner_html(".nt-sym[data-sym=%s] svg" % key)
-            assert format_symbols.SYMBOLS[key][1].replace("currentColor", "currentColor") in got.replace("&amp;", "&") or got.count("<") >= 2
-        assert "M12 16.5s-3-2.9-3-5.2" in page.inner_html(".nt-sym[data-sym=palace]")      # the pin, not the 14px skyline
-        assert "M4 20.5V10l5-2.5" not in page.inner_html("#nt-modal > .nt-modes[data-for=palace]")
     finally:
         ctx.close()
 
@@ -318,13 +306,14 @@ def test_the_top_fade_covers_a_control_that_is_partly_scrolled_off(browser, site
     first 55 %, so a control mid-scroll under the edge is hidden, then faded out, never shown as a crisp half; the strip takes no touch; at rest it shifts nothing."""
     ctx, page = _open(browser, site, style, "p390")
     try:
+        page.set_viewport_size({"width": 390, "height": 520})                                      # a short window, so the sheet can scroll far enough for a control to straddle its top edge
         _atlas(page, "claude")
         _click(page, "#nt-scope .nt-kind[data-scope=country]")
-        r = page.evaluate("""() => { var m = document.getElementById('nt-modal'), cs = getComputedStyle(m, '::before'), mr = m.getBoundingClientRect(), chip = m.querySelector('.nt-mode[data-mode=world]'), out = {};
+        r = page.evaluate("""() => { var m = document.getElementById('nt-modal'), cs = getComputedStyle(m, '::before'), mr = m.getBoundingClientRect(), chip = m.querySelector('#nt-cq'), out = {};
           out.strip = parseFloat(cs.height); out.sticky = cs.position; out.pe = cs.pointerEvents; out.grad = cs.backgroundImage;
           out.solid = (cs.backgroundImage.match(/\)\s+(\d+(?:\.\d+)?)%/) || [0, 0])[1];
           m.scrollTop = 0; var t0 = m.querySelector('.acct-title').getBoundingClientRect().top - mr.top;
-          chip.scrollIntoView({block: 'center'}); m.scrollTop += chip.getBoundingClientRect().top - mr.top + 6;     // the chip now straddles the top edge: 6 px of it above
+          m.style.scrollBehavior = 'auto'; m.scrollTop += chip.getBoundingClientRect().top - mr.top + 6;     // the chip now straddles the top edge: 6 px of it above
           var sr = document.createRange(); out.stripAtTop = true;
           var cr = chip.getBoundingClientRect(); out.chipTop = cr.top - mr.top; out.chipBottom = cr.bottom - mr.top; out.t0 = t0; out.pt = parseFloat(getComputedStyle(m).paddingTop);
           return out; }""")
@@ -333,10 +322,117 @@ def test_the_top_fade_covers_a_control_that_is_partly_scrolled_off(browser, site
         assert r["chipTop"] < r["strip"] * .55 and r["chipBottom"] <= r["strip"] + 1, r        # the straddling chip lies wholly inside the strip: hidden or fading, never a crisp half
         PIL = pytest.importorskip("PIL.Image")
         import io
-        box = page.evaluate("(() => { var r = document.getElementById('nt-modal').getBoundingClientRect(); return [r.left + 24, r.top + 3, r.width - 48, 20]; })()")
+        box = page.evaluate("(() => { var r = document.getElementById('nt-modal').getBoundingClientRect(); return [r.left + 24, r.top + 3, r.width - 48, 14]; })()")
         img = PIL.open(io.BytesIO(page.screenshot(clip={"x": box[0], "y": box[1], "width": box[2], "height": box[3]}))).convert("RGB")
         px = list(img.getdata())
         mid = [sorted(c[i] for c in px)[len(px) // 2] for i in range(3)]
         assert max(abs(c[i] - mid[i]) for c in px for i in range(3)) <= 16, ("the chip shows through the top fade", mid)     # the band at the very top is flat sheet colour: nothing crisp is cut there
+    finally:
+        ctx.close()
+
+
+# ── Board L-1118-CHIPS (Luke, 2026-11-18): "we only need the graphics of memory palace as is, not their corresponding text bubbles as well".
+# The Memory Map / Blueprint / Atlas pill row under the picture cards is gone; the cards are the only control.
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("dark", [False, True])
+@pytest.mark.parametrize("size", ["d1440", "p390"])
+def test_the_chip_row_is_gone_in_every_style(browser, site, style, size, dark):
+    ctx, page = _open(browser, site, style, size, dark)
+    try:
+        _atlas(page, "claude")
+        assert page.locator("#nt-modal .nt-mode[data-mode=city], #nt-modal .nt-mode[data-mode=building], #nt-modal .nt-mode[data-mode=world], #nt-modal .nt-sym, #nt-modal [data-for=palace]").count() == 0
+        shown = page.evaluate("[...document.querySelectorAll('#nt-modal .nt-mode')].filter(e => e.offsetParent !== null).map(e => e.textContent.trim())")
+        assert not any(t.startswith("Memory ") for t in shown), shown                  # no visible pill carries a palace name
+        for tab in ("self", "claude"):
+            page.click(".nt-tab[data-tab=%s]" % tab)
+            assert page.evaluate("[...document.querySelectorAll('#nt-modal button, #nt-modal [role=button]')].filter(e => e.offsetParent !== null && /^\\s*Memory (Map|Blueprint|Atlas)\\s*$/.test(e.textContent) && !e.classList.contains('nt-kind')).length") == 0
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("tab", ["claude", "self"])
+def test_each_card_sets_the_method_and_both_paths_carry_it(browser, site, tab):
+    ctx, page = _open(browser, site)
+    try:
+        sent = {}
+        for mode, (kind, word) in {"city": ("palace", "set_up_palace"), "building": ("building", "Memory Blueprint"), "world": ("world", "Memory Atlas")}.items():
+            page.evaluate("ntOpen('', true)"); page.wait_for_timeout(100)
+            page.click(".nt-tab[data-tab=%s]" % tab)
+            _click(page, "#nt-modal .nt-kind[data-kind=palace]")
+            _click(page, "#nt-pal .nt-kind[data-mode=%s]" % mode)
+            assert page.evaluate("ntKind") == kind and page.evaluate("ntModes.palace") == mode
+            assert page.get_attribute("#nt-pal .nt-kind[data-mode=%s]" % mode, "aria-pressed") == "true"
+            assert page.is_visible("#nt-scope") == (mode == "world")                   # its own options (Atlas: World | A country)
+            page.evaluate("window.__sent.length = 0")
+            _click(page, "#nt-claude" if tab == "claude" else "#nt-make")
+            sent[mode] = page.evaluate("window.__sent.slice()")
+            assert len(sent[mode]) == 1 and word in sent[mode][0], sent[mode]
+        assert len({v[0] for v in sent.values()}) == 3
+    finally:
+        ctx.close()
+
+
+def test_a_card_is_picked_from_the_keyboard(browser, site):
+    ctx, page = _open(browser, site)
+    try:
+        _click(page, "#nt-modal .nt-kind[data-kind=palace]")
+        for key, mode, kind in (("Enter", "building", "building"), ("Space", "world", "world"), ("Enter", "city", "palace")):
+            page.focus("#nt-pal .nt-kind[data-mode=%s]" % mode)
+            page.keyboard.press(key)
+            page.wait_for_timeout(100)
+            assert page.evaluate("ntKind") == kind
+            assert page.get_attribute("#nt-pal .nt-kind[data-mode=%s]" % mode, "aria-pressed") == "true"
+            assert page.locator("#nt-pal .nt-kind[aria-pressed=true]").count() == 1
+        assert page.evaluate("document.querySelector('#nt-pal .nt-kind').tagName") == "BUTTON"       # a real button: focusable, Enter / Space native
+    finally:
+        ctx.close()
+
+
+# ── Board L-1118-SCOPEORDER (Luke: "it should appear above the picker for claude/manual"): one World | A country block, right under the
+# palace cards and above the Claude / Write it yourself picker; the same on both paths; NAME stays on the Write path, below the picker.
+@pytest.mark.parametrize("tab", ["claude", "self"])
+@pytest.mark.parametrize("size", ["d1440", "p390"])
+def test_the_scope_block_comes_before_the_method_picker_on_both_paths(browser, site, tab, size):
+    ctx, page = _open(browser, site, "classic", size)
+    try:
+        _atlas(page, tab)
+        assert page.evaluate("!!(document.getElementById('nt-pal').compareDocumentPosition(document.getElementById('nt-scope')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(document.getElementById('nt-scope').compareDocumentPosition(document.getElementById('nt-tabs')) & Node.DOCUMENT_POSITION_FOLLOWING)")
+        assert page.evaluate("document.querySelectorAll('#nt-modal #nt-scope').length") == 1
+        r = page.evaluate("""() => { const b = s => document.querySelector(s).getBoundingClientRect(); return {pal: b('#nt-pal').bottom, sc: b('#nt-scope').top, scb: b('#nt-scope').bottom, tabs: b('#nt-tabs').top, name: b('#nt-title').top}; }""")
+        assert r["pal"] <= r["sc"] + 1 and r["scb"] <= r["tabs"] + 1, r
+        assert page.is_visible("#nt-title") == (tab == "self")
+        if tab == "self":
+            assert r["name"] > r["tabs"]                                                  # NAME below the picker
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        assert page.is_visible("#nt-clist")
+        c = page.evaluate("(() => { const l = document.querySelector('#nt-clist').getBoundingClientRect(), t = document.querySelector('#nt-tabs').getBoundingClientRect(), s = document.querySelector('#nt-scope .nt-kinds').getBoundingClientRect(); return [s.bottom, l.top, l.bottom, t.top]; })()")
+        assert c[0] <= c[1] + 1 and c[2] <= c[3] + 1, c                                   # the Country list opens in that spot, above the picker
+    finally:
+        ctx.close()
+
+
+# ── CEO 2026-11-19: the sheet's own title sat under the 245 top fade at 1.6:1 on a phone. It now stays above the fade, readable scrolled or not.
+def _lum(c):
+    f = lambda v: v / 255 / 12.92 if v / 255 <= .03928 else ((v / 255 + .055) / 1.055) ** 2.4
+    return .2126 * f(c[0]) + .7152 * f(c[1]) + .0722 * f(c[2])
+
+
+@pytest.mark.parametrize("scrolled", [False, True])
+@pytest.mark.parametrize("size", ["d1440", "p390"])
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_the_sheet_title_is_readable_scrolled_or_not(browser, site, style, size, scrolled):
+    PIL = pytest.importorskip("PIL.Image")
+    import io
+    ctx, page = _open(browser, site, style, size)
+    try:
+        _atlas(page, "claude")
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        page.evaluate("(() => { var m = document.getElementById('nt-modal'); m.style.scrollBehavior = 'auto'; m.scrollTop = %d; })()" % (150 if scrolled else 0))
+        page.wait_for_timeout(250)
+        r = page.evaluate("(() => { var e = document.getElementById('nt-head').getBoundingClientRect(); return [e.left, e.top, Math.min(e.width, 300), e.height]; })()")
+        assert r[1] >= page.evaluate("document.getElementById('nt-modal').getBoundingClientRect().top") - 1, r      # the title is on the sheet, never cut off above it
+        img = PIL.open(io.BytesIO(page.screenshot(clip={"x": r[0], "y": r[1], "width": r[2], "height": max(r[3], 8)}))).convert("RGB")
+        ls = sorted(_lum(c) for c in img.getdata())
+        assert (ls[-1] + .05) / (ls[0] + .05) >= 4.5, ((ls[-1] + .05) / (ls[0] + .05), r)
     finally:
         ctx.close()
