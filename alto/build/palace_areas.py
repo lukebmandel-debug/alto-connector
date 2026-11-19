@@ -106,13 +106,25 @@ def check_banners(banners) -> None:
             raise BriefError(f"palace.banners[{i}]: needs a name (up to 40 characters)")
         if not isinstance(b.get("river"), str) or not b["river"].strip():
             raise BriefError(f"palace.banners[{i}] ({b['name']}): river names the river it lies across, e.g. \"Delaware\"")
-        if set(b) - {"name", "river", "size"}:
-            raise BriefError(f"palace.banners[{i}]: only name, river, size")
+        if set(b) - {"name", "river", "size", "lat", "lon", "x", "y"}:
+            raise BriefError(f"palace.banners[{i}]: only name, river, size, lat, lon, x, y")
+
+
+# the word's width in em (a heavy serif face: H .78, e .56, l .3 ...); the box is a little roomy so a label placed clear of it is clear of the glyphs
+_EM = {"H": .8, "e": .58, "l": .32}
+
+
+def banner_box(b) -> list:
+    """[x0, y0, x1, y1] in map px: the room the word's letters take (cap height ~.76 of the font size, centred on x)."""
+    s = float(b["s"])
+    w = sum(_EM.get(c, .6) for c in b["n"]) * s * 1.06
+    return [round(b["x"] - w / 2), round(b["y"] - s * .8), round(b["x"] + w / 2), round(b["y"] + s * .12)]
 
 
 def banners_layout(m, banners) -> list:
-    """[{n, x, y, s}] in map px: each word stands on the far bank of its river — across it from the middle of the drawn city — in letters
-    `size` px tall (default 1400: it fills the far bank)."""
+    """[{n, x, y, s, box}] in map px: each word stands on the far bank of its river — across it from the middle of the drawn city — in letters
+    `size` px tall (default 1400: it fills the far bank). A banner with lat/lon stands centred on that point instead (New York's Hell
+    across the Hudson, whose far bank is a whole state wide)."""
     import math
     if not banners:
         return []
@@ -121,6 +133,16 @@ def banners_layout(m, banners) -> list:
     cx, cy = (sum(c[0] for c in cs) / len(cs), sum(c[1] for c in cs) / len(cs)) if cs else (m.get("W", 0) / 2, m.get("H", 0) / 2)
     out = []
     for b in banners:
+        if b.get("x") is not None and b.get("y") is not None or b.get("lat") is not None and b.get("lon") is not None:
+            if b.get("x") is not None:
+                px, py = float(b["x"]), float(b["y"])
+            else:
+                from .palace_place import to_px
+                px, py = to_px(m, b["lat"], b["lon"])
+            size = float(b.get("size") or 1400)
+            q = {"n": b["name"], "x": round(px, 1), "y": round(py + size * .32, 1), "s": round(size)}
+            out.append(dict(q, box=banner_box(q)))
+            continue
         rv = next((r for r in rivers if b["river"].lower() in str(r.get("n", "")).lower()), None)
         if not rv:
             continue
@@ -141,5 +163,83 @@ def banners_layout(m, banners) -> list:
         hw = float(rv.get("w") or 100) / 2
         w = len(b["name"]) * size * .56
         reach = hw + max(size * .4, w * .5) + 120
-        out.append({"n": b["name"], "x": round(qx + ux * reach, 1), "y": round(qy + uy * reach + size * .32, 1), "s": round(size)})
+        q = {"n": b["name"], "x": round(qx + ux * reach, 1), "y": round(qy + uy * reach + size * .32, 1), "s": round(size)}
+        out.append(dict(q, box=banner_box(q)))
     return out
+
+
+# ── New York's NJ: the state is named "Hell", in the giant letters Philadelphia's far bank has ───────────
+NJ_NAME = "New Jersey"
+HELL_MAX = 2000                  # page px: the letters' height at most (Philadelphia's are 1400 on a 230 px river; the Hudson's band is 330)
+
+
+def _wet(sea, x, y):
+    return any(_on_land(r, x, y) for r in sea)                     # the ring test: inside a sea ring is water
+
+
+def _hudson_x(m, y):
+    rv = next((r for r in m.get("river") or [] if "hudson" in str(r.get("n", "")).lower()), None)
+    p = (rv or {}).get("p") or []
+    if len(p) < 4:
+        return None
+    k = min(range(0, len(p) - 1, 2), key=lambda i: abs(p[i + 1] - y))
+    return p[k]
+
+
+def _land_run(m, y):
+    """(x0, x1): the dry strip of the far shore at page row y, from the first water west of the Hudson's own shore to that shore, or None."""
+    hx = _hudson_x(m, y)
+    sea = m.get("sea") or []
+    if hx is None or not sea:
+        return None
+    x = hx
+    while x > 0 and _wet(sea, x, y):                               # west out of the Hudson's water ...
+        x -= 40
+    x1 = x
+    while x > 0 and not _wet(sea, x, y):                           # ... then across the land, to the next water (an inlet) or the page edge
+        x -= 40
+    return max(0.0, x), x1
+
+
+def hell_for(m, banners):
+    """(far, banners) for New York's Manhattan layout: the small "New Jersey" name is dropped (the state is called Hell, across the whole far
+    shore) and, when the map names no banners of its own, one giant "Hell" stands on the shore beside the Hudson, near where the name stood,
+    sized to fit the dry land there (clear of every other name and of the water). Any other map is returned as it came."""
+    far = list(m.get("far") or ())
+    nj = next((f for f in far if f.get("n") == NJ_NAME), None)
+    if m.get("layout") != "manhattan" or nj is None:
+        return m.get("far"), banners
+    far = [f for f in far if f is not nj]
+    if banners:
+        return far, banners
+    names = [(a["x"], a["y"]) for a in far]
+    for dy in (0, -2500, 2500, -5000, 5000, -7500, 7500):
+        y = nj["y"] + dy
+        run = _land_run(m, y)
+        if not run or run[1] - run[0] < 900:
+            continue
+        avail = run[1] - run[0] - 900
+        size = min(HELL_MAX, .95 * avail / 2.14)
+        w = 2.14 * size
+        cx = run[1] - 450 - w / 2
+        q = {"n": "Hell", "x": cx, "y": y + size * .32, "s": size}
+        box = banner_box(q)
+        sea = m.get("sea") or []
+        pts = [(box[0] + (box[2] - box[0]) * i / 12, box[1] + (box[3] - box[1]) * j / 5) for i in range(13) for j in range(6)]
+        if box[0] < 0 or box[1] < 0 or box[3] > m.get("H", 1e9) or any(_wet(sea, px, py) for px, py in pts):
+            continue
+        if any(box[0] - 600 <= nx <= box[2] + 600 and box[1] - 300 <= ny <= box[3] + 300 for nx, ny in names):
+            continue
+        return far, [{"name": "Hell", "river": "Hudson", "size": round(size), "x": round(cx), "y": round(y)}]
+    return far, banners
+
+
+def clear_of_banners(blocks, banners):
+    """The blocks a building may stand on: none whose lots reach a banner's letters (a pin's dot and its line would run through them)."""
+    if not banners:
+        return blocks
+    m_ = 40
+
+    def inside(x, y):
+        return any(b["box"][0] - m_ <= x <= b["box"][2] + m_ and b["box"][1] - m_ <= y <= b["box"][3] + m_ for b in banners)
+    return [bl for bl in blocks if not inside(bl.get("x", 0), bl.get("y", 0)) and not any(inside(l[0] + l[2] / 2, l[1] + l[3] / 2) for l in bl.get("lots") or ())]

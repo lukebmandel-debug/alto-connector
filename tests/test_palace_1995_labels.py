@@ -41,7 +41,7 @@ def test_a_name_that_was_showing_keeps_its_place_and_a_thinner_margin():
 def test_only_names_cards_chips_and_numbered_buildings_stop_a_name():
     f = _fit()
     assert "relax && o.el.classList.contains('lm-card')" in f              # second pass: over a neighbouring landmark's card
-    assert ".pl-portal'" in f and "|| o.portal)))" in f                    # an airport portal (on a station building) is never covered by a name
+    assert ".pl-portal" in f and "|| o.portal)))" in f                    # an airport portal (on a station building) is never covered by a name
     assert "obbHit(b, (it.k==='lm-name' && o.ext) || o) && (hn=o)" in f      # a numbered building is never covered ...
     assert ":scope > .nb3d, :scope > .node-card" in f                          # ... nor its number card or its tall art
     assert "if(hitKept(b)){ it.why='name:'" in f           # nor another name
