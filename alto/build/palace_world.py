@@ -208,9 +208,7 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 html.alto-editing:not(.mobile):has(#wpal-root .wp-tour:not([hidden])) #alto-edit-exit{bottom:73px;}
 #wpal-root .wp-tour .d{color:var(--w-sub);overflow:hidden;text-overflow:ellipsis;max-width:180px;}
 #wpal-root .wp-tour .c{font-weight:650;overflow:hidden;text-overflow:ellipsis;}
-#wpal-root .wp-scope{left:50%;top:64px;transform:translateX(-50%);height:30px;box-sizing:border-box;padding:0 12px;gap:7px;border-radius:999px;font:650 13px/1 inherit;color:var(--w-text);cursor:pointer;max-width:min(260px,calc(100% - 140px));z-index:6;}#wpal-root .wp-scope .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}#wpal-root .wp-scope svg{width:14px;height:14px;flex:none;}#wpal-root .wp-scope .v{width:10px;height:10px;opacity:.6;}#wpal-root .wp-scope:focus-visible{outline:2px solid var(--w-text);outline-offset:2px;}
-html.mobile #wpal-root .wp-scope{top:56px !important;height:36px;padding:0 14px;}@media (orientation:landscape) and (max-height:460px){html.mobile #wpal-root .wp-tour{bottom:8px;left:calc(env(safe-area-inset-left,0px) + 66px);transform:none;width:196px;box-sizing:border-box;flex-wrap:wrap;row-gap:5px;padding:8px 10px;}html.mobile #wpal-root .wp-tour .c{order:-1;flex:0 0 100%;min-width:0;height:32px;line-height:16px;font-size:12.5px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}html.mobile #wpal-root .wp-tour .d{display:none;}html.mobile #wpal-root .wp-tour .wp-btn.r{width:40px;height:34px;border-radius:17px;}html.mobile #wpal-root .wp-tour .x{margin-left:auto;}html.mobile #wpal-root .wp-enl > .node > .node-card{max-width:220px !important;box-sizing:border-box;}html.mobile.wpal-open:not(.summary-open) #summary-wrap:not(#_){border-color:transparent !important;box-shadow:none !important;background:none !important;}html.mobile #wpal-root .wp-scope{top:calc(var(--w-top,52px) + 6px) !important;left:calc(env(safe-area-inset-left,0px) + 12px);transform:none;}}   /* (sim1111f E8: a phone on its side, Safari's bars in, has ~290 px; a centred pill cost the map a 100 px band) */@media (max-width:700px){#wpal-root .wp-scope{top:70px !important;height:45px;padding:0 16px;font-size:16px;}}   /* (the phone page is laid out at .8: 70 / 45 css px read as 56 / 36 pt) */
-html.alto-retro #wpal-root .wp-scope:not(#_){border-radius:0;border:1px solid rgba(217,174,85,.4);color:#efe6cf;background:#05070b;}html.alto-retro #wpal-root .wp-scope:not(#_) svg:not(.v){color:#d9ae55;}
+@media (orientation:landscape) and (max-height:460px){html.mobile #wpal-root .wp-tour{bottom:8px;left:calc(env(safe-area-inset-left,0px) + 66px);transform:none;width:196px;box-sizing:border-box;flex-wrap:wrap;row-gap:5px;padding:8px 10px;}html.mobile #wpal-root .wp-tour .c{order:-1;flex:0 0 100%;min-width:0;height:32px;line-height:16px;font-size:12.5px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}html.mobile #wpal-root .wp-tour .d{display:none;}html.mobile #wpal-root .wp-tour .wp-btn.r{width:40px;height:34px;border-radius:17px;}html.mobile #wpal-root .wp-tour .x{margin-left:auto;}html.mobile #wpal-root .wp-enl > .node > .node-card{max-width:220px !important;box-sizing:border-box;}html.mobile.wpal-open:not(.summary-open) #summary-wrap:not(#_){border-color:transparent !important;box-shadow:none !important;background:none !important;}}
 #wpal-root .wp-key{left:16px;bottom:66px;display:block;font-size:12px;line-height:20px;max-width:340px;white-space:normal;}
 #wpal-root .wp-key button.u{display:flex;align-items:center;gap:7px;border:0;background:none;color:var(--w-text);font:inherit;padding:0 4px;border-radius:6px;cursor:pointer;width:100%;text-align:left;}
 #wpal-root .wp-key button.u:hover{background:color-mix(in srgb,var(--u) 14%,transparent);}
@@ -313,6 +311,8 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-nav .wp-btn.r:disabled{opacity:.35;cursor:default;}
 #wpal-root .wp-nav .wp-btn.r.on{color:var(--accent,#5b6cff);}
 #wpal-root :is(.wp-nav,.wp-seg) svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6px;stroke-linecap:round;stroke-linejoin:round;}
+#wpal-root .wp-nav .wp-mapm{left:50%;right:auto;top:auto;bottom:calc(100% + 8px);transform:translateX(-50%);width:max-content;max-width:calc(100vw - 24px);padding:4px;flex-direction:column;align-items:stretch;z-index:9;}#wpal-root .wp-nav .wp-mapm[hidden]{display:none;}#wpal-root .wp-mapm button{border:0;background:none;color:var(--w-text);font:inherit;font-size:13.5px;min-height:44px;padding:0 16px;border-radius:10px;cursor:pointer;white-space:nowrap;text-align:left;}#wpal-root .wp-mapm button:hover,#wpal-root .wp-mapm button:focus-visible{background:color-mix(in srgb,var(--accent,#5b6cff) 14%,transparent);outline:0;}html.alto-retro #wpal-root .wp-mapm:not(#_),html.alto-retro #wpal-root .wp-mapm button:not(#_){border-radius:0;font-family:var(--rt-f,inherit);}
+html.mobile.wpal-open:not(.alto-holo):not(.alto-retro) #nav-drawer{background:var(--surface,var(--bg)) !important;}html.mobile.wpal-open.alto-retro #nav-drawer{background:#05070a !important;}   /* (the phone MENU is opaque: the map's labels never read through its tiles; Holo keeps its own) */
 #wpal-root .wp-at{border:0;background:none;font:inherit;font-size:12.5px;color:var(--w-sub);padding:0 6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;line-height:28px;}
 #wpal-root .wp-at b{color:var(--w-text);font-weight:650;}#wpal-root .wp-at:hover b{text-decoration:underline;text-underline-offset:3px;}
 #wpal-root .wp-hk{position:absolute;right:-8px;top:-8px;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;border-radius:8px;background:var(--u);color:var(--w-pin);
@@ -457,11 +457,11 @@ function wld(sx,sy){ if(S.globe){ var w=gWld(sx,sy); if(w) return w; return [S.c
 function side(n){ return Math.max(0,parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n))||0); }
 function sideways(){ return S.vh<500&&document.documentElement.classList.contains('mobile'); }      // (a phone on its side: wider than phone() allows, but short)
 // (three cases, in this order. One country on a short landscape, e8 / #19: the pill and the Tour block are a column at the left, the map and its cards live beside it, never
-// under the 44 pt header row. Any other map on a phone on its side, F5. Else the upright phone's and the desktop's bands; one country starts below its scope pill.)
+// under the 44 pt header row. Any other map on a phone on its side, F5. Else the upright phone's and the desktop's bands.)
 function inset(){ if(shortC()){ var Ll=30; (S.obs||[]).forEach(function(r){ if(r[0]<S.vw*.3&&r[2]<S.vw*.5) Ll=Math.max(Ll,r[2]+10); }); return {t:Math.max(S.top||52,44)+6,b:8,l:Ll,r:66}; }
   var I=sideways()?{t:Math.max(S.top||0,44)+6,b:S.tour?64:10,l:14+side('--sh-left'),r:14+side('--sh-right')}:phone()?{t:56,b:124,l:14,r:14}:{t:60,b:96,l:30,r:70};      // (clear of the page's own corner buttons and side rail)
   if(sideways()&&S.tour){ var tb=tourBox(); if(tb&&tb[2]<S.vw*.5){ I.b=10; I.l=Math.max(I.l,tb[2]+10); } }      // (the Tour bar is a block at the left on a short landscape, e8: clear of it means beside it, not above it)
-  if(S.pillB&&D().scope) I.t=Math.max(I.t,S.pillB+8); return I; }
+  return I; }
 function tourBox(){ var e=S.tourEl; if(!e) return null; var h=e.hidden; if(h) e.hidden=false; var r=e.getBoundingClientRect(); if(h) e.hidden=true; if(r.width<2||r.height<2) return null;
   var a=cp(r.left,r.top), q=cp(r.right,r.bottom); return [a[0],a[1],q[0],q[1]]; }
 function fitBox(bb,pad,xl){ var I=inset(); I.l+=xl||0; var w=Math.max(S.vw-I.l-I.r-2*pad,40), hh=Math.max(S.vh-I.t-I.b-2*pad,40), bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3);
@@ -1058,7 +1058,7 @@ function homeView(){ var c=one(); if(!c) return worldView(); var b=hbox(c);
 // few candidate frames (under the title bar or under each top panel, above the foot or above each foot panel) the one with the biggest scale that clears every panel wins.
 function short(){ return S.vw>S.vh&&S.vh<460; }
 function shortC(){ return !!(one()&&short()&&!S.globe); }
-function obstacles(){ var o=[]; [S.root.querySelector('.wp-scope'),S.ctlEl,S.keyEl,S.tourEl,S.navEl].forEach(function(e){ if(!e) return; var tb=e===S.tourEl&&S.tour&&e.hidden; if(e.hidden&&!tb) return;      // (the Tour's strip counts before its first show)
+function obstacles(){ var o=[]; [S.ctlEl,S.keyEl,S.tourEl,S.navEl].forEach(function(e){ if(!e) return; var tb=e===S.tourEl&&S.tour&&e.hidden; if(e.hidden&&!tb) return;      // (the Tour's strip counts before its first show)
     if(tb) e.hidden=false; var r=e.getBoundingClientRect(); if(tb) e.hidden=true; if(r.width<2||r.height<2) return;
     var a=cp(r.left,r.top), q=cp(r.right,r.bottom); if(q[0]<0||a[0]>S.vw||q[1]<0||a[1]>S.vh) return; o.push([a[0],a[1],q[0],q[1]]); }); return o; }
 function fitFree(bb,pad){ var O=S.obs=obstacles(), pr=5, T=(S.top||0)+pad+pr, ts=[T], bs=[pad+pr], sl=66, bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3), best=null, xs=[[sl,S.vw-sl]];
@@ -1410,7 +1410,22 @@ function navChrome(){
   S.nAt=h('button',{type:'button','class':'wp-at'},b);
   S.nNx=h('button',{type:'button','class':'wp-btn r wp-nx'},b); svgI(S.nNx,['M8 4.5 13.5 10 8 15.5']);
   S.nMp=h('button',{type:'button','class':'wp-btn r'},b); svgI(S.nMp,['M5 4.5h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z','M7.5 8.5v.01','M12.5 11.5v.01','M8.5 9.4 11.5 11']);
-  [S.nUp,S.nAt,S.nNx].forEach(function(e){ e.addEventListener('click',function(ev){ ev.stopPropagation(); if(e.disabled) return; ngo(e.getAttribute('data-go')||''); }); });
+  // The chip's open state (Board, replacing the removed scope pill): at the top level a tap on the chip opens one row, "Change map…", which does what the pill did (the homepage set-up for THIS timeline with the scope picker; the rebuild is the normal make path).
+  var mp=S.mapM=h('div',{'class':'wp-bar wp-mapm',role:'menu',hidden:''},b), mr=h('button',{type:'button',role:'menuitem'},mp,'Change map…');
+  var mshut=function(){ mp.hidden=true; S.nAt.setAttribute('aria-expanded','false'); };
+  var rescope=function(){ var q='?rescope='+encodeURIComponent(D().scope||'world')+'&tl='+encodeURIComponent((document.title||'').replace(/\s*[·|–-]\s*Alto\s*$/,''));
+    if(window.__altoGo) window.__altoGo('index.html'+q); else A.scopePill=q; };
+  mr.addEventListener('click',function(ev){ ev.stopPropagation(); mshut(); rescope(); });
+  // A phone has no chip (the nav bar is hidden there): the same entry is one row in the page's own MENU drawer, the same action.
+  var db=document.getElementById('nav-drawer-body'); if(db&&!document.getElementById('drawer-changemap-btn')){ var dr=h('button',{type:'button','class':'drawer-btn pmin-word',id:'drawer-changemap-btn'},db);
+    dr.innerHTML='<span class="drawer-icon"></span><span class="drawer-label">Change map…</span>';   // (the same word-only tile as its row-mates Tour and World: phone_minimal.py row())
+    dr.addEventListener('click',function(ev){ ev.stopPropagation(); if(window.closeNavDrawer) window.closeNavDrawer(); rescope(); }); }
+  mp.addEventListener('keydown',function(e){ if(e.key==='Escape'){ e.stopPropagation(); mshut(); S.nAt.focus(); } });
+  document.addEventListener('pointerdown',function(e){ if(!mp.hidden&&!(e.target.closest&&e.target.closest('.wp-nav'))) mshut(); },true);
+  S.nAt.setAttribute('aria-haspopup','menu'); S.nAt.setAttribute('aria-expanded','false');
+  [S.nUp,S.nAt,S.nNx].forEach(function(e){ e.addEventListener('click',function(ev){ ev.stopPropagation(); if(e.disabled) return;
+    if(e===S.nAt&&!e.getAttribute('data-go')){ mp.hidden=!mp.hidden; e.setAttribute('aria-expanded',String(!mp.hidden)); if(!mp.hidden) mr.focus(); return; }
+    mshut(); ngo(e.getAttribute('data-go')||''); }); });
   S.nMp.addEventListener('click',function(ev){ ev.stopPropagation(); S.mmOn=!S.mmOn; try{ localStorage.setItem('alto-world-map',S.mmOn?'1':'0'); }catch(x){} navSync(); });
   try{ S.mmOn=localStorage.getItem('alto-world-map')!=='0'; }catch(x){ S.mmOn=true; }
   var mm=S.mmEl=h('div',{'class':'wp-bar wp-mm alto-mm',role:'group','aria-label':'Minimap: the whole world, the box is what the map shows'},S.root);
@@ -1550,7 +1565,6 @@ function bindInput(){
 function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=S.root.clientWidth||r.width||window.innerWidth; S.vh=S.root.clientHeight||r.height||window.innerHeight;
   S.z=r.width&&S.root.clientWidth?r.width/S.root.clientWidth:1; S.rl=r.left; S.rt=r.top; var v=worldView(); S.kW=v.k;
   if(S.globe){ S.globe=0; S.kW=worldView().k; S.globe=1; } gSize();
-  var pe=S.root.querySelector('.wp-scope'), pb=pe&&pe.getBoundingClientRect(); S.pillB=pb&&pb.height?Math.round((pb.bottom-r.top)/(S.z||1)):0;
   // one country (sim1111d E8): a turn of the phone, or a first landscape layout Safari settles late, refits the country (or the card the reader is on) to the new box;
   // scaling the old view by the world's ratio left the US tiny. The world map keeps its own rule.
   var H=S.hv, home=H&&S.cx===H.cx&&S.cy===H.cy&&S.k===H.k, turn=S.wasL!=null&&S.wasL!==(S.vw>S.vh); S.wasL=S.vw>S.vh;
@@ -1568,13 +1582,6 @@ function chrome(){
   var tb=S.tourBtn=h('button',{type:'button','class':'wp-btn wp-tt','aria-pressed':String(S.tour),title:'Tour the route stop by stop, or turn it off to roam the world (T)'},ctl,'Tour');
   h('span',{'class':'wp-sw','aria-hidden':'true'},tb); tb.addEventListener('click',function(){ A.tourMode(!S.tour); }); root.classList.toggle('wp-free',!S.tour);
   var wb=h('button',{type:'button','class':'wp-btn',title:D().scope?'The whole of '+homeName()+' (O)':'The whole world (O)'},ctl,D().scope?'⤢ '+homeName():'⤢ World'); wb.addEventListener('click',A.world);
-  // The scope pill (CEO ruling 6 Nov): World or the country this map is of. Tapping it opens the homepage set-up for THIS timeline with the scope picker (the rebuild is the normal make path; nothing is rebuilt in the page).
-  var spn=D().scope?homeName():'World', sp=h('button',{type:'button','class':'wp-bar wp-scope','aria-haspopup':'dialog',title:'Change what this map covers: the world or one country',
-      'aria-label':'Scope: '+spn+'. Change it'},root);
-  sp.innerHTML='<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">'+(D().scope?'<path d="M2 4l3-1.5 3 1 4-.5-.5 4L9 12 6 10.5 2 9.5z"/>':'<circle cx="7" cy="7" r="5.5"/><path d="M1.5 7h11M7 1.5c-2.5 2.5-2.5 8.5 0 11M7 1.5c2.5 2.5 2.5 8.5 0 11"/>')+'</svg><span class="n"></span><svg class="v" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 3.5l3 3 3-3"/></svg>';
-  sp.querySelector('.n').textContent=spn;
-  sp.addEventListener('click',function(){ var q='?rescope='+encodeURIComponent(D().scope||'world')+'&tl='+encodeURIComponent((document.title||'').replace(/\s*[·|–-]\s*Alto\s*$/,''));
-    if(window.__altoGo) window.__altoGo('index.html'+q); else A.scopePill=q; });
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in',title:'Zoom in (+)'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out',title:'Zoom out (−)'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
   var narrow=(window.innerWidth||1000)<700||document.documentElement.classList.contains('mobile');      // (the map is not measured yet; a phone on its side too)

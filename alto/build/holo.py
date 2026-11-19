@@ -248,7 +248,6 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-pin:not(#_):not(#__){border-radius:0;font:inherit;font-size:9px;font-weight:500;line-height:1;letter-spacing:.06em;border-width:1px;}   /* (`font:inherit`: the sheet names no font family) */
   X #wpal-root .wp-pin:not(.wp-hint):not(#_):not(#__){box-shadow:0 0 8px color-mix(in srgb,var(--u) 45%,transparent),inset 0 0 8px color-mix(in srgb,var(--u) 12%,transparent);}
   X #wpal-root .wp-pin.wp-hint:not(#_):not(#__){box-shadow:0 0 0 4px color-mix(in srgb,var(--u) 38%,transparent),0 0 10px color-mix(in srgb,var(--u) 55%,transparent);}
-  X #wpal-root .wp-scope:not(#_):not(#__){border-radius:0;border:1px solid rgba(0,255,238,.55);color:#c9fffa;background:rgb(2,27,33);text-transform:uppercase;letter-spacing:.14em;font-size:12px;}   /* the scope pill (Art spec 2) */
   X #wpal-root .wp-train:not(#_):not(#__){filter:drop-shadow(0 0 4px rgba(79,240,224,.55));}   /* the Tour train: square cyan plates on the dark teal, two lit bead windows per car, a comet of beads for steam, a cyan hairline track (Art, train sheet) */
   X #wpal-root .wp-train path:not(#_):not(#__){fill:rgb(2,27,33);stroke:rgb(79,240,224);stroke-width:1px;stroke-linejoin:miter;}
   X #wpal-root .wp-train path.f:not(#_):not(#__){fill:none;}

@@ -350,3 +350,93 @@ def test_the_world_on_a_phone_on_its_side_is_centred_below_the_header_row(browse
         assert r["fill"] > (.7 if hgt >= 342 else .55), r
     finally:
         ctx.close()
+
+
+@pytest.mark.parametrize("vp,mobile", [({"width": 1440, "height": 900}, False), ({"width": 390, "height": 844}, True)], ids=["d1440", "p390"])
+@pytest.mark.parametrize("style", ["classic", "dark", "retro", "holo"])
+def test_the_world_dropdown_pill_is_gone_and_the_bottom_chip_still_navigates(browser, origin, vp, mobile, style):
+    """Luke 18 Nov (L-1118-WORLDTOG): no 'World' dropdown pill under the title, on desktop or phone, in any style. The pill held no region list (it only
+    opened the homepage scope set-up), so the bottom 'Whole world' chip and its arrows are the whole of region navigation, and must keep working."""
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+    cx = browser.new_context(viewport=vp, **({"is_mobile": True, "has_touch": True, "user_agent": ua} if mobile else {}))      # (a phone is built as one at load: its MENU drawer exists then)
+    page = cx.new_page()
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    try:
+        page.goto(origin + "/index.html")
+        page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+        cls = {"classic": "", "dark": "dark", "retro": "alto-retro", "holo": "alto-holo"}[style]
+        page.evaluate("(c) => { if (c) document.documentElement.classList.add(c); }", cls)
+        _settle(page, 500)
+        assert page.evaluate("document.querySelectorAll('#wpal-root .wp-scope').length") == 0
+        assert page.evaluate("[...document.querySelectorAll('#wpal-root button')].filter(b => /^\\s*World\\s*$/.test(b.textContent) && b.getAttribute('aria-haspopup')).length") == 0
+        page.evaluate("document.title = 'Civ Pro'; window.__go = null; window.__altoGo = function(u){ window.__go = u; }")
+        if mobile:
+            # a phone has no chip (its nav bar is hidden): the entry is one row in the page's own MENU drawer, >= 44 px, same action
+            page.evaluate("window.openNavDrawer()")
+            row = "#nav-drawer-body #drawer-changemap-btn"
+            assert page.evaluate(f"document.querySelector('{row}').textContent.trim()") == "Change map…"
+            assert page.evaluate(f"document.querySelector('{row}').getBoundingClientRect().height") >= 44
+            page.evaluate(f"document.querySelector('{row}').click()")
+        else:
+            at = "#wpal-root .wp-nav .wp-at"
+            assert "Whole world" in page.evaluate(f"document.querySelector('{at}').textContent")
+            page.evaluate("AltoWorld.select('erie')")
+            _settle(page, 1700)
+            assert "Whole world" not in page.evaluate(f"document.querySelector('{at}').textContent")      # the chip names where the map now is
+            for _ in range(6):                                                                             # the arrow back up reaches the whole world again (bounded)
+                if "Whole world" in page.evaluate(f"document.querySelector('{at}').textContent"):
+                    break
+                page.evaluate("document.querySelector('#wpal-root .wp-nav .wp-up').click()")
+                _settle(page, 900)
+            assert "Whole world" in page.evaluate(f"document.querySelector('{at}').textContent")
+            # the scope set-up lives in the chip's open state: one 'Change map…' row, >= 44 px, reachable by keyboard
+            page.evaluate(f"document.querySelector('{at}').click()")
+            assert page.evaluate("!document.querySelector('#wpal-root .wp-mapm').hidden")
+            row = "#wpal-root .wp-mapm button"
+            assert page.evaluate(f"document.querySelector('{row}').textContent") == "Change map…"
+            assert page.evaluate(f"parseFloat(getComputedStyle(document.querySelector('{row}')).minHeight)") >= 44      # (css px: the desktop page is zoomed a little under 1, so the box measures less)
+            assert page.evaluate(f"document.activeElement === document.querySelector('{row}')")            # keyboard: focus lands on the row
+            page.keyboard.press("Escape")
+            assert page.evaluate("document.querySelector('#wpal-root .wp-mapm').hidden")
+            page.evaluate(f"document.querySelector('{at}').click()")
+            page.evaluate(f"document.querySelector('{row}').click()")
+        assert page.evaluate("window.__go") == "index.html?rescope=world&tl=Civ%20Pro"                    # the same URL the pill opened
+        assert "&amp;" not in page.evaluate("window.__go")                                               # a real '&', never the literal entity the homepage cannot read
+        assert page.evaluate("(() => { var q = new URL(window.__go, location.href).searchParams; return [q.get('rescope'), q.get('tl')]; })()") == ["world", "Civ Pro"]
+        assert not errors, errors
+    finally:
+        cx.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "classic-dark", "retro", "holo"])
+def test_the_phone_menu_drawer_has_no_map_text_through_it(browser, origin, style):
+    """Luke/CEO 2026-11-18 (p390): the MENU drawer was see-through, so the map's labels read through its tiles. Opaque in every style: every page text
+    under the drawer is covered by the drawer itself (elementFromPoint lands inside it)."""
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+    cx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, user_agent=ua)
+    page = cx.new_page()
+    try:
+        page.goto(origin + "/index.html")
+        page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+        if style in ("retro", "holo"):
+            page.evaluate("(s) => (window._altoStyle || window._altoStyleC).set(s)", style)
+            page.reload()
+            page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+            page.wait_for_timeout(2000)
+        elif style == "classic-dark":
+            page.evaluate("document.documentElement.classList.add('dark')")
+        page.evaluate("window.openNavDrawer()")
+        page.wait_for_timeout(800)
+        r = page.evaluate("""() => { var d = document.getElementById('nav-drawer'), dr = d.getBoundingClientRect(), bad = [], n0 = 0;
+          var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          while (w.nextNode()) { var n = w.currentNode, e = n.parentElement; if (!e || !n.nodeValue.trim() || e.closest('#nav-drawer')) continue;
+            var rg = document.createRange(); rg.selectNodeContents(n); [...rg.getClientRects()].forEach(q => {
+              if (q.width < 2 || q.height < 2 || q.right < dr.left || q.left > dr.right || q.bottom < dr.top || q.top > dr.bottom) return; n0++;
+              var cx = Math.min(Math.max((q.left + q.right) / 2, dr.left + 1), dr.right - 1), cy = Math.min(Math.max((q.top + q.bottom) / 2, dr.top + 1), dr.bottom - 1);
+              var hit = document.elementFromPoint(cx, cy); if (!hit || !hit.closest('#nav-drawer')) bad.push(n.nodeValue.trim().slice(0, 30)); }); }
+          var bg = getComputedStyle(d).backgroundColor, al = (bg.match(/rgba\(.*,\s*([\d.]+)\)$/) || [0, 1])[1];
+          return {alpha: parseFloat(al), bad: bad, under: n0}; }""")
+        assert r["alpha"] >= .95 and r["bad"] == [], r
+    finally:
+        cx.close()

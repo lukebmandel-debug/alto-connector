@@ -217,3 +217,126 @@ def test_phone_tiles_fit_and_have_44pt_targets(browser, site, style, size):
         assert page.evaluate("ntKind") == "palace" and page.is_hidden("#nt-scope")
     finally:
         ctx.close()
+
+
+# ── Board L-1118-ATLASSCOPE (Luke, 2026-11-18: "there incorrectly is not a picker for world/country here"): in the Claude tab the
+# scope row sat below the hidden name fields, so only Write-it-yourself ever showed it. It now sits under the Map / Blueprint / Atlas row, in both tabs.
+def _atlas(page, tab):
+    page.evaluate("ntOpen('', true)")
+    page.wait_for_timeout(150)
+    page.click(".nt-tab[data-tab=%s]" % tab)
+    page.wait_for_timeout(100)
+    _click(page, "#nt-modal .nt-kind[data-kind=palace]")
+    _click(page, "#nt-pal .nt-kind[data-mode=world]")
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("size", ["d1440", "p390"])
+def test_atlas_scope_choice_shows_in_the_claude_tab_and_reaches_the_prompt(browser, site, style, size):
+    ctx, page = _open(browser, site, style, size)
+    try:
+        _atlas(page, "claude")
+        assert page.is_visible("#nt-scope")                                                        # World | Country under the Atlas row, in the Claude tab
+        assert page.get_attribute("#nt-scope .nt-kind[data-scope=world]", "aria-pressed") == "true"     # default: World
+        assert page.evaluate("document.querySelector('#nt-scope').getBoundingClientRect().bottom <= document.querySelector('#nt-tabs').getBoundingClientRect().top + 1")   # before Claude / Write it yourself
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        assert page.is_visible("#nt-clist")                                                        # Country opens the chooser
+        assert page.is_disabled("#nt-claude")                                                      # and the button waits for a country
+        for sel in ("#nt-scope .nt-kind", "#nt-clist .nt-crow"):
+            assert page.evaluate("s => [...document.querySelectorAll(s)].filter(e => e.offsetParent).every(e => e.getBoundingClientRect().height >= 43.5)", sel)
+        _click(page, "#nt-clist .nt-crow[data-iso=USA]")
+        assert not page.is_disabled("#nt-claude")
+        page.evaluate("window.__sent.length = 0")
+        _click(page, "#nt-claude")
+        sent = page.evaluate("window.__sent.slice()")
+        assert len(sent) == 1 and "set_up_world" in sent[0] and "'country'" in sent[0] and "USA" in sent[0] and "United States" in sent[0], sent
+        _atlas(page, "claude")                                                                      # World (the default) names no country
+        page.evaluate("window.__sent.length = 0")
+        _click(page, "#nt-claude")
+        assert "USA" not in page.evaluate("window.__sent[0]")
+    finally:
+        ctx.close()
+
+
+def test_atlas_scope_choice_reaches_the_write_it_yourself_build(browser, site):
+    ctx, page = _open(browser, site)
+    try:
+        _atlas(page, "self")
+        assert page.is_visible("#nt-scope")
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        _click(page, "#nt-clist .nt-crow[data-iso=BRA]")
+        page.evaluate("window.__sent.length = 0")
+        _click(page, "#nt-make")
+        sent = page.evaluate("window.__sent.slice()")
+        assert len(sent) == 1 and "'country'" in sent[0] and "BRA" in sent[0], sent
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("size", ["d1440", "p390"])
+def test_the_sheets_top_edge_never_cuts_a_line_when_scrolled(browser, site, style, size):
+    ctx, page = _open(browser, site, style, size)
+    try:
+        _atlas(page, "claude")
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        r = page.evaluate("""() => { var m = document.getElementById('nt-modal'), cs = getComputedStyle(m, '::before'), t0 = m.querySelector('.acct-title').getBoundingClientRect().top - m.getBoundingClientRect().top;
+          m.scrollTop = 40; var mh = m.scrollHeight > m.clientHeight;
+          return {sticky: cs.position, fade: cs.backgroundImage, h: parseFloat(cs.height), pt: parseFloat(getComputedStyle(m).paddingTop), t0: t0, scrolls: mh}; }""")
+        assert r["sticky"] == "sticky" and "gradient" in r["fade"] and r["h"] >= 18, r        # a fade pinned to the top edge: text scrolling under it dissolves, never ends mid-line
+        assert r["t0"] >= r["pt"] - 1, r                                                         # at rest the strip shifts nothing: the title still starts at the sheet's padding
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+@pytest.mark.parametrize("dark", [False, True])
+def test_the_new_project_sheet_has_no_page_text_over_or_under_it_on_a_phone(browser, site, style, dark):
+    """Luke 2026-11-18 (p390): the sheet was see-through, so the home page's own words read through the cards and its HOME / wordmark overlapped the top
+    edge. The sheet is opaque; every page text element that lies under it is covered by the sheet itself (elementFromPoint lands inside it)."""
+    ctx, page = _open(browser, site, style, "p390", dark)
+    try:
+        _atlas(page, "claude")
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        r = page.evaluate("""() => { var m = document.getElementById('nt-modal'), mr = m.getBoundingClientRect(), bg = getComputedStyle(m).backgroundColor, bad = [];
+          var al = (bg.match(/rgba\\(.*,\\s*([\\d.]+)\\)$/) || [0, 1])[1];
+          var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          while (w.nextNode()) { var n = w.currentNode, e = n.parentElement; if (!e || !n.nodeValue.trim() || e.closest('#nt-scrim')) continue;
+            var rg = document.createRange(); rg.selectNodeContents(n); [...rg.getClientRects()].forEach(q => {
+              if (q.width < 2 || q.height < 2 || q.right < mr.left || q.left > mr.right || q.bottom < mr.top || q.top > mr.bottom) return;
+              var cx = Math.min(Math.max((q.left + q.right) / 2, mr.left + 1), mr.right - 1), cy = Math.min(Math.max((q.top + q.bottom) / 2, mr.top + 1), mr.bottom - 1);
+              var hit = document.elementFromPoint(cx, cy); if (!hit || !hit.closest('#nt-modal')) bad.push(n.nodeValue.trim().slice(0, 30)); }); }
+          return {alpha: parseFloat(al), bad: bad, top: mr.top}; }""")
+        assert r["alpha"] >= .99 and r["bad"] == [], r
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_the_top_fade_covers_a_control_that_is_partly_scrolled_off(browser, site, style):
+    """CEO 2026-11-18 (p390): the Memory Atlas chip sat half-cut by the sheet's top edge. The fade strip pinned to the top is tall (48 px) and solid for its
+    first 55 %, so a control mid-scroll under the edge is hidden, then faded out, never shown as a crisp half; the strip takes no touch; at rest it shifts nothing."""
+    ctx, page = _open(browser, site, style, "p390")
+    try:
+        _atlas(page, "claude")
+        _click(page, "#nt-scope .nt-kind[data-scope=country]")
+        r = page.evaluate("""() => { var m = document.getElementById('nt-modal'), cs = getComputedStyle(m, '::before'), mr = m.getBoundingClientRect(), chip = m.querySelector('.nt-mode[data-mode=world]'), out = {};
+          out.strip = parseFloat(cs.height); out.sticky = cs.position; out.pe = cs.pointerEvents; out.grad = cs.backgroundImage;
+          out.solid = (cs.backgroundImage.match(/\)\s+(\d+(?:\.\d+)?)%/) || [0, 0])[1];
+          m.scrollTop = 0; var t0 = m.querySelector('.acct-title').getBoundingClientRect().top - mr.top;
+          chip.scrollIntoView({block: 'center'}); m.scrollTop += chip.getBoundingClientRect().top - mr.top + 6;     // the chip now straddles the top edge: 6 px of it above
+          var sr = document.createRange(); out.stripAtTop = true;
+          var cr = chip.getBoundingClientRect(); out.chipTop = cr.top - mr.top; out.chipBottom = cr.bottom - mr.top; out.t0 = t0; out.pt = parseFloat(getComputedStyle(m).paddingTop);
+          return out; }""")
+        assert r["sticky"] == "sticky" and r["pe"] == "none" and "gradient" in r["grad"], r
+        assert r["strip"] >= 44 and r["t0"] >= 17, r
+        assert r["chipTop"] < r["strip"] * .55 and r["chipBottom"] <= r["strip"] + 1, r        # the straddling chip lies wholly inside the strip: hidden or fading, never a crisp half
+        PIL = pytest.importorskip("PIL.Image")
+        import io
+        box = page.evaluate("(() => { var r = document.getElementById('nt-modal').getBoundingClientRect(); return [r.left + 24, r.top + 3, r.width - 48, 20]; })()")
+        img = PIL.open(io.BytesIO(page.screenshot(clip={"x": box[0], "y": box[1], "width": box[2], "height": box[3]}))).convert("RGB")
+        px = list(img.getdata())
+        mid = [sorted(c[i] for c in px)[len(px) // 2] for i in range(3)]
+        assert max(abs(c[i] - mid[i]) for c in px for i in range(3)) <= 16, ("the chip shows through the top fade", mid)     # the band at the very top is flat sheet colour: nothing crisp is cut there
+    finally:
+        ctx.close()
