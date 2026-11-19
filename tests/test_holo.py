@@ -565,11 +565,11 @@ def psite(tmp_path_factory):
 def test_the_projector_css_is_compositor_only_and_has_a_reduced_motion_still():
     css = holo.css()
     kf = re.findall(r"@keyframes (ho-\w+)\{(.*?)\}\}?(?=@keyframes|\s*@media|\s*html|\s*$|\})", css)
-    assert {k for k, _ in kf} == {"ho-spin", "ho-pulse", "ho-scan", "ho-logo"}
+    assert {k for k, _ in kf} == {"ho-sway", "ho-pulse", "ho-scan", "ho-logo"}
     body = "".join(re.findall(r"@keyframes ho-\w+\{.*?\}\}", css))
     assert body and not re.search(r"filter|box-shadow|background-position|width|height|top|left|margin", body), body
     rm = css[css.index("@media (prefers-reduced-motion:reduce)"):]
-    assert "animation:none" in rm and "rotateY(28deg)" in rm
+    assert "animation:none" in rm and "rotateY(14deg)" in rm
     assert holo.JS.count("HOMEB") == 1 and "_altoRetroHome" in holo.ASSET and "hp-stage" in holo.ASSET
 
 
@@ -591,7 +591,7 @@ def test_the_homepage_projector_draws_three_layers_and_off_restores_the_plate(br
                 anim:cs.animationName, dur:cs.animationDuration, scan:getComputedStyle(t.querySelector('.hp-scan i')).animationName, fmt:t.getAttribute('data-fmt'), noFlat:getComputedStyle(e.querySelector(':scope > svg')).display}})""")
     names = ["Timeline", "Timeline · Horizontal", "Outline", "System", "Memory Map", "Memory Blueprint", "Memory Atlas"]
     assert [g["label"] for g in got] == names and [g["tip"] for g in got] == names
-    assert all(g["layers"] == 3 and g["role"] == "img" and g["tab"] == "0" and g["anim"] == "ho-spin" and g["dur"] == "10s" and g["scan"] == "ho-scan" and g["noFlat"] == "none" for g in got), got[:2]
+    assert all(g["layers"] == 7 and g["role"] == "img" and g["tab"] == "0" and g["anim"] == "ho-sway" and g["dur"] == "9s" and g["scan"] == "ho-scan" and g["noFlat"] == "none" for g in got), got[:2]
     # light AND dark: every word on the new plates meets AA
     res = pg.evaluate(AUDIT_JS)
     assert res["seen"] > 10 and not res["bad"], res["bad"][:10]
@@ -629,7 +629,7 @@ def test_the_homepage_projector_reduced_motion_and_phone(browser, psite):
         return [cs.animationName, cs.transform, getComputedStyle(document.querySelector('.hp-scan')).display, getComputedStyle(document.querySelector('.hp-base i + i')).display]}""")
     assert r[0] == "none" and r[2] == "none" and r[3] == "none"
     m = re.search(r"matrix3d\(([^,]+),\s*[^,]+,\s*([^,]+),", r[1])
-    assert abs(float(m.group(1)) - 0.8829) < .001 and abs(float(m.group(2)) + 0.4695) < .001      # rotateY(28deg): still, but solid
+    assert abs(float(m.group(1)) - 0.9703) < .001 and abs(float(m.group(2)) + 0.2413) < .001      # rotateY(14deg) rotateX(4deg): still, front face readable, solid
     ctx.close()
     ph = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
     pg = ph.new_page()
@@ -675,7 +675,7 @@ def test_the_logo_turns_on_the_same_motion_budget_and_holds_still_under_reduced_
     assert "transform" in kf and not re.search(r"filter|box-shadow|width|height|top|left|margin|opacity", kf), kf
     assert "ho-logo 10s ease-in-out -2.5s infinite" in css  # the 10 s period, eased at each end of the swing, starting facing front
     # a swing of 55deg to each side, never a full turn: the clef is never edge-on (Board on Art's look at rel-223)
-    assert kf.replace(" ", "") == "0%,100%{transform:perspective(260px)rotateY(-55deg)}50%{transform:perspective(260px)rotateY(55deg)" and "rotateY(360deg)" not in css.split("ho-spin")[0]
+    assert kf.replace(" ", "") == "0%,100%{transform:perspective(260px)rotateY(-55deg)}50%{transform:perspective(260px)rotateY(55deg)" and "rotateY(360deg)" not in css.split("ho-sway")[0]
     assert re.search(r"prefers-reduced-motion:reduce\)\{[^@]*brand-mark[^}]*animation:none", css)
     assert re.search(r"hp-hid #title-bar svg\.brand-mark[^{]*\{animation-play-state:paused", css)   # a hidden tab stops it (the phone clef too)
     assert "@keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(-55deg)}50%{transform:translateY(-50%) perspective(260px) rotateY(55deg)}}" in css   # the phone clef keeps its centring while it swings
@@ -805,3 +805,37 @@ def test_holographic_menu_has_no_dark_light_tile_but_the_other_styles_keep_it():
     phone and on a computer; Classic and Retro's own sheets never hide it."""
     assert re.search(r"html\.alto-holo[^{]*#drawer-mode-btn[^{]*\{[^}]*display:none", holo.css())
     assert "#drawer-mode-btn" not in retro.CHROME_CSS + retro.FORMAT_CSS or "display:none" not in re.findall(r"[^}]*#drawer-mode-btn[^{]*\{[^}]*\}", retro.CHROME_CSS + retro.FORMAT_CSS)[0]
+
+
+# ── Holo 3D glyph (Board L-1119-HOLO3D, 1.9.251) ──
+def test_the_glyph_sways_never_edge_on_and_has_depth_layers_in_the_css():
+    css = holo.css()
+    kf = re.search(r"@keyframes ho-sway\{(.*)\}\}", css).group(1)
+    yaws = [float(x) for x in re.findall(r"rotateY\((-?[\d.]+)deg\)", kf)]
+    assert len(yaws) >= 2 and all(abs(y) <= 45 for y in yaws), yaws       # never near 90 or 270, never mirrored
+    assert "rotateY(360" not in kf and "perspective" not in kf
+    zs = sorted(int(z) for z in re.findall(r"\.hp-l\d\{[^}]*translateZ\((-?\d+)px\)", css))
+    assert len(zs) == 7 and zs[0] <= -8 and zs[-1] >= 8 and len(set(zs)) == 7, zs     # thickness: seven slices
+
+
+def test_the_projector_glyph_is_solid_still_front_and_over_the_cone(browser, psite):
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(1200)
+    r = pg.evaluate("""()=>{const t=document.querySelector('.course-tile.hp'), sp=t.querySelector('.hp-spin'), b=t.querySelector('.hp-beam').getBoundingClientRect(), g=sp.getBoundingClientRect();
+        return {z:[...sp.querySelectorAll('.hp-l')].map(l=>getComputedStyle(l).transform), anim:getComputedStyle(sp).animationName, bx:b.left+b.width/2, gx:g.left+g.width/2}}""")
+    assert r["anim"] == "none" and len(set(r["z"])) == 7        # Still: no motion; seven distinct depths
+    assert abs(r["bx"] - r["gx"]) < 3, r                        # the cone is centred under the glyph
+    ctx.close()
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(1200)
+    cs = pg.evaluate("""async()=>{const sp=document.querySelector('.hp-spin'), out=[];
+        for(let i=0;i<12;i++){ const m=new DOMMatrix(getComputedStyle(sp).transform); out.push(m.m11); await new Promise(r=>setTimeout(r,800)); }
+        return out}""")
+    assert all(c > 0.7 for c in cs), cs                          # facing front all through the sway (cos yaw > 0.7)
+    ctx.close()
