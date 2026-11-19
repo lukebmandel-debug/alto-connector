@@ -209,13 +209,17 @@ PROJ_CSS = r"""
   X.alto-home .course-tile .tile-emblem.hp-on:focus-visible{outline:2px solid var(--ho-ac2);outline-offset:-3px;}
   X.alto-home .course-tile.hp:hover,X.alto-home .course-tile.hp:focus-within{z-index:4;}
   X .hp-stage{position:relative;width:84px;height:104px;perspective:420px;}
-  X .hp-spin{position:absolute;inset:12px 14px 34px;transform-style:preserve-3d;animation:ho-spin 10s linear infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
+  X .hp-spin{position:absolute;inset:12px 14px 34px;transform-style:preserve-3d;animation:ho-sway 9s ease-in-out infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
   X.alto-home .course-tile .hp-stage .hp-l{position:absolute;inset:0;display:block;width:100%;height:100%;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;overflow:visible;}
-  X .hp-stage .hp-l1{stroke:var(--hp-mg);color:var(--hp-mg);opacity:.55;transform:translateZ(-5px);}
-  X .hp-stage .hp-l2{stroke:var(--ho-ac);color:var(--ho-ac);transform:translateZ(0);}
-  X .hp-stage .hp-l3{stroke:var(--ho-ac);color:var(--ho-ac);opacity:.45;transform:translateZ(5px);}
+  X .hp-stage .hp-l1{stroke:var(--hp-mg);color:var(--hp-mg);opacity:.55;transform:translateZ(-12px);}
+  X .hp-stage .hp-l3{stroke:var(--ho-ac);color:var(--ho-ac);opacity:1;transform:translateZ(12px);}
+  X .hp-stage .hp-l4{stroke:color-mix(in srgb,var(--ho-ac) 30%,#000);color:color-mix(in srgb,var(--ho-ac) 30%,#000);opacity:1;transform:translateZ(-8px);}
+  X .hp-stage .hp-l5{stroke:color-mix(in srgb,var(--ho-ac) 38%,#000);color:color-mix(in srgb,var(--ho-ac) 38%,#000);opacity:1;transform:translateZ(-4px);}
+  X .hp-stage .hp-l2{stroke:color-mix(in srgb,var(--ho-ac) 48%,#000);color:color-mix(in srgb,var(--ho-ac) 48%,#000);opacity:1;transform:translateZ(0px);}
+  X .hp-stage .hp-l6{stroke:color-mix(in srgb,var(--ho-ac) 60%,#000);color:color-mix(in srgb,var(--ho-ac) 60%,#000);opacity:1;transform:translateZ(4px);}
+  X .hp-stage .hp-l7{stroke:color-mix(in srgb,var(--ho-ac) 74%,#000);color:color-mix(in srgb,var(--ho-ac) 74%,#000);opacity:1;transform:translateZ(8px);}
   X.alto-home .tile-emblem.hp-on .hp-l rect[mask]{fill-opacity:.62;stroke:currentColor;stroke-width:.9}
-  X.alto-home .tile-emblem.hp-on :is(.hp-l2,.hp-l3) rect[mask]{fill-opacity:.16}
+  X.alto-home .tile-emblem.hp-on :is(.hp-l2,.hp-l4,.hp-l5,.hp-l6,.hp-l7) rect[mask]{fill-opacity:1;stroke-width:1.5}
   X .hp-beam{position:absolute;left:50%;bottom:22px;width:62px;height:58px;transform:translateX(-50%);background:linear-gradient(to top,rgba(var(--ho-rgb),var(--hp-cone)),transparent);clip-path:polygon(24% 0,76% 0,100% 100%,0 100%);}
   X .hp-base{position:absolute;left:50%;bottom:12px;width:64px;height:14px;transform:translateX(-50%);}
   X .hp-base i{position:absolute;inset:0;border:1px solid var(--ho-ac);border-radius:50%;}
@@ -225,15 +229,15 @@ PROJ_CSS = r"""
   X .hp-tip{position:absolute;left:50%;top:-6px;transform:translate(-50%,-100%);z-index:9;padding:5px 8px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;
     background:var(--ho-bg);color:var(--ho-tx);border:1px solid var(--ho-ac);font:12px/1 "SF Mono",ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;}
   X .hp-on:hover .hp-tip,X .hp-on:focus-visible .hp-tip{opacity:1;}
-  X .course-tile.hp-still .hp-spin{animation:none;transform:rotateY(28deg);}
+  X .course-tile.hp-still .hp-spin{animation:none;transform:rotateY(14deg) rotateX(4deg);}
   X .course-tile.hp-still :is(.hp-base i + i,.hp-scan){display:none;}
   X .course-tile.hp-off :is(.hp-spin,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
   X.hp-hid .course-tile :is(.hp-spin,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
-  @keyframes ho-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+  @keyframes ho-sway{0%,100%{transform:rotateY(-34deg) rotateX(5deg)}50%{transform:rotateY(34deg) rotateX(-4deg)}}   /* a sway, never past 34deg: the face is always readable, never edge-on or mirrored */
   @keyframes ho-pulse{from{transform:scale(.55);opacity:.9}to{transform:scale(1.25);opacity:0}}
   @keyframes ho-scan{from{transform:translateY(0)}to{transform:translateY(100%)}}
   @media (prefers-reduced-motion:reduce){
-   X .hp-spin{animation:none !important;transform:rotateY(28deg);}
+   X .hp-spin{animation:none !important;transform:rotateY(14deg) rotateX(4deg);}
    X .hp-base i + i,X .hp-scan{display:none !important;}
    X .hp-base i:first-child{opacity:.6;}
    X .hp-tip{transition:none;}
@@ -535,7 +539,7 @@ function proj(){
     var svg=null; for(var c=em.firstChild;c;c=c.nextSibling){ if(c.nodeName.toLowerCase()==='svg'){ svg=c; break; } }
     if(!svg) return;
     var stage=pel('hp-stage'), spin=pel('hp-spin'), base=pel('hp-base'), scan=pel('hp-scan'), tip=pel('hp-tip'); stage.setAttribute('aria-hidden','true'); scan.setAttribute('aria-hidden','true');
-    ['hp-l1','hp-l2','hp-l3'].forEach(function(k){ var s=svg.cloneNode(true); s.setAttribute('class','hp-l '+k); s.setAttribute('aria-hidden','true'); spin.appendChild(s); });
+    ['hp-l1','hp-l4','hp-l5','hp-l2','hp-l6','hp-l7','hp-l3'].forEach(function(k){ var s=svg.cloneNode(true); s.setAttribute('class','hp-l '+k); s.setAttribute('aria-hidden','true'); spin.appendChild(s); });
     base.appendChild(pel('','i')); base.appendChild(pel('','i')); scan.appendChild(pel('','i'));
     stage.appendChild(pel('hp-beam')); stage.appendChild(spin); stage.appendChild(base);
     tip.textContent=name; tip.setAttribute('aria-hidden','true');
