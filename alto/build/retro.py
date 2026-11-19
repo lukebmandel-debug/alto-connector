@@ -449,7 +449,7 @@ HOME_CSS = r"""
   X.alto-home #sk-mark{display:none !important;}   /* (nothing new along the bottom edge: the corner controls keep it) */
   X.alto-rep #sk-mark{display:none !important;}   /* (the Reports page: the same as the homepage, its name hangs from the top) */
   /* the top row: the Home pill a square chip in gold capitals */
-  X:is(.alto-home,.alto-rep):not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none) */
+  X:is(.alto-home,.alto-rep,.wpal-open,.bldg-open):not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:visible !important;}   /* (the other formats hide the name above 900px for the cartouche; the homepage has none, nor have the world map or the Blueprint: Board 1119, their title was missing in Retro) */
   @media (max-width:640px){ X:is(.alto-home,.alto-rep) #title-bar #title-text:not(#_){color:#d9ae55 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;border-radius:0 !important;padding:5px 16px !important;font-size:13px;font-weight:500 !important;letter-spacing:.2em;} }   /* (a phone keeps its Home chip: Luke, 1 B, phone unchanged) */
   /* projects: no glass, a fine gold rim, the name in gold capitals */
   X.alto-home .project-slab:not(.new-project-slab):not(#_){background:#000 !important;border:1px solid rgba(217,174,85,.4) !important;border-radius:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
