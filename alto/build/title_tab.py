@@ -13,6 +13,8 @@ homepage and Reports). The hover line (hover_lines.py) is the name's ::before, l
 """
 from __future__ import annotations
 
+import json
+
 from . import format_symbols
 from .backgrounds import _lean
 
@@ -49,14 +51,24 @@ INKS = {"sym": "#1a1a2e", "syd": "#e2e2f0", "syr": "#000", "syh": "#06485c", "sy
 
 
 def vars_css(key: str | None) -> str:
-    """The page's own symbol, once in each ink (none for the homepage and Reports). A System's sky is light in every theme: its one ink is the dark theme's."""
+    """The page's own symbol in each ink (none for the homepage and Reports), drawn ONCE (inverted glyphs v2 carried it five times as encoded data URIs,
+    and again in the page's format-name script). The drawing sits in this one script as plain markup; the script writes the five --tt-* variables on the
+    root before first paint, each the same url() ink_uri gives (test_title_tiles checks it in a browser), and leaves the markup in window._altoSymMarkup
+    for the format-name script (search.format_name_js), which would otherwise carry a second copy. A System's sky is light in every theme: its one ink is
+    the dark theme's."""
     if not key:
         return ""
-    ink = {k: format_symbols.ink_uri(key, v) for k, v in INKS.items()}
+    inks = dict(INKS)
     if key == "system":
-        ink["sym"] = format_symbols.ink_uri(key, "#eef2ff")
-        ink["syd"] = "var(--tt-sym)"
-    return ":root{" + ";".join("--tt-%s:%s" % kv for kv in ink.items()) + ";--tt-w:18px;--tt-sw:26px;}"
+        inks["sym"] = "#eef2ff"
+    g = format_symbols.SYMBOLS[key][2]
+    js = ("(function(){var m=" + json.dumps(format_symbols.SYMBOLS[key][1]) + ",s=document.documentElement.style,k=" + json.dumps(inks) + ";"
+          "(window._altoSymMarkup=window._altoSymMarkup||{})[" + json.dumps(key) + "]=m;"
+          "for(var n in k){var c=k[n];s.setProperty('--tt-'+n,'url(\"data:image/svg+xml,'+('<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + "%d %d" % (g, g)
+          + "\" fill=\"none\" stroke=\"'+c+'\" stroke-width=\"" + str(g / 16) + "\" stroke-linecap=\"round\" stroke-linejoin=\"round\">'+m.split('currentColor').join(c)+'</svg>')"
+          ".replace(/\"/g,\"'\").replace(/</g,'%3C').replace(/>/g,'%3E').replace(/#/g,'%23')+'\")')}"
+          + ("s.setProperty('--tt-syd','var(--tt-sym)');" if key == "system" else "") + "})();")
+    return "</style><script>" + js + "</script><style>:root{--tt-w:18px;--tt-sw:26px;}"
 
 
 def block(key: str | None = None) -> str:

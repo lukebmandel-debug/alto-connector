@@ -123,7 +123,9 @@ def test_a_card_without_its_format_symbol_gets_a_medallion_and_loses_it_with_the
     assert pg.evaluate("document.querySelectorAll('.course-tile:not(.new-tile) > .tile-emblem').length") == 6
     pg.evaluate("window._altoRetro.off()")
     pg.wait_for_timeout(400)
-    assert pg.evaluate("document.querySelectorAll('.tile-emblem,.t-main').length") == 0, "the drawn medallion must go with the style"
+    assert pg.evaluate("document.querySelectorAll('.t-main').length") == 0, "the style's own rows must go with the style"
+    assert pg.evaluate("document.querySelectorAll('.tile-emblem').length") == 6, "the plate the page itself draws on a shipped card (1.9.244) stays; only a style-made medallion may go"
+    assert pg.evaluate("document.querySelectorAll('.tile-emblem').length") == pg.evaluate("document.querySelectorAll('.course-tile:not(.new-tile)').length")
     ctx.close()
 
 

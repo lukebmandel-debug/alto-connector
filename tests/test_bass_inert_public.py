@@ -126,6 +126,7 @@ def test_any_one_gate_alone_never_looks_up_the_key_or_builds_a_live_client(tmp_p
             anthropic.Anthropic.__init__ = spy
         except ImportError:
             pass
+        import datetime as _dt
         from alto.bass import studio_key, client as C, keys, errors
         out = {}
         try:
@@ -137,7 +138,8 @@ def test_any_one_gate_alone_never_looks_up_the_key_or_builds_a_live_client(tmp_p
         except keys.NotConfigured:
             out["provider"] = "refused"
         try:
-            C.make_client("live"); out["live"] = "returned"
+            # the free credit's clock is pinned inside the promo window so these cases keep testing the env/file gates, not the date
+            C.make_client("live", clock=lambda: _dt.datetime(2026, 11, 10, 12, tzinfo=_dt.timezone.utc)); out["live"] = "returned"
         except (errors.LiveNotEnabled, keys.NotConfigured):
             out["live"] = "refused"
         done(out=out, built=built)
@@ -145,6 +147,43 @@ def test_any_one_gate_alone_never_looks_up_the_key_or_builds_a_live_client(tmp_p
     _no_hits(r)                                       # no `security` call, no socket, no DNS
     assert r["out"] == {"get_key": "refused", "provider": "refused", "live": "refused"}
     assert r["built"] == []                           # no SDK client was constructed at all
+
+
+def test_after_the_promo_make_client_live_refuses_before_the_key_or_any_client(tmp_path):
+    """The real clock is past the cutoff (18 Nov 2026 23:00Z): even with BOTH gates open, make_client("live") raises promo_ended, the key is
+    never looked up and no SDK client is built. The date is the only thing that stops it here."""
+    (tmp_path / "home").mkdir(exist_ok=True)
+    (tmp_path / "home" / "no-live-go").write_text("")
+    r = _run("""
+        built, looked = [], []
+        try:
+            import anthropic
+            _init = anthropic.Anthropic.__init__
+            def spy(self, *a, **k):
+                built.append(str(k.get("base_url")))
+                return _init(self, *a, **k)
+            anthropic.Anthropic.__init__ = spy
+        except ImportError:
+            pass
+        from alto.bass import studio_key, client as C, keys, errors
+        _gk = studio_key.get_key
+        def spy_key(*a, **k):
+            looked.append("studio_key")
+            return _gk(*a, **k)
+        studio_key.get_key = spy_key
+        _kp = keys.KeychainKeyProvider.get_key
+        def spy_prov(self, *a, **k):
+            looked.append("provider")
+            return _kp(self, *a, **k)
+        keys.KeychainKeyProvider.get_key = spy_prov
+        try:
+            C.make_client("live"); res = "returned"
+        except errors.BassError as e:
+            res = e.code
+        done(res=res, built=built, looked=looked)
+    """, extra_env={"ALTO_LIVE_ANTHROPIC": "1"}, tmp_path=tmp_path)
+    _no_hits(r)
+    assert r["res"] == "promo_ended" and r["looked"] == [] and r["built"] == []
 
 
 def test_the_beta_proxy_without_the_server_flag_serves_only_the_mock(tmp_path):

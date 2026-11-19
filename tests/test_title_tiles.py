@@ -33,7 +33,7 @@ def _build(name, **over):
 
 
 HOME = [{"name": "Law", "pid": "p", "courses": [
-    {"title": "Torts", "href": "t.html", "sub": "3 units", "courseId": "a", "units": ["#4a9eff"]},
+    {"title": "Torts", "href": "t.html", "sub": "3 units", "courseId": "a", "units": ["#4a9eff", "#f43f5e", "#10b981"]},
     {"title": "Contracts", "href": "t.html", "sub": "0 units", "courseId": "b", "units": []}]}]
 
 
@@ -51,12 +51,25 @@ def test_the_image_of_every_symbol_is_a_self_contained_css_url_in_its_own_ink():
 
 def test_a_timeline_page_carries_the_tab_and_its_own_symbol_and_a_system_its_dark_sheet():
     t = _build("outline")
-    assert 'id="alto-title-tab"' in t and "--tt-sym:" in t and "border-radius:0 0 14px 14px" in t
-    assert format_symbols.ink_uri("outline", "#1a1a2e") in t and format_symbols.ink_uri("outline", "#000") in t
-    assert format_symbols.ink_uri("lanes", "#c9fffa") in _build("lanes") and "mask" not in t.split('id="alto-title-tab"')[1].split("</style>")[0]
+    assert 'id="alto-title-tab"' in t and "border-radius:0 0 14px 14px" in t and "--tt-w:18px" in t
+    tpl = json.dumps(format_symbols.SYMBOLS["outline"][1])
+    assert t.count(tpl) == 1 and "--tt-sym:" not in t and "stroke='%231a1a2e'" not in t        # (the drawing once; the inks are put in by the script, checked in a browser below)
+    assert json.dumps(format_symbols.SYMBOLS["lanes"][1]) in _build("lanes") and "currentColor" not in t.split('id="alto-title-tab"')[1].split("</style>")[0]
     s = _build("outline", layout="solar")
-    assert format_symbols.ink_uri("system", "#eef2ff") in s and "html.alto-stars:not(.mobile) #title-bar #title-text" in s
+    assert json.dumps(format_symbols.SYMBOLS["system"][1]) in s and "html.alto-stars:not(.mobile) #title-bar #title-text" in s
     assert "html.alto-stars:not(.mobile) #title-bar #title-text" not in t
+
+
+@pytest.mark.parametrize("name,key", [("t", "outline"), ("l", "lanes"), ("s", "system")])
+def test_the_one_drawing_gets_the_same_url_in_every_ink_as_ever(browser, site, name, key):
+    pg = _open(browser, site, name, "classic")
+    got = pg.evaluate("n => ['sym','syd','syr','syh','syk'].map(k => getComputedStyle(document.documentElement).getPropertyValue('--tt-' + k).trim())")
+    want = {k: format_symbols.ink_uri(key, v) for k, v in title_tab.INKS.items()}
+    if key == "system":
+        want["sym"] = format_symbols.ink_uri(key, "#eef2ff")
+        want["syd"] = want["sym"]
+    assert got == [want[k] for k in ("sym", "syd", "syr", "syh", "syk")]
+    pg.close()
 
 
 def test_the_homepage_and_reports_carry_the_tab_for_a_computer_only_and_no_symbol():
@@ -236,4 +249,42 @@ def test_the_import_tile_in_the_scene_panel_follows(browser, site, style):
     assert bs == ("dashed" if style == "classic" else "solid")
     # Holo's picker rule hides every section without a Holographic tile; #bg-yours (the Import tile) is never removed
     assert pg.evaluate("document.querySelector('#bg-yours .bg-add').getBoundingClientRect().width") > 0
+    pg.close()
+
+
+PRIV = [{"key": "k1", "title": "Torts", "project": "Law", "units": ["#4a9eff", "#f43f5e", "#10b981"], "fmt": "timeline"},
+        {"key": "k2", "title": "Contracts", "project": "Law", "units": ["#f43f5e"], "fmt": "outline"},
+        {"key": "k3", "title": "Atlas", "project": "Law", "units": ["#10b981"], "fmt": "world"}]
+
+
+@pytest.mark.parametrize("style,dark", [("classic", False), ("classic", True), ("holo", False), ("retro", False)])
+def test_every_home_tile_wears_a_visible_glyph_plate_and_says_its_count_once(browser, site, style, dark):
+    """Luke's v2 sheet: a plate inside every card, in Classic, Classic dark, Holo and Retro, for the course tiles the page ships and the account's own."""
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','%s');%s}catch(e){}" % (style, "localStorage.setItem('alto-theme-v1','dark')" if dark else ""))
+    pg.goto(f"{site}/h.html")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("(P) => { drawPrivate(P); }", PRIV)
+    pg.wait_for_timeout(1500)
+    pg.add_style_tag(content="*,*::before,*::after{animation:none !important;transition:none !important}")
+    n = pg.evaluate("document.querySelectorAll('.course-tile:not(.new-tile)').length")
+    assert n == 5, n                                                       # (two the page ships, three the account's)
+    for i in range(n):
+        d = pg.evaluate("""(i) => { const t = document.querySelectorAll('.course-tile:not(.new-tile)')[i], e = t.querySelector('.tile-emblem');
+            if(!e) return {none: true}; const r = e.getBoundingClientRect(), s = getComputedStyle(e), sv = e.querySelector('svg'), sr = sv && sv.getBoundingClientRect(), tr = t.getBoundingClientRect(),
+              sub = t.querySelector('.tile-sub'), ss = sub && getComputedStyle(sub), c = t.querySelector('.t-units');
+            const vis = sub && e.contains(sub) && ss.display !== 'none' && !sub.querySelector('.priv-sym') && sub.textContent.trim();   // (Classic keeps its count under the title, off the plate)
+            return {w: r.width, h: r.height, inside: r.left >= tr.left && r.right <= tr.right && r.top >= tr.top && r.bottom <= tr.bottom, op: +s.opacity, vis: s.visibility, disp: s.display,
+                    sv: sr ? [sr.width, sr.height] : null, hasMark: !!(sv && (sv.querySelector('mask') || sv.querySelector('path,circle,rect'))), plateText: vis || '',
+                    box: {x: r.left, y: r.top, w: r.width, h: r.height}}; }""", i)
+        assert not d.get("none"), (style, dark, i, "no plate")
+        assert d["w"] >= 40 and d["h"] >= 40 and d["inside"] and d["op"] > 0.2 and d["vis"] == "visible" and d["disp"] != "none" and d["sv"] and d["sv"][0] >= 40 and d["hasMark"], (style, dark, i, d)
+        assert d["plateText"] == "", (style, dark, i, "a plain-text count over the plate's corner", d)
+        b = d["box"]
+        clip = {"x": b["x"], "y": b["y"], "width": b["w"], "height": b["h"]}
+        shown = pg.screenshot(clip=clip)
+        pg.evaluate("(i) => document.querySelectorAll('.course-tile:not(.new-tile)')[i].querySelector('.tile-emblem').style.visibility = 'hidden'", i)
+        hidden = pg.screenshot(clip=clip)
+        pg.evaluate("(i) => document.querySelectorAll('.course-tile:not(.new-tile)')[i].querySelector('.tile-emblem').style.visibility = ''", i)
+        assert shown != hidden, (style, dark, i, "the plate draws no pixel")
     pg.close()

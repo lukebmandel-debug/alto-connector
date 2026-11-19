@@ -52,7 +52,8 @@ def test_a_page_names_no_format_in_words():
     assert "— Alto</title>" in html and "Alto Timeline" not in html
     m = re.search(r'<script id="alto-format-name">\s*\(function\(\)\{var G=(\{.*?\]\}),H=', html, re.S)
     g = json.loads(m.group(1))
-    assert list(g) == ["outline"] and g["outline"][1] == F.SYMBOLS["outline"][1]
+    assert list(g) == ["outline"] and g["outline"][1] == ""      # (the page's own drawing is the title tab's, one copy: window._altoSymMarkup, filled in at load)
+    assert html.count(json.dumps(F.SYMBOLS["outline"][1])) == 1 and "window._altoSymMarkup" in html
     assert "Someone shared “" in html and "navigator.share({ title:" in html
     assert "_altoFB ? _altoFB()" in html and "window._altoFB=function" in html   # the print heading
 

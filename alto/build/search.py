@@ -683,7 +683,7 @@ window._altoSXHomeRow=function(r,q){
 
 
 _FORMAT_NAME_JS = r"""
-(function(){var G=__G__,H=document.documentElement,K;
+(function(){var G=__G__,H=document.documentElement,K,M=window._altoSymMarkup||{};for(var q in G)if(G[q][1]===""&&M[q])G[q][1]=M[q];
 function hub(){return !!window._ALTO_SOLAR&&!H.classList.contains('mobile')}
 function ic(g){var v=g[2]||20;return '<svg viewBox="0 0 '+v+' '+v+'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="'+v/16+'" stroke-linecap="round" stroke-linejoin="round">'+g[1]+'</svg>'}
 function set(s,f){[].forEach.call(document.querySelectorAll(s),f)}
@@ -702,7 +702,7 @@ new MutationObserver(apply).observe(H,{attributes:true,attributeFilter:['class']
 """
 
 
-def format_name_js(b: Brief) -> str:
+def format_name_js(b: Brief, shared: bool = False) -> str:
     """The way back from a detail page is named by the symbol of the format the
     reader is in (a System's phone view is an outline); only this page's own
     drawings ride in it."""
@@ -711,6 +711,8 @@ def format_name_js(b: Brief) -> str:
     g = {k: [{"lanes": "Timeline"}.get(k) or format_symbols.name(k),
              format_symbols.SYMBOLS[k][1]] + ([24] if format_symbols.SYMBOLS[k][2] == 24 else [])
          for k in keys}
+    if shared:
+        g[key][1] = ""          # the page's own drawing is the title tab's (title_tab.vars_css leaves it in window._altoSymMarkup): one copy, not two
     if key in ("palace", "building", "world"):
         g["_p"] = key           # which Memory Palace option this page is (Map / Blueprint / Atlas)
     return _FORMAT_NAME_JS.replace("__G__", js_json(g, separators=(",", ":")))
@@ -742,4 +744,4 @@ def search_config(b: Brief) -> str:
     return ("<script>window._ALTO_SEARCH="
             + js_json(cfg) + ";</script>\n"
             + SEARCH_CSS + "\n<script id=\"alto-search-core\">" + MATCH_JS
-            + TIMELINE_SEARCH_JS + "</script>\n<script id=\"alto-format-name\">" + format_name_js(b) + "</script>\n" + sx_block())
+            + TIMELINE_SEARCH_JS + "</script>\n<script id=\"alto-format-name\">" + format_name_js(b, True) + "</script>\n" + sx_block())
