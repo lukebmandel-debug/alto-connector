@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lukebmandel-debug/alto-connector",
   "description": "Build interactive outlines, timelines and memory palaces from your own materials \u2014 never from invented content.",
-  "version": "1.9.244",
+  "version": "1.9.245",
   "repository": {
     "url": "https://github.com/lukebmandel-debug/alto-connector",
     "source": "github"
@@ -11,27 +11,27 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.244/Alto-macos-arm64.mcpb",
-      "version": "1.9.244",
-      "fileSha256": "ec24ad92b1db41328e5d1f1c6a1bb49e7877f1bca13b740e4d3c4ca14f002ecf",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.245/Alto-macos-arm64.mcpb",
+      "version": "1.9.245",
+      "fileSha256": "8422d007e4205e2731cf4a604f20217e9dfb97ba2126496cbaee9bb224361c9b",
       "transport": {
         "type": "stdio"
       }
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.244/Alto-macos-x64.mcpb",
-      "version": "1.9.244",
-      "fileSha256": "22d8a43d32e27b9053aeff31481577324dd34cb264495b8113a3877f34287fbb",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.245/Alto-macos-x64.mcpb",
+      "version": "1.9.245",
+      "fileSha256": "169c72fea1ecb7a80449cf9b55a5617d8275dd8322f79ee050550842166fa694",
       "transport": {
         "type": "stdio"
       }
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.244/Alto-windows-x64.mcpb",
-      "version": "1.9.244",
-      "fileSha256": "db0287d77577c4754303579906d57b9861a80cffdb84fe0363222edbd09c886d",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.245/Alto-windows-x64.mcpb",
+      "version": "1.9.245",
+      "fileSha256": "872a4d27fb65264f7734453c2cc809021194a48bbfc222e7cdc2e7a525a09bcc",
       "transport": {
         "type": "stdio"
       }
