@@ -1592,7 +1592,7 @@ function lblFit(svg, viewOnly){
     function leadCrossesArea(ld, lf){ if(!ld) return false; var a=lmToBoard([ld[0], ld[1]], lf), c=lmToBoard([ld[2], ld[3]], lf), ax=(a[0]+MX)*k, ay=(a[1]+MY)*k, cx=(c[0]+MX)*k, cy=(c[1]+MY)*k, L=Math.hypot(cx-ax, cy-ay); if(L<1) return false;
       var th=obb((ax+cx)/2, (ay+cy)/2, Math.atan2(cy-ay, cx-ax), L/2, 1.5), hit=false; cells(th, function(g){ if(!hit) (grid[g]||[]).some(function(o){ return o.it && o.it.k==='pl-area' && (hit=obbHit(th, o)); }); }); return hit; }
     function hitKept(b){ var hit=false; cells(b, function(c){ if(!hit) (grid[c]||[]).some(function(o){ return (hit=obbHit(b, o)) && (hitBy=o); }); }); return hit; }
-    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl,.pl-portal,.pl-banner'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); b.el=e; b.portal=e.classList.contains('pl-portal'); obs.push(b); } });
+    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-nbtag,.pl-stt,.tr-lbl,.pl-portal,.pl-banner'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); b.el=e; b.portal=e.classList.contains('pl-portal'); obs.push(b); } });
     if(!phone) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0) { var nb=rbox(r, sr); nb.el=e; nodes.push(nb);
       /* a landmark's name also keeps off what hangs over the node's box: its number card above it and its tall building (the 3D art) */
       var u=[r.left, r.top, r.right, r.bottom]; [].forEach.call(e.querySelectorAll(':scope > .nb3d, :scope > .node-card'), function(c){ var q=c.getBoundingClientRect(); if(q.width>0 && q.height>0){ u[0]=Math.min(u[0], q.left); u[1]=Math.min(u[1], q.top); u[2]=Math.max(u[2], q.right); u[3]=Math.max(u[3], q.bottom); } });
@@ -1629,6 +1629,12 @@ function lblFit(svg, viewOnly){
                 ln.setAttribute('x1', ld[0]); ln.setAttribute('y1', ld[1]); ln.setAttribute('x2', ld[2]); ln.setAttribute('y2', ld[3]); ln._on=1; } else if(ln) ln._on=0;
               break; } }
           if(!ok) it.spot=null; }
+        else if(it.k==='pl-dist'){ b=boxAt(g);
+          /* a district's name is always shown, but it never sits on a number tag, a chip or another name: from its home it rises, a line at a time, to the first clear place */
+          function dfree(bb){ return !hitKept(bb) && !obs.some(function(o){ return o.el && (o.el.classList.contains('pl-chip') || o.el.classList.contains('pl-nbtag')) && obbHit(bb, o); }) && !nodes.some(function(o){ return obbHit(bb, o.ext||o); }); }
+          var dst=(fs*1.25+P4)/k, ox=g[0], oy=g[1];
+          for(var dn=0;dn<=10;dn++){ var dg=[g[0], g[1]-dn*dst, 0], db=boxAt(dg); if(dfree(db)){ b=db; ox=dg[0]; oy=dg[1]; break; } if(dn===10) b=boxAt(g); }
+          t.setAttribute('x', ox); t.setAttribute('y', oy); [].forEach.call(t.querySelectorAll('tspan'), function(s2){ s2.setAttribute('x', ox); }); }
         else { b=boxAt(g); if(!it.fixed && !free(b)){ ok=false; if(alt){ var b2=boxAt(alt); if(free(b2)){ ok=true; b=b2; t.setAttribute('y', altY); } } } }
         if(ok){ it.box=b; b.it=it; put(b); } }
       it.keep=ok; });

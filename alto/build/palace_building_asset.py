@@ -498,8 +498,9 @@ function drawLevel(g,id,off){
     }
   });
   var shells=((plan.ex||{}).sh||[]).map(function(x){ return x.p; });
-  (plan.cols||[]).filter(function(c){ return c.l===id; }).filter(function(c){      // a column drawn outside the building is a tracing stray: kept only inside a room or the shell
-    return rooms.some(function(r){ return inside(r.p,c.p); })||shells.some(function(p){ return inside(p,c.p); }); }).forEach(function(c){
+  var colsL=(plan.cols||[]).filter(function(c){ return c.l===id; }).filter(function(c){      // a column drawn outside the building is a tracing stray: kept only inside a room or the shell
+    return rooms.some(function(r){ return inside(r.p,c.p); })||shells.some(function(p){ return inside(p,c.p); }); });
+  colsL.forEach(function(c){
     if(c.r!=null) el('circle',{cx:f2(c.p[0]),cy:f2(-c.p[1]),r:c.r,'class':'bl-col'},gX);
     else el('rect',{x:f2(c.p[0]-c.sz[0]/2),y:f2(-c.p[1]-c.sz[1]/2),width:c.sz[0],height:c.sz[1],'class':'bl-col'},gX);
   });
@@ -513,13 +514,18 @@ function drawLevel(g,id,off){
     el('path',{d:'M'+P([s.p[0]-tx*hw,s.p[1]-ty*hw])+'L'+P([s.p[0]+tx*hw,s.p[1]+ty*hw]),'class':'bl-slot'},gX);
   });
   // labels (placed by labels(): fitted, culled by zoom), then the numbered pills
-  if(off) (S.labelSets=S.labelSets||[]).push({g:gL,rooms:rooms,off:off}); else { S.labelSets=[{g:gL,rooms:rooms,off:[0,0]}]; labels(); }
+  if(off) (S.labelSets=S.labelSets||[]).push({g:gL,rooms:rooms,off:off,cols:colsL}); else { S.labelSets=[{g:gL,rooms:rooms,off:[0,0],cols:colsL}]; labels(); }
 }
 /* Room labels, one size on the screen (12 px, never below 11), re-placed on every zoom and pan. Each room's name is wrapped to its own width (3 lines at most); a room whose
    name cannot fit shows its gallery number alone if that fits, else nothing. Larger and more important rooms (stair halls, courts, halls) claim their place first and a label that
    would touch an earlier one is left out, so at the whole-floor zoom only the big spaces and numbers show and names appear as you zoom in. */
 var LAB_PX=12, LAB_MIN=11, LAB_W={'stair-hall':3,court:2.2,hall:2.2,lobby:1.6,auditorium:1.6,gallery:1.2}, labCtx=null, labSoon=0;
-function labWidth(t,px){ if(!labCtx){ try{ labCtx=document.createElement('canvas').getContext('2d'); }catch(x){} } if(labCtx&&labCtx.measureText){ labCtx.font='600 '+px+'px -apple-system,BlinkMacSystemFont,sans-serif'; return labCtx.measureText(t).width; } return t.length*px*.58; }
+var labSty=null;   // the label's own look in this style (Retro: capitals, wide letter-spacing, its own face): measured the way it is drawn, so a plate fits its text
+function labStyle(g,k){ labSty={tt:'',ls:0,ff:'-apple-system,BlinkMacSystemFont,sans-serif',fw:'600'};
+  try{ var t=el('text',{'class':'bl-lab'},g); t.style.fontSize=f2(12/k)+'px'; t.textContent='x'; var c=getComputedStyle(t), fs=parseFloat(c.fontSize)||1, ls=parseFloat(c.letterSpacing);
+    labSty={tt:c.textTransform||'',ls:isNaN(ls)?0:ls/fs,ff:c.fontFamily||labSty.ff,fw:c.fontWeight||'600'}; g.removeChild(t); }catch(x){} }
+function labWidth(t,px){ if(!labCtx){ try{ labCtx=document.createElement('canvas').getContext('2d'); }catch(x){} } var st=labSty||{tt:'',ls:0,ff:'-apple-system,BlinkMacSystemFont,sans-serif',fw:'600'}, u=st.tt==='uppercase'?String(t).toUpperCase():String(t);
+  if(labCtx&&labCtx.measureText){ labCtx.font=st.fw+' '+px+'px '+st.ff; return labCtx.measureText(u).width+u.length*st.ls*px; } return u.length*(px*.58+st.ls*px); }
 function labWrap(name,maxW,px){ // the name in up to three lines no wider than maxW, or null
   var words=String(name).split(/\s+/).filter(Boolean), lines=[], cur='';
   for(var i=0;i<words.length;i++){ var t=cur?cur+' '+words[i]:words[i]; if(labWidth(t,px)<=maxW||!cur) cur=t; else { lines.push(cur); cur=words[i]; } }
@@ -531,31 +537,46 @@ function labels(){
   var sets=S.labelSets; if(!sets||!sets.length||!S.vb||!S.svg) return;
   sets.forEach(function(q){ while(q.g.firstChild) q.g.removeChild(q.g.firstChild); });
   var rw=S.svg.getBoundingClientRect().width||S.root.clientWidth||1, k=rw/S.vb[2], px=LAB_PX; if(px<LAB_MIN) return;
+  labStyle(sets[0].g,k);
   var items=[], sc0=scr();
   sets.forEach(function(q){ q.rooms.forEach(function(r){
     if(r.gp||!r.n) return;
     var bb=ptsBounds(r.p.map(V)), w=(bb[2]-bb[0])*k, hgt=(bb[3]-bb[1])*k; if(w<px*1.5||hgt<px*1.4) return;
     var many=(S.nodesByRoom[r.id]||[]).length, wt=LAB_W[r.ty]||1, vc=V(centroid(r.p));
-    items.push({r:r, g:q.g, w:w, h:hgt, c:[vc[0]+q.off[0],vc[1]+q.off[1]], many:many, pri:w*hgt*wt});
+    items.push({r:r, g:q.g, w:w, h:hgt, c:[vc[0]+q.off[0],vc[1]+q.off[1]], many:many, pri:w*hgt*wt, q:q});
   }); });
   items.sort(function(a,b){ return b.pri-a.pri; });
   var placed=[], lh=px*1.18;
   if(S.chips&&S.chips.length){ var sc=scr();                       // the numbered chips are in the way too: a label never sits under one
-    S.chips.forEach(function(p){ var x=p._a[0]*sc.s+sc.x+(p._o?p._o[0]:0), y=p._a[1]*sc.s+sc.y+(p._o?p._o[1]:0), w=(p._wF||32); placed.push([x-w/2-3,y-3,x+w/2+3,y+25]); }); }
+    S.chips.forEach(function(p){ var o=p._o1||p._o||[0,0], x=p._a[0]*sc.s+sc.x+o[0], y=p._a[1]*sc.s+sc.y+o[1], wF=(p._wF||32), w=p._o1&&p._tOn?Math.max(wF,p._wT||wF):wF;   // where the chip is going (its glide may not be done), and as wide as a shown title makes it
+      placed.push([x-wF/2-4,y-5,x-wF/2+w+4,y+27]); }); }
+  var sc1=scr();                                                  // the columns (dots) are in the way too: a label never sits on one
+  sets.forEach(function(q){ (q.cols||[]).forEach(function(c){ var v=V(c.p), r=(c.r!=null?c.r:Math.max(c.sz[0],c.sz[1])/2)*sc1.s+2, x=(v[0]+q.off[0])*sc1.s+sc1.x, y=(v[1]+q.off[1])*sc1.s+sc1.y; placed.push([x-r,y-r,x+r,y+r]); }); });
+  function inPoly(pt,P){ var c=false; for(var i=0,j=P.length-1;i<P.length;j=i++){ if(((P[i][1]>pt[1])!==(P[j][1]>pt[1]))&&(pt[0]<(P[j][0]-P[i][0])*(pt[1]-P[i][1])/(P[j][1]-P[i][1])+P[i][0])) c=!c; } return c; }
   items.forEach(function(it){
     var r=it.r, maxW=it.w-8, lines=labWrap(dec(r.n),maxW,px), num=r.no?String(r.no):null;
     if(!lines||lines.length*lh>it.h-4){ lines=num&&labWidth(num,px)<=maxW&&lh<=it.h-4?[num]:null; }
     if(!lines) return;
-    var tw=0; lines.forEach(function(l){ tw=Math.max(tw,labWidth(l,px)); });
-    var cx=it.c[0]*sc0.s+sc0.x, cy=it.c[1]*sc0.s+sc0.y-(it.many?px*1.6:0), th=lines.length*lh, box=[cx-tw/2-2,cy-th/2-1,cx+tw/2+2,cy+th/2+1];
-    for(var i=0;i<placed.length;i++){ var q=placed[i]; if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]) return; }
+    var sets2=[lines]; if(!num||lines[0]!==num) [.72,.55].forEach(function(f){ var l2=labWrap(dec(r.n),maxW*f,px); if(l2&&l2.length!==sets2[sets2.length-1].length&&l2.length*lh<=it.h-4) sets2.push(l2); });   // (a name that finds no free place at its usual wrap tries a narrower, taller one)
+    var tw=0, th=0, box=null, cx0=it.c[0]*sc0.s+sc0.x, cy0=it.c[1]*sc0.s+sc0.y-(it.many?px*1.6:0), cx=cx0, cy=cy0;
+    function hits(b){ for(var i=0;i<placed.length;i++){ var q=placed[i]; if(b[0]<q[2]&&b[2]>q[0]&&b[1]<q[3]&&b[3]>q[1]) return true; } return false; }
+    var rpoly=null;
+    for(var wi=0;wi<sets2.length&&!box;wi++){ lines=sets2[wi]; tw=0; lines.forEach(function(l){ tw=Math.max(tw,labWidth(l,px)); }); th=lines.length*lh;
+    // its home first (the room's middle); where a chip, a column or a name is there, the nearest free place inside the room
+    var cand=[[0,0]]; for(var j=1;j<=4;j++){ var dy=j*lh*.8; [0,-.25,.25,-.5,.5].forEach(function(f){ cand.push([f*Math.max(0,it.w-tw-8),-dy],[f*Math.max(0,it.w-tw-8),dy]); }); }
+    [-.25,.25,-.5,.5].forEach(function(f){ cand.push([f*Math.max(0,it.w-tw-8),0]); });
+    for(var ci=0;ci<cand.length;ci++){ var X=cx0+cand[ci][0], Y=cy0+cand[ci][1], b=[X-tw*.54-4,Y-th/2-3,X+tw*.54+4,Y+th/2+3];   // (a little wider than the measured text: the browser's own face runs a few px off the canvas measure)
+      if(ci){ if(!rpoly) rpoly=it.r.p.map(function(p){ var v=V(p); return [(v[0]+it.q.off[0])*sc0.s+sc0.x,(v[1]+it.q.off[1])*sc0.s+sc0.y]; });
+        if(!inPoly([X,Y],rpoly)||!inPoly([b[0],b[1]],rpoly)||!inPoly([b[2],b[1]],rpoly)||!inPoly([b[0],b[3]],rpoly)||!inPoly([b[2],b[3]],rpoly)) continue; }
+      if(!hits(b)){ box=b; cx=X; cy=Y; break; } } }
+    if(!box) return;
     placed.push(box);
-    var ty=it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2;
+    var ty=(cy-sc0.y)/sc0.s-(lines.length-1)*lh/k/2, tx=(cx-sc0.x)/sc0.s;
     var rp=S.svg.querySelector('[data-room="'+r.id+'"]'), hc=haloColor(rp?getComputedStyle(rp).fill:'');     // a plate in the room's own fill behind the text: no wall or dash ever runs through a label
-    el('rect',{x:f2(it.c[0]-(tw/2+3)/k),y:f2(ty-px*.92/k),width:f2((tw+6)/k),height:f2(((lines.length-1)*lh+px*1.2)/k),rx:f2(2/k),fill:hc,'fill-opacity':'.88','class':'bl-labplate','data-lab':r.id},it.g);
-    var t=el('text',{x:f2(it.c[0]),y:f2(ty),'class':'bl-lab','text-anchor':'middle','data-lab':r.id},it.g);
+    el('rect',{x:f2(tx-(tw/2+3)/k),y:f2(ty-px*.92/k),width:f2((tw+6)/k),height:f2(((lines.length-1)*lh+px*1.2)/k),rx:f2(2/k),fill:hc,'fill-opacity':'.88','class':'bl-labplate','data-lab':r.id},it.g);
+    var t=el('text',{x:f2(tx),y:f2(ty),'class':'bl-lab','text-anchor':'middle','data-lab':r.id},it.g);
     t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth='0';
-    lines.forEach(function(l,i){ var ts=el('tspan',{x:f2(it.c[0]),dy:i?f2(lh/k):0},t); ts.textContent=l; });
+    lines.forEach(function(l,i){ var ts=el('tspan',{x:f2(tx),dy:i?f2(lh/k):0},t); ts.textContent=l; });
   });
   applyDim();
 }
@@ -646,6 +667,7 @@ function layoutPills(glide){ // once a gesture settles: the places of the number
   S.chips.forEach(function(p, i){ var o=at[p._n.id], wF=p._wF||32, wT=Math.max(wF, p._wT||wF), on=near&&wT>wF&&clear(i, box[i][0], wT, p._tOn?sl:-sl)&&inPan(box[i][0]+wT/2,box[i][1],wT,box[i][3],p._lv);   // a title shown keeps its room within the slack
     if(p.classList.contains('bl-off')!==!!o.off) p.classList.toggle('bl-off',!!o.off);
     p._tOn=on; if(on) box[i][2]=wT; p._o1=[o.dx,o.dy]; p._w1=on?wT:wF; p._o0=p._o; p._w0=p._w||p._w1; p.classList.toggle('bl-t', on); });
+  labelsSoon();   // the labels keep clear of where the chips have settled
   if(!glide){ step(1); return; }
   AltoMarkers.glide(S.mk, step);
   function step(k){ // where each chip is k of the way from where it stood to its new place (and width); its anchor read afresh each frame
