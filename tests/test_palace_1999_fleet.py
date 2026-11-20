@@ -168,7 +168,11 @@ def test_the_weapon_table_has_one_entry_per_class_with_the_fx_bar_words():
 
 
 def test_the_art_is_the_board_game_piece_for_each_class():
-    assert FJ.count("pegs(top,") >= 5 and "[-.40,-.13,.125,.38]" in FJ                    # the battleship's four peg dimples, as 1.9.97
+    """1.9.262 (Board L-1119-SHIPS): the submarine is a darker hull riding at the waterline, partly awash, so it carries no deck pegs.
+    The four surface classes keep theirs; the submarine draw must have no pegs(top call."""
+    sub = FJ[FJ.index("function toySub("):FJ.index("/* \u2500\u2500 a base:")]
+    assert "pegs(top" not in sub                                                           # the bare, awash hull
+    assert FJ.count("pegs(top,") >= 4 and "[-.40,-.13,.125,.38]" in FJ                    # the battleship's four peg dimples, as 1.9.97
     assert "fl-run" in FJ and "jet(top," in FJ and "JET='M.5 0L" in FJ                    # a carrier: a flight deck, the angled strip, little jets
     assert "b._cells" in FJ and "b._launch" in FJ and "b._muzzle" in FJ and "s._rw" in FJ    # where missiles, jets, the torpedo leave from
     assert "vector-effect" in FJ and "'bb-wall'" in FJ                                      # the moulded plastic's thick edge
