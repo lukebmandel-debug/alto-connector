@@ -189,7 +189,7 @@ function bind(){ if(bound) return; bound=true;
   }, true);
   window.addEventListener('keydown', function(e){ if(ARM && e.key==='Escape'){ e.stopImmediatePropagation(); e.preventDefault(); fxBar(false); } }, true);
 }
-function draw(lg, M, host){ H=host; el=host.el; pin=host.pin; (M.boats||[]).forEach(function(b, bi){ drawBoat(lg, b, bi); }); (M.bases||[]).forEach(function(s, bi){ drawBase(lg, s, bi); }); bind(); }
+function draw(lg, M, host){ H=host; el=host.el; pin=host.pin; spaceBoats(M); (M.boats||[]).forEach(function(b, bi){ drawBoat(lg, b, bi); }); (M.bases||[]).forEach(function(s, bi){ drawBase(lg, s, bi); }); labelsFit(lg, M); bind(); }
 return {draw:draw, WP:WP, arm:function(toy, on){ fxBar(on!==false, toy); }, armed:function(){ return ARM; }, fire:fire, fx:{boom:fxBoom, flightPath:flightPath, trk:trk, at:at},
   freeze:function(ms){ FORCE=(ms==null)?null:+ms; if(!RAF && RUNS.length) RAF=requestAnimationFrame(tick); }, active:function(){ return RUNS.length; }, last:function(v){ LAST=v; }};
 })();
