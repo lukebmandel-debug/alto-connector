@@ -38,6 +38,12 @@ def test_every_country_the_atlas_can_place_has_a_flag_or_the_neutral_pennant():
     assert set(palace_world._countries()) <= set(man) | set(world_flags.NEUTRAL)      # (the picker's list)
 
 
+def test_the_neutral_pennant_list_never_names_a_place_the_atlas_cannot_place():
+    """world_flags.NEUTRAL is a subset of the gazetteer's placeable ids, so a merge of a place into its parent cannot leave an orphan."""
+    ids = set(gazetteer()["countries"])
+    assert set(world_flags.NEUTRAL) <= ids, sorted(set(world_flags.NEUTRAL) - ids)
+
+
 def test_antarctica_and_the_disputed_areas_never_get_a_flag():
     man = world_flags.manifest()
     for iso in ("ATA", "CYN", "KAS", "SOL", "SAH", "ATC", "IOA", "HMD", "SHN"):
