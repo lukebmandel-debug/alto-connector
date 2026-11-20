@@ -361,6 +361,14 @@ class CloudStore(Store):
         # update never blanks a value another publish already wrote.
         if meta.get("fmt"):
             mfields["fmt"] = _sv(meta["fmt"])
+        # The study plan's summary for the homepage card (cloud/meta.py plan_of): days, node ids and the exam date, no text. A page with no
+        # plan (or a cleared one) leaves "plan" in the update mask with no value, which removes the field.
+        plan = meta.get("plan")
+        if plan and plan.get("days"):
+            mfields["plan"] = {"mapValue": {"fields": {
+                "days": {"arrayValue": {"values": [_sv(d) for d in plan["days"]]}},
+                "nodes": {"arrayValue": {"values": [_sv(n) for n in plan.get("nodes", [])]}},
+                "exam": _sv(plan.get("exam", ""))}}}
         if meta.get("added"):
             mfields["added"] = {"integerValue": str(int(meta["added"]))}
         now = [{"fieldPath": "updatedAt", "setToServerValue": "REQUEST_TIME"}]
@@ -370,7 +378,7 @@ class CloudStore(Store):
              # page written before compression must not keep its old copy.
              "updateMask": {"fieldPaths": list(page) + ["html"]}, "updateTransforms": now},
             {"update": {"name": self._doc(uid, "pagemeta", key), "fields": mfields},
-             "updateMask": {"fieldPaths": list(mfields)}, "updateTransforms": now},
+             "updateMask": {"fieldPaths": list(mfields) + ([] if "plan" in mfields else ["plan"])}, "updateTransforms": now},
             {"update": {"name": f"{self.root}/users/{check_component(uid, 'uid')}",
                         "fields": {"pagemetaV": {"integerValue": "1"}}},
              "updateMask": {"fieldPaths": ["pagemetaV"]}},

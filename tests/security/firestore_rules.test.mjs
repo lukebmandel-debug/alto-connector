@@ -51,7 +51,8 @@ beforeEach(async () => {
     await db.doc('bass_beta/state_alice').set({ credits: 10 });
     await db.doc('users/alice').set({ theme: 'dark' });
     await db.doc('users/alice/pages/pk1').set({ html: '<p>private</p>', title: 'Mine' });
-    await db.doc('users/alice/pagemeta/pk1').set({ title: 'Mine', shareKey: KEY_A });
+    await db.doc('users/alice/pagemeta/pk1').set({ title: 'Mine', shareKey: KEY_A,
+      plan: { days: ['2026-11-05'], nodes: ['a'], exam: '2026-12-01' } });   // the study plan's summary: owner-only like the rest of the record
     await db.doc('users/alice/tl/t1').set({ highlights: '[]' });
     await db.doc('users/alice/tl/t1/reports/r1').set({ data: 'x' });
     await db.doc('users/alice/alto_projects/p1').set({ data: '{}' });

@@ -553,7 +553,10 @@ export function doc(db, ...s){ return {path:s.join('/'), id:s[s.length-1], kind:
 export function collection(db, ...s){ return {path:s.join('/'), kind:'col'}; }
 export async function getDoc(ref){ return snap(ref); }
 export async function getDocs(c){ const ks=kids(c); return {docs:ks.map(k=>({id:k.split('/').pop(), data:()=>fs.docs[k], ref:{path:k}}))}; }
-export async function setDoc(ref, data, o){ const cur=fs.docs[ref.path]||{}; fs.docs[ref.path] = (o&&o.merge) ? Object.assign({},cur,data) : Object.assign({},data); fs.writes.push([ref.path, JSON.parse(JSON.stringify(data))]); notify(ref.path); }
+const DEL = {__deleteField:true};
+export function deleteField(){ return DEL; }
+const apply = (cur, data) => { const o=Object.assign({},cur); for(const k of Object.keys(data)){ if(data[k]===DEL) delete o[k]; else o[k]=data[k]; } return o; };
+export async function setDoc(ref, data, o){ const cur=fs.docs[ref.path]||{}; if(!(o&&o.merge) && Object.values(data).some(v=>v===DEL)) throw new Error('Function setDoc() called with invalid data. FieldValue.delete() can only be used with update() and set() with {merge: true}'); fs.docs[ref.path] = (o&&o.merge) ? apply(cur,data) : apply({},data); fs.writes.push([ref.path, JSON.parse(JSON.stringify(data))]); notify(ref.path); }
 export async function deleteDoc(ref){ delete fs.docs[ref.path]; notify(ref.path); }
 export function onSnapshot(ref, cb){ const L={ref,cb}; ls.push(L); setTimeout(()=>fire(L),0); return ()=>{ const i=ls.indexOf(L); if(i>=0) ls.splice(i,1); }; }
 export function serverTimestamp(){ return Date.now(); }
@@ -696,4 +699,23 @@ def test_a_private_timeline_opens_on_its_photographs_colour(browser, site, timel
     pg.goto(base + "/pv/abc/"); pg.wait_for_timeout(700)
     seen = pg.evaluate("window.__rec")
     assert any("alto-quiet" in s and s.endswith("|") for s in seen), seen
+    pg.close()
+
+
+@needs_browser
+def test_the_stub_matches_the_real_sdk_on_deletefield(browser, site):
+    """deleteField() removes the key in a merge set, and a set WITHOUT merge throws, as real Firestore does."""
+    base, _ = site
+    pg = _sync_page(browser, base, "sync.html", docs={"users/u1/x/a": {"keep": 1, "plan": {"d": 1}}})
+    r = pg.evaluate("""async () => {
+      const m = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+      const ref = m.doc({}, 'users', 'u1', 'x', 'a');
+      await m.setDoc(ref, {plan: m.deleteField()}, {merge: true});
+      const after = JSON.parse(JSON.stringify(window.__fs.docs['users/u1/x/a']));
+      let threw = false;
+      try { await m.setDoc(ref, {plan: m.deleteField()}); } catch (e) { threw = true; }
+      return {after, threw};
+    }""")
+    assert r["after"] == {"keep": 1}
+    assert r["threw"] is True
     pg.close()

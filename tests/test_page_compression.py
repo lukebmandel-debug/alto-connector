@@ -91,9 +91,9 @@ function writeBatch(){
            delete: (r) => ops.push(() => { delete store[r]; }),
            commit: async () => { for (const o of ops) await o(); } };
 }
-const f = new Function('auth','db','doc','collection','serverTimestamp','setDoc','getDoc','getDocs','Bytes','writeBatch',
+const f = new Function('auth','db','doc','collection','serverTimestamp','setDoc','getDoc','getDocs','Bytes','writeBatch','deleteField',
   SRC + '; return { _packPage, _unpackPage, _putPage, _getPage, _putShare, _getShare, _sharePush };');
-const api = f(auth, db, doc, collection, serverTimestamp, setDoc, getDoc, getDocs, Bytes, writeBatch);
+const api = f(auth, db, doc, collection, serverTimestamp, setDoc, getDoc, getDocs, Bytes, writeBatch, () => ({ __deleteField: true }));
 const b64 = u8 => Buffer.from(u8).toString('base64');
 const fromB64 = s => new Uint8Array(Buffer.from(s, 'base64'));
 

@@ -12,7 +12,8 @@
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
                                           search, shareKey, updatedAt,
-                                          added, viewedAt }
+                                          added, viewedAt, plan }
+                                          (plan: the study plan's day + node of each item and the exam date, no text)
      users/{uid}/bglib/{id}           — { e, t, del }   an imported background: its
                                           library entry (JSON text), when it last
                                           changed, and whether it was removed
@@ -795,6 +796,26 @@
       : /^window\._ALTO_LANES=/m.test(h) ? 'lanes' : 'timeline';
   }
 
+  // The study plan's summary for the homepage card (plan_of in meta.py): the day and the node of each item, in order, and the exam date.
+  // Nothing else: no reason text, no minutes, no signals. null when the page has no plan.
+  function _planOf(h) {
+    const m = /<script id="alto-sp-data">window\._ALTO_SP=(\{[\s\S]*?\});<\/script>/.exec(h);
+    if (!m) return null;
+    let p;
+    try { p = JSON.parse(m[1].replace(/<\\!--/g, '<!--')); } catch (e) { return null; }
+    const days = [], nodes = [], isDay = d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
+    for (const it of ((p && Array.isArray(p.items)) ? p.items : [])) {
+      if (days.length >= 120) break;
+      if (it && isDay(it.day) && typeof it.node === 'string' && it.node.length > 0 && it.node.length <= 80) {
+        days.push(it.day); nodes.push(it.node);
+      }
+    }
+    return days.length ? { days, nodes, exam: isDay(p.exam) ? p.exam : '' } : null;
+  }
+
+  // Added to a merge-write of _metaOf: a page with no plan (or a cleared one) removes the field the last publish left.
+  const _planGone = html => (_planOf(String(html || '')) ? {} : { plan: deleteField() });
+
   function _metaOf(html) {
     const h = String(html || '');
     const lm = /<meta name="alto-label" content="([^"]*)"/i.exec(h);
@@ -820,8 +841,9 @@
       while ((m = re.exec(block)) && search.length < SEARCH_CAP)
         search.push({ id: _unq(m[1]), t: _unq(m[2]), d: _unq(m[3]).slice(0, DESC_CAP) });
     }
-    return { title: project || heading, heading, project, tid: _identityOf(h),
-             units, search, fmt: _fmtOf(h), v: META_V };
+    const plan = _planOf(h);
+    return Object.assign({ title: project || heading, heading, project, tid: _identityOf(h),
+                           units, search, fmt: _fmtOf(h), v: META_V }, plan ? { plan } : {});
   }
 
   async function _getPageMeta(key) {
@@ -851,7 +873,7 @@
     if (snap.exists() && ((snap.data() || {}).v || 0) >= META_V) return false;
     const page = await getDoc(doc(db, 'users', u.uid, 'pages', key));
     const pv = page.exists() ? (page.data() || {}) : {};
-    await setDoc(ref, Object.assign(_metaOf(html),
+    await setDoc(ref, Object.assign(_metaOf(html), _planGone(html),
                  { shareKey: pv.shareKey || '', updatedAt: pv.updatedAt || serverTimestamp() }),
                  { merge: true });
     return true;
@@ -897,7 +919,7 @@
                                  updatedAt: serverTimestamp() }, packed.fields));
     // merge: shareKey belongs to the share flow, not to an upload.
     await setDoc(doc(db, 'users', u.uid, 'pagemeta', key),
-                 Object.assign(_metaOf(html), { updatedAt: serverTimestamp() },
+                 Object.assign(_metaOf(html), _planGone(html), { updatedAt: serverTimestamp() },
                                title ? { title } : {}),
                  { merge: true });
     return true;
@@ -1194,6 +1216,8 @@
                  project: v.project || '', tid: v.tid || '',
                  units: Array.isArray(v.units) ? v.units : [],
                  fmt: v.fmt || '',
+                 plan: (v.plan && Array.isArray(v.plan.days) && v.plan.days.length)
+                   ? { days: v.plan.days, nodes: Array.isArray(v.plan.nodes) ? v.plan.nodes : [], exam: v.plan.exam || '' } : null,
                  search: Array.isArray(v.search) ? v.search : [],
                  shareKey: v.shareKey || '',
                  added: Number(v.added) || 0,

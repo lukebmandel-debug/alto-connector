@@ -475,3 +475,57 @@ def test_a_tap_on_a_name_in_the_phone_sheet_closes_it_and_does_not_recentre_the_
         assert pg.evaluate("document.querySelector('.node.mobile-featured').id") == "node-acceptance"
         assert not errs, errs
         b.close()
+
+
+def test_the_homepage_card_reads_today_and_late_from_the_record_and_skips_ticked_items(browser, tmp_path):
+    """1.9.255 (audit G2/G10): the record's plan = {days, nodes, exam}. The card counts the page's way: an item the reader ticked is neither today nor late."""
+    ps = [dict(key="k1", title="A", heading="Contracts", project="Law", fmt="outline", tid="t1", units=["#4a9eff"],
+               plan={"days": ["2026-11-05", "2026-11-05", "2026-11-05", "2026-11-02", "2026-11-03", "2026-11-20"], "nodes": ["a", "b", "c", "d", "e", "f"], "exam": "2026-12-01"})]
+    (tmp_path / "h.html").write_text(_home(ps), encoding="utf-8")
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(type("H", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a: None}), directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
+    ctx, pg, errs = _open(browser, url)
+    assert pg.evaluate("document.querySelector('.sp-card').textContent") == "Study plan Today 3 2 late "
+    ctx.close()
+    ticks = {"v": 1, "s": {"__plan__": {"m": 1, "k": {"a|2026-11-05": [1, 1], "d|2026-11-02": [1, 1], "e|2026-11-03": [0, 2]}}}}      # (a re-opened tick, 0, is not done)
+    init = NOW + "try{localStorage.setItem('alto-hl-t1-st',%s)}catch(e){}" % json.dumps(json.dumps(ticks))
+    ctx, pg, errs = _open(browser, url, init=init)
+    assert pg.evaluate("document.querySelector('.sp-card').textContent") == "Study plan Today 2 1 late "
+    assert not errs, errs
+    ctx.close()
+    done = {"v": 1, "s": {"__plan__": {"m": 1, "k": {k: [1, 1] for k in ["a|2026-11-05", "b|2026-11-05", "c|2026-11-05", "d|2026-11-02", "e|2026-11-03"]}}}}
+    ctx, pg, errs = _open(browser, url, init=NOW + "try{localStorage.setItem('alto-hl-t1-st',%s)}catch(e){}" % json.dumps(json.dumps(done)))
+    assert pg.evaluate("document.querySelector('.sp-card').textContent") == "Study plan nothing today"
+    ctx.close()
+    srv.shutdown()
+
+
+@pytest.mark.parametrize("style,dark", [("classic", False), ("classic", True), ("holo", False), ("retro", False)])
+def test_the_plan_pill_stays_12px_clear_of_the_format_plate_with_a_long_late_count(browser, tmp_path, style, dark):
+    """1.9.255 (Art B-1119-SHOTS255-FIX): at 1440 the pill must not run under the plate/glyph, and must hold its own tags when they wrap."""
+    from alto.build import holo, retro
+    ps = [dict(key="k1", title="A", heading="Contracts", project="Law", fmt="outline", tid="t1", units=["#4a9eff", "#e8a87c"],
+               plan={"days": ["2026-11-05"] * 12 + ["2026-11-01"] * 128, "nodes": ["n%d" % i for i in range(140)], "exam": ""})]
+    (tmp_path / "h.html").write_text(_home(ps), encoding="utf-8")
+    for mod, sub in ((retro, "retro"), (holo, "holo")):
+        nm, tx = (mod.retro_asset if sub == "retro" else mod.holo_asset)()
+        (tmp_path / sub).mkdir(exist_ok=True); (tmp_path / sub / nm).write_text(tx, encoding="utf-8")
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(type("H", (http.server.SimpleHTTPRequestHandler,), {"log_message": lambda *a: None}), directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}/h.html"
+    init = NOW + "try{localStorage.setItem('alto-bg-home-v1-style','%s');%s}catch(e){}" % (style, "localStorage.setItem('alto-theme-v1','dark')" if dark else "")
+    ctx, pg, errs = _open(browser, url, init=init)
+    r = pg.evaluate("""() => { const t = document.querySelector('.course-tile:not(.new-tile)'), p = t.querySelector('.sp-card').getBoundingClientRect(), e = t.querySelector('.tile-emblem').getBoundingClientRect(), c = t.getBoundingClientRect();
+        const tags = [...t.querySelectorAll('.sp-card b')].map(b => b.getBoundingClientRect());
+        return {p: [p.left, p.top, p.right, p.bottom], e: [e.left, e.top, e.right, e.bottom], c: [c.left, c.top, c.right, c.bottom], tags: tags.map(b => [b.left, b.top, b.right, b.bottom]), text: t.querySelector('.sp-card').textContent}; }""")
+    p, e, c = r["p"], r["e"], r["c"]
+    overlap_y = p[1] < e[3] and p[3] > e[1]
+    if overlap_y and p[2] > e[0]:                                  # (the plate sits to the pill's right: the pill must end 12 px before it; in Holo and Retro it is the left cell, so the pill is to its right)
+        assert p[0] >= e[2] + 12 or p[2] <= e[0] - 12, (style, dark, r)
+    assert p[2] <= c[2] - 12 and p[0] >= c[0], (style, dark, r)                     # (and stays inside its card)
+    for b in r["tags"]:                                            # a wrapped tag stays inside the pill
+        assert b[0] >= p[0] - 0.5 and b[2] <= p[2] + 0.5 and b[1] >= p[1] - 0.5 and b[3] <= p[3] + 0.5, (style, dark, b, p)
+    assert "128 late" in r["text"] and not errs, (r, errs)
+    ctx.close()
+    srv.shutdown()
