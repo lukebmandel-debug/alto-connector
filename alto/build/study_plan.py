@@ -10,7 +10,7 @@ or Bass (both validate with plan_check.py). This module only DRAWS it, on a comp
     "Make or change my plan" is a hook (window._altoStudyPlanRoutes.open) like the converter's, with a prompt to copy when no route is installed.
 The ticks are the READER's state, kept with the card marks in the page's study state (`{hl key}-st`, section key "__plan__", card id "node|day",
 1 = done, 0 = cleared): the shape alto-cloud.js already merges. The tool never writes them.
-Absent plan (or one with no usable item) = this returns "" and the page is byte-identical to before. Nothing is drawn on a phone."""
+Absent plan (or one with no usable item) = this returns "" and the page is byte-identical to before. On a phone the page shows the day tags and the plan sheet."""
 from __future__ import annotations
 
 import re
@@ -76,6 +76,7 @@ CSS = r"""<style id="alto-sp-css">
   html:not(.mobile):not(.phone-whole) .node.sp-late .sp-tag{background:var(--sp-late);color:var(--bg);}
   html:not(.mobile):not(.phone-whole) .node.sp-done .sp-tag{background:transparent;color:var(--sp-ok);border:1px solid var(--sp-ok);}
   html:not(.mobile):not(.phone-whole) .node.sp-go > .node-card{outline:3px solid var(--sp-acc);outline-offset:8px;}
+  html.alto-solar:not(.mobile):not(.phone-whole) .node .sp-tag{top:auto;right:auto;left:50%;bottom:100%;margin-bottom:7px;transform:translateX(-50%);}   /* System: a disc clips what it holds, so its tag is the node's, set clear above the disc (G9) */
   .sp-tag{display:none;}
   html.mobile .node .sp-tag{display:block;position:absolute;bottom:10px;right:12px;z-index:3;padding:4px 7px;font:700 10px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
     border-radius:6px;background:var(--sp-acc);color:var(--bg);pointer-events:none;}
@@ -123,7 +124,7 @@ CSS = r"""<style id="alto-sp-css">
   #sp-sheet .sp-btn{min-height:40px;padding:0 16px;border-radius:10px;background:var(--sp-acc);color:var(--bg);font:inherit;font-size:13px;font-weight:700;border:0;cursor:pointer;}
   #sp-sheet .sp-btn.o{background:transparent;color:var(--text);border:1.5px solid var(--border);}
   /* a phone: the list is a full-screen sheet opened by the "Today's plan" row at the top of the MENU drawer (Luke L-1101-231956); 16 px gutters, 44 px touch targets */
-  html.mobile #sp-sheet.open{display:flex;flex-direction:column;position:fixed;inset:0;z-index:700;box-sizing:border-box;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));
+  html.mobile #sp-sheet.open{display:flex;flex-direction:column;position:fixed;inset:0;z-index:700;box-sizing:border-box;padding:max(16px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
     background:var(--surface);color:var(--text);overflow:hidden;}
   html.mobile #sp-sheet .sp-tabs button{min-height:44px;}
   html.mobile #sp-sheet .sp-li{grid-template-columns:44px minmax(0,1fr) auto;align-items:center;padding:4px 0;gap:6px;}
@@ -186,7 +187,7 @@ JS = r"""<script id="alto-sp">
       if(!c) return;
       var pick = c === 'done' ? L[0] : L.filter(function(x){ return x.st === c; }).sort(function(a, b){ return c === 'late' ? a.dd - b.dd : a.dd - b.dd; })[0];
       n.classList.add('sp-' + c);
-      var host = n.querySelector('.node-card') || n, tg = el('span', 'sp-tag', word(pick)); tg.setAttribute('aria-hidden', 'true'); host.appendChild(tg);
+      var host = (document.documentElement.classList.contains('alto-solar') ? n : n.querySelector('.node-card')) || n, tg = el('span', 'sp-tag', word(pick)); tg.setAttribute('aria-hidden', 'true'); host.appendChild(tg);
     });
     summary(S); if(sheet && sheet.classList.contains('open')) fill(S);
   }
@@ -247,7 +248,7 @@ JS = r"""<script id="alto-sp">
     var R = window._altoStudyPlanRoutes;
     if(R && typeof R.open === 'function'){ try{ R.open(); return; }catch(e){} }
     if(box.querySelector('.sp-pr')) return;
-    var p = el('div', 'sp-pr', 'Paste this to Claude (or open Bass) to make or change your plan:'), ta = el('textarea'); ta.readOnly = true; ta.value = prompt(); ta.onfocus = function(){ ta.select(); };
+    var p = el('div', 'sp-pr', 'Paste this to Claude to make or change your plan:'), ta = el('textarea'); ta.readOnly = true; ta.value = prompt(); ta.onfocus = function(){ ta.select(); };
     p.appendChild(ta); box.appendChild(p);
   }
   function toggle(on){
@@ -270,7 +271,7 @@ JS = r"""<script id="alto-sp">
     var list = document.getElementById('notes-list');
     if(list){ row = el('button'); row.id = 'sp-row'; row.type = 'button'; row.appendChild(el('b', '', 'Study plan')); row.appendChild(el('span', '', ''));
       row.onclick = function(){ toggle(); }; list.parentNode.insertBefore(row, list); }
-    if(!HAS){ var b = sheet.querySelector('.sp-body'); b.appendChild(el('div', 'sp-none', 'No plan yet. Tell Claude or Bass when your exam is and what you find hard, and it will pick the nodes to study each day.')); }
+    if(!HAS){ var b = sheet.querySelector('.sp-body'); b.appendChild(el('div', 'sp-none', 'No plan yet. Tell Claude when your exam is and what you find hard, and it will pick the nodes to study each day.')); }
   }
   function midnight(){
     clearTimeout(timer); var n = now(), nx = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 2);

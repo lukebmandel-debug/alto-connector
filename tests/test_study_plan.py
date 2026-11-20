@@ -529,3 +529,54 @@ def test_the_plan_pill_stays_12px_clear_of_the_format_plate_with_a_long_late_cou
     assert "128 late" in r["text"] and not errs, (r, errs)
     ctx.close()
     srv.shutdown()
+
+
+# ── 1.9.256: the small fixes (Board B-1119-SPAUDIT) ──────────────────────────────────────────────────
+
+def test_the_sheet_and_the_prompt_no_longer_send_people_to_bass():
+    assert "Bass" not in sp.JS and "Nothing is drawn on a phone" not in (sp.__doc__ or "")        # (Bass is cut; the header now says what a phone gets)
+
+
+def test_set_study_plan_says_an_empty_list_clears_the_plan():
+    from alto import mcp_server
+    d = mcp_server.set_study_plan.__doc__ if hasattr(mcp_server.set_study_plan, "__doc__") and mcp_server.set_study_plan.__doc__ else ""
+    d = d or getattr(mcp_server.mcp._tool_manager.get_tool("set_study_plan"), "description", "")
+    assert "empty items list" in d and "clears the plan" in d, d
+
+
+def test_system_day_tags_sit_clear_of_every_disc(browser, tmp_path):
+    """G9: a System disc clips what it holds, so its day tag was a red sliver. The tag now lies outside the disc (WebKit, and Chromium via the fixture)."""
+    import copy
+    from test_solar_draw import SMALL, SMALL_LINKS, solar_doc
+    doc = solar_doc(SMALL, "spoke", SMALL_LINKS)
+    ids = [x["id"] for x in doc["nodes"]][:6]
+    days = ["2026-11-05", "2026-11-02", "2026-11-07", "2026-11-05", "2026-11-20", "2026-11-01"]
+    doc["brief"]["study_plan"] = {"v": 1, "exam_date": "2026-12-01", "items": [dict(node=i, day=d, why="because", signal="marks") for i, d in zip(ids, days)]}
+    (tmp_path / "s.html").write_text(build_timeline(*load_brief(copy.deepcopy(doc)))[0], encoding="utf-8")
+    ctx, pg, errs = _open(browser, (tmp_path / "s.html").as_uri())
+    rows = pg.evaluate("""()=>[...document.querySelectorAll('.node[class*="sp-"]')].map(n=>{const t=n.querySelector('.sp-tag'),c=n.querySelector('.node-card').getBoundingClientRect(),T=t.getBoundingClientRect(),
+      cx=c.left+c.width/2,cy=c.top+c.height/2,R=c.width/2,nx=Math.max(T.left,Math.min(cx,T.right)),ny=Math.max(T.top,Math.min(cy,T.bottom));
+      return {id:n.id,text:t.textContent,gap:Math.hypot(nx-cx,ny-cy)-R,w:T.width,h:T.height,shown:getComputedStyle(t).display!=='none'}})""")
+    assert len(rows) == 5, rows           # (six planned, one shares a disc with another)
+    for r in rows:
+        assert r["shown"] and r["gap"] >= 2 and r["w"] > 30, r              # (the nearest point of the tag is outside the disc's circle)
+    assert not errs, errs
+    ctx.close()
+
+
+@pytest.mark.parametrize("style", ["classic", "holo", "retro"])
+def test_the_phone_sheet_pills_sit_inside_the_sheet_20px_from_the_edges(site_hosted, style):
+    """G12: the status pills ("TODAY", "3 DAYS LATE") must end at least 20 px from the phone's right edge in every style (WebKit, 390 wide)."""
+    with pw.sync_playwright() as p:
+        b = p.webkit.launch()
+        ctx, pg, errs = _open(b, site_hosted + "/o.html", w=390, h=844, mobile=True)
+        pg.evaluate("localStorage.clear()"); pg.evaluate("window._altoStyle.set('%s')" % style); pg.wait_for_timeout(1000)
+        pg.evaluate("(document.querySelector('#sp-row')||document.querySelector('#sp-chip')).click()"); pg.wait_for_timeout(400)
+        r = pg.evaluate("""()=>({vw:innerWidth,pills:[...document.querySelectorAll('#sp-sheet .sp-pill')].map(e=>{const b=e.getBoundingClientRect();return [e.textContent,b.left,b.right,e.scrollWidth<=e.clientWidth+1]}),
+          box:[...document.querySelectorAll('#sp-sheet .sp-li, #sp-sheet .sp-tabs, #sp-sheet h3')].map(e=>{const b=e.getBoundingClientRect();return [b.left,b.right]})})""")
+        assert len(r["pills"]) >= 3, r
+        for t, l, rt, whole in r["pills"]:
+            assert rt <= r["vw"] - 20 and l >= 20 and whole, (style, t, l, rt)
+        assert all(l >= 19.5 and rt <= r["vw"] - 19.5 for l, rt in r["box"]), r["box"]
+        assert not errs, errs
+        b.close()
