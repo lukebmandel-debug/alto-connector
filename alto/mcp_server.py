@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.255"
+__version__ = "1.9.256"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1850,7 +1850,7 @@ def set_study_plan(timeline_id: str, items: list[dict], exam_date: str = "", day
     date, time per day, what they know they are weak on) and propose only nodes of THIS page, each with why quoting the
     student's own signal. items: [{node, day: 'YYYY-MM-DD', why (<= 200 characters, the student's words), signal: 'marks' |
     'quiz' | 'exam' | 'told' | 'syllabus'}], at most 120. replace=True (default) swaps the whole plan; False adds these items to
-    it. The plan is refused whole, with every problem named, when a node is not in the page, a day is not a date or is over a
+    it. An empty items list with replace=True clears the plan. The plan is refused whole, with every problem named, when a node is not in the page, a day is not a date or is over a
     year away, a node is planned twice for one day, or a why is missing or long. Then build_timeline to put it on the page."""
     err = _feature_gate("study_plan")
     if err:

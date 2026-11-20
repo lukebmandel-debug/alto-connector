@@ -843,6 +843,9 @@
     background:transparent; color:var(--text); font-family:inherit; font-size:13px; letter-spacing:.06em;
   }
   .nt-make:hover{ background:var(--btn-hover-bg); }
+  .nt-palnote{ margin:2px 0 10px; font-size:12.5px; line-height:1.45; color:var(--text); }
+  .nt-palnote[hidden]{ display:none; }
+  @media (max-width:640px){ .nt-palnote{ position:sticky; bottom:44px; z-index:2; margin:0; padding:8px 0 6px; background:var(--surface,var(--bg)); } }   /* on a phone the Build button is sticky: the line rides just above it, never under it */
   .nt-make[disabled]{ opacity:.55; cursor:default; }
   /* New dialog: three ways in as tabs (Claude, Write it yourself; a hosted add-on may put one more in front). The chosen tab shows its own sentence and one action, or the blank-page form. */
   .nt-tabs{ display:flex; gap:6px; margin:0 0 12px; }
@@ -1221,6 +1224,7 @@
     <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Fall term"></div>
     <label for="nt-title">Name</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Course notes">
     <div class="nt-msg" id="nt-msg"></div>
+    <p class="nt-palnote" id="nt-palnote" hidden>Palaces are set up with Claude for now; you can fine-tune by hand after.</p>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>
     <button type="button" class="dl-cancel nt-keep" id="nt-cancel">Cancel</button>
   </div>
@@ -1474,11 +1478,17 @@ function ntResolve(){
 }
 const ntLabel = () => (ntKind === 'palace' || ntKind === 'building' || ntKind === 'world') ? 'Build it with Claude' : 'Start writing';
 // The tabs: the chosen one shows its own pane (or, for the blank-page tab, the form). A hosted add-on may put one more tab in front and sets window._altoNtFirst.
+// The line above the button on the Write tab: a palace (Map, Blueprint, Atlas) is made with Claude, so say so plainly there and nowhere else.
+function ntNote(){
+  const m = document.getElementById('nt-modal'), n = document.getElementById('nt-palnote'); if(!m || !n) return;
+  n.hidden = !(m.dataset.tab === 'self' && (ntKind === 'palace' || ntKind === 'building' || ntKind === 'world'));
+}
 function ntTab(k){
   const m = document.getElementById('nt-modal');
   m.dataset.tab = k;
   document.querySelectorAll('#nt-tabs .nt-tab').forEach(b => { const o = b.dataset.tab === k; b.classList.toggle('on', o); b.setAttribute('aria-selected', o ? 'true' : 'false'); b.tabIndex = o ? 0 : -1; });
   document.querySelectorAll('#nt-modal .nt-pane').forEach(p => { p.hidden = p.dataset.p !== k; });
+  ntNote();
   if(window._altoNtTab) window._altoNtTab(k);
 }
 document.getElementById('nt-tabs').addEventListener('click', e => { const b = e.target.closest('.nt-tab'); if(b) ntTab(b.dataset.tab); });
@@ -1534,6 +1544,7 @@ function ntPick(k){
     pal.querySelectorAll('.nt-kind').forEach(b => { const on = b.dataset.mode === ntModes.palace; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
   }
   const mk = document.getElementById('nt-make'); if(mk) mk.textContent = ntLabel();
+  ntNote();
   ntScopeSync();
 }
 function ntMode(tile, m){ ntModes[tile] = m; ntPick(tile); }
