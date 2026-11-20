@@ -4,8 +4,7 @@ Data: alto/assets/flags/flags.json.gz ({ISO3: minified SVG}; docs/world-palace/b
 alto/assets/flags/LICENSE). Each flag is hosted in the Atlas's own /world/ folder as flag-<ISO3>-<hash>.svg and the renderer (palace_world.py)
 fetches only the one a card's country needs, the first time it is shown (an <img>; the browser keeps it for a year). The page carries nothing.
 
-NEUTRAL: the places that get the neutral pennant and no flag. Antarctica; the disputed or contested (Northern Cyprus, Siachen Glacier, Somaliland,
-Western Sahara); and the territories whose ISO code is another state's (Ashmore and Cartier, Indian Ocean Territories, Heard and McDonald: Australia's;
+NEUTRAL: the places that get the neutral pennant and no flag. Antarctica; the territories whose ISO code is another state's (Ashmore and Cartier, Indian Ocean Territories, Heard and McDonald: Australia's;
 Saint Helena: the set draws the United Kingdom's) so that none shows another state's flag. A flag the set lacks, or a page whose hosted file is missing, shows the same pennant.
 """
 from __future__ import annotations
@@ -19,7 +18,7 @@ import os
 from .world_geo import DIR as _WORLD_DIR, FOLDER
 
 DIR = os.path.join(os.path.dirname(_WORLD_DIR), "flags")
-NEUTRAL = ("ATA", "ATC", "CYN", "HMD", "IOA", "KAS", "SAH", "SHN", "SOL")
+NEUTRAL = ("ATA", "ATC", "HMD", "IOA", "SHN")
 
 
 @functools.lru_cache(maxsize=1)

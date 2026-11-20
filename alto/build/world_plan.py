@@ -35,7 +35,23 @@ ALIASES = {"us": "USA", "u s": "USA", "usa": "USA", "u s a": "USA", "america": "
            "uk": "GBR", "u k": "GBR", "britain": "GBR", "great britain": "GBR", "holland": "NLD", "the netherlands": "NLD",
            "russia": "RUS", "south korea": "KOR", "korea": "KOR", "north korea": "PRK", "czech republic": "CZE", "ivory coast": "CIV",
            "burma": "MMR", "persia": "IRN", "vatican": "VAT", "vatican city": "VAT", "uae": "ARE", "drc": "COD", "congo kinshasa": "COD",
-           "congo brazzaville": "COG", "east timor": "TLS", "swaziland": "SWZ", "macedonia": "MKD", "turkiye": "TUR"}
+           "congo brazzaville": "COG", "east timor": "TLS", "swaziland": "SWZ", "macedonia": "MKD", "turkiye": "TUR",
+           "somaliland": "SOM", "northern cyprus": "CYP", "abkhazia": "GEO", "south ossetia": "GEO", "transnistria": "MDA"}
+# Country ids of the map's earlier edition that the US point of view folds into another country (Somaliland, Northern Cyprus, Western Sahara; Siachen sits in India):
+# a brief that stored one keeps its places, under the country that holds them now.
+LEGACY_CID = {"SOL": "SOM", "CYN": "CYP", "KAS": "IND", "SAH": "MAR"}   # (SAH: the US holds Western Sahara to be Moroccan)
+
+
+def _legacy(w):
+    """The world brief with any earlier-edition country id replaced (a copy when something changes)."""
+    if not isinstance(w, dict):
+        return w
+    pl = w.get("places") or {}
+    if any(isinstance(p, dict) and p.get("c") in LEGACY_CID for p in pl.values()) or w.get("country") in LEGACY_CID:
+        w = {**w, "places": {k: ({**p, "c": LEGACY_CID.get(p.get("c"), p.get("c"))} if isinstance(p, dict) else p) for k, p in pl.items()}}
+        if w.get("country") in LEGACY_CID:
+            w["country"] = LEGACY_CID[w["country"]]
+    return w
 # home nations: a country of their own in speech, a part of the United Kingdom on the map (pinned at their capital)
 NATIONS = {"england": ("GBR", "London"), "scotland": ("GBR", "Edinburgh"), "wales": ("GBR", "Cardiff"), "northern ireland": ("GBR", "Belfast")}
 
@@ -261,7 +277,7 @@ def plan(b, nodes) -> dict:
     """{"units": [{"reg": [regions], "tops": [ids, route order], "stops": [ids, tour order]}], "places": {id: {"c", "x", "y", "label", "k", "r"?}},
     "cl": {placed id: [cluster ids in outline order]}, "used": {country: unit}, "multi": [countries with their own state / city pins]}."""
     from .palace import structure
-    w = getattr(b, "world", None) or {}
+    w = _legacy(getattr(b, "world", None) or {})
     if w.get("country") in _countries():
         return _plan_country(b, nodes, w)
     level = w.get("level") or "country"
@@ -553,6 +569,7 @@ def validate(world) -> None:
         return
     if not isinstance(world, dict):
         raise ValueError("world must be an object")
+    world = _legacy(world)
     lv = world.get("level") or "country"
     if lv not in LEVELS:
         raise ValueError(f"world.level {lv!r}: must be one of {LEVELS}")
