@@ -45,11 +45,11 @@ from .palace_building_fpv import FPV_PATH as _FPV_PATH
 # To bring it back set BLUEPRINT_FPV = True and rebuild/republish the /bldg/ assets (ORG/handbooks/blueprint-fpv.md). The city and Atlas first-person views are separate code.
 BLUEPRINT_FPV = False
 
-# The "All floors" tab (every level laid out together; the All tab, the A key, selectLevel('all')) is behind a build switch, OFF by default (CEO brief
+# The "All floors" tab (every level laid out together; the All tab, the A key, selectLevel('all')) is behind a build switch, ON by default since 1.9.269 (was off; CEO brief
 # bp-allfloors-fable-1114: its tags overlap in the busiest panel; the rest of the enlarge ships in 1.9.228 without it). Off: no tab, no key, no entry, on a phone
 # or a desktop. Build with ALTO_BP_ALL_FLOORS=1 to turn it on (its tests run only then; none is deleted).
 import os as _os
-BLUEPRINT_ALL_FLOORS = _os.environ.get("ALTO_BP_ALL_FLOORS", "") == "1"
+BLUEPRINT_ALL_FLOORS = _os.environ.get("ALTO_BP_ALL_FLOORS", "1") != "0"   # ON for release (Board L-1120-ALLFLOORS); ALTO_BP_ALL_FLOORS=0 builds it out
 
 BUILDING_CSS = r"""
 #bldg-root{--bl-ink:rgb(60,64,84);--bl-sheen:rgba(255,255,255,.72);--bl-glass:rgba(255,255,255,.46);--bl-glass-edge:rgba(60,64,84,.22);--bl-paper:var(--bg,#f0efea);
@@ -137,6 +137,8 @@ html.mobile #bldg-root .bl-enl{padding-top:38px;}
 #bldg-root .bl-tabs{top:14px;right:14px;display:flex;flex-direction:column-reverse;gap:6px;}
 /* a phone: the plan's name and floor tabs start below the phone design's MAP, Search and MENU (phone.py, 2026-10-23) */
 html.mobile #bldg-root :is(.bl-head,.bl-tabs){top:112px;}
+html.mobile #bldg-root .bl-tabs{gap:2px;}html.mobile #bldg-root .bl-tab{height:44px;min-width:44px;}   /* 44pt targets (1.9.269) */
+@media (max-height:480px){html.pmin.bldg-open.mobile #bldg-root .bl-tabs,html.mobile #bldg-root .bl-tabs{top:6px !important;gap:0;}}   /* a turned phone: six 44pt tabs in one column, up from the menu button */
 #bldg-root .bl-tab,#bldg-root .bl-btn{font:inherit;font-size:13px;min-width:38px;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--bl-line);background:color-mix(in srgb,var(--bl-panel) 82%,transparent);
   color:var(--bl-text);cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:border-color .15s,color .15s;}
 #bldg-root .bl-tab:hover,#bldg-root .bl-btn:hover{border-color:var(--bl-accent);}
@@ -623,7 +625,7 @@ function drawPills(levelId){
       var pill=h('div',{'class':'bl-pill alto-mk','data-node':n.id,role:'button',title:n.n+'  '+dec(n.t)},mk);
       h('b',null,pill,String(n.n)); h('span',null,pill,title);
       var col=A.data.acts&&A.data.acts[n.a]&&A.data.acts[n.a].c; if(col) pill.style.setProperty('--bl-tint',col);
-      pill._n=n; pill._a=q; pill._o=[0,0]; pill._lv=r.l; S.chips.push(pill);
+      pill._n=n; pill._a=q; pill._o=[0,0]; pill._lv=r.l; pill.setAttribute("data-lv",r.l); S.chips.push(pill);
       pill.addEventListener('pointerdown',function(e){ pill._pt=e.pointerType; });
       pill.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation();
         if(pill._dot&&pill._pt!=='mouse'&&!pill.classList.contains('bl-peek')){ unpeek(); pill.classList.add('bl-peek'); return; }   // a dot tapped: its number first
@@ -660,10 +662,10 @@ function layoutPills(glide){ // once a gesture settles: the places of the number
     return {id:p._n.id, x:p._a[0]*t.s+t.x, y:p._a[1]*t.s+t.y, w:w, h:H-2, c:c, lv:p._lv}; });
   S.mkSt=S.mkSt||{};
   // All floors (Art, 2026-11-14): a chip stays inside its own floor's plate and off every bar; the plates and bars measured once per layout, in root px
-  var pan=null, bars=[], hit=function(x,y,w,h,q){ return x-w/2<q[2]&&x+w/2>q[0]&&y-h/2<q[3]&&y+h/2>q[1]; };
-  if(S.level==='all'){ pan={}; var Zp=pageZ(), rp=function(q,m){ return [(q.left-rr.left)/Zp+m,(q.top-rr.top)/Zp+m,(q.right-rr.left)/Zp-m,(q.bottom-rr.top)/Zp-m]; };   // (screen px to the root's css px)
+  var EDGE=20, pan=null, bars=[], hit=function(x,y,w,h,q){ return x-w/2<q[2]&&x+w/2>q[0]&&y-h/2<q[3]&&y+h/2>q[1]; };
+  if(S.level==='all'){ pan={}; var Zp=pageZ(); EDGE=20/Zp; var rp=function(q,m){ return [(q.left-rr.left)/Zp+m,(q.top-rr.top)/Zp+m,(q.right-rr.left)/Zp-m,(q.bottom-rr.top)/Zp-m]; };   // (screen px to the root's css px)
     var thp=S.grid?S.grid.th*t.s:0;   // (the plate's title strip, its name and lit count, is not a tag's place)
-    [].forEach.call(S.svg.querySelectorAll('.bl-cellbg[data-fade]'),function(e){ var q=rp(e.getBoundingClientRect(),2); q[1]+=thp; pan[e.getAttribute('data-fade')]=q; });
+    [].forEach.call(S.svg.querySelectorAll('.bl-cellbg[data-fade]'),function(e){ var q=rp(e.getBoundingClientRect(),EDGE); q[1]+=thp; q[0]=Math.max(q[0],EDGE); q[1]=Math.max(q[1],EDGE); q[2]=Math.min(q[2],S.root.clientWidth-EDGE); q[3]=Math.min(q[3],S.root.clientHeight-EDGE); pan[e.getAttribute('data-fade')]=q; });   // (a tag keeps 20 px from its plate's edges and the window's: Board L-1120-ALLFLOORS)
     chromeEls().forEach(function(e){ bars.push(rp(e.getBoundingClientRect(),-gap)); }); }
   var inPan=function(x,y,w,h,lv){ var q=pan&&pan[lv]; return !q||(x-w/2>=q[0]&&x+w/2<=q[2]&&y-h/2>=q[1]&&y+h/2<=q[3]); };
   var at;

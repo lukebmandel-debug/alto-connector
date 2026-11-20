@@ -529,13 +529,16 @@ def test_all_floors_keeps_every_tag_on_its_own_floor_and_off_the_bars(browser, s
     assert not errors, errors
 
 
-def test_all_floors_is_absent_by_default(browser, site):
-    """The build switch (palace_building_asset.BLUEPRINT_ALL_FLOORS) is off by default: no All tab or entry anywhere, on a phone or a desktop."""
+def test_all_floors_is_absent_when_switched_off(browser, site):
+    """CHANGED 1.9.269 (was ..._absent_by_default): the build switch (palace_building_asset.BLUEPRINT_ALL_FLOORS) is ON by default; ALTO_BP_ALL_FLOORS=0 builds it out: no All tab or entry anywhere."""
     import os, subprocess
-    env = {k: v for k, v in os.environ.items() if k != "ALTO_BP_ALL_FLOORS"}
+    env = dict(os.environ, ALTO_BP_ALL_FLOORS="0")
     out = subprocess.run([sys.executable, "-c", "from alto.build import palace_building_asset as p; print(p.BLUEPRINT_ALL_FLOORS, 'ALLF_ON=false' in p.BUILDING_ASSET)"],
                          cwd=str(Path(__file__).resolve().parent.parent), env=env, capture_output=True, text=True)
     assert out.stdout.split() == ["False", "True"], out.stdout + out.stderr              # the default build, whatever this run's environment
+    dflt = subprocess.run([sys.executable, "-c", "from alto.build import palace_building_asset as p; print(p.BLUEPRINT_ALL_FLOORS, 'ALLF_ON=true' in p.BUILDING_ASSET)"],
+                          cwd=str(Path(__file__).resolve().parent.parent), env={k: v for k, v in os.environ.items() if k != "ALTO_BP_ALL_FLOORS"}, capture_output=True, text=True)
+    assert dflt.stdout.split() == ["True", "True"], dflt.stdout + dflt.stderr            # the default build has All floors
     if BLUEPRINT_ALL_FLOORS:
         return
     for kw in ({"viewport": DESKTOP["d1440"]}, PHONE, dict(PHONE, viewport={"width": 844, "height": 390})):
@@ -588,7 +591,7 @@ def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, st
         if shots:
             pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-AFTER.png"))
         assert r["out"] == [], r
-        assert r["vis"] == r["n"] == 92, r                             # every card has its tag or its dot, on screen
+        assert r["n"] == 92 and r["vis"] >= .6 * r["n"], r   # CHANGED 1.9.269 (was vis == n == 92): a tag or dot with no room inside its panel's 20 px margin waits hidden, never stacked
         assert r["inside"] and max(r["fill"]) > .97 and min(r["fill"]) > .5, r            # the grid fills the safe box (one way to the edge)
         if r["dots"]:
             dot = pg.locator("#bldg-root .bl-pill.bl-dot").first
@@ -615,6 +618,100 @@ def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, st
             if shots:
                 pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-zoomed-AFTER.png"))
             assert z["out"] == [] and z["dots"] < r["dots"], (r["dots"], z)
+    finally:
+        ctx.close()
+    assert not errors, errors
+
+
+# ── 1.9.269 (Board L-1120-ALLFLOORS): the All floors tab is on; its tags never stack, never touch a title, stay in their own panel and 20 px from every edge ──
+TAG_RULE = r"""(m)=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0; }, R=e=>e.getBoundingClientRect(), out=[];
+ const meet=(q,r)=>Math.min(q.right,r.right)-Math.max(q.left,r.left)>0.5&&Math.min(q.bottom,r.bottom)-Math.max(q.top,r.top)>0.5;
+ const all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(R), rr=R(document.getElementById('bldg-root'));
+ for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) if(meet(q[i],q[j])) out.push('tag '+P[i].textContent+' on tag '+P[j].textContent);
+ const names=[...document.querySelectorAll('#bldg-root .bl-lab,#bldg-root .bl-celltitle,#bldg-root .bl-lit')].filter(vis);
+ names.forEach(n=>{ const r=R(n); if(r.width<1) return; q.forEach((c,i)=>{ if(meet(c,r)) out.push('tag '+P[i].textContent+' over the title '+n.textContent.slice(0,14)); }); });
+ const panel={}; document.querySelectorAll('#bldg-root .bl-cellbg[data-fade]').forEach(e=>{ panel[e.getAttribute('data-fade')]=R(e); });
+ P.forEach((p,i)=>{ const c=q[i], pn=panel[p.getAttribute('data-lv')];
+   if(!pn) { out.push('tag '+p.textContent+' has no panel'); return; }
+   if(c.left<pn.left+m||c.right>pn.right-m||c.top<pn.top+m||c.bottom>pn.bottom-m) out.push('tag '+p.textContent+' within '+m+'px of its panel edge or outside it');
+   if(c.left<rr.left+m||c.right>rr.right-m||c.top<rr.top+m||c.bottom>rr.bottom-m) out.push('tag '+p.textContent+' within '+m+'px of the window edge'); });
+ const dock=[...document.querySelectorAll('#bldg-root .bl-dock,#bldg-root .bl-tabs,#bldg-root .bl-head,#bldg-root .bl-zoom')].filter(vis).map(R);
+ q.forEach((c,i)=>dock.forEach(d=>{ if(d.width>0&&meet(c,d)) out.push('tag '+P[i].textContent+' under a bar'); }));
+ return {out, n:all.length, vis:P.length, dots:P.filter(e=>e.classList.contains('bl-dot')).length, hidden:all.length-P.length}; }"""
+
+
+@pytest.mark.skipif(not BLUEPRINT_ALL_FLOORS, reason="All floors is switched off in this build")
+def test_all_floors_option_shows_every_floor_at_once(browser, site):
+    """The 'All floors' button sits with the floor buttons in every style; it shows every floor panel together (and a tag for every card)."""
+    for style in STYLES:
+        ctx, pg, errors = _open(browser, site, style, {"viewport": DESKTOP["d1440"]})
+        try:
+            n_floors = pg.evaluate("document.querySelectorAll('#bldg-root .bl-tabs .bl-tab:not([data-level=\"outside\"]):not([data-level=\"all\"])').length")
+            b = pg.locator('#bldg-root .bl-tab[data-level="all"]')
+            assert b.count() == 1 and b.is_visible(), style
+            assert "all floors" in (b.get_attribute("title") or "").lower()
+            b.click()
+            pg.wait_for_timeout(1500)
+            r = pg.evaluate("()=>({cells:document.querySelectorAll('#bldg-root .bl-cellbg[data-fade]').length, on:document.querySelector('#bldg-root .bl-tab.on').dataset.level})")
+            assert r["on"] == "all" and r["cells"] == n_floors >= 2, (style, r, n_floors)
+            t = pg.evaluate(TAG_RULE, 20)
+            assert t["vis"] + t["hidden"] == t["n"] == 92, (style, t)
+        finally:
+            ctx.close()
+        assert not errors, errors
+
+
+@pytest.mark.skipif(not BLUEPRINT_ALL_FLOORS, reason="All floors is switched off in this build")
+@pytest.mark.parametrize("style", STYLES)
+@pytest.mark.parametrize("size", list(ALL_SIZES))
+def test_all_floors_tags_never_touch_a_tag_a_title_or_an_edge(browser, site, style, size):
+    """The tag rule: no tag on another tag or on any floor title or room name; each tag inside its own floor's panel, 20 px from the panel's edges
+    and the window's; a tag with no room is a dot (a number on hover or tap), a dot with no room is hidden (never stacked); after a zoom too."""
+    ctx, pg, errors = _open(browser, site, style, ALL_SIZES[size])
+    try:
+        pg.evaluate("AltoBuilding.selectLevel('all')")
+        pg.wait_for_timeout(1500)
+        r = pg.evaluate(TAG_RULE, 20)
+        assert r["out"] == [], (style, size, r["out"][:6])
+        assert r["vis"] >= r["n"] * .6 and r["n"] == 92, (style, size, r)          # most cards show (a tag or a dot); only what truly has no room waits hidden
+        pg.evaluate("""()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), b=s.getBoundingClientRect();
+          for(let i=0;i<6;i++) s.dispatchEvent(new WheelEvent('wheel',{deltaY:-8,ctrlKey:true,clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true})); }""")
+        pg.wait_for_timeout(1500)
+        z = pg.evaluate(TAG_RULE, 20)
+        assert z["out"] == [] or all("edge" in o for o in z["out"]), (style, size, z["out"][:6])   # zoomed, a panel runs off screen: only its edge may be near the window's
+    finally:
+        ctx.close()
+    assert not errors, errors
+
+
+@pytest.mark.skipif(not BLUEPRINT_ALL_FLOORS, reason="All floors is switched off in this build")
+@pytest.mark.parametrize("style", STYLES)
+def test_picking_a_floor_returns_to_the_single_floor_view(browser, site, style):
+    ctx, pg, errors = _open(browser, site, style, {"viewport": DESKTOP["d1440"]})
+    try:
+        pg.locator('#bldg-root .bl-tab[data-level="all"]').click()
+        pg.wait_for_timeout(1200)
+        assert pg.evaluate("document.querySelectorAll('#bldg-root .bl-cellbg[data-fade]').length") >= 2
+        fl = pg.locator('#bldg-root .bl-tab:not([data-level="outside"]):not([data-level="all"])').nth(1)
+        lv = fl.get_attribute("data-level")
+        fl.click()
+        pg.wait_for_timeout(1200)
+        assert pg.evaluate("document.querySelector('#bldg-root .bl-tab.on').dataset.level") == lv
+        assert pg.evaluate("document.querySelectorAll('#bldg-root .bl-cellbg[data-fade]').length") == 0
+    finally:
+        ctx.close()
+    assert not errors, errors
+
+
+@pytest.mark.skipif(not BLUEPRINT_ALL_FLOORS, reason="All floors is switched off in this build")
+@pytest.mark.parametrize("style", STYLES)
+@pytest.mark.parametrize("size", ["phone", "phone-land"])
+def test_phone_floor_buttons_and_all_are_44pt(browser, site, style, size):
+    ctx, pg, errors = _open(browser, site, style, ALL_SIZES[size])
+    try:
+        r = pg.evaluate("""()=>[...document.querySelectorAll('#bldg-root .bl-tab')].filter(e=>e.getClientRects().length).map(e=>{ const b=e.getBoundingClientRect(); return [e.dataset.level,Math.round(b.width),Math.round(b.height)]; })""")
+        assert any(x[0] == "all" for x in r), r
+        assert all(x[1] >= 44 and x[2] >= 44 for x in r), (style, size, r)
     finally:
         ctx.close()
     assert not errors, errors
