@@ -133,6 +133,7 @@ def test_renaming_a_timeline_rewrites_its_name_where_it_lives_and_nothing_else(b
     assert json.loads(d["users/u1/alto_timelines/torts"]["data"])["brief"]["title"] == new   # the next build keeps it
     assert d["users/u1/pagemeta/k1"]["heading"] == new and d["users/u1/pagemeta/k1"]["project"] == "Law"
     assert d["users/u1/pages/k1"]["shareKey"] == "sk1"                         # its share link is the share flow's
+    assert "plan" not in d["users/u1/pagemeta/k1"]                             # a page with no plan keeps no plan key (deleteField removes it)
     assert d["users/u1/pagemeta/k2"]["heading"] == "Civ Pro"                   # a neighbour is not touched
     # a name that is only quotes and markup is refused
     with pytest.raises(Exception):

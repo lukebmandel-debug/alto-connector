@@ -9,6 +9,7 @@ tests/test_cloud_store.py runs both over the same real pages.
 from __future__ import annotations
 
 import html as _html
+import json
 import re
 
 META_V = 1
@@ -22,6 +23,9 @@ _NODE = re.compile(
     r"\{id:'((?:[^'\\]|\\.)*)'[\s\S]*?title:'((?:[^'\\]|\\.)*)'\s*,\s*"
     r"desc:'((?:[^'\\]|\\.)*)'")
 _COURSE = re.compile(r"var COURSE_ID = '([^']*)';")
+_PLAN = re.compile(r'<script id="alto-sp-data">window\._ALTO_SP=(\{.*?\});</script>', re.S)
+_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+PLAN_CAP = 120
 
 
 def _unq(s: str) -> str:
@@ -61,6 +65,31 @@ def fmt_of(h: str) -> str:
     return "timeline"
 
 
+def plan_of(h: str) -> dict | None:
+    """The study plan's summary for the homepage card (plan_of in alto-cloud.js is its twin): the day and the node of each item, in order, and
+    the exam date. NOTHING else: no reason text, no minutes, no signals. None when the page has no plan."""
+    m = _PLAN.search(h or "")
+    if not m:
+        return None
+    try:
+        p = json.loads(m.group(1).replace("<\\!--", "<!--"))
+    except ValueError:
+        return None
+    days, nodes = [], []
+    items = p.get("items") if isinstance(p, dict) else None
+    for it in items if isinstance(items, list) else []:
+        if len(days) >= PLAN_CAP:
+            break
+        d, n = it.get("day") if isinstance(it, dict) else None, it.get("node") if isinstance(it, dict) else None
+        if isinstance(d, str) and _DAY.fullmatch(d) and isinstance(n, str) and 0 < len(n) <= 80:
+            days.append(d)
+            nodes.append(n)
+    if not days:
+        return None
+    ex = p.get("exam")
+    return {"days": days, "nodes": nodes, "exam": ex if isinstance(ex, str) and _DAY.fullmatch(ex) else ""}
+
+
 def meta_of(h: str) -> dict:
     h = h or ""
     lm = _LABEL.search(h)
@@ -75,9 +104,13 @@ def meta_of(h: str) -> dict:
         search.append({"id": _unq(m.group(1)), "t": _unq(m.group(2)),
                        "d": _unq(m.group(3))[:DESC_CAP]})
     cm = _COURSE.search(h)
-    return {"title": project or heading, "heading": heading, "project": project,
-            "tid": cm.group(1) if cm else "", "units": units, "search": search,
-            "fmt": fmt_of(h), "v": META_V}
+    out = {"title": project or heading, "heading": heading, "project": project,
+           "tid": cm.group(1) if cm else "", "units": units, "search": search,
+           "fmt": fmt_of(h), "v": META_V}
+    plan = plan_of(h)
+    if plan:                                          # a page with no plan has no "plan" key: the writer then removes the field
+        out["plan"] = plan
+    return out
 
 
 def title_of(h: str) -> str:

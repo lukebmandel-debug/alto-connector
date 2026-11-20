@@ -264,7 +264,7 @@ CSS = '<style id="alto-home-look">' + _CLASSIC + BIN_CSS + "</style>"
 
 # ── the homepage file card's study-plan line (Luke 2026-11-01: "make it easy for a user to realize this is a feature"): a small line under the title,
 # "+ Make a study plan" when the file has none, "Study plan [Today 3] [2 late]" (words in small tags, Art's page 2 (c)) when it has one. A computer's page only (hidden at 640 and under). The state
-# comes from the card's own record (pg.plan = {days: [YYYY-MM-DD, ...], exam}, written when the page is published); with none it is the invitation. ──
+# comes from the card's own record (pg.plan = {days: [YYYY-MM-DD, ...], nodes: [node id per day], exam}, written into the page's record when it is published: cloud/meta.py plan_of); with none it is the invitation. ──
 SP_CARD_JS = r"""
 window._spCard = function(el, rec){
   if(!el || el.querySelector('.sp-card')) return;
@@ -276,15 +276,22 @@ window._spCard = function(el, rec){
       + '.sp-card.sp-make:hover{background:color-mix(in srgb,var(--spa) 26%,transparent);border-color:color-mix(in srgb,var(--spa) 55%,transparent);}.sp-card.sp-make:active{background:color-mix(in srgb,var(--spa) 38%,transparent);transform:translateY(1px);}'
       + 'html.alto-holo .sp-card.sp-make,html.alto-holo .sp-card.has{--spa:var(--ho-ac,#4ff0e0);border-radius:6px;background:rgba(255,255,255,.04);border:1px solid var(--spa);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}html.alto-holo .sp-card.sp-make:hover{background:color-mix(in srgb,var(--spa) 20%,transparent);}html.alto-holo .sp-card.sp-make:active{background:color-mix(in srgb,var(--spa) 34%,transparent);}'
       + 'html.alto-retro .sp-card.sp-make,html.alto-retro .sp-card.has{border-radius:0;background:transparent;border:1px solid #d9ae55;}html.alto-retro .sp-card.sp-make:hover{background:rgba(217,174,85,.16);}html.alto-retro .sp-card.sp-make:active{background:rgba(217,174,85,.3);}'
+      + '.sp-card.has{height:auto;min-height:24px;padding-top:1px;padding-bottom:1px;border-radius:14px;row-gap:2px;}'   // a pill with a plan may wrap its late tag to a second line instead of spilling out of its box
+      + '.sp-card .sp-b{display:contents;}html:not(.alto-holo):not(.alto-retro) .sp-card.has{max-width:140px;flex-wrap:nowrap;align-items:center;gap:6px;padding-left:10px;padding-right:10px;white-space:nowrap;}html:not(.alto-holo):not(.alto-retro) .sp-card.has i{font-size:12px;}html:not(.alto-holo):not(.alto-retro) .sp-card.has .sp-s{display:none;}html:not(.alto-holo):not(.alto-retro) .sp-card.has .sp-w{text-transform:capitalize;}html:not(.alto-holo):not(.alto-retro) .sp-card.has .sp-b:not(:empty){margin:3px 0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;}'   // Classic: the format plate (the big glyph) fills the right of the card, so the pill ends 12 px clear of it: the word "Plan" on the left, the badges stacked to its right
       + '.sp-card.sp-make:focus-visible{outline:2px solid var(--spa);outline-offset:2px;}.sp-card.has{color:inherit;}.sp-card b{background:var(--spa);color:var(--spi);border-radius:6px;padding:4px 7px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;}.sp-card b.l{background:var(--spl);}'
       + '.sp-card i{font-style:normal;font-weight:400;opacity:.75;}@media (min-width:641px){.sp-card{display:flex;}}@media print{.sp-card{display:none !important;}}';
     document.head.appendChild(st); }
   var days = rec && rec.plan && rec.plan.days, line = document.createElement('div'); line.className = 'sp-card';
   if(days && days.length){
     var d = window._altoSpNow ? new Date(window._altoSpNow) : new Date(), z = function(n){ return n < 10 ? '0' + n : '' + n; }, t = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
-    var today = days.filter(function(x){ return x === t; }).length, late = days.filter(function(x){ return x < t; }).length;
-    line.className += ' has'; line.appendChild(document.createTextNode('Study plan '));
-    var add = function(cls, w){ var b = document.createElement('b'); if(cls) b.className = cls; b.textContent = w; line.appendChild(b); line.appendChild(document.createTextNode(' ')); };
+    // The page's own rule (study_plan.py states()): a ticked item is neither today nor late. The record carries each item's node beside its day; the ticks are the
+    // reader's own, kept by the page in this browser ('alto-hl-<tid>-st'), so a tick made on a device that has opened the page is seen here, and with none this counts every item.
+    var nodes = (rec.plan.nodes || []), tk = {};
+    try{ var st = JSON.parse(localStorage.getItem('alto-hl-' + rec.tid + '-st') || 'null'); tk = ((st && st.s && st.s.__plan__) || {}).k || {}; }catch(e){}
+    var live = days.filter(function(x, i){ var v = nodes[i] != null ? tk[nodes[i] + '|' + x] : null; return !(v && v[0] === 1); });
+    var today = live.filter(function(x){ return x === t; }).length, late = live.filter(function(x){ return x < t; }).length;
+    line.className += ' has'; line.setAttribute('aria-label', 'Study plan'); line.title = 'Study plan'; var sw = document.createElement('span'), ss = document.createElement('span'), bx = document.createElement('span'); sw.className = 'sp-w'; ss.className = 'sp-s'; ss.textContent = 'Study '; sw.appendChild(ss); sw.appendChild(document.createTextNode('plan ')); bx.className = 'sp-b'; line.appendChild(sw); line.appendChild(bx);
+    var add = function(cls, w){ var b = document.createElement('b'); if(cls) b.className = cls; b.textContent = w; bx.appendChild(b); bx.appendChild(document.createTextNode(' ')); };
     if(today) add('', 'Today ' + today);
     if(late) add('l', late + ' late');
     if(!today && !late){ var n = document.createElement('i'); n.textContent = 'nothing today'; line.appendChild(n); }
