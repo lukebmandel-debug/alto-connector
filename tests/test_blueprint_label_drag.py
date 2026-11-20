@@ -293,7 +293,7 @@ def test_a_phone_keeps_its_top_left_default(browser, site, w, h):
     page, errors = _open(browser, site, w, h, True)
     try:
         g = page.evaluate(GEO)
-        assert g["head"]["t"] < h / 2 and g["head"]["l"] < 40 and g["hit"] == [], g
+        assert g["head"]["l"] == 14 and g["head"]["t"] < 180 and g["hit"] == [], g   # (the phone stylesheet's own left:14px, top under MAP/Search/MENU; not the foot)
         assert errors == []
     finally:
         page.close()
