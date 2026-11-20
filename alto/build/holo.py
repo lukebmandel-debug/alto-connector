@@ -455,6 +455,43 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
           "@media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
 
+# v1.9.265 (Luke L-1119-DIVIDERS-YES, Art's mock notes-art/unit-dividers/): Holo glass on the unit dividers: the desktop unit name plate and numeral, the 6px glass divider tube, the
+# phone Whole view's unit boxes (20px in) and the title plate's glass tab. Holo only (Classic, Retro and ink print are untouched: the sheet is inside @media screen and scoped to X). The
+# desktop unit name plate sits 20px in from the left edge (the engine's inline 9px is overridden), as the numeral does on the right.
+UNIT_GLASS_CSS = r"""
+  X{--uc:rgb(var(--ho-rgb))}
+  X #world :is(.phase-label-float,.phase-numeral):not(#_):not(#__):not(#___){
+ --uc:color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 100%,transparent);
+ border-radius:999px !important;border:1.5px solid color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent) !important;
+ background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.14),transparent 55%),linear-gradient(color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 20%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 20%,transparent)),rgba(var(--ho-bgrgb),.86) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 30%,transparent),0 0 16px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 38%,transparent) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
+  X #world .phase-numeral:not(#_):not(#__){min-width:64px;box-sizing:border-box;text-align:center;justify-content:center;}
+  X #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:calc(88px + var(--xr,0px)) !important;height:6px !important;margin-top:-3px;border-radius:999px;
+ background:linear-gradient(90deg,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 30%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 70%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 12px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 35%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
+  X:not(.mobile) #title-bar #title-text:not(#_):not(#__):not(#___){
+ border:0 !important;border-radius:0 0 20px 20px !important;
+ background:radial-gradient(circle at 32% 0%,rgba(255,255,255,.14),transparent 60%),rgba(var(--ho-bgrgb),.86) !important;
+ box-shadow:inset 0 -1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 8px 16px -4px rgba(var(--ho-rgb),.30) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
+  X.pmin #nav .title:not(#_):not(#__):not(#___){position:absolute;left:50%;top:0;transform:translateX(-50%);width:auto;max-width:calc(100% - 150px);box-sizing:border-box;height:34px;line-height:31px;padding:0 22px !important;margin:0 !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;
+ border:0 !important;border-radius:0 0 20px 20px !important;
+ background:radial-gradient(circle at 32% 0%,rgba(255,255,255,.14),transparent 60%),rgba(var(--ho-bgrgb),.86) !important;
+ box-shadow:inset 0 -1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 8px 16px -4px rgba(var(--ho-rgb),.30) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
+  X.pmin .ix-tile:not(#_):not(#__):not(#___){--uu:var(--uc,rgb(var(--ho-rgb)));margin-inline:4px;border-radius:22px !important;
+ border:1.5px solid color-mix(in srgb,var(--uu) 80%,transparent) !important;
+ background:radial-gradient(circle at 30% 0%,rgba(255,255,255,.12),transparent 50%),linear-gradient(color-mix(in srgb,var(--uu) 12%,transparent),color-mix(in srgb,var(--uu) 12%,transparent)),rgba(var(--ho-bgrgb),.86) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px color-mix(in srgb,var(--uu) 22%,transparent),0 0 16px color-mix(in srgb,var(--uu) 32%,transparent) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.5);backdrop-filter:blur(14px) saturate(1.5);}
+  X.pmin .ix-hd .ix-num:not(#_):not(#__){min-width:34px;box-sizing:border-box;padding:3px 8px;text-align:center;border-radius:999px;
+ background:linear-gradient(color-mix(in srgb,var(--uc,rgb(var(--ho-rgb))) 30%,transparent),color-mix(in srgb,var(--uc,rgb(var(--ho-rgb))) 30%,transparent)),rgba(var(--ho-bgrgb),.86);
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 10px color-mix(in srgb,var(--uc,rgb(var(--ho-rgb))) 35%,transparent);border:1px solid color-mix(in srgb,var(--uc,rgb(var(--ho-rgb))) 80%,transparent);}
+  X:not(.mobile) #world .phase-label-float:not(#_):not(#__):not(#___){left:calc(20px / var(--alto-zoom,.8)) !important;}
+  
+"""
+
 _UNIT_CSS = "".join(f"  X #wpal-root .wu{i}:not(#_){{--u:var(--ho-u{i});}}\n" for i in range(12))
 
 
@@ -505,7 +542,7 @@ def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
     base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)   # (HOME_CSS: the homepage, home_look.py)
     board = base + "\n" + HOLO_CSS
-    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS + S1_CSS
+    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS + S1_CSS + UNIT_GLASS_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
             f"  :is({sel}.dark,{sel}.alto-stars.sk-real):not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")   # (the Star chart's sky is space in both themes)
