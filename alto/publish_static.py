@@ -31,6 +31,7 @@ that way cannot survive the next deploy.
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import json
 import os
@@ -211,6 +212,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             "paste it).")
     from .build import palace_tiles
     cmap_refs: set = set()
+    named_refs = _stored_page_refs(store, uid, private)       # the hosted files the pages stored BEFORE this run name: a republish may be refused, and then they stay
     for t in private:
         key = check_component(t["private_key"], "private_key")
         live_keys.add(key)
@@ -233,7 +235,12 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             # which Alto built it and the no-downgrade guard had nothing to compare.
             page = stamp_engine(private_page(b, raw, name_by_pid.get(t.get("project_id", ""), "")))
             cmap_refs |= palace_tiles.page_refs(page)          # the city base the page loads (build/palace_tiles.py)
+            named_refs |= hosted_refs(page)
             store.put_artifact(uid, tid, "private.html", page)
+
+    # Never prune what a stored page names (a refused or skipped republish leaves its page naming the file of an earlier build): read those
+    # files now, before any folder below is replaced, and put back whichever the replacing dropped (see _pin_named / _restore_kept).
+    pinned = _pin_named(site, named_refs)
 
     # ── share links ─────────────────────────────────────────────────────
     # ONE shell for every share that will ever exist. /s/{key}/ is rewritten to
@@ -358,11 +365,58 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         if name not in _on_site(site / palace_tiles.FOLDER):
             stale_notes.append(f"city data {name}: a published palace names it, but it is not in {palace_tiles.blob_dir()} — rebuild that page "
                                "(or restore the folder) before publishing, or its map does not load")
+    _restore_kept(site, pinned)
     for key, text in legal.pages().items():              # /privacy/ /terms/ /credits/: the words are alto/legal/*.md
         ldir = site / key
         ldir.mkdir(exist_ok=True)
         (ldir / "index.html").write_text(text, encoding="utf-8")
     return site
+
+
+PIN_SKIP = ("street/", "tex/")                        # retired folders (palace_assets.RETIRED_FOLDERS): a publish removes them on purpose
+
+
+def _stored_page_refs(store, uid: str, timelines=None) -> set:
+    """Every hosted file (hosted_refs) named by the private.html stored for a timeline that is published (private-web) AT THIS DEPLOY: the scan
+    verify_assets runs after one. Recomputed on every deploy and never from a draft, an unpublished or a binned timeline (its plan can be a home
+    with its lat/lon): once a timeline stops being published, what only it names is pruned on the next deploy. A store that cannot be read is a
+    WARNING (and a stale note), not silence: the deploy then prunes as it did before."""
+    out = set()
+    try:
+        rows = _private_web(store, uid) if timelines is None else timelines
+        binned = {pg["key"] for pg in store.list_pages(uid) if pg.get("binned")} if hasattr(store, "list_pages") else set()
+    except Exception as e:                                  # noqa: BLE001
+        _warn_unpinned(f"the stored pages could not be listed ({e})")
+        return out
+    for t in rows:
+        if t.get("status") != "published" or t.get("visibility") != "private-web" or t.get("binned") or t.get("private_key") in binned:
+            continue
+        try:
+            out |= hosted_refs(store.get_artifact(uid, t.get("timeline_id") or t.get("id"), "private.html"))
+        except Exception as e:                              # noqa: BLE001
+            _warn_unpinned(f"{t.get('timeline_id') or t.get('id')}: its stored page could not be read ({e})")
+    return out
+
+
+def _warn_unpinned(why: str) -> None:
+    msg = f"hosted files named by stored pages are not being kept ({why}); a deploy prunes them as before"
+    logging.getLogger(__name__).warning(msg)
+    LAST_STALE.append(msg)
+
+
+def _pin_named(site: Path, refs) -> dict:
+    """{ref: (bytes, mtime)} of the files in `refs` the site dir holds now, plus, transitively (each file once), the hosted files those scripts and
+    data files name (the hosted Holographic script names its /hvid/ clips). Retired folders and symlinks are left out."""
+    out, todo = {}, sorted(refs)
+    while todo:
+        ref = todo.pop()
+        p = site / ref
+        if ref in out or ref.startswith(PIN_SKIP) or ".." in ref or p.is_symlink() or not p.is_file():
+            continue
+        out[ref] = (p.read_bytes(), p.stat().st_mtime)
+        if ref.endswith((".js", ".json")):
+            todo += sorted(hosted_refs(out[ref][0].decode("utf-8", "replace")))
+    return out
 
 
 def _building_plans(store, uid: str) -> dict:
@@ -415,6 +469,7 @@ def _restore_kept(d: Path, kept: dict) -> None:
     for name, (data, t) in kept.items():
         d.mkdir(parents=True, exist_ok=True)
         if not (d / name).exists():
+            (d / name).parent.mkdir(parents=True, exist_ok=True)     # a pinned ref is "<folder>/<file>", restored under the site dir
             (d / name).write_bytes(data)
             os.utime(d / name, (t, t))
 
