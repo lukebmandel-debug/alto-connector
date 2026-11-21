@@ -42,6 +42,7 @@ import re
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
 from .lanes_nav import NAV_CSS, NAV_JS
+from .lanes_title import LT_CSS, LT_JS
 from .sanitize import js_json
 
 MAIN = "main"
@@ -2125,3 +2126,7 @@ window.addEventListener('afterprint', function(){ printX(false); });
 # going round the timeline: step event to event (lanes_nav.py)
 LANES_CSS += NAV_CSS
 LANES_JS += NAV_JS
+
+# the page's name on a Retro horizontal timeline: options round (lanes_title.py)
+LANES_CSS += LT_CSS
+LANES_JS += LT_JS
