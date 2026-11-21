@@ -208,7 +208,7 @@ html:not(.mobile):not(.pmin) #bldg-root .bl-dock,html.bl-dock-phone #bldg-root .
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock>.bl-ui,html.bl-dock-phone #bldg-root .bl-dock>.bl-ui{position:static;display:flex;flex-direction:row;gap:4px;inset:auto;transform:none;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-tabs,html.bl-dock-phone #bldg-root .bl-dock .bl-tabs{flex-direction:row;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-dk,html.bl-dock-phone #bldg-root .bl-dk{display:inline-flex;}
-html:not(.mobile):not(.pmin) #bldg-root .bl-sep,html.bl-dock-phone #bldg-root .bl-sep{display:block;width:1px;height:22px;margin:0 4px;background:var(--bl-line);flex:none;}
+html:not(.mobile):not(.pmin) #bldg-root .bl-sep,html.bl-dock-phone #bldg-root .bl-sep{display:block;width:0;height:22px;margin:0 4px;border-left:1px solid var(--bl-line);flex:none;}   /* a border, not a 1px-wide box: on the scaled plan a bare 1px box rounds to nothing in WebKit, and a border never does (R5, All floors) */
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock :is(.bl-tab,.bl-btn,.bl-go),html.bl-dock-phone #bldg-root .bl-dock :is(.bl-tab,.bl-btn,.bl-go){height:36px;min-width:36px;padding:0 10px;border-radius:18px;
   display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid transparent;background:transparent;color:var(--bl-text);font-size:14px;font-weight:600;margin:0;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-zoom .bl-btn{width:36px;padding:0;}
