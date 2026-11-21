@@ -3172,3 +3172,17 @@ PATCHES += [
     {"name": "unit-numbers-mobile-nav", "old": _UN_MNP_OLD, "new": _UN_MNP_NEW, "count": 1},
     {"name": "unit-numbers-print", "old": _UN_PRINT_OLD, "new": _UN_PRINT_NEW, "count": 1},
 ]
+
+# ── print-crop (Board B-1121-LOOK282A) ───────────────────────────────────────
+# Chrome sets the desktop body to calc(100vw / .8) (125% of the viewport) at
+# html.is-blink:not(.mobile) body (and html.vw-unzoomed in the fit-to-window
+# path). That out-specifies the print rule `html.printing body{width:auto}`, so a
+# Letter PDF cut off its right fifth: every detail page, and the ink print too.
+# Match the specificity inside @media print. Safari/WebKit never carry the class.
+_PRINT_CROP_OLD = "  html.printing{ zoom:1 !important; }\n"
+_PRINT_CROP_NEW = _PRINT_CROP_OLD + (
+    "  html.printing.is-blink:not(.mobile) body,\n"
+    "  html.printing.vw-unzoomed:not(.mobile) body{ width:auto !important; max-width:100% !important; }\n")
+PATCHES += [
+    {"name": "print-crop-body-width", "old": _PRINT_CROP_OLD, "new": _PRINT_CROP_NEW, "count": 1},
+]
