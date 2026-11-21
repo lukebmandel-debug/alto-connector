@@ -109,6 +109,52 @@ def test_the_release_is_asked_for_once_per_session(check):
     assert check.calls == 1
 
 
+class _Clock:
+    now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_within_the_ttl_there_is_no_refetch(check, monkeypatch):
+    clk = _Clock()
+    monkeypatch.setattr(update_check, "_clock", clk)
+    update_check.update_note()
+    clk.now += update_check.TTL - 1
+    check.latest = "1.9.300"
+    assert "1.9.211" in update_check.update_note() and check.calls == 1
+
+
+def test_past_the_ttl_it_refetches_and_shows_the_new_number(check, monkeypatch):
+    clk = _Clock()
+    monkeypatch.setattr(update_check, "_clock", clk)
+    assert "1.9.211" in update_check.update_note()
+    clk.now += update_check.TTL + 1
+    check.latest = "1.9.300"
+    assert "the latest is 1.9.300" in update_check.update_note() and check.calls == 2
+    assert update_check.update_note() and check.calls == 2      # the fresh answer is cached again
+
+
+def test_a_failed_recheck_keeps_the_old_value_silently(check, monkeypatch):
+    clk = _Clock()
+    monkeypatch.setattr(update_check, "_clock", clk)
+    update_check.update_note()
+    clk.now += update_check.TTL + 1
+    check.latest = RuntimeError("offline")
+    assert "the latest is 1.9.211" in update_check.update_note() and check.calls == 2
+
+
+def test_offline_never_fetches(check, monkeypatch):
+    clk = _Clock()
+    monkeypatch.setattr(update_check, "_clock", clk)
+    monkeypatch.setattr(update_check, "_TEST_ALLOW_OFFLINE", False)
+    monkeypatch.setenv("ALTO_NO_NETWORK", "1")
+    for _ in range(3):
+        assert update_check.update_note() == ""
+        clk.now += update_check.TTL + 1
+    assert check.calls == 0
+
+
 # ── the engine stamp and the no-downgrade refusal ───────────────────────────
 
 def test_built_private_pages_carry_the_engine_stamp():
