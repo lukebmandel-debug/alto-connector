@@ -302,8 +302,15 @@ function gridOf(){ var lv=(A.plan.lv||[]).slice().sort(function(a,b){ return b.e
   var x0=b0[0]-pad, y0=b0[1]-th-pad;
   return {lv:lv, cols:cols, rows:rows, b0:b0, cw:cw, ch:ch, fs:fs, th:th, pad:pad, gap:gap, off:off, box:[x0, y0, x0+cols*(cw+2*pad)+(cols-1)*gap, y0+rows*(ch+th+2*pad)+(rows-1)*gap]}; }
 /* All floors fills the measured safe box (the enlarge's: window._altoSafeBox, or the phone's measure of the same bars), in the root's px */
-function allBox(){ var r=S.root.getBoundingClientRect(), B=sBox(0,innerWidth), l=Math.max(0,B.l-r.left), t=Math.max(0,B.t-r.top), rt=Math.min(r.width,B.r-r.left), b=Math.min(r.height,B.b-r.top);
-  if(rt-l<r.width*.3||b-t<r.height*.3){ l=8; t=8; rt=r.width-8; b=r.height-8; } return {l:l,t:t,r:rt,b:b,w:Math.max(1,rt-l),h:Math.max(1,b-t)}; }
+function allBox(){ var r=S.root.getBoundingClientRect(), M=12, B=[M,M,r.width-M,r.height-M], area=function(q){ return Math.max(0,q[2]-q[0])*Math.max(0,q[3]-q[1]); };
+  // Round 2 (CEO, 2026-11-20): the floor grid keeps clear of every bar (the page's title, the name card wherever it stands, the dock, the side rail), 12 px off each:
+  // for each bar over the box, the one cut (above, below, left of or right of it) that leaves the most room
+  var els=chromeEls(), tb=document.getElementById('title-bar'); if(tb&&els.indexOf(tb)<0){ var tq=tb.getBoundingClientRect(), tcs=getComputedStyle(tb); if(tq.width>1&&tq.height>1&&tcs.display!=='none'&&tcs.visibility!=='hidden'&&tq.width*tq.height<.4*innerWidth*innerHeight) els.push(tb); }   // (the page's title pill)
+  els.forEach(function(c){ var q=c.getBoundingClientRect(), x0=q.left-r.left, y0=q.top-r.top, x1=q.right-r.left, y1=q.bottom-r.top;
+    if(x1<=B[0]||x0>=B[2]||y1<=B[1]||y0>=B[3]) return;
+    var cuts=[[B[0],y1+M,B[2],B[3]],[B[0],B[1],B[2],y0-M],[x1+M,B[1],B[2],B[3]],[B[0],B[1],x0-M,B[3]]], best=null; cuts.forEach(function(k){ if(!best||area(k)>area(best)) best=k; }); B=best; });
+  if(B[2]-B[0]<r.width*.3||B[3]-B[1]<r.height*.3) B=[8,8,r.width-8,r.height-8];
+  return {l:B[0],t:B[1],r:B[2],b:B[3],w:Math.max(1,B[2]-B[0]),h:Math.max(1,B[3]-B[1])}; }
 A.allBox=function(){ return allBox(); };   // tests
 function drawAll(g){ var G=S.grid=gridOf(); S.labelSets=[]; var cells=el('g',{},g), tops;
   G.lv.forEach(function(l){ var o=G.off[l.id], x=G.b0[0]-G.pad+o[0], y=G.b0[1]-G.th-G.pad+o[1];
