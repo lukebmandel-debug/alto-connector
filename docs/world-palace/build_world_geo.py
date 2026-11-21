@@ -221,6 +221,10 @@ MERGE = {"B35": "GEO", "B37": "GEO"}
 # 10 Dec 2020 proclamation. Each entry names a country of the USA edition that is dissolved into another: its rings and the host's are joined along the
 # border they share (the shared edges cancel), so no line is left inside the host at any tier. Add a case here, never a hand-drawn polygon.
 US_POSITION_MERGES = {"SAH": "MAR"}
+# The US does not recognise Russian sovereignty over the Southern Kurils (Northern Territories): Iturup, Kunashir, Shikotan and the Habomai islets are Japan's on this map
+# (Board B-1120-LOOK276). A transfer names the islands as a box (lon0, lat0, lon1, lat1) round them: every ring of the giver's polygon whose middle lies in the box goes
+# to the receiver, whole, as Natural Earth drew it. Add a case here, never a hand-drawn polygon.
+US_POSITION_TRANSFERS = {"RUS": ("JPN", (145.2, 43.2, 149.0, 45.6))}
 REPOINT = ("UKR", "RUS", "GEO", "CYP", "SOM")                   # countries whose shape changed: their label point is the edition's
 REMOVED = {"CYN": "CYP", "SOL": "SOM", "KAS": None, **US_POSITION_MERGES}              # codes the old edition had that the USA one does not (None: by position)
 
@@ -274,6 +278,15 @@ def usa_inputs(base):
         if a and b:
             b[0]["geometry"] = {"type": "MultiPolygon", "coordinates": [[r] for r in _dissolve([p[0] for f in b + a for p in f["geometry"]["coordinates"]])]}
             feats = [f for f in feats if f not in a]
+    for src, (dst, (x0, y0, x1, y1)) in US_POSITION_TRANSFERS.items():
+        a = [f for f in feats if f["properties"]["ADM0_A3"] == src and not f["properties"]["_merged"]]
+        b = [f for f in feats if f["properties"]["ADM0_A3"] == dst and not f["properties"]["_merged"]]
+        if a and b:
+            mid = lambda poly: (sum(p[0] for p in poly[0]) / len(poly[0]), sum(p[1] for p in poly[0]) / len(poly[0]))
+            moved = [poly for poly in a[0]["geometry"]["coordinates"] if x0 <= mid(poly)[0] <= x1 and y0 <= mid(poly)[1] <= y1]
+            a[0]["geometry"] = {"type": "MultiPolygon", "coordinates": [poly for poly in a[0]["geometry"]["coordinates"] if poly not in moved]}
+            b[0]["geometry"] = {"type": "MultiPolygon", "coordinates": b[0]["geometry"]["coordinates"] + moved}
+            print("US position:", len(moved), "ring(s) of", src, "moved to", dst)
     host = {f["properties"]["ADM0_A3"]: f["properties"] for f in feats if not f["properties"]["_merged"]}
     for f in feats:                                              # a folded-in statelet adds its shape only: the name, label point and the rest stay the state's
         if f["properties"]["_merged"]:
@@ -347,6 +360,24 @@ def _clean_a1(feats):
                 d = json.load(fh)
             keep = []
             for st in d["s"]:
+                def pts_of(rg):
+                    x, y, pts = rg[0], rg[1], [(rg[0], rg[1])]
+                    for i in range(2, len(rg), 2):
+                        x += rg[i]
+                        y += rg[i + 1]
+                        pts.append((x, y))
+                    return [(a / d["q"], b / d["q"]) for a, b in pts]
+                def in_other(rg):                                    # a third of the ring's vertices, or its middle (mean of the vertices, middle of its box), lie inside one other country's polygon
+                    pts = pts_of(rg)
+                    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                    mids = [(sum(xs) / len(xs), sum(ys) / len(ys)), ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)]
+                    return any((sum(1 for px, py in pts if x0 <= px <= x1 and y0 <= py <= y1 and _inside(px, py, r)) * 3 > len(pts)
+                                or any(x0 <= px <= x1 and y0 <= py <= y1 and _inside(px, py, r) for px, py in mids))
+                               for oc, pl in polys.items() if oc != name[4:7] for x0, y0, x1, y1, r in pl)
+                gone = [rg for rg in st[1] if name[4:7] in US_POSITION_TRANSFERS and in_other(rg)]
+                if gone and len(gone) < len(st[1]):                   # a ring (an island) of a province of a transfer's giver that lies in another country goes, the rest of the province stays (the Southern Kurils)
+                    print("a1p ring dropped:", name[4:7], st[0], len(gone))
+                    st = [st[0], [rg for rg in st[1] if rg not in gone]]
                 big = max(st[1], key=len)                          # the province's largest ring: its middle (mean of the vertices)
                 x, y, pts = big[0], big[1], [(big[0], big[1])]
                 for i in range(2, len(big), 2):
@@ -359,7 +390,7 @@ def _clean_a1(feats):
                     print("a1p province dropped:", name[4:7], st[0])
                 else:
                     keep.append(st)
-            if len(keep) != len(d["s"]):
+            if keep != d["s"]:
                 d["s"] = keep
                 _write(name, d)
     for name in sorted(os.listdir(OUT)):

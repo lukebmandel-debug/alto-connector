@@ -61,8 +61,8 @@ def usa_project(lon: float, lat: float, g: str | None = None) -> tuple[float, fl
     return ((x - cx) * P["s"] + P["o"][0]) * SCALE, ((y - cy) * P["s"] + P["o"][1]) * SCALE
 
 
-# The other eight countries with state data (Art spec section 3): one flat projection each, no insets. "t": alb (Albers equal-area conic), lcc (Lambert conformal conic), merc
-# (Mercator); l0 the central meridian, a / b the standard parallels, c the (lon, lat) that sits at the origin, R how far (degrees round c) a neighbour's land is still drawn.
+# The other eighteen countries with state data (Art spec section 3): one flat projection each, no insets. "t": alb (Albers equal-area conic), lcc (Lambert conformal conic), merc
+# (Mercator); l0 the central meridian, a / b the standard parallels, c the (lon, lat) that sits at the origin, R how far (degrees round c) a neighbour's land is still drawn (x: the country's own pieces too, beyond R, are not: overseas France, Japan's far islets).
 # The page builds the same projection from this dict (palace_world.py mkConic) and un-projects it for the globe.
 COUNTRY_PROJ = {
     "AUS": dict(t="alb", l0=134, a=-18, b=-36, c=(134, -25), R=48),
@@ -73,6 +73,17 @@ COUNTRY_PROJ = {
     "IDN": dict(t="merc", l0=118, c=(118, -2), R=45),
     "RUS": dict(t="alb", l0=100, a=52, b=64, c=(100, 62), R=70),
     "ZAF": dict(t="alb", l0=25, a=-24.5, b=-33, c=(25, -29), R=40),
+    # the G20 added in 1.9.226 (notes-testing/alto-atlas-g20/BUILD.md): one flat projection each, no insets, the divisions in docs/world-palace/build_g20_divisions.py
+    "ARG": dict(t="alb", l0=-65, a=-32, b=-50, c=(-65, -40), R=40),
+    "FRA": dict(t="lcc", l0=3, a=44, b=49, c=(2.6, 46.6), R=16, x=1),
+    "DEU": dict(t="lcc", l0=10.4, a=48.7, b=52, c=(10.4, 51.1), R=12),
+    "ITA": dict(t="alb", l0=12.5, a=37.5, b=45.5, c=(12.5, 42.2), R=14),
+    "JPN": dict(t="lcc", l0=137, a=30, b=44, c=(137, 37.5), R=19.5, x=1),
+    "MEX": dict(t="lcc", l0=-102, a=17.5, b=29.5, c=(-102, 23.8), R=26),
+    "SAU": dict(t="alb", l0=44.5, a=18, b=30, c=(44.5, 24), R=20),
+    "KOR": dict(t="lcc", l0=127.5, a=33, b=38, c=(127.8, 36.2), R=7),
+    "TUR": dict(t="lcc", l0=35, a=36, b=42, c=(35.2, 39), R=20),
+    "GBR": dict(t="alb", l0=-3, a=50, b=58, c=(-3, 54.6), R=10),
 }
 
 

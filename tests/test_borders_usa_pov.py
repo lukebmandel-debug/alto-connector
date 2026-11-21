@@ -128,3 +128,34 @@ def test_western_sahara_is_morocco():
     world = {"level": "country", "places": {"n1": {"c": "SAH", "s": "Laayoune-Sakia El Hamra", "city": "Laayoune", "lon": -13.2, "lat": 27.15, "label": "Laayoune"}}}
     wp.validate(world)
     assert wp._legacy(world)["places"]["n1"]["c"] == "MAR"
+
+
+def _mid(ring):
+    return sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
+
+
+def _in_kurils(pt):
+    cs = [wg.project(lo, la) for lo in (145.2, 149.0) for la in (43.2, 45.6)]
+    return min(c[0] for c in cs) <= pt[0] <= max(c[0] for c in cs) and min(c[1] for c in cs) <= pt[1] <= max(c[1] for c in cs)
+
+
+def test_southern_kurils_are_japan():
+    """US_POSITION_TRANSFERS (RUS -> JPN, a box round Iturup, Kunashir, Shikotan, Habomai): in both map tiers the islands' rings are Japan's and none is Russia's,
+    and Urup, the first island north of the box, stays Russian. (The 1:50m and 1:110m files draw the three big islands; the Habomai islets are under their line.)"""
+    for tiers, want in (([BASE], 2), (CONT, 3)):
+        rings = [(cid, r) for t in tiers for cid, r in _rings(t) if _in_kurils(_mid(r))]
+        assert sum(1 for cid, _ in rings if cid == "JPN") >= want and not [cid for cid, _ in rings if cid == "RUS"], [c for c, _ in rings]
+    assert _owner(CONT, 147.8, 45.0) == "JPN" and _owner(CONT, 150.0, 45.9) == "RUS"
+
+
+def test_southern_kurils_are_in_no_russian_province_and_are_hokkaido():
+    for iso, ok in (("RUS", False), ("JPN", True)):
+        with gzip.open(os.path.join(W, f"a1p-{iso}.json.gz")) as f:
+            d = json.load(f)
+        hit = [name for name, rs in d["s"] for flat in rs if _in_kurils((lambda pts: (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)))(
+            list(_rings({"q": d["q"], "c": {name: [flat]}}))[0][1]))]
+        assert bool(hit) == ok and (not ok or set(hit) == {"Hokkaido"}), (iso, hit)
+
+
+def test_golan_is_israel_in_both_tiers():
+    assert _owner([BASE], 35.75, 33.0) in ("ISR", None) and _owner(CONT, 35.69, 32.99) == "ISR"

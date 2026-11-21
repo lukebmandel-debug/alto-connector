@@ -645,7 +645,7 @@ function labels(){                                  // decided once a gesture se
     var L=P.lbl, show=!S.out[id]&&!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
     if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
     L.querySelector('i').style.display=tight?'none':'';
-    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)||b[3]>S.vh-2||b[0]<2||b[2]>S.vw-2||FR.some(function(f){ return !(P.x>f[0]&&P.x<f[2]&&P.y>f[1]&&P.y<f[3])&&b[0]<f[2]&&b[2]>f[0]&&b[1]<f[3]&&b[3]>f[1]; })) show=false; else taken.push(b); }      // (a name that would be cut by the screen's edge stays off: e8)
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?1:0)||b[3]>S.vh-2||b[0]<2||b[2]>S.vw-2||FR.some(function(f){ return !(P.x>f[0]&&P.x<f[2]&&P.y>f[1]&&P.y<f[3])&&b[0]<f[2]&&b[2]>f[0]&&b[1]<f[3]&&b[3]>f[1]; })) show=false; else taken.push(b); }      // (a name that would be cut by the screen's edge stays off: e8)
     P.on=show; off(L,show); });
   for(var k in S.pins) delete S.pins[k]._done;
   if(S.sts){ var lv=S.k/(S.kHome||S.kW), bs=phone()?3:2.2; S.sts.forEach(function(s){ var c=scr(s.x,s.y), L=s.lbl, show=lv>=bs&&c[2]!==false&&c[0]>24&&c[0]<S.vw-24&&c[1]>24&&c[1]<S.vh-24;
@@ -1129,7 +1129,7 @@ function eeR(x,y){ var X=x/ESC, Y=clamp(-y/ESC,-1.3173,1.3173), th=Y/EA1;
   for(var i=0;i<8;i++){ var t2=th*th, t6=t2*t2*t2, f=th*(EA1+EA2*t2+t6*(EA3+EA4*t2))-Y, d=EA1+3*EA2*t2+t6*(7*EA3+9*EA4*t2); th-=f/d; }
   var t2b=th*th, t6b=t2b*t2b*t2b, db=EA1+3*EA2*t2b+t6b*(7*EA3+9*EA4*t2b);
   return [X*EM*db/Math.max(Math.cos(th),1e-6)/D2R,Math.asin(clamp(Math.sin(th)/EM,-1,1))/D2R]; }
-// Another country (data.proj = world_geo.COUNTRY_PROJ[cid]): the same maths as world_geo._conic_xy, no insets; a neighbour's land within R degrees of the centre stays as context.
+// Another country (data.proj = world_geo.COUNTRY_PROJ[cid]): the same maths as world_geo._conic_xy, no insets; a neighbour's land within R degrees of the centre stays as context (P.x: the country's own far-off pieces too are cut at R: France without Guyane, Japan without Minami-Tori-shima).
 function mkConic(P,scope){ var t=P.t, l0=P.l0, ra=(P.a||0)*D2R, rb=(P.b||0)*D2R, n, F, wrap=function(lo){ return l0+((lo-l0+540)%360)-180; };
   if(t==='alb') n=(Math.sin(ra)+Math.sin(rb))/2; else if(t==='lcc') n=Math.log(Math.cos(ra)/Math.cos(rb))/Math.log(Math.tan(Math.PI/4+rb/2)/Math.tan(Math.PI/4+ra/2));
   var C=Math.cos(ra)*Math.cos(ra)+2*(n||0)*Math.sin(ra); F=t==='lcc'?Math.cos(ra)*Math.pow(Math.tan(Math.PI/4+ra/2),n)/n:0;
@@ -1140,7 +1140,7 @@ function mkConic(P,scope){ var t=P.t, l0=P.l0, ra=(P.a||0)*D2R, rb=(P.b||0)*D2R,
     var rho=F/Math.pow(Math.tan(Math.PI/4+la*D2R/2),n); return [rho*Math.sin(th),rho*Math.cos(th)]; }
   var cc=xy(P.c[0],P.c[1]);
   return {box:{},union:true,
-    reg:function(c,lon,lat){ if(c===scope) return 'M'; var a=lat*D2R,b=P.c[1]*D2R,d=Math.acos(clamp(Math.sin(a)*Math.sin(b)+Math.cos(a)*Math.cos(b)*Math.cos((lon-P.c[0])*D2R),-1,1))/D2R; return d<P.R?'M':null; },
+    reg:function(c,lon,lat){ if(c===scope&&!P.x) return 'M'; var a=lat*D2R,b=P.c[1]*D2R,d=Math.acos(clamp(Math.sin(a)*Math.sin(b)+Math.cos(a)*Math.cos(b)*Math.cos((lon-P.c[0])*D2R),-1,1))/D2R; return d<P.R?'M':null; },
     fwd:function(lon,lat){ var q=xy(lon,lat); return [(q[0]-cc[0])*ESC,(q[1]-cc[1])*ESC]; },
     inv:function(x,y){ var X=x/ESC+cc[0], Y=y/ESC+cc[1];
       if(t==='merc') return [l0+X/D2R,(2*Math.atan(Math.exp(-Y))-Math.PI/2)/D2R];
