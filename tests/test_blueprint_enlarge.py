@@ -561,7 +561,7 @@ def test_all_floors_is_absent_when_switched_off(browser, site):
 # ── All floors fills the safe box, and a tag with no room is a dot (brief bp-allfloors-fable-1114) ──
 ALL_TAGS = r"""()=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0; }, R=e=>e.getBoundingClientRect();
  const meet=(q,r)=>Math.min(q.right,r.right)-Math.max(q.left,r.left)>0.5&&Math.min(q.bottom,r.bottom)-Math.max(q.top,r.top)>0.5;
- const all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(R), out=[];
+ const all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(e=>R(e.classList.contains('bl-badge')?e.firstChild:e)), out=[];   // (a badge is its disc)
  for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) if(meet(q[i],q[j])) out.push(P[i].textContent+' on '+P[j].textContent);
  const names=[...document.querySelectorAll('#bldg-root .bl-lab,#bldg-root .bl-celltitle,#bldg-root .bl-lit')].filter(vis);
  names.forEach(n=>{ const r=R(n); if(r.width<1) return; q.forEach((c,i)=>{ if(meet(c,r)) out.push(P[i].textContent+' over the name '+n.textContent.slice(0,14)); }); });
@@ -597,22 +597,23 @@ def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, st
             pg.screenshot(path=os.path.join(shots, f"{size}-{style}-{browser.browser_type.name}-AFTER.png"))
         assert r["out"] == [], r
         assert r["n"] == 92 and r["vis"] >= .6 * r["n"], r   # CHANGED 1.9.269 (was vis == n == 92): a tag or dot with no room inside its panel's 20 px margin waits hidden, never stacked
-        assert r["inside"] and max(r["fill"]) > .97 and min(r["fill"]) > .5, r            # the grid fills the safe box (one way to the edge)
+        if not phone:                                                      # CHANGED round 3: a phone's floors are ONE full-width column and the page scrolls, so the grid is taller than the box
+            assert r["inside"] and max(r["fill"]) > .97 and min(r["fill"]) > .5, r            # the grid fills the safe box (one way to the edge)
         if r["dots"]:
-            dot = pg.locator("#bldg-root .bl-pill.bl-dot").first
+            dot = pg.locator("#bldg-root .bl-pill.bl-dot:not(.bl-badge):not(.bl-off)").first
             nid = dot.get_attribute("data-node")
-            if phone:
+            if phone:                                                   # CHANGED 1.9.269 round 3 (Board B-1120-LOOK269-R2): a tap on a phone's dot opens its card (no number-first step)
                 dot.tap(force=True)
-                pg.wait_for_timeout(300)
-                assert pg.evaluate("AltoBuilding.enlarged()") is None                     # a tap: the number first
+                pg.wait_for_timeout(700)
+                assert pg.evaluate("AltoBuilding.enlarged()") == nid
             else:
                 dot.hover(force=True)
                 pg.wait_for_timeout(300)
-            shown = pg.evaluate("id=>{ const p=document.querySelector('#bldg-root .bl-pill[data-node=\"'+id+'\"]'), b=p.firstChild.getBoundingClientRect(); return [p.getBoundingClientRect().width, b.width, p.firstChild.textContent]; }", nid)
-            assert shown[0] >= 30 and shown[1] > 4 and shown[2], shown
-            (dot.tap if phone else dot.click)(force=True)
-            pg.wait_for_timeout(700)
-            assert pg.evaluate("AltoBuilding.enlarged()") == nid
+                shown = pg.evaluate("id=>{ const p=document.querySelector('#bldg-root .bl-pill[data-node=\"'+id+'\"]'), b=p.firstChild.getBoundingClientRect(); return [p.getBoundingClientRect().width, b.width, p.firstChild.textContent]; }", nid)
+                assert shown[0] >= 30 and shown[1] > 4 and shown[2], shown
+                dot.click(force=True)
+                pg.wait_for_timeout(700)
+                assert pg.evaluate("AltoBuilding.enlarged()") == nid
             pg.evaluate("AltoBuilding.shrink()")
             pg.wait_for_timeout(500)
             # zoomed in on the dots' own floor, their numbers have room
@@ -631,7 +632,7 @@ def test_all_floors_fills_the_safe_box_and_no_two_tags_overlap(browser, site, st
 # ── 1.9.269 (Board L-1120-ALLFLOORS): the All floors tab is on; its tags never stack, never touch a title, stay in their own panel and 20 px from every edge ──
 TAG_RULE = r"""(m)=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0; }, R=e=>e.getBoundingClientRect(), out=[];
  const meet=(q,r)=>Math.min(q.right,r.right)-Math.max(q.left,r.left)>0.5&&Math.min(q.bottom,r.bottom)-Math.max(q.top,r.top)>0.5;
- const all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(R), rr=R(document.getElementById('bldg-root'));
+ const phone=/\b(mobile|pmin)\b/.test(document.documentElement.className), all=[...document.querySelectorAll('#bldg-root .bl-pill[data-node]')], P=all.filter(vis), q=P.map(e=>R(e.classList.contains('bl-badge')?e.firstChild:e)), rr=R(document.getElementById('bldg-root'));   // (a badge is its disc; its 44 pt hit box is invisible)
  for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) if(meet(q[i],q[j])) out.push('tag '+P[i].textContent+' on tag '+P[j].textContent);
  const names=[...document.querySelectorAll('#bldg-root .bl-lab,#bldg-root .bl-celltitle,#bldg-root .bl-lit')].filter(vis);
  names.forEach(n=>{ const r=R(n); if(r.width<1) return; q.forEach((c,i)=>{ if(meet(c,r)) out.push('tag '+P[i].textContent+' over the title '+n.textContent.slice(0,14)); }); });
@@ -639,8 +640,8 @@ TAG_RULE = r"""(m)=>{ const vis=e=>{ const cs=getComputedStyle(e); return cs.vis
  P.forEach((p,i)=>{ const c=q[i], pn=panel[p.getAttribute('data-lv')];
    if(!pn) { out.push('tag '+p.textContent+' has no panel'); return; }
    if(c.left<pn.left+m||c.right>pn.right-m||c.top<pn.top+m||c.bottom>pn.bottom-m) out.push('tag '+p.textContent+' within '+m+'px of its panel edge or outside it');
-   if(c.left<rr.left+m||c.right>rr.right-m||c.top<rr.top+m||c.bottom>rr.bottom-m) out.push('tag '+p.textContent+' within '+m+'px of the window edge'); });
- const dock=[...document.querySelectorAll('#bldg-root .bl-dock,#bldg-root .bl-tabs,#bldg-root .bl-head,#bldg-root .bl-zoom')].filter(vis).map(R);
+   if(c.left<rr.left+m||c.right>rr.right-m||(!phone&&(c.top<rr.top+m||c.bottom>rr.bottom-m))) out.push('tag '+p.textContent+' within '+m+'px of the window edge'); });   // (a phone's floors scroll: only the sides count)
+ const dock=[...document.querySelectorAll(phone?'#bldg-root .bl-tabs,#bldg-root .bl-head':'#bldg-root .bl-dock,#bldg-root .bl-tabs,#bldg-root .bl-head,#bldg-root .bl-zoom')].filter(vis).map(R);
  q.forEach((c,i)=>dock.forEach(d=>{ if(d.width>0&&meet(c,d)) out.push('tag '+P[i].textContent+' under a bar'); }));
  return {out, n:all.length, vis:P.length, dots:P.filter(e=>e.classList.contains('bl-dot')).length, hidden:all.length-P.length}; }"""
 
@@ -676,13 +677,14 @@ def test_all_floors_tags_never_touch_a_tag_a_title_or_an_edge(browser, site, sty
     try:
         pg.evaluate("AltoBuilding.selectLevel('all')")
         pg.wait_for_timeout(1500)
-        r = pg.evaluate(TAG_RULE, 20)
+        mg = 4 if size.startswith("phone") else 20       # CHANGED round 3: on a phone a dot stands in its own room, rooms reach within ~11 px of a panel's edge, so its margin is 4 px (desktop keeps 20)
+        r = pg.evaluate(TAG_RULE, mg)
         assert r["out"] == [], (style, size, r["out"][:6])
         assert r["vis"] >= r["n"] * .6 and r["n"] == 92, (style, size, r)          # most cards show (a tag or a dot); only what truly has no room waits hidden
         pg.evaluate("""()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), b=s.getBoundingClientRect();
           for(let i=0;i<6;i++) s.dispatchEvent(new WheelEvent('wheel',{deltaY:-8,ctrlKey:true,clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true})); }""")
         pg.wait_for_timeout(1500)
-        z = pg.evaluate(TAG_RULE, 20)
+        z = pg.evaluate(TAG_RULE, mg)
         assert z["out"] == [] or all("edge" in o for o in z["out"]), (style, size, z["out"][:6])   # zoomed, a panel runs off screen: only its edge may be near the window's
     finally:
         ctx.close()
@@ -750,6 +752,8 @@ def test_all_floors_panels_clear_of_the_label_the_dock_and_the_rail_and_each_has
         pg.locator('#bldg-root .bl-tab[data-level="all"]').click(force=True)
         pg.wait_for_timeout(2000)
         info = pg.evaluate(BARS)
+        if size.startswith("phone"):                                      # a phone's floors scroll: only the bars above and beside them count
+            info["bars"] = [b for b in info["bars"] if b[0] in ("bl-head", "bl-tabs", "page:title-bar")]
         pg.evaluate("b=>{ window.__bars=b.bars; }", info)
         names = [b[0] for b in info["bars"]]
         assert "bl-head" in names and (size.startswith("phone") or "page:title-bar" in names), names     # the name card (and on a desktop the page's title pill) are among the bars measured
@@ -759,7 +763,7 @@ def test_all_floors_panels_clear_of_the_label_the_dock_and_the_rail_and_each_has
         assert r["out"] == [], (style, size, r["out"], info["bars"])
         n_floors = pg.evaluate("document.querySelectorAll('#bldg-root .bl-tabs .bl-tab:not([data-level=\"outside\"]):not([data-level=\"all\"])').length")
         assert r["panels"] == r["titles"] == n_floors and r["titleVisible"] and r["titleClear"] == [], (style, size, r)
-        t = pg.evaluate(TAG_RULE, 20)
+        t = pg.evaluate(TAG_RULE, 4)
         assert not [o for o in t["out"] if "under a bar" in o], t["out"][:5]
     finally:
         ctx.close()
@@ -784,6 +788,73 @@ def test_a_hidden_tags_card_opens_from_the_card_list(browser, site, size):
         pg.evaluate("id=>document.querySelector('#bldg-root .bl-cards button[data-node=\"'+id+'\"]').click()", pick)
         pg.wait_for_timeout(900)
         assert pg.evaluate("AltoBuilding.enlarged()") == pick, (pick, len(hidden))
+    finally:
+        ctx.close()
+    assert not errors, errors
+
+
+ROOMS = r"""()=>{ const R=e=>e.getBoundingClientRect(), vis=p=>{ const cs=getComputedStyle(p); return cs.visibility!=='hidden'&&!p.classList.contains('bl-off')&&+cs.opacity>0; };
+ const inside=(poly,x,y)=>{ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i], b=poly[j]; if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]) c=!c; } return c; };
+ const out=[]; let dots=0, badges=0, rooms=0;
+ AltoBuilding.roomPolys().forEach(r=>{ rooms++; const ps=r.ids.map(id=>document.querySelector('#bldg-root .bl-pill[data-node="'+id+'"]')), v=ps.filter(vis);
+   const bd=v.filter(p=>p.classList.contains('bl-badge'));
+   if(bd.length){ badges++; if(bd.length!==1||v.length!==1||bd[0].firstChild.textContent.trim()!==String(r.n)) out.push('room '+r.id+': badge '+bd.map(p=>p.firstChild.textContent)+' for '+r.n+' cards, '+v.length+' shown'); return; }
+   if(v.length!==r.n) { out.push('room '+r.id+': '+v.length+' of '+r.n+' shown, no badge'); return; }
+   v.forEach(p=>{ dots++; const b=R(p), x=(b.left+b.right)/2, y=(b.top+b.bottom)/2; if(!inside(r.poly,x,y)) out.push('room '+r.id+': dot '+p.dataset.node+' outside its room'); }); });
+ return {out, dots, badges, rooms}; }"""
+
+
+@pytest.mark.skipif(not BLUEPRINT_ALL_FLOORS, reason="All floors is switched off in this build")
+@pytest.mark.parametrize("style", STYLES)
+@pytest.mark.parametrize("size", ["phone", "phone-land"])
+def test_all_floors_on_a_phone_every_dot_is_in_its_own_room_or_a_count_badge_stands_in(browser, site, style, size):
+    """Board B-1120-LOOK269-R2 round 3: on a phone's All floors every dot's centre is inside its own room's polygon, or ONE badge (the room's card count) stands for the
+    room's dots (never a re-gridded lattice). A tap on a dot opens its card; a tap on a badge lists that room's cards."""
+    ctx, pg, errors = _open(browser, site, style, ALL_SIZES[size])
+    try:
+        pg.locator('#bldg-root .bl-tab[data-level="all"]').click(force=True)
+        pg.wait_for_timeout(2200)
+        r = pg.evaluate(ROOMS)
+        assert r["out"] == [], (style, size, r["out"][:6], r["dots"], r["badges"])
+        assert r["dots"] + r["badges"] > 0 and r["rooms"] > 20, r
+        dot = pg.locator("#bldg-root .bl-pill.bl-dot:not(.bl-badge):not(.bl-off)").first
+        nid = dot.get_attribute("data-node")
+        dot.tap(force=True)
+        pg.wait_for_timeout(700)
+        assert pg.evaluate("AltoBuilding.enlarged()") == nid                       # a tap on a dot opens its card
+        pg.evaluate("AltoBuilding.shrink()")
+        pg.wait_for_timeout(500)
+        # Board B-1120-269-TARGET: a tap at a dot's centre, and a tap 20 pt off it (where it is the NEAREST dot), opens THAT dot's card
+        pts = pg.evaluate("""()=>[...document.querySelectorAll('#bldg-root .bl-pill.bl-dot:not(.bl-off)')].filter(p=>getComputedStyle(p).visibility!=='hidden').map(p=>{ const b=p.getBoundingClientRect(); return [p.dataset.node,(b.left+b.right)/2,(b.top+b.bottom)/2,p.classList.contains('bl-badge')?1:0]; }).filter(q=>q[2]>70&&q[2]<innerHeight-70&&q[1]>10&&q[1]<innerWidth-90)""")   # (on screen, clear of the bars: the floors scroll)
+        dots = [q for q in pts if not q[3]]
+        assert len(dots) >= 20, len(dots)
+        import math
+        checked = off_checked = 0
+        for id_, x, y, _ in dots[::max(1, len(dots) // 16)]:
+            others = [(px, py) for i2, px, py, _b in pts if i2 != id_]
+            spot = None
+            for a in range(0, 360, 30):
+                tx, ty = x + 20 * math.cos(math.radians(a)), y + 20 * math.sin(math.radians(a))
+                if 4 < tx < pg.viewport_size["width"] - 4 and 70 < ty < pg.viewport_size["height"] - 70 and all(math.hypot(tx - px, ty - py) > 21.5 for px, py in others):
+                    spot = (tx, ty)
+                    break
+            for tx, ty in ([(x, y)] + ([spot] if spot else [])):
+                pg.touchscreen.tap(tx, ty)
+                pg.wait_for_timeout(450)
+                assert pg.evaluate("AltoBuilding.enlarged()") == id_, (id_, round(tx - x), round(ty - y))
+                pg.evaluate("AltoBuilding.shrink()")
+                pg.wait_for_timeout(350)
+                checked += 1
+            off_checked += bool(spot)
+        assert off_checked >= 5, off_checked                                   # enough dots stood clear for a 20 pt-off tap
+        badges = pg.evaluate("[...document.querySelectorAll('#bldg-root .bl-pill.bl-badge:not(.bl-off)')].map(p=>{ const b=p.getBoundingClientRect(); return [Math.round(b.width),Math.round(b.height)]; })")
+        assert all(w >= 44 and h >= 44 for w, h in badges), badges                # every badge is a 44 pt target
+        bd = pg.evaluate("""()=>[...document.querySelectorAll('#bldg-root .bl-pill.bl-badge:not(.bl-off)')].map(p=>{ const b=p.getBoundingClientRect(); return [(b.left+b.right)/2,(b.top+b.bottom)/2,p.firstChild.textContent.trim()]; }).filter(q=>q[1]>0&&q[1]<innerHeight-40&&q[0]>0&&q[0]<innerWidth-40)""")
+        if bd:
+            pg.touchscreen.tap(bd[0][0], bd[0][1])
+            pg.wait_for_timeout(500)
+            rows = pg.evaluate("document.querySelectorAll('#bldg-root .bl-cards:not([hidden]) button[data-node]').length")
+            assert rows == int(bd[0][2]), (rows, bd[0])                                 # a badge lists exactly that room's cards
     finally:
         ctx.close()
     assert not errors, errors
