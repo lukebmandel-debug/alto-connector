@@ -591,3 +591,100 @@ test('a Drive chip in Alice\'s edits is hers alone: others and signed-out visito
   }
   await assertFails(env.authenticatedContext('bob', { email: 'Bob@Example.COM', email_verified: true }).firestore().collectionGroup('edits').get());
 });
+
+// ── the Claude handoff (alto/handoff.py; Board B-1118-CUTBASS part B): users/{uid}/requests/{code}, users/{uid}/connector/state ──
+const CODE_A = '0123456789abcdef0123456789abcdef';
+const CODE_OLD = 'fedcba9876543210fedcba9876543210';
+const seedRequests = () => env.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await db.doc('users/alice/requests/' + CODE_A).set({ data: '{"goal":"Add a quiz"}', exp: Date.now() + 3600e3 });
+  await db.doc('users/alice/requests/' + CODE_OLD).set({ data: '{"goal":"old"}', exp: Date.now() - 1000 });
+  await db.doc('users/alice/connector/state').set({ data: '{"v":"1.9.241","used":true}' });
+});
+
+test("a pending request is its owner's only: no one else reads, lists, writes or deletes it, by code or by guess", async () => {
+  await seedRequests();
+  for (const w of ['anon', 'anonUser', 'bob', 'carol', 'dave', 'forged']) {
+    const db = who[w];
+    await assertFails(db.doc('users/alice/requests/' + CODE_A).get());
+    await assertFails(db.collection('users/alice/requests').get());
+    await assertFails(db.collection('users/alice/requests').where('exp', '>', 0).get());
+    await assertFails(db.collectionGroup('requests').get());
+    await assertFails(db.doc('users/alice/requests/' + CODE_A).delete());
+    await assertFails(db.doc('users/alice/requests/' + CODE_A).set({ data: '{}', exp: Date.now() + 1000 }));
+    await assertFails(db.doc('users/alice/requests/' + '0'.repeat(32)).get());
+    await assertFails(db.doc('users/alice/connector/state').get());
+    await assertFails(db.doc('users/alice/connector/state').set({ data: '{"v":"0","used":true}' }));
+  }
+});
+
+test('the owner gets a request by its exact code, never by listing, and not once it has expired', async () => {
+  await seedRequests();
+  const db = who.alice;
+  await assertSucceeds(db.doc('users/alice/requests/' + CODE_A).get());
+  await assertFails(db.collection('users/alice/requests').get());
+  await assertFails(db.doc('users/alice/requests/' + CODE_OLD).get());          // expired: unreadable
+  await assertSucceeds(db.doc('users/alice/requests/' + CODE_OLD).delete());     // but its owner may clear it
+  await assertSucceeds(db.doc('users/alice/requests/' + CODE_A).delete());       // one use: the connector deletes it as the owner
+});
+
+test('a request is written once, well formed, for at most a day, by an allowlisted owner', async () => {
+  const ok = { data: '{"goal":"Add a quiz"}', exp: Date.now() + 24 * 3600e3 };
+  const at = (db, code) => db.doc('users/' + (db === who.carol ? 'carol' : 'alice') + '/requests/' + code);
+  await assertSucceeds(at(who.alice, CODE_A).set(ok));
+  await assertFails(at(who.alice, CODE_A).set({ ...ok, data: '{"goal":"changed"}' }));            // never updated
+  await assertFails(at(who.alice, 'short').set(ok));
+  await assertFails(at(who.alice, CODE_OLD.toUpperCase()).set(ok));
+  await assertFails(at(who.alice, CODE_OLD).set({ ...ok, extra: 1 }));
+  await assertFails(at(who.alice, CODE_OLD).set({ ...ok, data: 'x'.repeat(4001) }));
+  await assertFails(at(who.alice, CODE_OLD).set({ ...ok, exp: Date.now() - 1 }));
+  await assertFails(at(who.alice, CODE_OLD).set({ ...ok, exp: Date.now() + 26 * 3600e3 }));     // longer than a day (and an hour of clock slack)
+  await assertFails(at(who.alice, CODE_OLD).set({ ...ok, exp: 'soon' }));
+  await assertFails(at(who.carol, CODE_OLD).set(ok));                                             // signed in, not allowlisted
+});
+
+test("the connector's state is one small document its owner alone reads and writes", async () => {
+  await seedRequests();
+  await assertSucceeds(who.alice.doc('users/alice/connector/state').get());
+  await assertSucceeds(who.alice.doc('users/alice/connector/state').set({ data: '{"v":"1.9.242","used":true}' }));
+  await assertFails(who.alice.doc('users/alice/connector/other').set({ data: '{}' }));
+  await assertFails(who.alice.doc('users/alice/connector/state').set({ data: 'x'.repeat(401) }));
+  await assertFails(who.alice.doc('users/alice/connector/state').set({ data: '{}', more: 1 }));
+  await assertFails(who.alice.collection('users/alice/connector').get());
+});
+
+test('handoff negatives: another account cannot delete the connector state, an owner cannot update a request, 25h+ and oversize creates fail', async () => {
+  await seedRequests();
+  for (const w of ['bob', 'carol', 'anon', 'forged']) {
+    await assertFails(who[w].doc('users/alice/connector/state').delete());
+    await assertFails(who[w].doc('users/alice/requests/' + CODE_A).update({ data: '{}' }));
+    await assertFails(who[w].doc('users/alice/requests/' + CODE_OLD).set({ data: '{}', exp: Date.now() + 1000 }));
+  }
+  await assertFails(who.alice.doc('users/alice/requests/' + CODE_A).update({ data: '{"goal":"changed"}' }));     // no update rule
+  // (the 25.5h and 4001-character create limits are tested on FRESH codes, with positive controls, in the test below)
+  await assertSucceeds(who.alice.doc('users/alice/requests/' + CODE_A).get());                                      // untouched
+});
+
+// Fresh, unseeded codes: every denial below is a CREATE, so it comes from the create rule's own limit or from the path/auth, never from the
+// missing update rule on an existing document. Each denial has a positive control: the same user, the same code, a valid create, SUCCEEDS.
+const CODE_F1 = 'ab'.repeat(16), CODE_F2 = 'cd'.repeat(16), CODE_F3 = 'ef'.repeat(16), CODE_F4 = '12'.repeat(16);
+
+test('create limits on fresh codes: data over 4000 and exp past 25h are denied, a valid create by the same user succeeds', async () => {
+  const a = who.alice, doc = (c) => a.doc('users/alice/requests/' + c);
+  const okExp = Date.now() + 3600e3;
+  await assertFails(doc(CODE_F1).set({ data: 'y'.repeat(4001), exp: okExp }));                    // oversize data
+  await assertSucceeds(doc(CODE_F1).set({ data: 'y'.repeat(4000), exp: okExp }));                 // positive control: same user, same fresh code, <= 4000
+  await assertFails(doc(CODE_F2).set({ data: '{"goal":"x"}', exp: Date.now() + 25.5 * 3600e3 }));   // exp past 25h
+  await assertSucceeds(doc(CODE_F2).set({ data: '{"goal":"x"}', exp: Date.now() + 24 * 3600e3 })); // positive control: <= 25h
+});
+
+test('cross-user create on fresh codes is denied for requests and connector/state; the owner creating the same documents succeeds', async () => {
+  const ok = { data: '{"goal":"Add a quiz"}', exp: Date.now() + 3600e3 }, st = { data: '{"v":"1.9.270","used":true}' };
+  for (const w of ['bob', 'carol', 'dave', 'anon', 'anonUser', 'forged']) {
+    await assertFails(who[w].doc('users/alice/requests/' + CODE_F3).set(ok));
+    await assertFails(who[w].doc('users/alice/connector/state').set(st));                           // empty db: a create, not an update
+  }
+  await assertSucceeds(who.alice.doc('users/alice/requests/' + CODE_F3).set(ok));                   // positive controls: the owner, same paths
+  await assertSucceeds(who.alice.doc('users/alice/connector/state').set(st));
+  await assertSucceeds(who.bob.doc('users/bob/requests/' + CODE_F4).set(ok));                        // and bob in his own account
+});

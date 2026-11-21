@@ -72,6 +72,40 @@ service cloud.firestore {
         allow delete: if isUser(uid) && ownCollection(coll);
       }
 
+      // ── the Claude handoff (alto/handoff.py) ─────────────────────────────
+      // One pending request, named by 128 random bits. Its owner only: read
+      // by `get` with the exact code (never listed, so a code cannot be
+      // found by looking), and not at all once it has expired. Written once
+      // by the owner's page, never changed, deleted by the owner (the
+      // connector, as that account, when Claude picks it up).
+      match /requests/{code} {
+        allow get: if isUser(uid) && code.matches('^[a-f0-9]{32}$')
+                   && resource.data.exp > request.time.toMillis();
+        allow list: if false;
+        allow create: if isUser(uid) && allowlisted() && code.matches('^[a-f0-9]{32}$')
+                      && request.resource.data.keys().hasOnly(['data', 'exp'])
+                      && request.resource.data.data is string
+                      && request.resource.data.data.size() <= 4000
+                      && request.resource.data.exp is int
+                      && request.resource.data.exp > request.time.toMillis()
+                      && request.resource.data.exp <= request.time.toMillis() + 90000000;
+        // (no update rule: a request is never changed)
+        allow delete: if isUser(uid);
+      }
+
+      // What the connector last said about itself (its version, and whether
+      // a Claude edit has ever succeeded): the owner's pages read it to word
+      // their prompts and to say when the connector needs updating.
+      match /connector/{id} {
+        allow get: if isUser(uid) && id == 'state';
+        allow list: if false;
+        allow create, update: if isUser(uid) && id == 'state' && allowlisted()
+                              && request.resource.data.keys().hasOnly(['data'])
+                              && request.resource.data.data is string
+                              && request.resource.data.data.size() <= 400;
+        allow delete: if isUser(uid) && id == 'state';
+      }
+
       match /tl/{tid}/reports/{id} {
         allow read: if isUser(uid);
         allow create, update: if isUser(uid) && allowlisted();

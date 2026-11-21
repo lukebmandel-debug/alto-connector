@@ -120,6 +120,21 @@ HOLO_CSS = r"""
   /* the glass of the controls and panels is square and rimmed in the light, with a faint glow */
   X :is(#tab-rail>button,#search-btn,#info-icon,#account-btn,#key-toggle,.alto-edit-pill,#timeline-return-pill,#sx-toggle){box-shadow:0 0 0 1px var(--ho-ac),var(--ho-glow) !important;}
   X :is(#search-results,#info-content,#bg-panel,#ef-panel,#notes-panel,#summary-wrap,.key-pop,#share-dialog>*){box-shadow:0 0 0 4px var(--ho-bg),var(--ho-glow) !important;}
+  /* the Claude handoff's sheets (the copied prompt, the Ask Claude chooser; Board B-1118-HANDOFF1-ART) wear the same square rimmed glass panel, full-strength ink (no dimmed text) */
+  X #alto-handoff:not(#_):not(#__){background:rgba(var(--ho-bgrgb),.78) !important;-webkit-backdrop-filter:blur(8px) !important;backdrop-filter:blur(8px) !important;}
+  X #alto-handoff .ah-box:not(#_):not(#__):not(#___){background:rgb(var(--ho-sfrgb)) !important;color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;
+    border-radius:0 !important;box-shadow:0 0 0 4px var(--ho-bg),var(--ho-glow) !important;}
+  X #alto-handoff :is(.ah-l,.ah-st,h2,p,li):not(#_):not(#__):not(#___){color:var(--ho-tx) !important;opacity:1 !important;}
+  X #alto-handoff textarea:not(#_):not(#__){border-radius:0 !important;border:1px solid rgba(var(--ho-rgb),.6) !important;background:rgba(var(--ho-bgrgb),.6) !important;color:var(--ho-tx) !important;}
+  X #alto-handoff .ah-b:not(#_):not(#__){border-radius:0 !important;border:1px solid var(--ho-ac) !important;background:transparent !important;color:var(--ho-ac) !important;}
+  X #alto-handoff .ah-b.pri:not(#_):not(#__){background:var(--ho-ac) !important;color:var(--ho-on) !important;}
+  /* the connector update notice (alto-cloud.js draws it with inline styles, so these win by !important): the same glass plate as the handoff sheets, in Holo's type (Board B-1121-HANDOFF-GO-COND U1) */
+  X #alto-conn-note:not(#_):not(#__){background:rgb(var(--ho-sfrgb)) !important;color:var(--ho-tx) !important;border:1px solid rgba(var(--ho-rgb),.6) !important;border-radius:0 !important;
+    box-shadow:0 0 0 4px var(--ho-bg),var(--ho-glow) !important;font-family:inherit !important;}
+  X #alto-conn-note :is(b,span,div):not(#_):not(#__){color:var(--ho-tx) !important;font-family:inherit !important;}
+  X #alto-conn-note b:not(#_):not(#__){letter-spacing:.06em;text-transform:uppercase;font-weight:500 !important;}
+  X #alto-conn-note :is(a,button):not(#_):not(#__){border-radius:0 !important;border:1px solid var(--ho-ac) !important;background:transparent !important;color:var(--ho-ac) !important;font-family:inherit !important;}
+  X #alto-conn-note a:not(#_):not(#__){background:var(--ho-ac) !important;color:var(--ho-on) !important;}
   /* the phone parks these side panels just off-screen; their 4px ring + glow would land inside the screen edge as a flat strip (Art, holo-home-int-look-1111b): no ring while closed, the ring returns on .open */
   X:is(.mobile,.rw) :is(#bg-panel,#ef-panel,#notes-panel,#summary-wrap,#search-results,#info-content):not(.open):not(.show){box-shadow:none !important;}
   X #search-input:not(#_){color:var(--ho-tx) !important;}

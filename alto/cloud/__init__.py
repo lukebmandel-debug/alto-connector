@@ -65,7 +65,10 @@ def _terms_version() -> str:
 def emit_cloud_js(config: dict | None = None) -> str:
     """Return alto-cloud.js with `config` spliced in (default: the env one)."""
     cfg = config if config is not None else load_config()
-    src = SOURCE.read_text(encoding="utf-8").replace("__ALTO_TERMS_V__", _terms_version())
+    from ..build.engine_stamp import connector_versions      # the one place the connector's "latest" and "minimum safe" are defined
+    cv = connector_versions()
+    src = (SOURCE.read_text(encoding="utf-8").replace("__ALTO_TERMS_V__", _terms_version())
+           .replace("__ALTO_LATEST__", cv["latest"]).replace("__ALTO_MIN_SAFE__", cv["min_safe"]))
     if len(_CONFIG_RE.findall(src)) != 1:
         raise CloudConfigError(
             "alto-cloud.js: expected exactly one firebaseConfig literal — the "

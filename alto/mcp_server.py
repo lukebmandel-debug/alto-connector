@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.274"
+__version__ = "1.9.275"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -335,8 +335,37 @@ mcp = FastMCP(
         "list_projects(account=\"all\") searches every account, "
         "connect_account(site) adds a site from its address, and every tool "
         "takes `account` — pass it on every call that follows, there is no "
-        "current account kept between calls."),
+        "current account kept between calls. When the user's message carries "
+        "an Alto request code (32 letters and digits, from a Claude button in "
+        "Alto), call get_pending_request with it first: it says exactly which "
+        "page, detail page and item they mean and what they want done."),
 )
+
+
+# Every tool, whatever it does (Board B-1118-CUTBASS part B): a connector older than the minimum safe release does nothing and says how to
+# update; one that is merely behind the latest release does its work and leads its answer with the update steps (update_check.py). Functions
+# called directly (tests, the hosted server's own code) are the plain ones: only what Claude calls goes through here.
+_mcp_tool = mcp.tool
+
+
+def _tool(*targs, **tkw):
+    register = _mcp_tool(*targs, **tkw)
+
+    def deco(fn):
+        @functools.wraps(fn)
+        def checked(*args, **kwargs):
+            from . import update_check
+            update_check.start()
+            no = update_check.refusal()
+            if no is not None:
+                return no
+            return update_check.with_update_note(fn(*args, **kwargs))
+        register(checked)
+        return fn
+    return deco
+
+
+mcp.tool = _tool
 
 # FastMCP takes no version kwarg, so without this the server reports the MCP
 # SDK's version as its own (create_initialization_options falls back to
@@ -551,6 +580,7 @@ def accounted(fn):
                 finally:
                     if tok is not None:
                         _prefetched.reset(tok)
+                _connector_seen(used=getattr(fn, "__name__", "") == "publish_timeline" and isinstance(out, dict) and not out.get("error"))
         except SignInRequired as e:
             if acct is None:
                 raise
@@ -568,6 +598,29 @@ def accounted(fn):
 
     wrapper.__signature__ = sig.replace(parameters=params)
     return wrapper
+
+
+_connector_told: dict = {}       # (store id, uid) -> what this process last wrote, so a call costs nothing once it is said
+
+
+def _connector_seen(used: bool = False) -> None:
+    """Tell the account which connector it is talking to, and that a Claude edit has succeeded once one has (alto/handoff.py):
+    users/{uid}/connector/state = {v, used}. One read per account per process, a write only when something changed. Never raises:
+    it must not get between a person and their work."""
+    try:
+        st, u = get_store(), uid()
+        key = (id(st), u)
+        now = {"v": __version__, "used": bool(used)}
+        last = _connector_told.get(key)
+        if last is None:
+            cur = st.get_connector_state(u)
+            last = cur if isinstance(cur, dict) else {}
+        now["used"] = now["used"] or last.get("used") is True
+        if last.get("v") != now["v"] or (last.get("used") is True) != now["used"]:
+            st.put_connector_state(u, now)
+        _connector_told[key] = now
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def update_noted(fn):
@@ -829,6 +882,17 @@ def sign_in() -> dict:
                         "above, if it did not open). Ask them to click "
                         "Continue with Google there, then call sign_in again."
                         + (f" Last error: {p['error']}" if p.get("error") else ""))}
+
+
+@mcp.tool(title="Get pending request", annotations=RW)
+@accounted
+def get_pending_request(code: str) -> dict:
+    """What the user asked for in Alto when they pressed a Claude button there: the goal, the page (timeline or outline), the detail
+    page and the item. Call it when the user's message carries an Alto request code. The request belongs to the signed-in Alto account
+    only, lasts a day and is used once: a code from another account, an expired or a used one all answer request_not_found. Then open
+    the page with get_timeline and follow the interview guide."""
+    from . import handoff
+    return handoff.take(get_store(), uid(), code)
 
 
 @mcp.tool(title="List Alto accounts", annotations=RO)

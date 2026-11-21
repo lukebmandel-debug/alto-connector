@@ -360,12 +360,19 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, home_look.STATIC_STRIP_OLD, home_look.STATIC_STRIP_NEW, 1, "home static strip")
     template = _rep(template, "unitStrip(it.units)", "unitStrip(it.units, it.fmt)", 1, "home shared strip")
     template = _rep(template, "unitStrip(pg.units)", "unitStrip(pg.units, pg.fmt)", 1, "home private strip")
+    # Build with Claude from the home page: the one handoff (claude_handoff.py). The prompt is copied, never put in an address.
+    template = _rep(template, "  const q = encodeURIComponent(prompt);\n",
+                    "  if(window._altoHandoff){ window._altoHandoff.openText(prompt, {kind: 'new'}); return; }\n"
+                    "  const q = '';      // never the prompt in an address (claude_handoff.py)\n", 1, "home openClaude handoff")
     regions = {
         "projects": projects_const(projects),
         "search_course_fn": SEARCH_COURSE_FN,
         "search_fetch": SEARCH_FETCH,
     }
-    return emit(template, regions, {})
+    out = emit(template, regions, {})
+    from . import claude_handoff                 # Build with Claude from the home page: the one handoff (claude_handoff.py)
+    i = out.rfind("</body>")
+    return out if i < 0 else out[:i] + claude_handoff.tag() + out[i:]
 
 
 def course_meta_const(courses: list[dict]) -> str:

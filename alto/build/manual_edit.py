@@ -243,6 +243,9 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.mobile #alto-edit-exit .ee-h:not(.ee-clef)::before,html.mobile #alto-edit-exit .ee-done::before{content:"";position:absolute;top:-8px;bottom:-8px;left:0;right:0;}
   html.mobile #alto-edit-exit .ee-h.ee-undo:not(.ee-clef)::before{left:-10px;}
   html.mobile #alto-edit-exit .ee-h.ee-redo:not(.ee-clef)::before{left:-6px;right:-4px;}
+  html.mobile #alto-edit-exit .ee-h.ee-ask{margin-left:2px;}html.mobile #alto-edit-exit .ee-done{margin-left:2px;}
+  @media (max-width:340px){html.mobile #alto-edit-exit{padding-left:8px;}}   /* the 4px the Ask star's tap box took */
+  html.mobile #alto-edit-exit .ee-h.ee-ask::before{left:-4px;right:-6px;}   /* the Ask Claude star: 44 wide between Redo's box (4px right of it) and Done, with the bar's 8px gaps */
   #alto-edit-exit .ee-country{width:auto;padding:0 10px;line-height:1;font:inherit;font-size:12.5px;white-space:nowrap;}
   html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}
@@ -480,9 +483,12 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-ask .aa-quiet{border-color:transparent;color:var(--muted);text-align:center;}
   .aed-uc.aed-ux{border-style:solid;border-color:color-mix(in srgb,var(--muted) 45%,transparent);}
   .aed-uc.aed-ux:hover{color:#dc2626;border-color:#dc2626;}
-  #aed-name,#aed-kinds{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
+  #aed-name,#aed-kinds{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 40px);padding:12px;border-radius:12px;background:var(--surface);
     border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--text);}
   #aed-name.show,#aed-kinds.show{display:block;}
+  #aed-kinds.aed-more-below{box-shadow:inset 0 -26px 16px -14px color-mix(in srgb,var(--text) 38%,transparent),0 12px 34px var(--card-shadow);}
+  #aed-kinds.aed-more-above{box-shadow:inset 0 26px 16px -14px color-mix(in srgb,var(--text) 38%,transparent),0 12px 34px var(--card-shadow);}
+  #aed-kinds.aed-more-below.aed-more-above{box-shadow:inset 0 26px 16px -14px color-mix(in srgb,var(--text) 38%,transparent),inset 0 -26px 16px -14px color-mix(in srgb,var(--text) 38%,transparent),0 12px 34px var(--card-shadow);}
   #aed-name h5,#aed-kinds h5{margin:0 0 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
   #aed-name input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;}
   #aed-form{position:fixed;z-index:8350;display:none;width:340px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:12px;background:var(--surface);
@@ -539,7 +545,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   .aed-chip button:hover{color:#dc2626;background:color-mix(in srgb,#dc2626 12%,transparent);}
   .aed-chadd{padding:5px 11px;border-radius:999px;border:1.4px dashed var(--border);background:none;color:var(--muted);font:inherit;cursor:pointer;}
   .aed-chadd:hover{color:var(--text);border-color:var(--muted);}
-  #aed-chip{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
+  #aed-chip{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 40px);padding:12px;border-radius:12px;background:var(--surface);
     border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--text);}
   #aed-chip.show{display:block;}
   #aed-chip h5{margin:0 0 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
@@ -1828,8 +1834,10 @@ MANUAL_JS = r"""<script id="alto-manual">
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + (window.AltoWorld && window.AltoWorld.pickCountry ? '<button type="button" class="ee-h ee-country" aria-label="Add a country" title="Add a country: a new card that stands on it">+ Country</button>' : '')
+      + (window._altoEditTimeline ? '<button type="button" class="ee-h ee-ask" aria-label="Ask Claude about this page" title="Ask Claude: it is told the page you are on">\u2726</button>' : '')      /* claude-handoff */
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
+      if(t.classList.contains('ee-ask')){ if(window._altoAskMenu) window._altoAskMenu(); else if(window._altoEditTimeline) window._altoEditTimeline(); return; }                                    /* claude-handoff */
       if(t.hasAttribute('data-mv')) setMove(t.getAttribute('data-mv')); else if(t.classList.contains('ee-ext')) setExtend(!EXT); else if(t.classList.contains('ee-country')) window.AltoWorld.pickCountry(t); else if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     if(!document.getElementById('alto-edit-rail')){ var rl = document.createElement('div'); rl.id = 'alto-edit-rail'; rl.setAttribute('aria-hidden', 'true'); document.body.appendChild(rl); }
     document.body.appendChild(b); placePill(); setMove(MOVE); extSync(); return b;
@@ -2062,6 +2070,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(OUT && (OUT.parent || {})[id]) items.push(['swapc', '⇅', 'Swap places with a card beside it, or with the card it sits under']);
     if(LN) items.push(['linec', '⟿', 'Put it on another line, nest it inside another entry — or start a new line']);
     items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
+    if(window._altoAskClaude) items.push(['askc', '\u2726', 'Ask Claude to change this card']);      /* claude-handoff */
     items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
     if(!isSolar() && !card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
@@ -3167,10 +3176,37 @@ MANUAL_JS = r"""<script id="alto-manual">
      zoom scales (Chrome and Safari alike) — so it is all worked in window px and converted back, or the box lands at
      zoom × where it belongs */
   function placeNear(b, at){
-    var z = zoomOf(b), r = at.getBoundingClientRect(), w = b.offsetWidth * z, h = b.offsetHeight * z;
-    var top = r.bottom + 8; if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
-    var left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left));
+    /* at least 20px from every edge (Board B-1118-HANDOFF1-ART), and never over the top bar: the popover fits between the bar's bottom (+12px)
+       and its button (Board B-1121-HANDOFF-GO-COND U2): below the anchor, else above it, else the roomier side with the panel's own scroll
+       (a fade at the cut edge says there is more; the Claude group at the end is reached by scrolling) */
+    var z = zoomOf(b), r = at.getBoundingClientRect(), M = 20, W = window.innerWidth, H = window.innerHeight, T = M;
+    /* the top chrome: ALL of what is fixed or sticky along the window's top (the title row, the chip row, the nav strip, Back): the lowest bottom edge among them, measured now */
+    var lo = 0, seen = [].slice.call(document.querySelectorAll('#title-bar,#nav,#node-nav-bar,#desk-back,.dbr-back,#title-text')).concat([].slice.call(document.body.children));
+    seen.forEach(function(e){ if(!e.getBoundingClientRect || /^(aed-|alto-)/.test(e.id || '')) return;
+      var cs = getComputedStyle(e), q = e.getBoundingClientRect(), pos = cs.position;
+      if(cs.display === 'none' || cs.visibility === 'hidden' || q.width <= 0 || q.height <= 0) return;
+      if(q.top < 160 && q.height < 200 && q.bottom < H / 2 && (pos === 'fixed' || pos === 'sticky' || e.matches('#title-bar,#nav,#node-nav-bar,#desk-back,.dbr-back,#title-text'))) lo = Math.max(lo, q.bottom); });
+    if(lo) T = Math.max(M, lo + 12);
+    b.style.maxHeight = ''; b.style.overflowY = '';
+    var w = b.offsetWidth * z, h = b.offsetHeight * z;
+    var below = H - M - (r.bottom + 8), above = r.top - 8 - T, top, room;
+    if(h <= below){ top = r.bottom + 8; }
+    else if(h <= above){ top = r.top - h - 8; }
+    else if(below >= above){ top = r.bottom + 8; room = below; }
+    else { room = above; top = -1; }
+    if(room !== undefined){ room = Math.max(120, room); h = Math.min(h, room); b.style.maxHeight = Math.floor(room / z) + 'px'; b.style.overflowY = 'auto';
+      if(top === -1) top = r.top - 8 - h; }
+    top = Math.max(T, Math.min(H - M - h, top));
+    var left = Math.max(M, Math.min(W - w - M, r.left));
     b.style.top = Math.round(top / z) + 'px'; b.style.left = Math.round(left / z) + 'px';
+    if(!b._cue){ b._cue = 1; b.addEventListener('scroll', function(){ cue(b); }); }
+    b.scrollTop = 0; cue(b);
+  }
+  /* a scrolling popover shows a fade at each edge that has more behind it */
+  function cue(b){
+    var more = b.scrollHeight > b.clientHeight + 2;
+    b.classList.toggle('aed-more-below', more && b.scrollTop + b.clientHeight < b.scrollHeight - 2);
+    b.classList.toggle('aed-more-above', more && b.scrollTop > 2);
   }
   function askName(at, title, val, done){
     hideMenus();
@@ -3204,8 +3240,27 @@ MANUAL_JS = r"""<script id="alto-manual">
       b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
       b.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button[data-k]'); if(!a) return; b.classList.remove('show'); addSection(b._ok, a.getAttribute('data-k'), b._at); });
       document.body.appendChild(b); }
+    askRow(b);                                                   /* Ask Claude (claude-handoff block below) */
     b._ok = ok; b._at = at; b.classList.add('show'); placeNear(b, at);
   }
+  /* ── claude-handoff block (alto/build/claude_handoff.py; Board B-1118-CUT part B): Ask Claude for a section or about a card.
+     Self-contained: it only calls window._altoAskClaude (detail_extras.EDIT_TILE), toast() and titleOf(). ── */
+  function askRow(b){
+    var ADD = (window._altoHandoff || {}).ADD;
+    if(b.querySelector('.aed-askrow') || !ADD || !window._altoAskAdd) return;
+    var r = document.createElement('div'); r.className = 'aed-askrow';
+    var h = document.createElement('h5'); h.textContent = 'Or ask Claude to write one'; r.appendChild(h);
+    Object.keys(ADD).forEach(function(k){
+      var a = document.createElement('button'); a.type = 'button'; a.setAttribute('data-ak', k); a.textContent = '\u2726 ' + ADD[k][0];
+      a.title = 'Ask Claude to add ' + ADD[k][1] + ' to this page, from your own notes'; a.setAttribute('aria-label', a.title); r.appendChild(a); });
+    r.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button[data-ak]'); if(!a) return; b.classList.remove('show'); window._altoAskAdd(a.getAttribute('data-ak')); });
+    b.appendChild(r);
+  }
+  function askClaudeCard(id){
+    if(!window._altoAskClaude){ toast('Open Claude from the edit pill, then ask for it.'); return; }
+    window._altoAskClaude('Read it first with get_timeline, then ask me what I want changed on this card. Use ONLY my own material.', {action: 'Change', target: titleOf(id), targetId: id, noun: 'the card'});
+  }
+  /* ── end of the claude-handoff block ── */
   document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-form,#aed-kinds,#aed-chip,#aed-chpop,#aed-glyph,.aed-add,.aed-nadd,.aed-fadd,.aed-fx,.aed-chadd')) hideMenus(); }, true);
   function addSection(ok, kind, at){
     var f = field(ok + '|order'); if(!f) return;
@@ -3977,7 +4032,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(x === 'navx'){ navRemove(b); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');
-      if(x === 'addf'){ if(window._altoPalaceAddFloor) window._altoPalaceAddFloor(cid, b); } else if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'linec') lineMenu(cid); else if(x === 'chipc') chipPop(cid, b);
+      if(x === 'addf'){ if(window._altoPalaceAddFloor) window._altoPalaceAddFloor(cid, b); } else if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'linec') lineMenu(cid); else if(x === 'chipc') chipPop(cid, b); else if(x === 'askc') askClaudeCard(cid);
       return;
     }
     if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }

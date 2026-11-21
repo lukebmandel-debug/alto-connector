@@ -75,3 +75,16 @@ class Store(abc.ABC):
 
     @abc.abstractmethod
     def put_share(self, tid: str, doc: dict) -> None: ...
+
+    # ── the Claude handoff (alto/handoff.py): the owner's pending requests and the connector's own state ────────────
+    def get_request(self, uid: str, code: str) -> dict | None:
+        return None
+
+    def delete_request(self, uid: str, code: str) -> None:
+        return None
+
+    def get_connector_state(self, uid: str) -> dict | None:
+        return None
+
+    def put_connector_state(self, uid: str, state: dict) -> None:
+        return None

@@ -288,6 +288,10 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # Emitted, not copied: the Firebase project comes from the publisher's own
     # ALTO_FIREBASE_CONFIG, and is empty (sync off) when they have not set one.
     write_cloud_js(site / "alto-cloud.js")
+    # What this release says about the connector (build/engine_stamp.py, the one place): the newest version and the oldest safe one.
+    # The connector reads the public site's copy (update_check.py); it names no one and holds nothing of anyone's.
+    from .build.engine_stamp import connector_versions as _cv
+    (site / "alto-version.json").write_text(json.dumps(_cv()), encoding="utf-8")
     # The script behind imported backgrounds (build/backgrounds_import.py): fetched by a page only when its picker
     # opens or one of the account's own pictures is in use, never part of the page.
     from .build.backgrounds_import import site_file as _bglib_file

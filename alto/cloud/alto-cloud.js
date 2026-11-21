@@ -86,6 +86,30 @@
        timeline, one document beside the notes — users/{uid}/edits/{tid},
        {data: JSON text, updatedAt}. The connector folds them into the draft
        (alto/edits.py) and marks them done. Nothing else reads or writes it. */
+    /* The Claude handoff (alto/handoff.py, alto/build/claude_handoff.py): one pending request of the owner's own,
+       users/{uid}/requests/{code} = {data: JSON text, exp: ms}. The code is 128 random bits made by the page; the
+       copied prompt names the request only by it. firestore.rules: owner only, `get` by exact code, never listed,
+       unreadable once expired. The connector (get_pending_request) reads and deletes it as this account. */
+    putRequest: async (code, obj, exp) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready;
+      if (!cloud.user || !/^[a-f0-9]{32}$/.test(String(code))) throw new Error('no request');
+      await setDoc(doc(db, 'users', cloud.user.uid, 'requests', String(code)),
+                   { data: JSON.stringify(obj || {}).slice(0, 4000), exp: Math.floor(+exp) });
+      return true;
+    },
+    /* users/{uid}/connector/state, written by the connector: {v: its version, used: a Claude edit has succeeded}.
+       null when there is none yet, or it cannot be read. */
+    connectorState: async () => {
+      if (!configured) return null;
+      await ready;
+      if (!cloud.user) return null;
+      try {
+        const sn = await getDoc(doc(db, 'users', cloud.user.uid, 'connector', 'state'));
+        const d = sn.exists() ? JSON.parse((sn.data() || {}).data || 'null') : null;
+        return d && typeof d === 'object' ? { v: String(d.v || ''), used: d.used === true } : null;
+      } catch (e) { return null; }
+    },
     getEdits: async (tid) => {
       if (!configured) throw new Error('sync not configured');
       await ready; return _getEdits(tid);
@@ -2001,6 +2025,55 @@
     ok.focus();
   }
 
+  /* ── the connector's state (alto/handoff.py): "Update your Alto connector", and whether this account has edited with Claude ──
+     The connector writes users/{uid}/connector/state = {v, used} as this account. LATEST and MIN_SAFE are this release's own
+     (build/engine_stamp.py, the one place). The notice is drawn with textContent only; what it remembers in this browser is a
+     version number and a yes/no, never an id. */
+  const CONN_LATEST = '__ALTO_LATEST__', CONN_MIN_SAFE = '__ALTO_MIN_SAFE__', CONN_GET = 'https://alto-get.web.app';
+  const _ver = (s) => { const m = /^\d+(\.\d+){0,3}$/.test(String(s || '')) ? String(s).split('.').map(Number) : null; return m; };
+  const _older = (a, b) => { const x = _ver(a), y = _ver(b); if (!x || !y) return false;
+    for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; };
+  function _connectorNote(v) {
+    const d = document; let el = d.getElementById('alto-conn-note');
+    const unsafe = _older(v, CONN_MIN_SAFE), show = !!v && (unsafe || _older(v, CONN_LATEST));
+    let off = ''; try { off = localStorage.getItem('alto-conn-note-off') || ''; } catch (e) {}
+    if (!show || off === CONN_LATEST + (unsafe ? '!' : '')) { if (el) el.remove(); return; }
+    if (!d.body) return;
+    if (!el) {
+      el = d.createElement('div'); el.id = 'alto-conn-note'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+      el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9000;' +
+        'box-sizing:border-box;width:min(560px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#15161f;color:#f2f2f7;' +
+        'border:1px solid rgba(255,255,255,.28);box-shadow:0 10px 30px rgba(0,0,0,.35);font:13px/1.45 system-ui,-apple-system,sans-serif;' +
+        'display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center';
+      d.body.appendChild(el);
+    }
+    while (el.firstChild) el.removeChild(el.firstChild);
+    const t = d.createElement('div'); t.style.cssText = 'flex:1 1 260px;min-width:0';
+    const b = d.createElement('b'); b.textContent = 'Update your Alto connector'; b.style.display = 'block'; t.appendChild(b);
+    const p = d.createElement('span');
+    p.textContent = (unsafe ? 'Yours is ' + v + ', which is no longer safe to use: Claude cannot change your pages until you update. '
+                            : 'Yours is ' + v + '; the newest is ' + CONN_LATEST + '. ') +
+      'Download the newest Alto from alto-get.web.app, open the downloaded file to install it over this one, then restart Claude.';
+    t.appendChild(p); el.appendChild(t);
+    const btn = 'min-height:44px;padding:0 14px;border-radius:10px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;';
+    const a = d.createElement('a'); a.href = CONN_GET; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'Get the update';
+    a.style.cssText = btn + 'background:#f2f2f7;color:#15161f;border:1px solid #f2f2f7;font-weight:600'; el.appendChild(a);
+    const x = d.createElement('button'); x.type = 'button'; x.textContent = 'Dismiss'; x.setAttribute('aria-label', 'Dismiss the connector update notice');
+    x.style.cssText = btn + 'background:transparent;color:#f2f2f7;border:1px solid rgba(255,255,255,.4)';
+    x.addEventListener('click', () => { try { localStorage.setItem('alto-conn-note-off', CONN_LATEST + (unsafe ? '!' : '')); } catch (e) {} el.remove(); });
+    el.appendChild(x);
+  }
+  async function _connectorCheck() {
+    if (!cloud.user) { const el = document.getElementById('alto-conn-note'); if (el) el.remove(); try { localStorage.removeItem('alto-claude-used'); } catch (e) {} return; }
+    const uid = cloud.user.uid, st = await cloud.connectorState();
+    if (!cloud.user || cloud.user.uid !== uid) return;
+    cloud.connector = st;
+    try { if (st && st.used) localStorage.setItem('alto-claude-used', '1'); else localStorage.removeItem('alto-claude-used'); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('alto-connector')); } catch (e) {}
+    _connectorNote(st ? st.v : '');
+  }
+  cloud._connectorNote = _connectorNote;
+
   onAuthStateChanged(auth, (user) => {
     // Before anything can sync: this browser's data must be this account's.
     // A page that was open signed out may hold other data in memory (here, or
@@ -2015,6 +2088,7 @@
     // cloud.user is the truth, including a null that means signed out.
     cloud.known = true;
     try { window.dispatchEvent(new CustomEvent('alto-auth')); } catch (e) {}
+    try { _connectorCheck(); } catch (e) {}
     for (const u of [unsubUser, unsubMain, unsubRp]) { try { u && u(); } catch (e) {} }
     unsubUser = unsubMain = unsubRp = null;
     remoteUser = undefined; remoteMain = undefined; remoteReports = undefined; remoteTombs = new Set();

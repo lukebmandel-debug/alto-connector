@@ -913,6 +913,7 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   #alto-edit-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
   #alto-edit-toast a{color:inherit;margin-left:6px;}
 </style>
+__ALTO_HANDOFF__
 <script id="alto-edit-tile">
 (function(){
   var E = window._ALTO_EDIT || {};
@@ -938,46 +939,57 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     var m = /^(https:\/\/[^\/]+\/pv\/[a-z0-9]+\/?)/.exec(u);
     return m ? m[1] : '';
   }
-  function prompt(extra){
+  /* The way to Claude (alto/build/claude_handoff.py; Board B-1118-CUT part B): one press copies a prompt that names the action, the
+     item, the detail page and this page, opens Claude in a new tab at its plain address, and saves the details in the owner's own account
+     under a random code for the connector to hand to Claude. Nothing of the page goes in any address. */
+  function fmtNow(){
+    if(document.documentElement.classList.contains('alto-palace')) return 'palace';
+    return window._ALTO_OUTLINE ? 'outline' : 'timeline';
+  }
+  function ctx(){
+    var dp = document.getElementById('detail-page'), on = !!(dp && dp.classList.contains('visible'));
+    var P = on ? (window._altoPageNow || {type: window._currentDetailType, id: window._currentDetailId}) : null;
+    var nm = on ? document.querySelector('#detail-content .detail-name') : null;
+    return {tid: tid, page: TITLE, fmt: fmtNow(), detail: nm ? nm.textContent.trim() : '',
+            detailId: P && P.id ? String(P.id) : '', detailType: P && P.type ? String(P.type) : ''};
+  }
+  // With no account to keep the request in (signed out, an offline copy) the copied text says where the page is instead.
+  function find(){
     var at = where(), host = at ? at.split('/')[2] : '';
-    return "I want to edit \"" + TITLE + "\" in Alto (id: " + tid +
-      (at ? ", page: " + at : "") + "). " +
-      "If the Alto connector isn't connected here yet, help me install it from " + GET +
-      " first. Then open it with Alto's get_timeline" +
-      (at ? " \u2014 if it isn't found, it may be in another of my Alto accounts: look with " +
-            "list_projects(account=\"all\"), and add my site (" + host + ") with connect_account " +
-            "if it isn't listed" : "") +
-      (extra ? ". " + extra + " Follow Alto's interview guide, then rebuild and republish it."
-        : ". Then ask me what I'd like " +
-      "to change \u2014 I may have new notes to add, sources to link, or edits to make. " +
-      "Follow Alto's interview guide to make the changes, then rebuild and republish it.");
+    return "It is \"" + TITLE + "\" (id: " + tid + (at ? ", page: " + at : "") + "): open it with Alto's get_timeline" +
+      (at ? " — if it isn't found, it may be in another of my Alto accounts: look with list_projects(account=\"all\"), and add my site (" +
+            host + ") with connect_account if it isn't listed." : ".");
   }
-  function go(u){
-    // The page usually runs in a frame (private shell, offline copy): hand the
-    // link to the top window, which is where an app link or claude.ai belongs.
-    try{ window.top.location.href = u; } catch(e){ try{ window.open(u, '_blank'); } catch(_){ location.href = u; } }
+  function hand(c, steps){
+    var H = window._altoHandoff;
+    if(!H){ return; }
+    return H.open({ctx: c, goal: H.goal(c), steps: steps, find: find()});
   }
-  function toast(web){
-    var el = document.getElementById('alto-edit-toast');
-    if(!el){ el = document.createElement('div'); el.id = 'alto-edit-toast'; document.body.appendChild(el); }
-    el.textContent = 'Opening the Claude app… ';
-    var a = document.createElement('a'); a.textContent = 'Open in browser instead';
-    a.href = web; a.target = '_blank'; a.rel = 'noopener'; el.appendChild(a);
-    el.classList.add('show');
-    clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('show'); }, 6000);
-  }
-  function openClaude(text){
-    var q = encodeURIComponent(typeof text === 'string' ? text : prompt()), web = 'https://claude.ai/new?q=' + q;
-    var touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-                (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-    if(touch){ go(web); return; }          // the Claude app intercepts the universal link
-    toast(web);
-    go('claude://claude.ai/new?q=' + q);
-  }
-  window._altoEditTimeline = function(){ openClaude(); };
-  // A request of its own (a quiz for this page, say): the same way in, with the
-  // timeline named ahead of it so a chat that cannot see the draft can find it.
-  window._altoAskClaude = function(text){ openClaude(prompt(String(text || ""))); };
+  window._altoEditTimeline = function(){
+    var c = ctx(); c.action = 'Edit';
+    hand(c, "Open it with Alto's get_timeline, then ask me what I'd like to change — I may have new notes to add, sources to link, or edits to make. " +
+            "Follow Alto's interview guide to make the changes, then rebuild and republish it.");
+  };
+  // "Add a quiz" and its kin, for the page that is open: the words and the section's shape are the handoff's own (ADD).
+  window._altoAskAdd = function(k){
+    var H = window._altoHandoff, a = H && H.ADD[k]; if(!a) return;
+    window._altoAskClaude(H.addSteps(k), {action: 'Add ' + a[1], kind: 'add'});
+  };
+  // The editing bar's star: on a detail page it asks which (edit it, or add a quiz, flash cards, a decision tree, ...); elsewhere it is the one press.
+  window._altoAskMenu = function(){
+    var H = window._altoHandoff, c = ctx();
+    if(!H || !c.detailId){ window._altoEditTimeline(); return; }
+    var rows = [['\u2726 Change this page', window._altoEditTimeline, 'Ask Claude to change this page']];
+    Object.keys(H.ADD).forEach(function(k){ rows.push(['\u2726 Add ' + H.ADD[k][1], function(){ window._altoAskAdd(k); }, 'Ask Claude to add ' + H.ADD[k][1] + ' to this page, from your own notes']); });
+    H.pick('Ask Claude about \u201c' + c.detail + '\u201d', rows);
+  };
+  // A request of its own (a quiz for this page, say): meta = {action, kind: 'add', target, targetId, noun} names it.
+  window._altoAskClaude = function(text, meta){
+    var c = ctx(); meta = meta || {};
+    c.action = String(meta.action || 'Change'); c.kind = String(meta.kind || '');
+    if(meta.target){ c.target = String(meta.target); c.targetId = String(meta.targetId || ''); c.noun = String(meta.noun || ''); }
+    hand(c, String(text || "") + " Follow Alto's interview guide, then rebuild and republish it.");
+  };
   if(PH) return;
   var world = null;
   // The editing controls live in the edit toggle beside light/dark
@@ -1260,7 +1272,8 @@ def edit_tile(b) -> str:
     from .blocks import ID_PATTERNS
     data = js_json({"title": b.title or "",
                     "key": ID_PATTERNS["doc_save_key"].format(tid=b.timeline_id)})
-    return f"<script>window._ALTO_EDIT={data};</script>\n" + EDIT_TILE + "\n"
+    from . import claude_handoff
+    return f"<script>window._ALTO_EDIT={data};</script>\n" + EDIT_TILE.replace("__ALTO_HANDOFF__", claude_handoff.tag(), 1) + "\n"
 
 
 def local_sources(b) -> "tuple[str, list[str]]":

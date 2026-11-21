@@ -130,6 +130,42 @@ class CloudStore(Store):
         for i in range(0, len(writes), 400):     # Firestore caps a commit at 500
             self._req("POST", f"{self.root}:commit", {"writes": writes[i:i + 400]})
 
+    # ── the Claude handoff (alto/handoff.py) ────────────────────────────────
+    # users/{uid}/requests/{code} is written by the owner's page (alto-cloud.js putRequest): {data: JSON text, exp: ms}. It is read
+    # as this signed-in account, so firestore.rules decide: another account's code, or an expired one, comes back as nothing.
+    def get_request(self, uid, code):
+        from .. import handoff
+        if not handoff.CODE_RE.fullmatch(str(code or "")):
+            return None
+        try:
+            js = self._req("GET", self._doc(uid, handoff.COLL, code), ok404=True)
+        except CloudError:
+            return None                              # refused by the rules (expired, or not this account's): the same as absent
+        try:
+            doc = self._decode(js) if js else None
+        except ValueError:
+            return None                              # a cut or unparsable payload: the same as absent
+        if not isinstance(doc, dict):
+            return None
+        try:
+            doc["exp"] = int(((js.get("fields") or {}).get("exp") or {}).get("integerValue"))
+        except (TypeError, ValueError):
+            return None
+        return doc
+
+    def delete_request(self, uid, code):
+        from .. import handoff
+        if handoff.CODE_RE.fullmatch(str(code or "")):
+            self._req("DELETE", self._doc(uid, handoff.COLL, code), ok404=True)
+
+    def get_connector_state(self, uid):
+        from .. import handoff
+        return self._get(self._doc(uid, *handoff.STATE))
+
+    def put_connector_state(self, uid, state):
+        from .. import handoff
+        self._put(self._doc(uid, *handoff.STATE), state)
+
     # ── manual edits (alto/edits.py) ────────────────────────────────────────
     # users/{uid}/edits/{tid} is written by the owner's page in edit mode
     # (alto-cloud.js putEdits): {data: JSON text, updatedAt}.

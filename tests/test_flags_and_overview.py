@@ -121,4 +121,5 @@ def test_the_guide_never_defaults_to_coverage_and_asks_for_flags():
 
 def test_set_flags_is_a_tool():
     src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
-    assert src.count("@mcp.tool(") == 35 and "def set_flags(" in src and "def invent_city(" in src and "def set_study_plan(" in src and "def get_study_signals(" in src
+    # 36 since the Claude handoff added get_pending_request (Board B-1118-CUTBASS part B, ORG/briefs/claude-handoff-1118.md)
+    assert src.count("@mcp.tool(") == 36 and "def get_pending_request(" in src and "def set_flags(" in src and "def invent_city(" in src and "def set_study_plan(" in src and "def get_study_signals(" in src

@@ -87,53 +87,61 @@ IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148"
 
 
 def _prompt(title, key, ua=MAC, page=""):
+    """What the page hands to the one handoff (claude_handoff.py) when the star is pressed: [{ctx, steps, find}], and every address it
+    tried to go to (none: Board B-1118-CUTBASS part B, ORG/briefs/claude-handoff-1118.md: the prompt is copied, never put in an address)."""
     if not Path(NODE).is_file():
         pytest.skip("needs node")
     script = dx.EDIT_TILE.split('<script id="alto-edit-tile">', 1)[1].rsplit("</script>", 1)[0]
     harness = r"""
     const [script, title, key, ua, page] = JSON.parse(process.argv[1]);
-    const went = [];
+    const went = [], handed = [];
     global.window = global;
     window._ALTO_EDIT = { title, key };
-    global.document = { title: 'x', getElementById: () => null, addEventListener(){},
+    window._altoHandoff = { open: o => { handed.push({ctx: o.ctx, steps: o.steps, find: o.find}); }, goal: c => 'G' };
+    global.document = { title: 'x', getElementById: () => null, querySelector: () => null, addEventListener(){},
+                        documentElement: { classList: { contains: () => false } },
                         createElement: () => ({ classList: { add(){}, remove(){} }, appendChild(){} }),
                         body: { appendChild(){} } };
     Object.defineProperty(globalThis, 'navigator', { value: { userAgent: ua, maxTouchPoints: 0 }, configurable: true });
     window.top = { location: { get href(){ return page; }, set href(u){ went.push(u); } } };
+    window.open = u => { went.push(u); };
     window.addEventListener = () => {}; global.setTimeout = () => 0;
     eval(script);
     if (window._altoEditTimeline) window._altoEditTimeline();
-    console.log(JSON.stringify(went));
+    console.log(JSON.stringify({went, handed}));
     """
     out = subprocess.run([NODE, "-e", harness, json.dumps([script, title, key, ua, page])],
                          capture_output=True, text=True, check=True).stdout
-    return json.loads(out)
+    r = json.loads(out)
+    assert r["went"] == []                                   # the page itself goes nowhere: the handoff opens Claude, bare
+    return r["handed"]
 
 
 def test_the_prompt_names_the_timeline_and_how_to_edit_it():
-    went = _prompt("Torts", "alto-doc-torts")
-    assert len(went) == 1 and went[0].startswith("claude://claude.ai/new?q=")
-    from urllib.parse import unquote
-    q = unquote(went[0].split("?q=", 1)[1])
-    for must in ('"Torts" in Alto (id: torts)', "https://alto-get.web.app",
-                 "get_timeline", "new notes to add, sources to link",
-                 "rebuild and republish"):
-        assert must in q, must
+    """Was: the whole prompt rode claude://claude.ai/new?q=... Changed on purpose (Board B-1118-CUTBASS part B): the same words now go to
+    the handoff, which copies them; the install line (alto-get.web.app) is the handoff's own (tests/test_claude_handoff_1118.py)."""
+    handed = _prompt("Torts", "alto-doc-torts")
+    assert len(handed) == 1
+    h = handed[0]
+    assert h["ctx"]["page"] == "Torts" and h["ctx"]["tid"] == "torts" and h["ctx"]["action"] == "Edit" and h["ctx"]["fmt"] == "timeline"
+    assert '"Torts" (id: torts)' in h["find"] and "get_timeline" in h["find"]
+    for must in ("get_timeline", "new notes to add, sources to link", "rebuild and republish"):
+        assert must in h["steps"], must
+    assert "claude.ai/new?q=" not in dx.EDIT_TILE and "claude://" not in dx.EDIT_TILE
 
 
 def test_the_prompt_carries_the_page_so_any_chat_can_find_the_timeline():
     """A chat that cannot see the draft needs the account's site and the page's
-    own key to look in the right place — and says what to do if it is not there."""
-    from urllib.parse import unquote
+    own key to look in the right place — and says what to do if it is not there. (Now in the copied text, used when there is no account
+    to keep the request in; with one, the connector's get_pending_request hands Claude the id.)"""
     page = "https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/?x=1#top"
-    went = _prompt("Torts", "alto-doc-torts", page=page)
-    q = unquote(went[0].split("?q=", 1)[1])
+    q = _prompt("Torts", "alto-doc-torts", page=page)[0]["find"]
     assert '(id: torts, page: https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/)' in q
     assert "?x=1" not in q and "#top" not in q
     assert 'list_projects(account="all")' in q
     assert "connect_account" in q and "(luke-alto.web.app)" in q
     # With no address to go on (an offline copy) the prompt is the plain one.
-    plain = unquote(_prompt("Torts", "alto-doc-torts")[0].split("?q=", 1)[1])
+    plain = _prompt("Torts", "alto-doc-torts")[0]["find"]
     assert "page:" not in plain and "connect_account" not in plain
 
 
@@ -142,8 +150,8 @@ def test_a_share_opens_nothing():
 
 
 def test_a_phone_gets_the_stars_way_to_claude_but_no_room_making():
-    went = _prompt("Torts", "alto-doc-torts", IPHONE)
-    assert len(went) == 1 and went[0].startswith("https://claude.ai/new?q=")      # a touch device opens the web address (the app intercepts it)
+    handed = _prompt("Torts", "alto-doc-torts", IPHONE)
+    assert len(handed) == 1 and handed[0]["ctx"]["page"] == "Torts"               # a phone gets the same handoff (the prompt is copied, Claude opens bare)
     js = dx.EDIT_TILE
     assert js.index("if(PH) return;") < js.index("var world = null;")
 

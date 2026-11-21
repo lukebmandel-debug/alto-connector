@@ -63,7 +63,7 @@ STUDY_EDIT_JS = r"""  /* ── flash cards and quizzes: the editor (study_edit.
       'Ask me first if it would help to know how many ' + (kind === 'q' ? 'questions' : 'cards') + ' I want.';
   }
   function askClaudeStudy(kind, key){
-    if(window._altoAskClaude) window._altoAskClaude(studyPrompt(kind, key)); else toast('Open Claude from the edit pill, then ask for it.');
+    if(window._altoAskClaude) window._altoAskClaude(studyPrompt(kind, key), {action: kind === 'q' ? 'Add a quiz' : 'Add flash cards', kind: 'add'}); else toast('Open Claude from the edit pill, then ask for it.');
   }
   var LETTERS = 'ABCDEFGH';
   function openStudyEditor(key, opts){

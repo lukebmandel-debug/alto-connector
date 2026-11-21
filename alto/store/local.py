@@ -61,6 +61,22 @@ class LocalStore(Store):
         p.write_text(json.dumps(doc, ensure_ascii=False, indent=1),
                      encoding="utf-8")
 
+    # ── the Claude handoff (alto/handoff.py): per account, like everything else here ──
+    def get_request(self, uid, code):
+        return self._read(self._p(uid, "requests", f"{code}.json", mkdir=False))
+
+    def put_request(self, uid, code, doc):           # a local store has no page to write one; tests and a local dev page do
+        self._write(self._p(uid, "requests", f"{code}.json"), doc)
+
+    def delete_request(self, uid, code):
+        self._p(uid, "requests", f"{code}.json", mkdir=False).unlink(missing_ok=True)
+
+    def get_connector_state(self, uid):
+        return self._read(self._p(uid, "connector", "state.json", mkdir=False))
+
+    def put_connector_state(self, uid, state):
+        self._write(self._p(uid, "connector", "state.json"), state)
+
     # ── projects ─────────────────────────────────────────────────────────────
     def list_projects(self, uid):
         d = self._p(uid, "projects", mkdir=False)

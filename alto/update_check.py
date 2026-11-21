@@ -16,9 +16,10 @@ import threading
 import time
 import urllib.request
 
-from .build.engine_stamp import UPDATE_HOW, is_older, parse_version, running_version
+from .build.engine_stamp import MIN_SAFE, UPDATE_HOW, is_older, parse_version, running_version
 
 RELEASES_URL = "https://api.github.com/repos/lukebmandel-debug/alto-connector/releases/latest"
+VERSIONS_URL = "https://alto-connector.web.app/alto-version.json"
 TIMEOUT = 3.0
 TTL = 6 * 3600.0          # how long a fetched answer is trusted before the next call asks again
 _clock = time.monotonic   # tests swap in a fake clock
@@ -32,6 +33,7 @@ _done = threading.Event()
 _latest = ""
 _fetched_at = 0.0
 _refreshing = False
+_min_safe = ""
 
 
 def _fetch_latest() -> str:
@@ -46,12 +48,25 @@ def _fetch_latest() -> str:
         return ""
 
 
+def _fetch_min_safe() -> str:
+    """The oldest connector still safe to use, as the public Alto site says it (/alto-version.json, written at each release from
+    build/engine_stamp.MIN_SAFE: the one place it is defined). '' on any failure: no answer never refuses anyone."""
+    try:
+        req = urllib.request.Request(VERSIONS_URL, headers={"Accept": "application/json", "User-Agent": "alto-connector-update-check"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            v = (json.loads(r.read(2000).decode("utf-8")) or {}).get("min_safe", "")
+        return v if isinstance(v, str) and parse_version(v) else ""
+    except Exception:                                   # noqa: BLE001
+        return ""
+
+
 def _run() -> None:
-    global _latest, _fetched_at, _refreshing
+    global _latest, _fetched_at, _refreshing, _min_safe
     try:
         got = _fetch_latest()
         if got or not _latest:                  # a failed re-check keeps the older answer
             _latest = got
+        _min_safe = _fetch_min_safe()
         _fetched_at = _clock()
     finally:
         _refreshing = False
@@ -84,7 +99,8 @@ def latest_version() -> str:
                 _done.clear()
         if stale:
             threading.Thread(target=_run, daemon=True, name="alto-update-recheck").start()
-    _done.wait(TIMEOUT + 1)
+    if _started:                                        # never started (switched off, or offline): nothing to wait for
+        _done.wait(TIMEOUT + 1)
     return _latest
 
 
@@ -103,8 +119,35 @@ def update_note() -> str:
     return ""
 
 
+def unsafe_note() -> str:
+    """Why this connector must not be used at all: it is older than the minimum safe release. '' when it is not."""
+    try:
+        if os.environ.get("ALTO_UPDATE_CHECK") == "off":
+            return ""
+        latest_version()                                # waits (briefly) for the one check of this session
+        mine = running_version()
+        low = max((v for v in (_min_safe, MIN_SAFE) if parse_version(v)), key=parse_version, default="")
+        if low and is_older(mine, low):
+            return (f"This Alto connector version ({mine}) has a security issue and cannot be used, so Alto did nothing. "
+                    f"Update it from alto-get (versions older than {low} are refused): {UPDATE_HOW}, then try again.")
+    except Exception:                                   # noqa: BLE001
+        pass
+    return ""
+
+
+def refusal() -> dict | None:
+    """The answer every tool gives when the connector is too old to be safe; None otherwise."""
+    note = unsafe_note()
+    if not note:
+        return None
+    return {"error": "connector_too_old", "message": note,
+            "next": "Tell the user this, in these words, with the steps. Do not call any other Alto tool until they have updated."}
+
+
 def with_update_note(result):
-    """Put the out-of-date warning first in a build or publish result."""
+    """Put the out-of-date warning first in a tool's result (every tool: mcp_server._tool)."""
+    if isinstance(result, dict) and "update_alto" in result:
+        return result
     note = update_note()
     if note and isinstance(result, dict):
         return {"update_alto": note,
@@ -115,7 +158,7 @@ def with_update_note(result):
 
 
 def reset_for_tests() -> None:
-    global _started, _latest, _fetched_at, _refreshing
+    global _started, _latest, _fetched_at, _refreshing, _min_safe
     with _lock:
-        _started, _latest, _fetched_at, _refreshing = False, "", 0.0, False
+        _started, _latest, _fetched_at, _refreshing, _min_safe = False, "", 0.0, False, ""
         _done.clear()

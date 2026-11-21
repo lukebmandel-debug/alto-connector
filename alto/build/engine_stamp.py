@@ -27,6 +27,17 @@ UPDATE_HOW = ("download the newest Alto from https://alto-get.web.app, open the 
               "downloaded file to install it over this one, then restart Claude")
 
 
+# The ONE place that says how old a connector may be (Board B-1118-CUTBASS part B). "Latest" is the release this code is (running_version():
+# a site is published by the newest release, and the connector learns of a newer one from update_check). A connector older than MIN_SAFE is
+# refused by every tool with the update steps; raising it is a release decision, never automatic.
+MIN_SAFE = "1.9.228"
+
+
+def connector_versions() -> dict:
+    """What a published site says about the connector: {"latest", "min_safe"} (publish_static writes it as /alto-version.json)."""
+    return {"latest": running_version(), "min_safe": MIN_SAFE}
+
+
 class StaleEngineError(Exception):
     """Publishing would put an older engine's page over a newer one's."""
 
