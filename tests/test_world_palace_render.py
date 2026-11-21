@@ -365,20 +365,18 @@ def test_the_world_dropdown_pill_is_gone_and_the_bottom_chip_still_navigates(bro
     try:
         page.goto(origin + "/index.html")
         page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
-        cls = {"classic": "", "dark": "dark", "retro": "alto-retro", "holo": "alto-holo"}[style]
-        page.evaluate("(c) => { if (c) document.documentElement.classList.add(c); }", cls)
-        _settle(page, 500)
+        if style in ("retro", "holo"):                                                                     # the real style switch (set + reload), not a bare class
+            page.evaluate("(s) => (window._altoStyle || window._altoStyleC).set(s)", style)
+            page.reload()
+            page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+            assert page.evaluate("document.documentElement.classList.contains('alto-' + %r)" % style)       # the style really applied
+        elif style == "dark":
+            page.evaluate("document.documentElement.classList.add('dark')")
+        _settle(page, 1500 if style in ("retro", "holo") else 500)
         assert page.evaluate("document.querySelectorAll('#wpal-root .wp-scope').length") == 0
         assert page.evaluate("[...document.querySelectorAll('#wpal-root button')].filter(b => /^\\s*World\\s*$/.test(b.textContent) && b.getAttribute('aria-haspopup')).length") == 0
         page.evaluate("document.title = 'Civ Pro'; window.__go = null; window.__altoGo = function(u){ window.__go = u; }")
-        if mobile:
-            # a phone has no chip (its nav bar is hidden): the entry is one row in the page's own MENU drawer, >= 44 px, same action
-            page.evaluate("window.openNavDrawer()")
-            row = "#nav-drawer-body #drawer-changemap-btn"
-            assert page.evaluate(f"document.querySelector('{row}').textContent.trim()") == "Change map…"
-            assert page.evaluate(f"document.querySelector('{row}').getBoundingClientRect().height") >= 44
-            page.evaluate(f"document.querySelector('{row}').click()")
-        else:
+        if not mobile:
             at = "#wpal-root .wp-nav .wp-at"
             assert "Whole world" in page.evaluate(f"document.querySelector('{at}').textContent")
             page.evaluate("AltoWorld.select('erie')")
@@ -390,17 +388,21 @@ def test_the_world_dropdown_pill_is_gone_and_the_bottom_chip_still_navigates(bro
                 page.evaluate("document.querySelector('#wpal-root .wp-nav .wp-up').click()")
                 _settle(page, 900)
             assert "Whole world" in page.evaluate(f"document.querySelector('{at}').textContent")
-            # the scope set-up lives in the chip's open state: one 'Change map…' row, >= 44 px, reachable by keyboard
-            page.evaluate(f"document.querySelector('{at}').click()")
-            assert page.evaluate("!document.querySelector('#wpal-root .wp-mapm').hidden")
-            row = "#wpal-root .wp-mapm button"
-            assert page.evaluate(f"document.querySelector('{row}').textContent") == "Change map…"
-            assert page.evaluate(f"parseFloat(getComputedStyle(document.querySelector('{row}')).minHeight)") >= 44      # (css px: the desktop page is zoomed a little under 1, so the box measures less)
-            assert page.evaluate(f"document.activeElement === document.querySelector('{row}')")            # keyboard: focus lands on the row
-            page.keyboard.press("Escape")
-            assert page.evaluate("document.querySelector('#wpal-root .wp-mapm').hidden")
-            page.evaluate(f"document.querySelector('{at}').click()")
-            page.evaluate(f"document.querySelector('{row}').click()")
+        # Luke 2026-11-21: no "Change map..." button on the Atlas itself (desktop or phone, every style); the one entry is a row in the page's MENU drawer
+        assert page.evaluate("document.querySelectorAll('#wpal-root .wp-mapm').length") == 0
+        assert page.evaluate("[...document.querySelectorAll('#wpal-root button')].filter(b => /Change map/.test(b.textContent)).length") == 0
+        page.evaluate("document.querySelector('#wpal-root .wp-nav .wp-at')?.click()")                      # a tap on the chip opens nothing
+        assert page.evaluate("[...document.querySelectorAll('button,[role=menuitem]')].filter(b => /Change map/.test(b.textContent) && b.offsetParent !== null && !b.closest('#nav-drawer-body')).length") == 0
+        if mobile:
+            page.evaluate("window.openNavDrawer()")
+            row = "#nav-drawer-body #drawer-changemap-btn"
+            assert page.evaluate(f"document.querySelector('{row}').textContent.trim()") == "Change map…"
+            assert page.evaluate(f"document.querySelector('{row}').getBoundingClientRect().height") >= 44
+        else:                                                                                              # desktop: the "?" keys panel carries the one entry
+            page.keyboard.press("?")
+            row = "#wpal-root .wp-help #help-changemap-btn"
+            assert page.evaluate(f"document.querySelector('{row}').textContent.trim()") == "Change map…"
+        page.evaluate(f"document.querySelector('{row}').click()")
         assert page.evaluate("window.__go") == "index.html?rescope=world&tl=Civ%20Pro"                    # the same URL the pill opened
         assert "&amp;" not in page.evaluate("window.__go")                                               # a real '&', never the literal entity the homepage cannot read
         assert page.evaluate("(() => { var q = new URL(window.__go, location.href).searchParams; return [q.get('rescope'), q.get('tl')]; })()") == ["world", "Civ Pro"]
