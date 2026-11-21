@@ -161,13 +161,13 @@ HOLO_CSS = r"""
   X svg:is(.brand-mark,.brand-word) [stroke^="url"],X svg.brand-mark .alto-head{stroke:var(--ho-ac2) !important;}
   X #title-bar svg.brand-word:not(#_):not(#__){filter:drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;}
   X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){filter:drop-shadow(-1.5px 0 0 rgba(255,95,210,.5)) drop-shadow(0 0 5px rgba(var(--ho-rgb),.5)) !important;
-    animation:ho-logo 10s ease-in-out -2.5s infinite;will-change:transform;}
+    animation:ho-logo 10s linear infinite;will-change:transform;}
   X.hp-hid #title-bar svg.brand-mark,X.hp-hid.pmin #nav svg.brand-mark{animation-play-state:paused;}
-  /* a swing, not a spin (Board, on Art's look at rel-223): a full turn passed through edge-on, and a still frame caught the clef as a 3 px hairline, a broken logo. It swings
-     55deg to each side of facing front, easing at each end, in the same 10 s, and starts a quarter-period in: facing front. It is never narrower than about half its width. */
-  @keyframes ho-logo{0%,100%{transform:perspective(260px) rotateY(-55deg)}50%{transform:perspective(260px) rotateY(55deg)}}
+  /* a full turn (Luke, 2026-11-19: "make them spin all the way around, while still being 3d"): one even 360 degrees on Y in the same 10 s. The back half is never mirrored: the turn is
+     written as the face swinging from edge-on to edge-on, 0 to 90, then -90 to 90 (the back, read the right way round), then -90 to 0, with the jump hidden at each edge-on. It starts facing front. */
+  @keyframes ho-logo{0%,100%{transform:perspective(260px) rotateY(0deg)}25%{transform:perspective(260px) rotateY(90deg)}25.01%{transform:perspective(260px) rotateY(-90deg)}75%{transform:perspective(260px) rotateY(90deg)}75.01%{transform:perspective(260px) rotateY(-90deg)}}
   /* the phone's clef is centred by translateY(-50%) (html.mobile #nav .brand-mark), and an animated or reduced-motion transform replaces it: carry it */
-  @keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(-55deg)}50%{transform:translateY(-50%) perspective(260px) rotateY(55deg)}}
+  @keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(0deg)}25%{transform:translateY(-50%) perspective(260px) rotateY(90deg)}25.01%{transform:translateY(-50%) perspective(260px) rotateY(-90deg)}75%{transform:translateY(-50%) perspective(260px) rotateY(90deg)}75.01%{transform:translateY(-50%) perspective(260px) rotateY(-90deg)}}
   X.pmin #nav svg.brand-mark:not(#_):not(#__){animation-name:ho-logo-p;}
   @media (prefers-reduced-motion:reduce){ X #title-bar svg.brand-mark:not(#_):not(#__),X.pmin #nav svg.brand-mark:not(#_):not(#__){animation:none !important;transform:perspective(260px) rotateY(24deg);will-change:auto;}
     X.pmin #nav svg.brand-mark:not(#_):not(#__){transform:translateY(-50%) perspective(260px) rotateY(24deg);} }
@@ -209,7 +209,7 @@ PROJ_CSS = r"""
   X.alto-home .course-tile .tile-emblem.hp-on:focus-visible{outline:2px solid var(--ho-ac2);outline-offset:-3px;}
   X.alto-home .course-tile.hp:hover,X.alto-home .course-tile.hp:focus-within{z-index:4;}
   X .hp-stage{position:relative;width:84px;height:104px;perspective:420px;}
-  X .hp-spin{position:absolute;inset:12px 14px 34px;transform-style:preserve-3d;animation:ho-sway 9s ease-in-out infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
+  X .hp-spin{position:absolute;inset:12px 14px 34px;transform-style:preserve-3d;animation:ho-turn 9s linear infinite;animation-delay:calc(var(--hp-i,0) * -.7s);}
   X.alto-home .course-tile .hp-stage .hp-l{position:absolute;inset:0;display:block;width:100%;height:100%;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;overflow:visible;}
   X .hp-stage .hp-l1{stroke:var(--hp-mg);color:var(--hp-mg);opacity:.55;transform:translateZ(-12px);}
   X .hp-stage .hp-l3{stroke:var(--ho-ac);color:var(--ho-ac);opacity:1;transform:translateZ(12px);}
@@ -220,6 +220,13 @@ PROJ_CSS = r"""
   X .hp-stage .hp-l7{stroke:color-mix(in srgb,var(--ho-ac) 74%,#000);color:color-mix(in srgb,var(--ho-ac) 74%,#000);opacity:1;transform:translateZ(8px);}
   X.alto-home .tile-emblem.hp-on .hp-l rect[mask]{fill-opacity:.62;stroke:currentColor;stroke-width:.9}
   X.alto-home .tile-emblem.hp-on :is(.hp-l2,.hp-l4,.hp-l5,.hp-l6,.hp-l7) rect[mask]{fill-opacity:1;stroke-width:1.5}
+  /* the glyph's thickness, lit (1.9.266, full turn): a flat plate has no width edge-on, and tilted side walls were not painted by WebKit, so a lit bar the slab's depth wide is faded in over the last
+     stretch to edge-on (opacity only, on the turn's own clock): near edge-on the glyph reads as a solid lit slab, never a vanishing line */
+  X .hp-edge{position:absolute;left:50%;top:12px;bottom:34px;width:18px;margin-left:-9px;opacity:0;pointer-events:none;z-index:1;animation:ho-edge 9s linear infinite;animation-delay:calc(var(--hp-i,0) * -.7s);
+    background:linear-gradient(90deg,color-mix(in srgb,var(--ho-ac) 35%,#000),var(--ho-ac) 50%,color-mix(in srgb,var(--ho-ac) 35%,#000));box-shadow:0 0 6px rgba(var(--ho-rgb),.5);}
+  @keyframes ho-edge{0%,16%{opacity:0}25%{opacity:1}34%{opacity:0}66%{opacity:0}75%{opacity:1}84%,100%{opacity:0}}
+  /* the slab's rim (1.9.266): ten border-only boxes 2px apart in Z, brighter than the face, so at an oblique angle the plate shows a lit side edge, a solid slab, not a flat card (translateZ slices paint in WebKit; tilted side walls did not) */
+  X .hp-spin .hp-rim{position:absolute;inset:0;box-sizing:border-box;border:2px solid var(--ho-ac2);opacity:.85;pointer-events:none;}
   X .hp-beam{position:absolute;left:50%;bottom:22px;width:62px;height:58px;transform:translateX(-50%);background:linear-gradient(to top,rgba(var(--ho-rgb),var(--hp-cone)),transparent);clip-path:polygon(24% 0,76% 0,100% 100%,0 100%);}
   X .hp-base{position:absolute;left:50%;bottom:12px;width:64px;height:14px;transform:translateX(-50%);}
   X .hp-base i{position:absolute;inset:0;border:1px solid var(--ho-ac);border-radius:50%;}
@@ -230,14 +237,16 @@ PROJ_CSS = r"""
     background:var(--ho-bg);color:var(--ho-tx);border:1px solid var(--ho-ac);font:12px/1 "SF Mono",ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;}
   X .hp-on:hover .hp-tip,X .hp-on:focus-visible .hp-tip{opacity:1;}
   X .course-tile.hp-still .hp-spin{animation:none;transform:rotateY(14deg) rotateX(4deg);}
+  X .course-tile.hp-still .hp-edge{display:none;}
   X .course-tile.hp-still :is(.hp-base i + i,.hp-scan){display:none;}
-  X .course-tile.hp-off :is(.hp-spin,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
-  X.hp-hid .course-tile :is(.hp-spin,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
-  @keyframes ho-sway{0%,100%{transform:rotateY(-34deg) rotateX(5deg)}50%{transform:rotateY(34deg) rotateX(-4deg)}}   /* a sway, never past 34deg: the face is always readable, never edge-on or mirrored */
+  X .course-tile.hp-off :is(.hp-spin,.hp-edge,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
+  X.hp-hid .course-tile :is(.hp-spin,.hp-edge,.hp-base i + i,.hp-scan i){animation-play-state:paused;}
+  @keyframes ho-turn{0%,100%{transform:rotateY(0deg) rotateX(5deg)}25%{transform:rotateY(90deg) rotateX(0deg)}25.01%{transform:rotateY(-90deg) rotateX(0deg)}50%{transform:rotateY(0deg) rotateX(-4deg)}75%{transform:rotateY(90deg) rotateX(0deg)}75.01%{transform:rotateY(-90deg) rotateX(0deg)}}   /* a full turn on Y, even; the back half is the face again, never mirrored (see ho-logo) */
   @keyframes ho-pulse{from{transform:scale(.55);opacity:.9}to{transform:scale(1.25);opacity:0}}
   @keyframes ho-scan{from{transform:translateY(0)}to{transform:translateY(100%)}}
   @media (prefers-reduced-motion:reduce){
    X .hp-spin{animation:none !important;transform:rotateY(14deg) rotateX(4deg);}
+   X .hp-edge{display:none !important;}
    X .hp-base i + i,X .hp-scan{display:none !important;}
    X .hp-base i:first-child{opacity:.6;}
    X .hp-tip{transition:none;}
@@ -578,7 +587,7 @@ function proj(){
     var stage=pel('hp-stage'), spin=pel('hp-spin'), base=pel('hp-base'), scan=pel('hp-scan'), tip=pel('hp-tip'); stage.setAttribute('aria-hidden','true'); scan.setAttribute('aria-hidden','true');
     ['hp-l1','hp-l4','hp-l5','hp-l2','hp-l6','hp-l7','hp-l3'].forEach(function(k){ var s=svg.cloneNode(true); s.setAttribute('class','hp-l '+k); s.setAttribute('aria-hidden','true'); spin.appendChild(s); });
     base.appendChild(pel('','i')); base.appendChild(pel('','i')); scan.appendChild(pel('','i'));
-    stage.appendChild(pel('hp-beam')); stage.appendChild(spin); stage.appendChild(base);
+    for(var z=-12;z<=6;z+=2){ var rm=pel('hp-rim'); rm.style.transform='translateZ('+z+'px)'; rm.setAttribute('aria-hidden','true'); spin.appendChild(rm); } stage.appendChild(pel('hp-beam')); stage.appendChild(spin); var edge=pel('hp-edge'); edge.setAttribute('aria-hidden','true'); stage.appendChild(edge); stage.appendChild(base);
     tip.textContent=name; tip.setAttribute('aria-hidden','true');
     em.insertBefore(stage, em.firstChild); em.appendChild(tip);
     em.classList.add('hp-on'); em.setAttribute('role','img'); em.setAttribute('aria-label',name); em.setAttribute('tabindex','0'); em.setAttribute('aria-hidden','false');
