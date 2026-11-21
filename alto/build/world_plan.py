@@ -533,14 +533,31 @@ def summary(b, nodes) -> dict:
 
 
 # The countries the Atlas can be a map of (those with state / region data); United States first, then A to Z. Art spec: notes-art/atlas-country-look.md.
-ATLAS_COUNTRIES = (("USA", "United States"), ("AUS", "Australia"), ("BRA", "Brazil"), ("CAN", "Canada"), ("CHN", "China"),
-                   ("IND", "India"), ("IDN", "Indonesia"), ("RUS", "Russia"), ("ZAF", "South Africa"))
+ATLAS_COUNTRIES = (("USA", "United States"),
+                   ("ARG", "Argentina"),
+                   ("AUS", "Australia"),
+                   ("BRA", "Brazil"),
+                   ("CAN", "Canada"),
+                   ("CHN", "China"),
+                   ("FRA", "France"),
+                   ("DEU", "Germany"),
+                   ("IND", "India"),
+                   ("IDN", "Indonesia"),
+                   ("ITA", "Italy"),
+                   ("JPN", "Japan"),
+                   ("MEX", "Mexico"),
+                   ("RUS", "Russia"),
+                   ("SAU", "Saudi Arabia"),
+                   ("ZAF", "South Africa"),
+                   ("KOR", "South Korea"),
+                   ("TUR", "Turkey"),
+                   ("GBR", "United Kingdom"))
 
 
 # THE ONE SWITCH for the scope picker (homepage tiles list, MCP set_up_world words + validation). Art signs each country, then add its
 # iso3 here AND to NT_COUNTRIES_ON in engine/home_template.html + alto/engine/home_template.html (a test keeps the three in step).
 # The data, projections and state tiers of the others stay in the build; they are only not offered.
-ATLAS_OFFERED = ("USA", "AUS", "BRA", "CHN", "IDN", "RUS", "ZAF")  # Art signed USA 2026-11-07, then AUS BRA CHN IDN RUS ZAF (CEO C-1107-0705); CAN and IND stay hidden (known gaps)
+ATLAS_OFFERED = tuple(c for c, _ in ATLAS_COUNTRIES)  # the whole G20 that is a country (Luke 2026-11-13); Canada and India are back: their missing faces (BC, Ontario / Quebec, Assam ...) were the old lines-and-faces tier, now drawn from the admin-1 shapes
 
 
 def offered_countries():

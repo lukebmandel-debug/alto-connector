@@ -73,20 +73,21 @@ def test_the_page_frames_the_country(browser, origin):  # noqa: F811
 
 def test_set_up_world_scope_words_and_picker_markup():
     """The two Atlas doors that need no browser: the MCP words (World | A country, the 9 offered) and the homepage tiles."""
-    assert [c for c, _ in wp.ATLAS_COUNTRIES][0] == "USA" and len(wp.ATLAS_COUNTRIES) == 9  # the data for all nine is kept
+    assert [c for c, _ in wp.ATLAS_COUNTRIES][0] == "USA" and len(wp.ATLAS_COUNTRIES) == 19  # the whole G20 that is a country (Luke 13 Nov)
     assert wp.atlas_country("United States") == wp.atlas_country("us") == wp.atlas_country("usa") == "USA"
-    # Round 4 (Art): the picker offers only the signed countries (the US + AUS BRA CHN IDN RUS ZAF); India and Canada stay hidden. One list (world_plan.ATLAS_OFFERED).
-    on = ("USA", "AUS", "BRA", "CHN", "IDN", "RUS", "ZAF")
+    # 13 Nov: the whole G20 that is a country (19); India and Canada are back with their missing faces. One list (world_plan.ATLAS_OFFERED), the picker's order.
+    on = ("USA", "ARG", "AUS", "BRA", "CAN", "CHN", "FRA", "DEU", "IND", "IDN", "ITA", "JPN", "MEX", "RUS", "SAU", "ZAF", "KOR", "TUR", "GBR")
     assert wp.ATLAS_OFFERED == on and [c for c, _ in wp.offered_countries()] == list(on)
     for c, n in wp.ATLAS_COUNTRIES:
         assert (wp.atlas_country(n) == c and wp.atlas_country(c) == c) if c in on else (wp.atlas_country(n) is None and wp.atlas_country(c) is None), c
-    assert wp.atlas_country("South Africa") == "ZAF" and wp.atlas_country("India") is None and wp.atlas_country("Canada") is None
-    assert wp.atlas_country("France") is None
+    assert wp.atlas_country("South Africa") == "ZAF" and wp.atlas_country("India") == "IND" and wp.atlas_country("Canada") == "CAN"
+    assert wp.atlas_country("France") == "FRA" and wp.atlas_country("UK") == "GBR" and wp.atlas_country("Korea") == "KOR" and wp.atlas_country("Turkiye") == "TUR"
+    assert wp.atlas_country("Narnia") is None
     import pathlib
     home = (pathlib.Path(wp.__file__).parents[1] / "engine" / "home_template.html").read_text()
     for w in ("A country", "Every card on the whole map.", "One country, with its states or regions.", "Pick a country"):
         assert w in home
-    assert home.count('class="nt-crow"') == 9  # the rows stay; NT_COUNTRIES_ON decides which are shown
+    assert home.count('class="nt-crow"') == 19  # the rows stay; NT_COUNTRIES_ON decides which are shown
     import re
     for path in (pathlib.Path(wp.__file__).parents[1] / "engine" / "home_template.html", pathlib.Path(wp.__file__).parents[2] / "engine" / "home_template.html"):
         on = re.search(r"const NT_COUNTRIES_ON = \[([^\]]*)\]", path.read_text()).group(1)
@@ -96,22 +97,24 @@ def test_set_up_world_scope_words_and_picker_markup():
     assert "scope:" in doc and "A country" in doc
 
 
-def test_the_picker_offers_only_the_signed_countries(browser):  # noqa: F811
-    """Round 4: of the nine rows only the US + AUS BRA CHN IDN RUS ZAF are visible (not India, Canada), searching never brings the others back."""
+def test_the_picker_offers_the_whole_g20(browser):  # noqa: F811
+    """13 Nov: all 19 rows are visible, searching narrows them."""
     from alto import mcp_server
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     try:
         import pathlib
         page.goto((pathlib.Path(__file__).resolve().parents[1] / "alto" / "engine" / "home_template.html").as_uri())
         vis = lambda: page.evaluate("[...document.querySelectorAll('#nt-clist .nt-crow')].filter(r => !r.hidden).map(r => r.dataset.iso)")
-        assert vis() == ["USA", "AUS", "BRA", "CHN", "IDN", "RUS", "ZAF"]
+        assert vis() == list(wp.ATLAS_OFFERED)
         page.evaluate("document.getElementById('nt-cq').value='ind'; document.getElementById('nt-cq').dispatchEvent(new Event('input'))")
-        assert vis() == ["IDN"]
+        assert vis() == ["IND", "IDN"]
         page.evaluate("document.getElementById('nt-cq').value='canada'; document.getElementById('nt-cq').dispatchEvent(new Event('input'))")
+        assert vis() == ["CAN"]
+        page.evaluate("document.getElementById('nt-cq').value='narnia'; document.getElementById('nt-cq').dispatchEvent(new Event('input'))")
         assert vis() == []
     finally:
         page.close()
-    assert "India" not in (mcp_server.set_up_world.__doc__ or "")
+    assert "India" in (mcp_server.set_up_world.__doc__ or "")
 
 
 def test_a_country_tour_leg_rides_a_train_on_a_rail_not_the_plane(browser, origin):  # noqa: F811
