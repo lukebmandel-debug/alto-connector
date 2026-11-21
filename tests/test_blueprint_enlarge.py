@@ -858,3 +858,31 @@ def test_all_floors_on_a_phone_every_dot_is_in_its_own_room_or_a_count_badge_sta
     finally:
         ctx.close()
     assert not errors, errors
+
+
+@pytest.mark.parametrize("style", STYLES)
+def test_all_floors_phone_landscape_name_card_scrolls_away_with_the_floors(browser, site, style):
+    """Round 4: phone All floors at 844x390: the name card sits in flow above the first floor; after scrolling it intersects no floor panel."""
+    ctx, pg, errors = _open(browser, site, style, ALL_SIZES["phone-land"])
+    try:
+        pg.locator('#bldg-root .bl-tab[data-level="all"]').click(force=True)
+        pg.wait_for_timeout(2000)
+        js = """()=>{ const h=document.querySelector('#bldg-root .bl-head').getBoundingClientRect();
+          return {h:[h.left,h.top,h.right,h.bottom], x:[...document.querySelectorAll('#bldg-root .bl-cellbg[data-fade]')].map(e=>{const q=e.getBoundingClientRect(); return [q.left,q.top,q.right,q.bottom];})}; }"""
+        ix = lambda a, b: a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+        r0 = pg.evaluate(js)
+        assert not [p for p in r0["x"] if ix(r0["h"], p)], ("unscrolled", r0)
+        for dy in (160, 400, 900):
+            pg.evaluate("""d=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), b=s.getBoundingClientRect(); s.dispatchEvent(new WheelEvent('wheel',{deltaY:d,clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true})); }""", dy)
+            pg.wait_for_timeout(900)
+            r = pg.evaluate(js)
+            assert not [p for p in r["x"] if ix(r["h"], p)], ("scrolled", dy, r)
+        assert pg.evaluate(js)["h"][3] < r0["h"][3] - 20, "the card did not scroll away with the floors"
+        pg.evaluate("""()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), b=s.getBoundingClientRect(); s.dispatchEvent(new WheelEvent('wheel',{deltaY:-3000,clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true})); }""")
+        pg.wait_for_timeout(1200)
+        pg.locator('#bldg-root .bl-head .bl-hmin').click(force=True)   # collapse still works
+        pg.wait_for_timeout(400)
+        assert pg.evaluate("document.querySelector('#bldg-root .bl-head').classList.contains('bl-min')")
+    finally:
+        ctx.close()
+    assert not errors, errors

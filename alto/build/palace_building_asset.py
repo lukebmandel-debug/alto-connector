@@ -809,6 +809,7 @@ function applyVB(){ // keep the drawing's aspect equal to the viewport's
   var w=vb[2], hh=vb[3];
   if(w/hh<asp){ var nw=hh*asp; vb[0]-=(nw-w)/2; vb[2]=nw; } else { var nh=w/asp; vb[1]-=(nh-hh)/2; vb[3]=nh; }
   clampPan();
+  headSlide();
   S.svg.setAttribute('viewBox',vb.map(function(v){ return Math.round(v*1e4)/1e4; }).join(' '));
   if(S.mkSet){ AltoMarkers.stop(S.mk); S.mkSet.poke(); movePills(); } else layoutPills(false);
   labelsSoon();
@@ -1071,7 +1072,12 @@ function hPut(sx,sy){   /* screen px (the card's top-left) -> inline left/top in
   S.head.style.setProperty('left',S.hp.x+'px','important'); S.head.style.setProperty('top',S.hp.y+'px','important'); S.head.style.setProperty('right','auto','important'); S.head.style.setProperty('bottom','auto','important');
 }
 function hDefault(){ S.hp=null; ['left','top','right','bottom','max-width'].forEach(function(k){ S.head.style.removeProperty(k); }); }
-function hClamp(sx,sy){   /* settle the card where it is (or at a wanted screen position): in the safe area, clear of the chrome; no spot at all -> the default one */
+function headSlide(){   /* (All floors on a phone, any orientation: the name card sits in flow above the first floor and scrolls away with it, as the floors pan or zoom) */
+  var h=S.head; if(!h) return; var f=S.level==='all'&&!isDesk()&&S.fitAll&&S.vb&&S.home&&S.root;
+  if(!f||S.hp){ h.style.removeProperty('translate'); return; }
+  var W=S.root.clientWidth||1, d=(S.home[1]-S.vb[1])*(W/S.vb[2])-(S.home[1]-S.fitAll[1])*(W/S.fitAll[2]); h.style.setProperty('translate','0 '+(Math.round(d*10)/10)+'px'); }
+function hClamp(sx,sy){ if(S.head) S.head.style.removeProperty('translate'); hClamp0(sx,sy); headSlide(); }
+function hClamp0(sx,sy){   /* settle the card where it is (or at a wanted screen position): in the safe area, clear of the chrome; no spot at all -> the default one */
   if(!S.root||S.root.hidden||!S.head||!S.head.firstChild) return;
   var rr=S.root.getBoundingClientRect(), zz=hZ();
   if(S.auto){ hDefault(); S.auto=false; }   /* a default spot that had to move is re-measured from the stylesheet's spot each time */
