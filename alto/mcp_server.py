@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.256"
+__version__ = "1.9.270"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -2508,8 +2508,11 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     The map offers two choices, World and A country; cards outside the chosen
     country stay in the page and show again in World. '' keeps the stored one.
     country: name or code of the country (United States, USA, US …). Only the
-    countries Art has signed are offered (world_plan.ATLAS_OFFERED): the United
-    States, Australia, Brazil, China, Indonesia, Russia, South Africa.
+    countries in world_plan.ATLAS_OFFERED are offered, the whole G20 that is a
+    country: the United States, Argentina, Australia, Brazil, Canada, China,
+    France, Germany, India, Indonesia, Italy, Japan, Mexico, Russia, Saudi
+    Arabia, South Africa, South Korea, Turkey, the United Kingdom (its four
+    nations, England in its nine regions).
     The reply lists every unit's region and every stop's place."""
     err = _format_gate("world")
     if err:

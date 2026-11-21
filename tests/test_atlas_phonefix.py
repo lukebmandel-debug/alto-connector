@@ -19,11 +19,11 @@ def _dialog(browser):  # noqa: F811
     return page
 
 
-def test_1a_the_unsigned_countries_are_really_hidden_on_the_phone(browser):  # noqa: F811
+def test_1a_every_g20_country_row_shows_on_the_phone(browser):  # noqa: F811
     page = _dialog(browser)
     try:
         shown = page.evaluate("[...document.querySelectorAll('#nt-clist .nt-crow')].filter(r => getComputedStyle(r).display !== 'none').map(r => r.dataset.iso)")
-        assert shown == ["USA", "AUS", "BRA", "CHN", "IDN", "RUS", "ZAF"]
+        assert shown == ["USA", "ARG", "AUS", "BRA", "CAN", "CHN", "FRA", "DEU", "IND", "IDN", "ITA", "JPN", "MEX", "RUS", "SAU", "ZAF", "KOR", "TUR", "GBR"]
     finally:
         page.close()
 

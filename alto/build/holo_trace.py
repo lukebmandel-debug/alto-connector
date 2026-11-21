@@ -183,8 +183,8 @@ _Q = sorted({abs(t) for t in TUBE_T})
 TUBE_CSS = (
     ".ho-tube{display:block;position:absolute;margin:0;pointer-events:none !important;grid-row:1/2;align-self:center;justify-self:start;--u:.43px}"
     ".ho-tube *{pointer-events:none !important}"
-    ".ho-tube .sp{position:absolute;left:0;top:0;width:100%;height:100%;transform-style:preserve-3d;animation:ho-tube 10s ease-in-out -2.5s infinite;will-change:transform}"
-    "@keyframes ho-tube{0%,100%{transform:perspective(260px) rotateY(-55deg)}50%{transform:perspective(260px) rotateY(55deg)}}"      # the clef's swing (holo.py ho-logo): never edge-on
+    ".ho-tube .sp{position:absolute;left:0;top:0;width:100%;height:100%;transform-style:preserve-3d;animation:ho-tube 10s linear infinite;will-change:transform}"
+    "@keyframes ho-tube{0%,100%{transform:perspective(260px) rotateY(0deg)}25%{transform:perspective(260px) rotateY(90deg)}25.01%{transform:perspective(260px) rotateY(-90deg)}75%{transform:perspective(260px) rotateY(90deg)}75.01%{transform:perspective(260px) rotateY(-90deg)}}"      # a full turn, the back half read the right way round (holo.py ho-logo)
     ".ho-tube svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}"
     ".ho-tube g{fill:none;stroke-linecap:round;stroke-linejoin:round}"
     ".ho-tube .gl g{stroke:rgba(79,240,224,.2)}.ho-tube .gh g{stroke:rgba(255,95,210,.5)}"
@@ -201,7 +201,7 @@ TUBE_CSS = (
 # length) are swept into round tubes of each stroke's own radius, with a ball at every end and corner and a cone for the arrow head, and rendered with WebGL. The light
 # stands still in the room (upper left, in front) while the pipe turns under it, so the shading across the pipe's width and its white glint slide round it with the
 # turn; a depth buffer puts the nearer stroke over the farther one where they cross; seen from the side a pipe is as thick as from the front. Same size, place,
-# colours, 10 s swing of 55 degrees to each side (a full turn would show the clef mirrored half the time) and perspective (260 px) as before.
+# colours, 10 s and perspective (260 px) as before; the 10 s is now one even full turn (Luke, 2026-11-19), the back half read the right way round (the sheet's frames, edge-on to edge-on, are played front, back, front: never mirrored).
 # Cost. Drawing it live (a WebGL frame 30 times a second) measured +10 points of one core in WebKit over the slices, so it is NOT drawn live: when the glyph is made, the
 # 89 frames of the swing (every 1.25 degrees) are rendered once, a few per animation frame over about a third of a second, into one sheet (a 2D canvas, 12 x 8 cells),
 # the WebGL context is given back, and the swing is a CSS animation that steps the sheet behind a cell-sized window (`transform` only, percentages of the sheet, so the
@@ -209,11 +209,11 @@ TUBE_CSS = (
 # frame's angle: about 28 a second through the middle, fewer as it slows at the ends. Reduce Motion: the frame nearest the old 24 degrees, still, shaded the same (and
 # only that frame and the face-on one are rendered). A hidden tab or a glyph off screen pauses the animation. Without WebGL (or if the context is lost while the sheet
 # is made) the slices, which are still built, show and swing as they did; paper gets the slices face-on.
-TUBE_SWING = 55        # degrees to each side
+TUBE_SWING = 90        # degrees to each side: the sheet holds the face from edge-on to edge-on; a full turn plays it three times (front, back read the right way round, front)
 TUBE_PERIOD = 10       # seconds
 TUBE_STILL = 24        # degrees, Reduce Motion
-TUBE_FRAMES = 89       # the swing's frames, -55 .. 55 by 1.25 degrees
-TUBE_COLS, TUBE_ROWS = 12, 8
+TUBE_FRAMES = 73       # the sheet's frames, -90 .. 90 by 2.5 degrees
+TUBE_COLS, TUBE_ROWS = 12, 7
 TUBE_FLAT = {   # the glow behind and the magenta ghost, premultiplied rgba (the slices' own .gl / .gh colours)
     "dark": ((79, 240, 224, .2), (255, 95, 210, .5)),
     "light": ((10, 111, 140, .18), (214, 40, 170, .4)),
@@ -240,13 +240,18 @@ def _cell(i: int) -> str:
 
 
 def tube_keyframes() -> str:
-    """the swing, -55cos(2 pi t / 10), as steps of the sheet: frame i shows from the moment the angle passes midway between frames i-1 and i"""
-    import math
-    cross = [100 * math.acos(-(tube_angle(i) + tube_angle(i + 1)) / 2 / TUBE_SWING) / (2 * math.pi) for i in range(TUBE_FRAMES - 1)]     # % of the period, going up
-    k = ["0%%,100%%{transform:%s}" % _cell(0)]
-    k += ["%.3f%%{transform:%s}" % (p, _cell(i + 1)) for i, p in enumerate(cross)]
-    k += ["%.3f%%{transform:%s}" % (100 - p, _cell(i)) for i, p in reversed(list(enumerate(cross)))]
-    return "@keyframes ho-pipe{" + "".join(k) + "}"
+    """the full turn, theta 0..360 at an even rate, as steps of the sheet: the face at yaw phi shows from the moment the angle passes midway between frames.
+    phi = theta on 0..90 (the front), theta-180 on 90..270 (the back, un-mirrored: the face seen again), theta-360 on 270..360; the jump at 90 and 270 is edge-on to edge-on"""
+    n = TUBE_FRAMES
+    half = 2 * TUBE_SWING / (n - 1) / 2                               # half a frame, degrees
+    mid = lambda i: tube_angle(i) + half                              # phi at which frame i gives way to i+1
+    ev = [(mid(i) / 3.6, i + 1) for i in range(tube_frame(0), n - 1)]                       # 0..90: front, going on to edge-on
+    ev += [(25.0 + 1e-3, 0)]                                                                 # 90: edge-on, the back begins at -90
+    ev += [((180 + mid(i)) / 3.6, i + 1) for i in range(0, n - 1)]                           # 90..270: the back
+    ev += [(75.0 + 1e-3, 0)]                                                                 # 270: edge-on, the front begins again at -90
+    ev += [((360 + mid(i)) / 3.6, i + 1) for i in range(0, tube_frame(0))]                   # 270..360: the front, coming to face-on
+    ev.sort(key=lambda e: e[0])
+    return "@keyframes ho-pipe{0%%,100%%{transform:%s}" % _cell(tube_frame(0)) + "".join("%s%%{transform:%s}" % (("%.3f" % p).rstrip("0").rstrip("."), _cell(f)) for p, f in ev) + "}"
 
 
 TUBE_PIPE_CSS = (
@@ -254,7 +259,7 @@ TUBE_PIPE_CSS = (
     # WebGL and for paper. Nothing here turns in 3D, is filtered, shadowed or promoted ahead of time (iOS composites the fixed header).
     ".ho-tube .cl{position:absolute;overflow:hidden;margin:0;padding:0}"
     ".ho-tube canvas{position:absolute;left:0;top:0;display:block;margin:0;padding:0;border:0;background:none;max-width:none;max-height:none;transform:%s}" % _cell(tube_frame(0))
-    + ".ho-tube.go canvas{animation:ho-pipe %ds step-end -%ss infinite}" % (TUBE_PERIOD, ("%.2f" % (TUBE_PERIOD / 4)).rstrip("0").rstrip("."))
+    + ".ho-tube.go canvas{animation:ho-pipe %ds step-end infinite}" % TUBE_PERIOD
     + "html.hp-hid .ho-tube canvas,.ho-tube.off canvas{animation-play-state:paused}"
     + "@media (prefers-reduced-motion:reduce){.ho-tube:not(#_) canvas{animation:none;transform:%s}}" % _cell(tube_frame(TUBE_STILL))
     + "@media screen{.ho-tube.g3 .sp{display:none}}"

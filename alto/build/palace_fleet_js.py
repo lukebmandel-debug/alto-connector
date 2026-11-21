@@ -19,7 +19,7 @@ function f1(v){ return (+v).toFixed(1); }
 /* ── boats: a name tells what a boat is when the data does not (older pages carry no weapon class k) ── */
 function boatKind(n, L, W){ n=String(n||'');
   if(/new jersey|\biowa\b|missouri|wisconsin|battleship/i.test(n)) return 'bb';
-  if(/becuna|submarine|growler|\bSS-|nautilus|\bUSS [A-Z][a-z]+ \(SS/i.test(n)) return 'sub';
+  if(/becuna|submarine|growler|\bSS-|nautilus|pampanito|bowfin|batfish|razorback|silversides|clamagore|requin|lionfish|torsk|cobia|hunley|\bUSS (cod|drum|ling|marlin|albacore|blueback|narwhal|dolphin)\b|\bU-?(505|534|995|2540|9)\b|\bUSS [A-Z][a-z]+ \(SS/i.test(n)) return 'sub';
   if(/intrepid|carrier|midway|lexington|yorktown|hornet/i.test(n)) return 'carrier';
   if(/olympia|cruiser|cassin|destroyer|laffey|kidd|the sullivans|frigate/i.test(n)) return 'cruiser';
   if(/moshulu|wavertree|gazela|constitution|barque|schooner|clipper|\bpioneer\b|kalmar|peking/i.test(n)) return 'tall';
@@ -50,7 +50,7 @@ function mountAt(g, b, abs, ang, r, nb, len){ var tg=el('g',{},g), bar=el('g',{'
   for(var i=0;i<nb;i++){ var o=(i-(nb-1)/2)*r*.9; el('line',{'class':'bb-barrel-o', x1:(r*.3).toFixed(1), y1:o.toFixed(1), x2:(r*len).toFixed(1), y2:o.toFixed(1)},bar);
     bls.push(el('line',{'class':'bb-barrel', x1:(r*.3).toFixed(1), y1:o.toFixed(1), x2:(r*len).toFixed(1), y2:o.toFixed(1)},bar)); }
   b._tur.push({x:0, bar:bar, bl:bls, r:r, len:len, abs:abs}); }
-function label(g, x, y, text, anchor){ if(!text) return; var tg=pin(g,'pl-boat-l', x, y, {}), t=el('text',{x:0,y:0,'text-anchor':anchor||'start'},tg); t.textContent=text; }
+function label(g, x, y, text, anchor){ if(!text) return null; var tg=pin(g,'pl-boat-l', x, y, {}), t=el('text',{x:0,y:0,'text-anchor':anchor||'start'},tg); t.textContent=text; return {o:tg.parentNode, t:t}; }
 
 /* hull outlines (bow +x): a lens, a tapered hull with a rounded transom, a cigar, a flight deck */
 function lensP(L, q, k){ var x0=-L/2+k*1.2, x1=L/2-k*1.2, w=q-k; return 'M'+x0+' 0C'+(-L*.38)+' '+(-w*.98)+' '+(-L*.1)+' '+(-w*1.02)+' '+(L*.12)+' '+(-w*.92)+'C'+(L*.3)+' '+(-w*.8)+' '+(L*.44)+' '+(-w*.34)+' '+x1+' 0C'+(L*.44)+' '+(w*.34)+' '+(L*.3)+' '+(w*.8)+' '+(L*.12)+' '+(w*.92)+'C'+(-L*.1)+' '+(w*1.02)+' '+(-L*.38)+' '+(w*.98)+' '+x0+' 0Z'; }
@@ -64,8 +64,8 @@ function waveP(L, q){ return 'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(-q*1.1)+' '+(L/2-
 
 /* ── a warship as the board game's piece ── */
 function drawToy(lg, b, bi, wk){
-  var L=Math.max(b.len, MINL[wk]), W=wk==='cv'?Math.max(58, L/3.5):wk==='sub'?Math.max(24, L/7.5):wk==='dd'?Math.max(30, L/6):Math.max(46, L/4.2), q=W/2;
-  var a=b.a*PI/180, ca=Math.cos(a), sa=Math.sin(a), h=Math.max(6, W*.1);
+  var L=Math.max(b.len, MINL[wk]), W=toyW(wk, L), q=W/2;
+  var a=b.a*PI/180, ca=Math.cos(a), sa=Math.sin(a), h=wk==='sub'?Math.max(2.5, W*.12):Math.max(6, W*.1);
   b.len=L; b.wid=W; b.k=wk; b._tur=[];
   var g=el('g',{'class':'pl-boat wp '+wk,'data-name':b.n||'','data-kind':wk},lg); g._b=b; g._w=wk; g.style.setProperty('--pc','#8a93a3');
   g.setAttribute('aria-label', (b.n||DEF[wk])+' \u2014 click, then click a building');
@@ -80,7 +80,7 @@ function drawToy(lg, b, bi, wk){
   else if(wk==='cv') toyCV(g, b, top, L, W, q, h, wp);
   else toySub(g, b, top, L, W, q, h, wp);
   el('title',{},g).textContent=(b.n||DEF[wk])+(wk==='bb'?' \u2014 click to man the guns':' \u2014 click to arm it');
-  var s1=wp(0, q+12), s2=wp(0, -(q+12)), sp=s1[0]>=s2[0]?s1:s2; label(g, sp[0], sp[1], b.n);
+  var s1=wp(0, q+12), s2=wp(0, -(q+12)), sp=s1[0]>=s2[0]?s1:s2; b._lb=label(g, sp[0], sp[1], b.n);
 }
 /* USS New Jersey, as 1.9.97: four peg dimples down its deck (at the stern, in a raised block, in the bridge and at the bow), a twin mount fore and aft, a funnel and a bridge in relief,
    engraved lines along the stern. */
@@ -115,12 +115,10 @@ function toyCV(g, b, top, L, W, q, h, wp){
   /* the catapults: where the strike's jets stand when they start their run (world points) and the heading they take off on */
   b._launch=[[-.12,-.28],[-.2,.0],[-.12,.28],[-.2,-.0],[-.04,.0]].map(function(p){ return wp(p[0]*L, p[1]*q, h+3); });
 }
-/* a submarine: a cigar with its conning tower and periscope, tail fins, a deck line, three pegs */
+/* a submarine (1.9.262): a long low dark cigar riding at the waterline (the hull is a thin slab, the water laps over it), one conning tower (the sail) with its periscope; nothing else on deck */
 function toySub(g, b, top, L, W, q, h, wp){
-  el('line',{'class':'bb-eng', x1:f1(-L*.4), y1:0, x2:f1(L*.4), y2:0},top);
-  rel(top, rr(-.44*L, -W*.42, L*.05, W*.16, 2)); rel(top, rr(-.44*L, W*.42, L*.05, W*.16, 2));
-  rel(top, rr(.04*L, 0, L*.13, W*.4, W*.2)); el('circle',{'class':'bb-hole2', cx:f1(.07*L), cy:0, r:f1(W*.06)},top);
-  pegs(top, [-.3,-.14,.27], W*.1, L);
+  rel(top, rr(.08*L, 0, L*.15, W*.42, W*.2)); el('circle',{'class':'bb-hole2', cx:f1(.105*L), cy:0, r:f1(W*.07)},top);
+  el('line',{'class':'bb-scope', x1:f1(.115*L), y1:0, x2:f1(.145*L), y2:0},top);
   b._muzzle=wp(L*.5, 0, h);
 }
 /* ── a base: a plate with its guns (army) or its runway and jets (air) ── */
@@ -182,6 +180,6 @@ function drawBoat(lg, b, bi){
     block(.36, 0, L*.06, W*.4, H0*.45); }
   else { block(.02, 0, L*.22, W*.5, H0*(kind==='small'?.7:1)); if(kind!=='small') funnel(-.12, 0, W*.13, H0*.9); mast(.12, 0, H0*1.7); }
   el('title',{},g).textContent=b.n||'A boat';
-  if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-H0*(kind==='tall'?1.0:1.5)-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; }
+  b._up=H0*(kind==='tall'?1.0:1.5); if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-b._up-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; b._lb={o:tg.parentNode, t:t}; }
 }
 """

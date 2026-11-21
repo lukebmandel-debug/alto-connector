@@ -311,7 +311,6 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 #wpal-root .wp-nav .wp-btn.r:disabled{opacity:.35;cursor:default;}
 #wpal-root .wp-nav .wp-btn.r.on{color:var(--accent,#5b6cff);}
 #wpal-root :is(.wp-nav,.wp-seg) svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6px;stroke-linecap:round;stroke-linejoin:round;}
-#wpal-root .wp-nav .wp-mapm{left:50%;right:auto;top:auto;bottom:calc(100% + 8px);transform:translateX(-50%);width:max-content;max-width:calc(100vw - 24px);padding:4px;flex-direction:column;align-items:stretch;z-index:9;}#wpal-root .wp-nav .wp-mapm[hidden]{display:none;}#wpal-root .wp-mapm button{border:0;background:none;color:var(--w-text);font:inherit;font-size:13.5px;min-height:44px;padding:0 16px;border-radius:10px;cursor:pointer;white-space:nowrap;text-align:left;}#wpal-root .wp-mapm button:hover,#wpal-root .wp-mapm button:focus-visible{background:color-mix(in srgb,var(--accent,#5b6cff) 14%,transparent);outline:0;}html.alto-retro #wpal-root .wp-mapm:not(#_),html.alto-retro #wpal-root .wp-mapm button:not(#_){border-radius:0;font-family:var(--rt-f,inherit);}
 html.mobile.wpal-open:not(.alto-holo):not(.alto-retro) #nav-drawer{background:var(--surface,var(--bg)) !important;}html.mobile.wpal-open.alto-retro #nav-drawer{background:#05070a !important;}   /* (the phone MENU is opaque: the map's labels never read through its tiles; Holo keeps its own) */
 #wpal-root .wp-at{border:0;background:none;font:inherit;font-size:12.5px;color:var(--w-sub);padding:0 6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;line-height:28px;}
 #wpal-root .wp-at b{color:var(--w-text);font-weight:650;}#wpal-root .wp-at:hover b{text-decoration:underline;text-underline-offset:3px;}
@@ -646,7 +645,7 @@ function labels(){                                  // decided once a gesture se
     var L=P.lbl, show=!S.out[id]&&!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
     if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
     L.querySelector('i').style.display=tight?'none':'';
-    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)||b[3]>S.vh-2||b[0]<2||b[2]>S.vw-2||FR.some(function(f){ return !(P.x>f[0]&&P.x<f[2]&&P.y>f[1]&&P.y<f[3])&&b[0]<f[2]&&b[2]>f[0]&&b[1]<f[3]&&b[3]>f[1]; })) show=false; else taken.push(b); }      // (a name that would be cut by the screen's edge stays off: e8)
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16)+lbo(), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?1:0)||b[3]>S.vh-2||b[0]<2||b[2]>S.vw-2||FR.some(function(f){ return !(P.x>f[0]&&P.x<f[2]&&P.y>f[1]&&P.y<f[3])&&b[0]<f[2]&&b[2]>f[0]&&b[1]<f[3]&&b[3]>f[1]; })) show=false; else taken.push(b); }      // (a name that would be cut by the screen's edge stays off: e8)
     P.on=show; off(L,show); });
   for(var k in S.pins) delete S.pins[k]._done;
   if(S.sts){ var lv=S.k/(S.kHome||S.kW), bs=phone()?3:2.2; S.sts.forEach(function(s){ var c=scr(s.x,s.y), L=s.lbl, show=lv>=bs&&c[2]!==false&&c[0]>24&&c[0]<S.vw-24&&c[1]>24&&c[1]<S.vh-24;
@@ -1130,7 +1129,7 @@ function eeR(x,y){ var X=x/ESC, Y=clamp(-y/ESC,-1.3173,1.3173), th=Y/EA1;
   for(var i=0;i<8;i++){ var t2=th*th, t6=t2*t2*t2, f=th*(EA1+EA2*t2+t6*(EA3+EA4*t2))-Y, d=EA1+3*EA2*t2+t6*(7*EA3+9*EA4*t2); th-=f/d; }
   var t2b=th*th, t6b=t2b*t2b*t2b, db=EA1+3*EA2*t2b+t6b*(7*EA3+9*EA4*t2b);
   return [X*EM*db/Math.max(Math.cos(th),1e-6)/D2R,Math.asin(clamp(Math.sin(th)/EM,-1,1))/D2R]; }
-// Another country (data.proj = world_geo.COUNTRY_PROJ[cid]): the same maths as world_geo._conic_xy, no insets; a neighbour's land within R degrees of the centre stays as context.
+// Another country (data.proj = world_geo.COUNTRY_PROJ[cid]): the same maths as world_geo._conic_xy, no insets; a neighbour's land within R degrees of the centre stays as context (P.x: the country's own far-off pieces too are cut at R: France without Guyane, Japan without Minami-Tori-shima).
 function mkConic(P,scope){ var t=P.t, l0=P.l0, ra=(P.a||0)*D2R, rb=(P.b||0)*D2R, n, F, wrap=function(lo){ return l0+((lo-l0+540)%360)-180; };
   if(t==='alb') n=(Math.sin(ra)+Math.sin(rb))/2; else if(t==='lcc') n=Math.log(Math.cos(ra)/Math.cos(rb))/Math.log(Math.tan(Math.PI/4+rb/2)/Math.tan(Math.PI/4+ra/2));
   var C=Math.cos(ra)*Math.cos(ra)+2*(n||0)*Math.sin(ra); F=t==='lcc'?Math.cos(ra)*Math.pow(Math.tan(Math.PI/4+ra/2),n)/n:0;
@@ -1141,7 +1140,7 @@ function mkConic(P,scope){ var t=P.t, l0=P.l0, ra=(P.a||0)*D2R, rb=(P.b||0)*D2R,
     var rho=F/Math.pow(Math.tan(Math.PI/4+la*D2R/2),n); return [rho*Math.sin(th),rho*Math.cos(th)]; }
   var cc=xy(P.c[0],P.c[1]);
   return {box:{},union:true,
-    reg:function(c,lon,lat){ if(c===scope) return 'M'; var a=lat*D2R,b=P.c[1]*D2R,d=Math.acos(clamp(Math.sin(a)*Math.sin(b)+Math.cos(a)*Math.cos(b)*Math.cos((lon-P.c[0])*D2R),-1,1))/D2R; return d<P.R?'M':null; },
+    reg:function(c,lon,lat){ if(c===scope&&!P.x) return 'M'; var a=lat*D2R,b=P.c[1]*D2R,d=Math.acos(clamp(Math.sin(a)*Math.sin(b)+Math.cos(a)*Math.cos(b)*Math.cos((lon-P.c[0])*D2R),-1,1))/D2R; return d<P.R?'M':null; },
     fwd:function(lon,lat){ var q=xy(lon,lat); return [(q[0]-cc[0])*ESC,(q[1]-cc[1])*ESC]; },
     inv:function(x,y){ var X=x/ESC+cc[0], Y=y/ESC+cc[1];
       if(t==='merc') return [l0+X/D2R,(2*Math.atan(Math.exp(-Y))-Math.PI/2)/D2R];
@@ -1410,22 +1409,14 @@ function navChrome(){
   S.nAt=h('button',{type:'button','class':'wp-at'},b);
   S.nNx=h('button',{type:'button','class':'wp-btn r wp-nx'},b); svgI(S.nNx,['M8 4.5 13.5 10 8 15.5']);
   S.nMp=h('button',{type:'button','class':'wp-btn r'},b); svgI(S.nMp,['M5 4.5h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z','M7.5 8.5v.01','M12.5 11.5v.01','M8.5 9.4 11.5 11']);
-  // The chip's open state (Board, replacing the removed scope pill): at the top level a tap on the chip opens one row, "Change map…", which does what the pill did (the homepage set-up for THIS timeline with the scope picker; the rebuild is the normal make path).
-  var mp=S.mapM=h('div',{'class':'wp-bar wp-mapm',role:'menu',hidden:''},b), mr=h('button',{type:'button',role:'menuitem'},mp,'Change map…');
-  var mshut=function(){ mp.hidden=true; S.nAt.setAttribute('aria-expanded','false'); };
+  // Luke 2026-11-21: no "Change map…" button on the Atlas itself. The one entry lives in the page's own MENU drawer (every viewport), same action.
   var rescope=function(){ var q='?rescope='+encodeURIComponent(D().scope||'world')+'&tl='+encodeURIComponent((document.title||'').replace(/\s*[·|–-]\s*Alto\s*$/,''));
-    if(window.__altoGo) window.__altoGo('index.html'+q); else A.scopePill=q; };
-  mr.addEventListener('click',function(ev){ ev.stopPropagation(); mshut(); rescope(); });
-  // A phone has no chip (the nav bar is hidden there): the same entry is one row in the page's own MENU drawer, the same action.
+    if(window.__altoGo) window.__altoGo('index.html'+q); else A.scopePill=q; }; S.rescope=rescope;
   var db=document.getElementById('nav-drawer-body'); if(db&&!document.getElementById('drawer-changemap-btn')){ var dr=h('button',{type:'button','class':'drawer-btn pmin-word',id:'drawer-changemap-btn'},db);
     dr.innerHTML='<span class="drawer-icon"></span><span class="drawer-label">Change map…</span>';   // (the same word-only tile as its row-mates Tour and World: phone_minimal.py row())
     dr.addEventListener('click',function(ev){ ev.stopPropagation(); if(window.closeNavDrawer) window.closeNavDrawer(); rescope(); }); }
-  mp.addEventListener('keydown',function(e){ if(e.key==='Escape'){ e.stopPropagation(); mshut(); S.nAt.focus(); } });
-  document.addEventListener('pointerdown',function(e){ if(!mp.hidden&&!(e.target.closest&&e.target.closest('.wp-nav'))) mshut(); },true);
-  S.nAt.setAttribute('aria-haspopup','menu'); S.nAt.setAttribute('aria-expanded','false');
   [S.nUp,S.nAt,S.nNx].forEach(function(e){ e.addEventListener('click',function(ev){ ev.stopPropagation(); if(e.disabled) return;
-    if(e===S.nAt&&!e.getAttribute('data-go')){ mp.hidden=!mp.hidden; e.setAttribute('aria-expanded',String(!mp.hidden)); if(!mp.hidden) mr.focus(); return; }
-    mshut(); ngo(e.getAttribute('data-go')||''); }); });
+    if(e===S.nAt&&!e.getAttribute('data-go')) return; ngo(e.getAttribute('data-go')||''); }); });
   S.nMp.addEventListener('click',function(ev){ ev.stopPropagation(); S.mmOn=!S.mmOn; try{ localStorage.setItem('alto-world-map',S.mmOn?'1':'0'); }catch(x){} navSync(); });
   try{ S.mmOn=localStorage.getItem('alto-world-map')!=='0'; }catch(x){ S.mmOn=true; }
   var mm=S.mmEl=h('div',{'class':'wp-bar wp-mm alto-mm',role:'group','aria-label':'Minimap: the whole world, the box is what the map shows'},S.root);
@@ -1504,7 +1495,8 @@ function hints(hm){ var sc=hm?nscope(hm).slice(0,9):[], on={};
 function cardEl(id){ var e=S.lCards.querySelector('[data-id="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]'); return e; }
 function help(on){ if(S.helpEl){ S.helpEl.remove(); S.helpEl=null; } if(!on) return;
   var p=S.helpEl=h('div',{'class':'wp-bar wp-help',role:'dialog','aria-label':'How to move'},S.root); h('b',null,p,'How to move');
-  NKEYS.forEach(function(k){ h('br',null,p); h('kbd',null,p,k[0]); p.appendChild(document.createTextNode(' '+k[1])); }); }
+  NKEYS.forEach(function(k){ h('br',null,p); h('kbd',null,p,k[0]); p.appendChild(document.createTextNode(' '+k[1])); });
+  if(S.rescope){ h('br',null,p); var cm=h('button',{type:'button','class':'wp-btn',id:'help-changemap-btn'},p,'Change map…'); cm.addEventListener('click',function(ev){ ev.stopPropagation(); help(false); S.rescope(); }); } }   // (the desktop route: a desktop Atlas has no MENU drawer; a phone's is in its drawer)
 // the keys the System uses, on the map (the Tour's arrows, T, + and − stay as they were)
 function navKey(e){ var k=e.key, hm=nhome();
   if(k==='?'){ if(!e.repeat) help(!S.helpEl); return true; }

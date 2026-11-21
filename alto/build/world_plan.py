@@ -35,7 +35,23 @@ ALIASES = {"us": "USA", "u s": "USA", "usa": "USA", "u s a": "USA", "america": "
            "uk": "GBR", "u k": "GBR", "britain": "GBR", "great britain": "GBR", "holland": "NLD", "the netherlands": "NLD",
            "russia": "RUS", "south korea": "KOR", "korea": "KOR", "north korea": "PRK", "czech republic": "CZE", "ivory coast": "CIV",
            "burma": "MMR", "persia": "IRN", "vatican": "VAT", "vatican city": "VAT", "uae": "ARE", "drc": "COD", "congo kinshasa": "COD",
-           "congo brazzaville": "COG", "east timor": "TLS", "swaziland": "SWZ", "macedonia": "MKD", "turkiye": "TUR"}
+           "congo brazzaville": "COG", "east timor": "TLS", "swaziland": "SWZ", "macedonia": "MKD", "turkiye": "TUR",
+           "somaliland": "SOM", "northern cyprus": "CYP", "abkhazia": "GEO", "south ossetia": "GEO", "transnistria": "MDA"}
+# Country ids of the map's earlier edition that the US point of view folds into another country (Somaliland, Northern Cyprus, Western Sahara; Siachen sits in India):
+# a brief that stored one keeps its places, under the country that holds them now.
+LEGACY_CID = {"SOL": "SOM", "CYN": "CYP", "KAS": "IND", "SAH": "MAR"}   # (SAH: the US holds Western Sahara to be Moroccan)
+
+
+def _legacy(w):
+    """The world brief with any earlier-edition country id replaced (a copy when something changes)."""
+    if not isinstance(w, dict):
+        return w
+    pl = w.get("places") or {}
+    if any(isinstance(p, dict) and p.get("c") in LEGACY_CID for p in pl.values()) or w.get("country") in LEGACY_CID:
+        w = {**w, "places": {k: ({**p, "c": LEGACY_CID.get(p.get("c"), p.get("c"))} if isinstance(p, dict) else p) for k, p in pl.items()}}
+        if w.get("country") in LEGACY_CID:
+            w["country"] = LEGACY_CID[w["country"]]
+    return w
 # home nations: a country of their own in speech, a part of the United Kingdom on the map (pinned at their capital)
 NATIONS = {"england": ("GBR", "London"), "scotland": ("GBR", "Edinburgh"), "wales": ("GBR", "Cardiff"), "northern ireland": ("GBR", "Belfast")}
 
@@ -261,7 +277,7 @@ def plan(b, nodes) -> dict:
     """{"units": [{"reg": [regions], "tops": [ids, route order], "stops": [ids, tour order]}], "places": {id: {"c", "x", "y", "label", "k", "r"?}},
     "cl": {placed id: [cluster ids in outline order]}, "used": {country: unit}, "multi": [countries with their own state / city pins]}."""
     from .palace import structure
-    w = getattr(b, "world", None) or {}
+    w = _legacy(getattr(b, "world", None) or {})
     if w.get("country") in _countries():
         return _plan_country(b, nodes, w)
     level = w.get("level") or "country"
@@ -517,14 +533,31 @@ def summary(b, nodes) -> dict:
 
 
 # The countries the Atlas can be a map of (those with state / region data); United States first, then A to Z. Art spec: notes-art/atlas-country-look.md.
-ATLAS_COUNTRIES = (("USA", "United States"), ("AUS", "Australia"), ("BRA", "Brazil"), ("CAN", "Canada"), ("CHN", "China"),
-                   ("IND", "India"), ("IDN", "Indonesia"), ("RUS", "Russia"), ("ZAF", "South Africa"))
+ATLAS_COUNTRIES = (("USA", "United States"),
+                   ("ARG", "Argentina"),
+                   ("AUS", "Australia"),
+                   ("BRA", "Brazil"),
+                   ("CAN", "Canada"),
+                   ("CHN", "China"),
+                   ("FRA", "France"),
+                   ("DEU", "Germany"),
+                   ("IND", "India"),
+                   ("IDN", "Indonesia"),
+                   ("ITA", "Italy"),
+                   ("JPN", "Japan"),
+                   ("MEX", "Mexico"),
+                   ("RUS", "Russia"),
+                   ("SAU", "Saudi Arabia"),
+                   ("ZAF", "South Africa"),
+                   ("KOR", "South Korea"),
+                   ("TUR", "Turkey"),
+                   ("GBR", "United Kingdom"))
 
 
 # THE ONE SWITCH for the scope picker (homepage tiles list, MCP set_up_world words + validation). Art signs each country, then add its
 # iso3 here AND to NT_COUNTRIES_ON in engine/home_template.html + alto/engine/home_template.html (a test keeps the three in step).
 # The data, projections and state tiers of the others stay in the build; they are only not offered.
-ATLAS_OFFERED = ("USA", "AUS", "BRA", "CHN", "IDN", "RUS", "ZAF")  # Art signed USA 2026-11-07, then AUS BRA CHN IDN RUS ZAF (CEO C-1107-0705); CAN and IND stay hidden (known gaps)
+ATLAS_OFFERED = tuple(c for c, _ in ATLAS_COUNTRIES)  # the whole G20 that is a country (Luke 2026-11-13); Canada and India are back: their missing faces (BC, Ontario / Quebec, Assam ...) were the old lines-and-faces tier, now drawn from the admin-1 shapes
 
 
 def offered_countries():
@@ -553,6 +586,7 @@ def validate(world) -> None:
         return
     if not isinstance(world, dict):
         raise ValueError("world must be an object")
+    world = _legacy(world)
     lv = world.get("level") or "country"
     if lv not in LEVELS:
         raise ValueError(f"world.level {lv!r}: must be one of {LEVELS}")

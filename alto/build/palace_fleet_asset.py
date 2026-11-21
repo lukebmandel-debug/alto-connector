@@ -15,10 +15,11 @@ from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS
 from .palace_fleet_css import FLEET_CSS
 from .palace_fleet_fx import FLEET_B
 from .palace_fleet_js import FLEET_A
+from .palace_fleet_space import FLEET_S
 from .palace_panic import PANIC_JS
 from .palace_sound import SOUND_JS
 
-FLEET_JS = FLEET_A + FLEET_B
+FLEET_JS = FLEET_A + FLEET_S + FLEET_B
 FLEET_CSS_ALL = FLEET_CSS + CONSTRUCT_CSS
 
 FLEET_ASSET = ("(function(){var s=document.createElement('style');s.id='pal-fleet-css';s.textContent=" + _json.dumps(FLEET_CSS_ALL)

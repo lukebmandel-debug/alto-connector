@@ -27,6 +27,12 @@ FLEET_CSS = (r"""
   @B.armed .bt-foam{fill:rgba(255,120,80,.5);}
   @B.armed .bb-plastic,@B.armed .fl-gr{stroke:#ff5a3c;stroke-width:3;}
   @B.armed{filter:drop-shadow(0 0 7px rgba(255,70,40,.75));}
+  @B.sub .bb-wall{fill:#1d2535 !important;stroke:#0f1522;} @B.sub .bb-plastic{fill:#2f3a4f;stroke:#141b2a;} @B.sub .bb-pdeck{fill:#283246;stroke:#1d2535;}
+  @B.sub .bb-gloss{fill:rgba(255,255,255,.14);} @B.sub .bb-m{fill:#47536b;stroke:#161d2c;} @B.sub .bb-ms{fill:rgba(8,12,22,.45);} @B.sub .bb-hole2{fill:#6a7690;}
+  @B.sub .bb-scope{stroke:#8a96ad;stroke-width:1.6;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+  @B.sub .bt-foam{fill:rgba(255,255,255,.5);} @B.sub .bt-bowwave{stroke:rgba(255,255,255,.55);}
+  html.dark @B.sub .bb-plastic{fill:#3b475e;} html.dark @B.sub .bb-pdeck{fill:#323e55;} html.dark @B.sub .bb-m{fill:#56637d;}
+  .pal-svg .pl-boat-ld{stroke:var(--text,#222);stroke-opacity:.55;stroke-linecap:round;fill:none;pointer-events:none;}
   @B .bt-foam{fill:rgba(255,255,255,.62);stroke:none;}
   @B .bt-bowwave{fill:none;stroke:rgba(255,255,255,.7);stroke-width:1.6;stroke-linecap:round;vector-effect:non-scaling-stroke;}
   @B .bt-hull{fill:#4c5b78;stroke:#2b3652;stroke-width:1.3;vector-effect:non-scaling-stroke;}

@@ -471,7 +471,7 @@ def test_the_node_cards_keep_their_own_phase(browser, site):
 
 # ── part 3: the corner glyph as a tube ──
 # Tube 2 (Luke, 2026-11-12: "tubular glyph isn't quite there yet, make it actually tubular as it spins"): a real pipe, swept from the clef's strokes and lit by a light
-# that stands still. Its 89 frames are rendered once with WebGL into a sheet, and the swing is a CSS animation stepping that sheet behind a small window (drawing it
+# that stands still. Its 73 frames are rendered once with WebGL into a sheet, and the swing is a CSS animation stepping that sheet behind a small window (drawing it
 # live cost +10 points of a core). The slices of the first version are still built: they are what a browser without WebGL shows, and paper.
 
 def test_the_tube_is_a_rendered_pipe_stepped_from_a_sheet_and_the_slices_are_its_fallback():
@@ -479,17 +479,19 @@ def test_the_tube_is_a_rendered_pipe_stepped_from_a_sheet_and_the_slices_are_its
     for banned in ("filter", "blur", "box-shadow"):
         assert banned not in c and banned not in p, banned
     assert "will-change" not in p and "rotate" not in p and "perspective" not in p and "preserve-3d" not in p      # (iOS: nothing turning in 3D, promoted or shadowed in the fixed header)
-    # the fallback keeps the clef's swing (never edge-on), its 10 s and its still angle
-    assert "transform-style:preserve-3d" in c and "@keyframes ho-tube{0%,100%{transform:perspective(260px) rotateY(-55deg)}50%{transform:perspective(260px) rotateY(55deg)}}" in c and "animation:ho-tube 10s ease-in-out -2.5s infinite" in c
+    # the fallback is a full, even turn (1.9.266; was the clef's 55 degree swing): 10 s, linear, the back half the face again (yaw -90 .. 90, never past it: never mirrored), and its still angle
+    assert "transform-style:preserve-3d" in c and "animation:ho-tube 10s linear infinite" in c
+    assert "@keyframes ho-tube{0%,100%{transform:perspective(260px) rotateY(0deg)}25%{transform:perspective(260px) rotateY(90deg)}25.01%{transform:perspective(260px) rotateY(-90deg)}75%{transform:perspective(260px) rotateY(90deg)}75.01%{transform:perspective(260px) rotateY(-90deg)}}" in c
+    assert "rotateY(180" not in c and "rotateY(270" not in c and "scaleX(-1)" not in c
     assert "@media (prefers-reduced-motion:reduce){.ho-tube .sp{animation:none;transform:perspective(260px) rotateY(24deg)}}" in c
     assert "@media print{.ho-tube .sp{animation:none;transform:none}}" in c and "html.hp-hid .ho-tube .sp{animation-play-state:paused}" in c
     # the pipe: the same 10 s, from the same face-on start; paused in a hidden tab and off screen; still under Reduce Motion; the screen shows the sheet, paper the slices
-    assert ".ho-tube.go canvas{animation:ho-pipe 10s step-end -2.5s infinite}" in p
+    assert ".ho-tube.go canvas{animation:ho-pipe 10s step-end infinite}" in p
     assert "html.hp-hid .ho-tube canvas,.ho-tube.off canvas{animation-play-state:paused}" in p
     assert "@media (prefers-reduced-motion:reduce){.ho-tube:not(#_) canvas{animation:none;transform:%s}}" % holo_trace._cell(holo_trace.tube_frame(24)) in p
     assert "@media screen{.ho-tube.g3 .sp{display:none}}" in p and "@media print{.ho-tube .cl{display:none !important}}" in p
     assert holo_trace.TUBE_RHO == 3.6 and len(holo_trace.TUBE_T) == 9
-    assert (holo_trace.TUBE_SWING, holo_trace.TUBE_PERIOD, holo_trace.TUBE_STILL, holo_trace.TUBE_FRAMES) == (55, 10, 24, 89)           # size, speed and swing kept
+    assert (holo_trace.TUBE_SWING, holo_trace.TUBE_PERIOD, holo_trace.TUBE_STILL, holo_trace.TUBE_FRAMES) == (90, 10, 24, 73)           # size and speed kept; the sheet now holds the face edge-on to edge-on (CHANGED 1.9.266: was 55 / 89)
     assert holo_trace.TUBE_COLS * holo_trace.TUBE_ROWS >= holo_trace.TUBE_FRAMES
     assert "getContext('webgl'" in j and "DEPTH_TEST" in j and "isContextLost" in j and "WEBGL_lose_context" in j and "IntersectionObserver" in j
     assert "setInterval" not in j and "setTimeout" not in j and "preserveDrawingBuffer" not in j and "drop-shadow" not in j
@@ -497,22 +499,43 @@ def test_the_tube_is_a_rendered_pipe_stepped_from_a_sheet_and_the_slices_are_its
     assert "location.hash" not in holo_trace.JS                                # (the private-web bundler counts the page's hash reads)
 
 
-def test_the_swing_steps_one_frame_at_a_time_along_the_old_cosine():
+def test_the_turn_steps_one_frame_at_a_time_through_a_full_even_360():
+    # CHANGED 1.9.266 (was the 55 degree cosine swing): theta runs 0..360 evenly; the sheet's face (yaw phi, -90..90) is the front on 0..90, the back read the right way round
+    # (phi = theta - 180) on 90..270, the front again on 270..360; the jump at 90 and 270 is edge-on to edge-on
     k = holo_trace.tube_keyframes()
-    assert k.startswith("@keyframes ho-pipe{0%,100%{transform:translate(-0%,-0%)}") and k.count("transform:") == 2 * 88 + 1 and k.count("{") == k.count("}")
+    f0 = holo_trace.tube_frame(0)
+    assert f0 == 36 and holo_trace.tube_angle(36) == 0 and holo_trace.tube_frame(24) == 46 and holo_trace.tube_frame(-90) == 0 and holo_trace.tube_frame(90) == 72
+    assert k.startswith("@keyframes ho-pipe{0%,100%{transform:translate(-0%,-42.8571%)}") and k.count("{") == k.count("}")
     steps = [(float(a), holo_trace.TUBE_COLS * round(float(y) * holo_trace.TUBE_ROWS / 100) + round(float(x) * holo_trace.TUBE_COLS / 100))
              for a, x, y in re.findall(r"(?<=\})([\d.]+)%\{transform:translate\(-([\d.]+)%,-([\d.]+)%\)\}", k)]
-    assert len(steps) == 176 and all(a < b for (a, _), (b, _) in zip(steps, steps[1:])), steps[:4]
-    frames = [0] + [f for _, f in steps]
-    assert all(abs(a - b) == 1 for a, b in zip(frames, frames[1:])) and max(frames) == 88 and frames[88] == 88 and frames[-1] == 0      # there and back, never a jump
-    # every frame is on show while the cosine is within its own 1.25 degrees
-    for (a, f), (b, _) in zip(steps, steps[1:]):
-        for t in (a + 1e-6, (a + b) / 2, b - 1e-6):
-            assert abs(-55 * math.cos(2 * math.pi * t / 100) - holo_trace.tube_angle(f)) <= 0.63, (t, f)
-    # at the animation's start (a quarter in: its -2.5 s delay) the frame is the face-on one, the one shown while the sheet is filled
-    at = lambda pct: [f for a, f in steps if a <= pct][-1]
-    assert at(25) == holo_trace.tube_frame(0) == 44 and holo_trace.tube_angle(44) == 0 and holo_trace.tube_frame(24) == 63
-    assert min(b - a for (a, _), (b, _) in zip(steps, steps[1:])) * 100 >= 33          # ms: never more than 30 steps a second
+    assert all(a < b for (a, _), (b, _) in zip(steps, steps[1:])), steps[:4]
+    frames = [f0] + [f for _, f in steps]
+    jumps = [(a, f) for (a, f), (_, g) in zip([(0, f0)] + steps, steps) if abs(g - f) != 1]
+    assert len(jumps) == 2 and all(f in (72,) for _, f in jumps), jumps                  # only the two edge-on to edge-on jumps, 72 -> 0
+    assert min(frames) == 0 and max(frames) == 72 and frames[-1] == f0
+    # the yaw on show at every moment follows theta, front / back / front: every frame is shown while theta is within its own 2.5 degrees
+    def theta_to_phi(th):
+        return th if th <= 90 else th - 180 if th <= 270 else th - 360
+    for (a, f), (b, _) in zip([(0, f0)] + steps, steps):
+        for t in (a + 1e-4, (a + b) / 2, b - 1e-4):
+            assert abs(theta_to_phi(t * 3.6) - holo_trace.tube_angle(f)) <= 1.26 or abs(abs(theta_to_phi(t * 3.6)) - 90) <= 1.3, (t, f)
+    # the turn is even: 36 + 72 + 36 frame changes, and no step is shorter than the old limit (never more than 30 a second)
+    assert len([1 for a, _ in steps if a < 25]) == 36 and len([1 for a, _ in steps if 25 < a < 75]) == 73 and len([1 for a, _ in steps if a > 75]) == 36 + 1
+    assert min(b - a for (a, _), (b, _) in zip(steps, steps[1:]) if b - a > 0.01) * 100 >= 33          # ms
+    at = lambda pct: [f for a, f in steps if a <= pct][-1] if [1 for a, _ in steps if a <= pct] else f0
+    assert at(0) == f0 and at(50) in (36, 35, 37) and at(24.9) == 72 and at(25.1) == 0 and at(74.9) == 72 and at(75.1) == 0 and at(99.9) == f0
+
+
+def test_nothing_in_the_home_is_a_partial_swing_any_more():
+    """1.9.266 (Luke: 'make them spin all the way around'): the clef (ho-logo, ho-tube) and the tile glyphs (ho-turn) each cover a full turn, never mirrored"""
+    from alto.build import holo
+    css = holo.css()
+    for name in ("ho-logo", "ho-logo-p", "ho-turn"):
+        kf = re.search(r"@keyframes %s\{(.*?)\}\}" % re.escape(name), css).group(1)
+        yaws = [float(x) for x in re.findall(r"rotateY\((-?[\d.]+)deg\)", kf)]
+        assert 0 in yaws and max(yaws) == 90 and min(yaws) == -90, (name, yaws)            # edge-on to edge-on, front facing at 0
+        assert "25%{" in kf and "25.01%{" in kf and "75%{" in kf and "75.01%{" in kf and kf.startswith("0%,100%{")
+    assert "ho-sway" not in css and "-55deg" not in css and "-34deg" not in css
 
 
 def test_the_pipe_rides_in_the_hosted_script_and_costs_the_page_nothing():
@@ -541,7 +564,7 @@ NO_GL = "(()=>{var o=HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.p
 SLICES = "[...document.querySelectorAll('.ho-tube .sp > svg')]"
 BOX = "(()=>{var a=document.querySelector('svg.brand-mark').getBoundingClientRect(), o=document.querySelector('.ho-tube').getBoundingClientRect();return [[a.left,a.top,a.width,a.height],[o.left,o.top,o.width,o.height]];})()"
 G3 = "(()=>{var t=document.querySelector('.ho-tube'); return !!t && t.classList.contains('g3') && t.querySelectorAll('.cl > canvas').length===1 && t.querySelectorAll('canvas').length===1;})()"
-GO = "(()=>{var t=document.querySelector('.ho-tube'); return !!t && t.classList.contains('go') && t._hoG.n===89 && t._hoG.R===null;})()"       # every frame in, the WebGL context given back
+GO = "(()=>{var t=document.querySelector('.ho-tube'); return !!t && t.classList.contains('go') && t._hoG.n===73 && t._hoG.R===null;})()"       # every frame in, the WebGL context given back
 ANIMS = "document.querySelector('.ho-tube').getAnimations({subtree:true}).map(a=>[a.animationName, a.playState])"
 # The frame showing now: which cell of the sheet stands in the window.
 FRAME = "(()=>{var t=document.querySelector('.ho-tube'), c=t.querySelector('canvas'), w=t.querySelector('.cl').getBoundingClientRect(), b=c.getBoundingClientRect(); return Math.round((w.top-b.top)/w.height)*12+Math.round((w.left-b.left)/w.width);})()"
@@ -580,13 +603,13 @@ def test_the_tube_sits_on_the_glyph_and_the_glyph_underneath_is_hidden_not_remov
     assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube .sp')).display") == "none"
     b = pg.evaluate(BOX)
     assert all(abs(x - y) <= 0.5 for x, y in zip(*b)), b
-    # the window is the glyph's box and a small margin for the turn's perspective and the glow, in whole pixels; the sheet is 12 x 8 of it
+    # the window is the glyph's box and a small margin for the turn's perspective and the glow, in whole pixels; the sheet is 12 x 7 of it
     cv = pg.evaluate("""(()=>{var t=document.querySelector('.ho-tube'), w=t.querySelector('.cl'), c=t.querySelector('canvas'), r=w.getBoundingClientRect(), g=t.getBoundingClientRect(), a=getComputedStyle(c), z=getComputedStyle(w);
       var k=r.width/parseFloat(z.width); return {w:parseFloat(z.width),h:parseFloat(z.height),l:(g.left-r.left)/k,t:(g.top-r.top)/k,rr:(r.right-g.right)/k,bb:(r.bottom-g.bottom)/k,sw:parseFloat(a.width),sh:parseFloat(a.height),pw:c.width,ph:c.height,ov:z.overflow,fx:a.filter+z.filter,wc:a.willChange+z.willChange,tf:a.transform,fw:t._hoG.fw,fh:t._hoG.fh};})()""")
     assert 3 <= cv["l"] <= 9 and 3 <= cv["t"] <= 9 and abs(cv["l"] - cv["rr"]) <= 1 and abs(cv["t"] - cv["bb"]) <= 1, cv
     assert abs(cv["w"] - round(cv["w"])) < 0.02 and abs(cv["h"] - round(cv["h"])) < 0.02 and cv["w"] < 60 and cv["h"] < 60 and cv["ov"] == "hidden", cv
-    assert abs(cv["sw"] - 12 * cv["w"]) < 0.3 and abs(cv["sh"] - 8 * cv["h"]) < 0.3, cv
-    assert cv["pw"] == 12 * cv["fw"] and cv["ph"] == 8 * cv["fh"] and cv["fw"] in (2 * round(cv["w"]), 3 * round(cv["w"])) and cv["pw"] <= 2200 and cv["ph"] <= 1500, cv      # (a sheet of a few MB at most)
+    assert abs(cv["sw"] - 12 * cv["w"]) < 0.3 and abs(cv["sh"] - 7 * cv["h"]) < 0.3, cv
+    assert cv["pw"] == 12 * cv["fw"] and cv["ph"] == 7 * cv["fh"] and cv["fw"] in (2 * round(cv["w"]), 3 * round(cv["w"])) and cv["pw"] <= 2200 and cv["ph"] <= 1500, cv      # (a sheet of a few MB at most)
     assert cv["fx"] == "nonenone" and cv["wc"] == "autoauto" and cv["tf"].startswith("matrix("), cv       # a flat slide of the sheet, nothing in 3D
     assert pg.evaluate("getComputedStyle(document.querySelector('svg.brand-mark')).opacity") == "0"
     assert pg.evaluate("getComputedStyle(document.querySelector('svg.brand-mark')).animationName") == "none"
@@ -606,12 +629,12 @@ def test_the_pipe_is_round_lit_and_as_thick_from_the_side_as_from_the_front(brow
     assert 5.4 < f["barw"] < 8.2, f
     assert _round(f["bar"]), f
     # every angle of the swing, and beyond it to edge-on: a pipe is never thinner than its own width (the flat cut-out went to a hairline, the slices to a flat bar)
-    for deg in (-55, -40, -24, 24, 40, 55, 75, 90, -90):
+    for deg in (-90, -75, -55, -40, -24, 24, 40, 55, 75, 90):          # (1.9.266: the sheet reaches edge-on to edge-on)
         s = pg.evaluate(PIX, {"deg": deg})
         assert s["n"] > 150 and 84 < s["h"] < 110, (deg, s)
         assert s["run"] >= 4.2, (deg, s)                                       # (the thinner upright is 5.0 wide)
         assert s["w"] >= max(6.0, 0.85 * f["w"] * abs(math.cos(math.radians(deg)))), (deg, s)
-        if abs(deg) <= 55:
+        if abs(deg) <= 90:
             assert s["edge"] == 0, (deg, s)                                    # the whole swing fits its window, glow and all
     # the light stands still while the pipe turns: turned toward it and away from it the pipe is not lit alike (a turning drawing would be its own mirror image)
     a, b = pg.evaluate(PIX, {"deg": -40}), pg.evaluate(PIX, {"deg": 40})
@@ -621,19 +644,19 @@ def test_the_pipe_is_round_lit_and_as_thick_from_the_side_as_from_the_front(brow
     ctx.close()
 
 
-def test_the_sheet_holds_every_frame_of_the_swing_and_each_is_the_pipe_at_its_angle(browser, site):
+def test_the_sheet_holds_every_frame_of_the_turn_and_each_is_the_pipe_at_its_angle(browser, site):
     pg, ctx, errors = _tube_open(browser, site)
     assert pg.evaluate(GO)
-    cells = [pg.evaluate(PIX, {"cell": i}) for i in range(96)]
-    assert all(c["n"] > 150 and c["edge"] == 0 and c["run"] >= 4.2 for c in cells[:89]), [i for i, c in enumerate(cells[:89]) if not (c["n"] > 150 and c["edge"] == 0 and c["run"] >= 4.2)]
-    assert all(c["n"] == 0 and c["any"] == 0 for c in cells[89:])              # the sheet's spare cells are clear
-    for i in (0, 20, 44, 63, 88):                                              # a cell is the pipe rendered at its own angle
+    cells = [pg.evaluate(PIX, {"cell": i}) for i in range(84)]
+    assert all(c["n"] > 150 and c["edge"] == 0 and c["run"] >= 4.2 for c in cells[:73]), [i for i, c in enumerate(cells[:73]) if not (c["n"] > 150 and c["edge"] == 0 and c["run"] >= 4.2)]
+    assert all(c["n"] == 0 and c["any"] == 0 for c in cells[73:])              # the sheet's spare cells are clear
+    for i in (0, 20, 36, 46, 72):                                              # a cell is the pipe rendered at its own angle
         s = pg.evaluate(PIX, {"deg": holo_trace.tube_angle(i)})
         assert abs(s["w"] - cells[i]["w"]) < 0.8 and abs(s["lum"] - cells[i]["lum"]) < 2 and abs(s["cx"] - cells[i]["cx"]) < 0.8, (i, s, cells[i])
-    w = [c["w"] for c in cells[:89]]
-    assert w[44] == max(w) or w[44] > max(w) - 1.5, (w[44], max(w))            # widest face-on, narrowing to each end of the swing, and the pipe's thickness kept
-    assert all(a <= b + 0.9 for a, b in zip(w[:44], w[1:45])) and all(a + 0.9 >= b for a, b in zip(w[44:], w[45:])), w
-    assert min(w) > 0.5 * max(w)
+    w = [c["w"] for c in cells[:73]]
+    assert w[36] == max(w) or w[36] > max(w) - 1.5, (w[36], max(w))            # widest face-on, narrowing to each end of the swing, and the pipe's thickness kept
+    assert all(a <= b + 0.9 for a, b in zip(w[:36], w[1:37])) and all(a + 0.9 >= b for a, b in zip(w[36:], w[37:])), w
+    assert min(w) > 0.15 * max(w)                                  # edge-on (CHANGED 1.9.266: was .5 of a swing's end): still the pipe's own thickness
     assert not errors, errors
     ctx.close()
 
@@ -646,11 +669,12 @@ def test_the_pipe_swings_by_css_alone_and_stops_when_hidden_or_off_screen(browse
     for _ in range(8):
         pg.wait_for_timeout(250)
         seen.append(pg.evaluate(FRAME))
-    assert all(0 <= f <= 88 for f in seen) and len(set(seen)) >= 4, seen        # it swings
-    # scrubbed: the frame on show follows the old swing, face-on at the start and 55 degrees to each side
+    assert all(0 <= f <= 72 for f in seen) and len(set(seen)) >= 4, seen        # it turns
+    # scrubbed: the frame on show follows the full turn (1.9.266): face-on at 0 and 180 (the back read the right way round), edge-on at 90 and 270, face-on again at 360
     at = lambda ms: pg.evaluate("(t)=>{var a=document.querySelector('.ho-tube canvas').getAnimations()[0]; a.currentTime=t; return %s;}" % FRAME, ms)
-    got = {ms: at(ms) for ms in (0, 2500, 5000, 7500, 10000, 12500)}
-    assert got == {0: 44, 2500: 88, 5000: 44, 7500: 0, 10000: 44, 12500: 88} or all(abs(got[k] - v) <= 1 for k, v in {0: 44, 2500: 88, 5000: 44, 7500: 0, 10000: 44, 12500: 88}.items()), got
+    want = {0: 36, 2400: 71, 2600: 2, 5000: 36, 7400: 71, 7600: 2, 10000: 36, 12400: 71}
+    got = {ms: at(ms) for ms in want}
+    assert all(abs(got[k] - v) <= 1 for k, v in want.items()), got
     pg.evaluate("document.documentElement.classList.add('hp-hid')")           # a hidden tab (holo.py sets the class)
     pg.wait_for_timeout(200)
     assert pg.evaluate("getComputedStyle(document.querySelector('.ho-tube canvas')).animationPlayState") == "paused"
@@ -683,8 +707,13 @@ def test_without_webgl_the_slices_swing_as_before_and_are_never_edge_on(browser,
     face = pg.evaluate(span % (0, SLICES))
     turns = [pg.evaluate(span % (t, SLICES)) for t in range(0, 10000, 250)]
     assert face > 0.7, face                                               # a fresh load: face-on, the glyph's width
-    assert min(turns) >= face * .4 and max(turns) <= face * 1.05, (face, min(turns), max(turns))
-    assert abs(turns[10] - turns[30]) < face * .12 and turns[10] < face * .8, (turns[10], turns[30])      # 2.5 s and 7.5 s: the two ends of the swing, as far to each side
+    # CHANGED 1.9.266 (was: never under .4 of face-on, the two ends of a 55 degree swing): a full turn. Edge-on (2.5 s and 7.5 s) it is narrow but still shows the pipe's own lit thickness,
+    # and at 5 s (the back, read the right way round) it is face-on again: the same width as the front, not a mirror of it
+    assert min(turns) >= face * .04 and max(turns) <= face * 1.05, (face, min(turns), max(turns))
+    assert abs(turns[10] - turns[30]) < face * .12 and turns[10] < face * .3 and turns[10] > 0, (turns[10], turns[30])      # 2.5 s and 7.5 s: edge-on, both ends
+    assert abs(turns[20] - face) < face * .06, (turns[20], face)                                                            # 5 s: the back, face-on
+    back = pg.evaluate("(t)=>{var a=document.getAnimations().find(a=>a.animationName==='ho-tube'); a.pause(); a.currentTime=t; var m=new DOMMatrix(getComputedStyle(document.querySelector('.ho-tube .sp')).transform); return [m.a, m.m11]}", 6000)
+    assert back[0] > 0, back                                                                                                # the x-axis is never flipped: never mirrored
     w = lambda q: pg.evaluate("[...new Set([...document.querySelectorAll('.ho-tube svg.q%d path')].map(p=>+p.getAttribute('stroke-width')))].sort((a,b)=>a-b).join()" % q)
     assert w(0) == "2.9,5,5.8,6.6,7.2", w(0)
     assert max(float(x) for x in w(4).split(",")) < 4.5, w(4)
@@ -709,11 +738,11 @@ def test_when_webgl_goes_away_the_next_sheet_falls_back_to_the_slices(browser, s
 def test_a_new_theme_renders_a_new_sheet_in_its_own_colours(browser, site):
     pg, ctx, errors = _tube_open(browser, site, phone=True, dark=True)
     assert pg.evaluate(GO)
-    d = pg.evaluate(PIX, {"cell": 44})
+    d = pg.evaluate(PIX, {"cell": 36})
     pg.evaluate("document.documentElement.classList.remove('dark')")
     pg.wait_for_timeout(300); _baked(pg)
     assert pg.evaluate(GO) and pg.evaluate(ANIMS) == [["ho-pipe", "running"]]
-    lt = pg.evaluate(PIX, {"cell": 44})
+    lt = pg.evaluate(PIX, {"cell": 36})
     assert abs(d["lum"] - lt["lum"]) < 1 and abs(d["w"] - lt["w"]) < 1.5, (d["lum"], lt["lum"])   # Holographic holds html.dark on every screen (holo.py hdark, 2026-11-13): removing it brings nothing pale, the sheet stays the dark one
     assert _round(lt["bar"]) and _round(d["bar"])
     assert not errors, errors
@@ -724,18 +753,18 @@ def test_the_tube_is_still_under_reduce_motion_and_shaded_the_same(browser, site
     pg, ctx, errors = _tube_open(browser, site, reduce=True)
     assert pg.evaluate("document.querySelectorAll('.ho-tube').length") == 1 and pg.evaluate(G3)
     assert pg.evaluate(ANIMS) == []                                         # nothing moves
-    assert pg.evaluate(FRAME) == 63                                         # standing at its 24 degrees (the nearest frame, 23.75)
+    assert pg.evaluate(FRAME) == 46                                         # standing at its 24 degrees (the nearest frame, 25)
     assert pg.evaluate("[document.querySelector('.ho-tube')._hoG.n, document.querySelector('.ho-tube')._hoG.R===null, document.querySelector('.ho-tube').classList.contains('go')]") == [2, True, False]      # only it and the face-on frame were rendered
     pg.wait_for_timeout(700)
-    assert pg.evaluate(FRAME) == 63 and pg.evaluate(ANIMS) == []
-    s = pg.evaluate(PIX, {"cell": 63})
+    assert pg.evaluate(FRAME) == 46 and pg.evaluate(ANIMS) == []
+    s = pg.evaluate(PIX, {"cell": 46})
     assert s["n"] > 300 and s["run"] >= 4.2 and s["edge"] == 0 and _round(s["bar"]), s      # still a round, lit pipe
     pg.emulate_media(reduced_motion="no-preference")
     pg.wait_for_timeout(300); _baked(pg)
     assert pg.evaluate(GO) and pg.evaluate(ANIMS) == [["ho-pipe", "running"]]      # and it swings again when the setting goes
     pg.emulate_media(reduced_motion="reduce")
     pg.wait_for_timeout(500)
-    assert pg.evaluate(ANIMS) == [] and pg.evaluate(FRAME) == 63
+    assert pg.evaluate(ANIMS) == [] and pg.evaluate(FRAME) == 46
     assert not errors, errors
     ctx.close()
 
@@ -783,9 +812,9 @@ def test_the_phone_glyph_is_a_tube_too(browser, site, page, dark):
     assert all(abs(x - y) <= 0.8 for x, y in zip(*b)), b
     assert b[0][1] >= 0 and b[0][1] + b[0][3] <= 56
     assert pg.evaluate(ANIMS) == [["ho-pipe", "running"]]
-    for cell in (0, 44, 88):
+    for cell in (0, 36, 72):
         s = pg.evaluate(PIX, {"cell": cell})
-        assert s["n"] > 300 and s["run"] >= 4.2 and s["edge"] == 0, (cell, s)
+        assert s["n"] > (300 if cell == 36 else 200) and s["run"] >= 4.2 and s["edge"] == 0, (cell, s)       # (edge-on cells 0 and 72 are the pipe's side: fewer pixels, CHANGED 1.9.266)
     assert not errors, errors
     ctx.close()
 
@@ -809,8 +838,8 @@ def test_phone_landscape_the_pipe_is_a_flat_sheet_on_a_clear_ground_with_nothing
     assert pg.evaluate(G3) and pg.evaluate(GO)
     st = pg.evaluate("""(()=>{var t=document.querySelector('.ho-tube'), out=[]; [t, t.querySelector('.cl'), t.querySelector('canvas')].forEach(e=>{var a=getComputedStyle(e); out.push([a.filter, a.willChange, a.backgroundColor, a.boxShadow, a.transformStyle, /matrix3d/.test(a.transform)]);}); return out;})()""")
     assert st == [["none", "auto", "rgba(0, 0, 0, 0)", "none", "flat", False]] * 3, st
-    for cell in (0, 44, 88):
+    for cell in (0, 36, 72):
         s = pg.evaluate(PIX, {"cell": cell})
-        assert s["n"] > 300 and s["edge"] == 0, (cell, s)
+        assert s["n"] > (300 if cell == 36 else 200) and s["edge"] == 0, (cell, s)
     assert not errors, errors
     ctx.close()
