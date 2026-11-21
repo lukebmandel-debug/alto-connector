@@ -176,7 +176,7 @@ def test_the_art_is_the_board_game_piece_for_each_class():
     assert "fl-run" in FJ and "jet(top," in FJ and "JET='M.5 0L" in FJ                    # a carrier: a flight deck, the angled strip, little jets
     assert "b._cells" in FJ and "b._launch" in FJ and "b._muzzle" in FJ and "s._rw" in FJ    # where missiles, jets, the torpedo leave from
     assert "vector-effect" in FJ and "'bb-wall'" in FJ                                      # the moulded plastic's thick edge
-    assert "<mask" not in FJ and "mask" not in re.sub(r"/\*.*?\*/", "", FJ, flags=re.S) and "filter" not in re.sub(r"/\*.*?\*/", "", FJ, flags=re.S)    # nothing Safari draws differently
+    assert "<mask" not in FJ and "mask" not in re.sub(r"/\*.*?\*/", "", FJ, flags=re.S) and not re.search(r"(?<!\.)\bfilter\b", re.sub(r"/\*.*?\*/", "", FJ, flags=re.S))    # nothing Safari draws differently (no SVG/CSS filter; Array.filter is fine)
 
 
 def test_a_flight_is_sized_on_the_screen_and_driven_by_one_frame_loop():
