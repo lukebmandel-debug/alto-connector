@@ -1,8 +1,7 @@
 """Tell Claude and the user when this Alto extension is behind the latest release.
 
-Checked once per session (a connector process), against the GitHub releases of
-the public repo, with a short timeout and the answer cached for the life of the
-process. Any failure (offline, rate-limited, odd reply) is silent: the check is
+Checked on the first call of a session (a connector process) and again after 6 hours, against the GitHub releases of
+the public repo, with a short timeout and the answer cached for 6 hours. Any failure (offline, rate-limited, odd reply) is silent: the check is
 a courtesy and must never get between a person and their work.
 
 The note rides on build and publish results. It is advice, not a gate; the
@@ -14,12 +13,15 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 import urllib.request
 
 from .build.engine_stamp import UPDATE_HOW, is_older, parse_version, running_version
 
 RELEASES_URL = "https://api.github.com/repos/lukebmandel-debug/alto-connector/releases/latest"
 TIMEOUT = 3.0
+TTL = 6 * 3600.0          # how long a fetched answer is trusted before the next call asks again
+_clock = time.monotonic   # tests swap in a fake clock
 
 _lock = threading.Lock()
 # Test-only: tests/test_stale_guard.py sets this (with its GitHub fetch stubbed) so the check runs even in an offline process, e.g. after a
@@ -28,6 +30,8 @@ _TEST_ALLOW_OFFLINE = False
 _started = False
 _done = threading.Event()
 _latest = ""
+_fetched_at = 0.0
+_refreshing = False
 
 
 def _fetch_latest() -> str:
@@ -43,10 +47,14 @@ def _fetch_latest() -> str:
 
 
 def _run() -> None:
-    global _latest
+    global _latest, _fetched_at, _refreshing
     try:
-        _latest = _fetch_latest()
+        got = _fetch_latest()
+        if got or not _latest:                  # a failed re-check keeps the older answer
+            _latest = got
+        _fetched_at = _clock()
     finally:
+        _refreshing = False
         _done.set()
 
 
@@ -66,7 +74,16 @@ def start() -> None:
 
 
 def latest_version() -> str:
+    global _refreshing
     start()
+    if os.environ.get("ALTO_UPDATE_CHECK") != "off" and _started:
+        with _lock:
+            stale = _fetched_at and not _refreshing and _clock() - _fetched_at >= TTL
+            if stale:
+                _refreshing = True
+                _done.clear()
+        if stale:
+            threading.Thread(target=_run, daemon=True, name="alto-update-recheck").start()
     _done.wait(TIMEOUT + 1)
     return _latest
 
@@ -98,7 +115,7 @@ def with_update_note(result):
 
 
 def reset_for_tests() -> None:
-    global _started, _latest
+    global _started, _latest, _fetched_at, _refreshing
     with _lock:
-        _started, _latest = False, ""
+        _started, _latest, _fetched_at, _refreshing = False, "", 0.0, False
         _done.clear()
