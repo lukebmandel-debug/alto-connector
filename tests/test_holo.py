@@ -565,7 +565,7 @@ def psite(tmp_path_factory):
 def test_the_projector_css_is_compositor_only_and_has_a_reduced_motion_still():
     css = holo.css()
     kf = re.findall(r"@keyframes (ho-\w+)\{(.*?)\}\}?(?=@keyframes|\s*@media|\s*html|\s*$|\})", css)
-    assert {k for k, _ in kf} == {"ho-sway", "ho-pulse", "ho-scan", "ho-logo"}
+    assert {k for k, _ in kf} == {"ho-turn", "ho-pulse", "ho-scan", "ho-logo", "ho-edge"}
     body = "".join(re.findall(r"@keyframes ho-\w+\{.*?\}\}", css))
     assert body and not re.search(r"filter|box-shadow|background-position|width|height|top|left|margin", body), body
     rm = css[css.index("@media (prefers-reduced-motion:reduce)"):]
@@ -591,7 +591,7 @@ def test_the_homepage_projector_draws_three_layers_and_off_restores_the_plate(br
                 anim:cs.animationName, dur:cs.animationDuration, scan:getComputedStyle(t.querySelector('.hp-scan i')).animationName, fmt:t.getAttribute('data-fmt'), noFlat:getComputedStyle(e.querySelector(':scope > svg')).display}})""")
     names = ["Timeline", "Timeline · Horizontal", "Outline", "System", "Memory Map", "Memory Blueprint", "Memory Atlas"]
     assert [g["label"] for g in got] == names and [g["tip"] for g in got] == names
-    assert all(g["layers"] == 7 and g["role"] == "img" and g["tab"] == "0" and g["anim"] == "ho-sway" and g["dur"] == "9s" and g["scan"] == "ho-scan" and g["noFlat"] == "none" for g in got), got[:2]
+    assert all(g["layers"] == 7 and g["role"] == "img" and g["tab"] == "0" and g["anim"] == "ho-turn" and g["dur"] == "9s" and g["scan"] == "ho-scan" and g["noFlat"] == "none" for g in got), got[:2]
     # light AND dark: every word on the new plates meets AA
     res = pg.evaluate(AUDIT_JS)
     assert res["seen"] > 10 and not res["bad"], res["bad"][:10]
@@ -673,12 +673,13 @@ def test_the_logo_turns_on_the_same_motion_budget_and_holds_still_under_reduced_
     css = holo.css()
     kf = re.search(r"@keyframes ho-logo\{(.*?)\}\}", css).group(1)
     assert "transform" in kf and not re.search(r"filter|box-shadow|width|height|top|left|margin|opacity", kf), kf
-    assert "ho-logo 10s ease-in-out -2.5s infinite" in css  # the 10 s period, eased at each end of the swing, starting facing front
-    # a swing of 55deg to each side, never a full turn: the clef is never edge-on (Board on Art's look at rel-223)
-    assert kf.replace(" ", "") == "0%,100%{transform:perspective(260px)rotateY(-55deg)}50%{transform:perspective(260px)rotateY(55deg)" and "rotateY(360deg)" not in css.split("ho-sway")[0]
+    assert "ho-logo 10s linear infinite" in css  # the 10 s period, even, starting facing front (CHANGED 1.9.266: was eased -2.5s)
+    # a FULL turn (CHANGED 1.9.266: was a 55deg swing, never edge-on): 0 > 90 (front), -90 > 90 (the back, read the right way round), -90 > 0; the jumps are edge-on to edge-on, so never mirrored
+    assert kf.replace(" ", "") == "0%,100%{transform:perspective(260px)rotateY(0deg)}25%{transform:perspective(260px)rotateY(90deg)}25.01%{transform:perspective(260px)rotateY(-90deg)}75%{transform:perspective(260px)rotateY(90deg)}75.01%{transform:perspective(260px)rotateY(-90deg)"
+    assert "scaleX(-1)" not in kf and "rotateY(180" not in kf and "rotateY(270" not in kf
     assert re.search(r"prefers-reduced-motion:reduce\)\{[^@]*brand-mark[^}]*animation:none", css)
     assert re.search(r"hp-hid #title-bar svg\.brand-mark[^{]*\{animation-play-state:paused", css)   # a hidden tab stops it (the phone clef too)
-    assert "@keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(-55deg)}50%{transform:translateY(-50%) perspective(260px) rotateY(55deg)}}" in css   # the phone clef keeps its centring while it swings
+    assert "@keyframes ho-logo-p{0%,100%{transform:translateY(-50%) perspective(260px) rotateY(0deg)}25%{transform:translateY(-50%) perspective(260px) rotateY(90deg)}25.01%{transform:translateY(-50%) perspective(260px) rotateY(-90deg)}75%{transform:translateY(-50%) perspective(260px) rotateY(90deg)}75.01%{transform:translateY(-50%) perspective(260px) rotateY(-90deg)}}" in css   # the phone clef keeps its centring while it turns
 
 
 @pytest.mark.parametrize("page", ["t", "h"])
@@ -808,14 +809,39 @@ def test_holographic_menu_has_no_dark_light_tile_but_the_other_styles_keep_it():
 
 
 # ── Holo 3D glyph (Board L-1119-HOLO3D, 1.9.251) ──
-def test_the_glyph_sways_never_edge_on_and_has_depth_layers_in_the_css():
+def test_the_glyph_turns_a_full_even_360_never_mirrored_and_has_depth_layers_in_the_css():
+    # CHANGED 1.9.266 (Luke: "make them spin all the way around, while still being 3d"): was "sways, never edge-on" (yaw <= 45). Now edge-on to edge-on, three legs: front 0 > 90,
+    # back -90 > 90 (the face read the right way round), front -90 > 0; the jumps at 25% and 75% are edge-on to edge-on
     css = holo.css()
-    kf = re.search(r"@keyframes ho-sway\{(.*)\}\}", css).group(1)
+    m = re.search(r"@keyframes ho-turn\{(.*)\}\}", css)
+    kf = m.group(1)
     yaws = [float(x) for x in re.findall(r"rotateY\((-?[\d.]+)deg\)", kf)]
-    assert len(yaws) >= 2 and all(abs(y) <= 45 for y in yaws), yaws       # never near 90 or 270, never mirrored
-    assert "rotateY(360" not in kf and "perspective" not in kf
+    assert yaws == [0, 90, -90, 0, 90, -90], yaws                           # a full turn: 0 > 90 | -90 > 0 > 90 | -90 > 0
+    assert all(abs(y) <= 90 for y in yaws) and "rotateY(360" not in kf and "perspective" not in kf and "scaleX(-1)" not in kf   # never past edge-on: x never flipped
+    assert re.search(r"\.hp-spin\{[^}]*animation:ho-turn 9s linear infinite", css)
+    assert re.search(r"\.hp-edge\{[^}]*animation:ho-edge 9s linear infinite", css) and "@keyframes ho-edge{0%,16%{opacity:0}25%{opacity:1}" in css   # lit bar at edge-on (25% and 75%): never a vanishing line
+    assert re.search(r"hp-still \.hp-edge\{display:none", css) and re.search(r"reduce\)\{[^@]*\.hp-edge\{display:none", css)
     zs = sorted(int(z) for z in re.findall(r"\.hp-l\d\{[^}]*translateZ\((-?\d+)px\)", css))
     assert len(zs) == 7 and zs[0] <= -8 and zs[-1] >= 8 and len(set(zs)) == 7, zs     # thickness: seven slices
+
+
+def test_the_plate_has_a_lit_rim_of_z_spaced_slices():
+    # 1.9.266 (Board B-1120-SHOTS266): at 45 degrees the plate must read as a slab, so ten border-only slices, 2px apart in Z, brighter than the face
+    assert re.search(r"\.hp-spin \.hp-rim\{[^}]*border:2px solid var\(--ho-ac2\)", holo.css())
+    m = re.search(r"for\(var z=(-?\d+);z<=(\d+);z\+=(\d+)\)\{ var rm=pel\('hp-rim'\)", holo.JS)
+    z0, z1, dz = (int(x) for x in m.groups())
+    assert len(range(z0, z1 + 1, dz)) >= 4 and 1 <= dz <= 2 and "translateZ(" in holo.JS
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_the_rim_slices_are_in_every_projector_at_distinct_depths(browser, psite, dark):
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    pg.add_init_script("try{localStorage.setItem('alto-bg-home-v1-style','holo')}catch(e){}")
+    pg.goto(psite + "/h7.html")
+    pg.wait_for_timeout(1200)
+    r = pg.evaluate("""()=>[...document.querySelectorAll('.course-tile.hp .hp-spin')].map(s=>[...s.querySelectorAll('.hp-rim')].map(e=>new DOMMatrix(getComputedStyle(e).transform).m43))""")
+    assert len(r) >= 7 and all(len(set(z)) >= 4 and len(z) == len(set(z)) for z in r), r[:1]
+    pg.close()
 
 
 def test_the_projector_glyph_is_solid_still_front_and_over_the_cone(browser, psite):
@@ -835,7 +861,8 @@ def test_the_projector_glyph_is_solid_still_front_and_over_the_cone(browser, psi
     pg.goto(psite + "/h7.html")
     pg.wait_for_timeout(1200)
     cs = pg.evaluate("""async()=>{const sp=document.querySelector('.hp-spin'), out=[];
-        for(let i=0;i<12;i++){ const m=new DOMMatrix(getComputedStyle(sp).transform); out.push(m.m11); await new Promise(r=>setTimeout(r,800)); }
+        for(let i=0;i<24;i++){ const m=new DOMMatrix(getComputedStyle(sp).transform); out.push(m.m11); await new Promise(r=>setTimeout(r,400)); }
         return out}""")
-    assert all(c > 0.7 for c in cs), cs                          # facing front all through the sway (cos yaw > 0.7)
+    assert all(c >= -0.001 for c in cs), cs                      # never mirrored (x never flipped) all the way round (CHANGED 1.9.266: was cos yaw > 0.7, a sway)
+    assert max(cs) > 0.95 and min(cs) < 0.45, cs                 # and it really turns: face-on and nearly edge-on within one 9 s turn
     ctx.close()
