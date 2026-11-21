@@ -654,6 +654,9 @@ def sanitize_brief(b, nodes=None) -> list:
             sections(v.sections, f"{ax.label} value {v.id}")
             v.aliases = [plain_text(x) for x in v.aliases if (x or "").strip()]
             v.cite = cite(v.cite or {})
+            v.deadlines = [{k: re.sub(r"\s+", " ", plain_text(str(d.get(k) or ""))).strip()
+                            for k in ("period", "what", "trigger", "quote", "cite")}
+                           for d in (v.deadlines or []) if isinstance(d, dict)]
     for f in b.filters:
         f.label = plain_text(f.label)
         for v in f.values:
