@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+from html import escape as _hesc
 from urllib.parse import quote
 
 from .brief import PROVENANCE, Section
@@ -452,6 +453,72 @@ BOOK_JUMP = """<script id="alto-book-jump">
 
 PROV_CSS = ("\n  .sec-prov{margin-left:8px;padding:1px 6px;border:1px solid var(--border);"
             "border-radius:8px;font-size:.85em;letter-spacing:.08em;opacity:.85;}")
+
+# ── deadlines: the time limits a statute or rule sets, in a box at the top of
+# its page (brief AxisValue.deadlines). Text only, escaped here; nothing is added
+# to the owner's words. Rendered as the page's first section, so it sits above
+# everything, and it prints with the page.
+DEADLINES_HEADING = "Deadlines"
+
+
+def deadlines_html(items) -> str:
+    rows = []
+    for d in items or []:
+        g = {k: _hesc(str(d.get(k) or ""), quote=True)
+             for k in ("period", "what", "trigger", "quote", "cite")}
+        if not (g["period"] and g["what"]):
+            continue
+        rows.append(
+            '<span class="dl-row"><span class="dl-per">' + g["period"] + '</span>'
+            '<span class="dl-tx"><span class="dl-what">' + g["what"] + '</span>'
+            + ('<span class="dl-trg">' + g["trigger"] + '</span>' if g["trigger"] else '')
+            + ('<span class="dl-q">' + g["quote"] + '</span>' if g["quote"] else '')
+            + ('<span class="dl-cite">' + g["cite"] + '</span>' if g["cite"] else '')
+            + '</span></span>')
+    return '<span class="dl-box">' + "".join(rows) + '</span>' if rows else ""
+
+
+DEADLINES_CSS = r"""
+  .dl-box{display:block;margin:2px 0 4px;padding:6px 20px;border:3px solid var(--accent);border-radius:12px;
+    background:color-mix(in srgb, var(--accent) 9%, var(--surface, transparent));text-align:left;}
+  .dl-row{display:grid;grid-template-columns:var(--dl-pw,11.5em) minmax(0,1fr);column-gap:22px;align-items:start;
+    padding:16px 0;}
+  .dl-row + .dl-row{border-top:1px solid color-mix(in srgb, var(--accent) 45%, transparent);}
+  .dl-per{display:block;font-size:2.6em;line-height:1.05;font-weight:800;letter-spacing:-.01em;color:var(--accent);
+    font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+  .dl-tx{display:block;min-width:0;}
+  .dl-what{display:block;font-size:1.12em;font-weight:700;line-height:1.35;overflow-wrap:anywhere;}
+  .dl-trg{display:block;margin-top:2px;opacity:.82;line-height:1.4;overflow-wrap:anywhere;}
+  .dl-q{display:block;margin-top:10px;padding-left:12px;border-left:3px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    font-style:italic;line-height:1.55;overflow-wrap:anywhere;}
+  .dl-q::before{content:"\201C";} .dl-q::after{content:"\201D";}
+  .dl-cite{display:block;margin-top:6px;padding-left:12px;font-weight:700;font-size:.92em;letter-spacing:.03em;overflow-wrap:anywhere;}
+  @media (max-width:640px){ .dl-box{padding:4px 16px;margin-left:5px;margin-right:5px;} .dl-row{grid-template-columns:minmax(0,1fr);row-gap:6px;padding:14px 0;}
+    .dl-per{font-size:2.3em;} }
+  html.mobile .dl-box,html.pmin .dl-box,html.phone-whole .dl-box{padding:4px 16px;margin-left:5px;margin-right:5px;}
+  html.mobile .dl-row,html.pmin .dl-row,html.phone-whole .dl-row{grid-template-columns:minmax(0,1fr);row-gap:6px;padding:14px 0;}
+  html.mobile .dl-per,html.pmin .dl-per,html.phone-whole .dl-per{font-size:2.3em;}
+  html.alto-retro .dl-box{--dl-pw:15em;border:2px solid #d9ae55;border-radius:0;background:#000;box-shadow:0 0 0 4px #000,0 0 0 5px rgba(217,174,85,.45);}
+  html.alto-retro .dl-row + .dl-row{border-top:1px solid rgba(217,174,85,.45);}
+  html.alto-retro .dl-per{color:#f0c15e;font-family:var(--rt-f);font-weight:400;letter-spacing:.06em;text-transform:uppercase;}
+  html.alto-retro .dl-what{color:#efe6cf;font-family:var(--rt-f);font-weight:400;letter-spacing:.14em;text-transform:uppercase;font-size:1em;}
+  html.alto-retro .dl-trg,html.alto-retro .dl-q{color:#e3dccb;}
+  html.alto-retro .dl-q{border-left-color:rgba(217,174,85,.6);}
+  html.alto-retro .dl-cite{color:#d9ae55;font-family:var(--rt-f);font-weight:400;letter-spacing:.2em;}
+  html.alto-holo .dl-box{--dl-pw:12.5em;border:1px solid rgba(var(--ho-rgb),.85);border-radius:0;background:rgba(var(--ho-rgb),.07);
+    box-shadow:var(--ho-glow),inset 0 0 28px rgba(var(--ho-rgb),.12);}
+  html.alto-holo .dl-row + .dl-row{border-top:1px solid rgba(var(--ho-rgb),.3);}
+  html.alto-holo .dl-per{color:var(--ho-ac);font-weight:300;letter-spacing:.04em;text-shadow:var(--ho-glow);}
+  html.alto-holo .dl-what{letter-spacing:.14em;text-transform:uppercase;font-weight:500;font-size:1em;color:var(--ho-ac2);}
+  html.alto-holo .dl-q{border-left-color:rgba(var(--ho-rgb),.6);}
+  html.alto-holo .dl-cite{color:var(--ho-ac2);letter-spacing:.2em;}
+  @media print{ html.printing.is-blink:not(.mobile) body,html.printing.vw-unzoomed:not(.mobile) body{width:auto !important;}
+    .dl-box,html.printing .dl-box{background:none !important;box-shadow:none !important;border:2px solid #000 !important;border-radius:6px !important;
+      break-inside:avoid;page-break-inside:avoid;color:#000 !important;}
+    .dl-box *{color:#000 !important;text-shadow:none !important;font-family:inherit !important;opacity:1 !important;}
+    .dl-per{font-weight:700 !important;} }
+"""
+
 
 # ── ← Back to <previous page> (ALTO-008) ────────────────────────────────────
 # A link INSIDE a detail page that opens another detail page pushes the page

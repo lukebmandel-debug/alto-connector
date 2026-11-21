@@ -168,6 +168,10 @@ class AxisValue:
     # "28 U.S.C.", each chip opening the sections of its own. Empty: the value
     # sits under the axis's own chip.
     group: str = ""
+    # Time limits the page's own text sets (a statute or rule): a big box at the
+    # top of the detail page. [{period: "21 days", what, trigger?, quote, cite}],
+    # at most MAX_DEADLINES; every word is the owner's, from the quoted text.
+    deadlines: list = field(default_factory=list)
 
 
 @dataclass
@@ -527,6 +531,73 @@ class Brief:
     palace: dict = field(default_factory=dict)
 
 
+MAX_DEADLINES = 12
+DEADLINE_KEYS = {"period": 40, "what": 200, "trigger": 200, "quote": 2000, "cite": 120}
+
+
+_NUM_WORDS = {w: i for i, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+    "seventeen eighteen nineteen".split())}
+_NUM_WORDS.update({"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70,
+                   "eighty": 80, "ninety": 90})
+
+
+def _deadline_tokens(text: str) -> list:
+    """Words of `text` for the closed-system check: tags and entities gone, hyphens as spaces, number words as digits
+    ("thirty", "twenty-one" -> 30, 21), a plural unit as its singular ("days" -> "day")."""
+    import html as _h
+    t = re.sub(r"<[^>]*>", " ", _h.unescape(text or "")).lower().replace("\u2010", "-")
+    toks = re.findall(r"\d+|[a-z]+", t)
+    out, i = [], 0
+    while i < len(toks):
+        w = toks[i]
+        if w in _NUM_WORDS and _NUM_WORDS[w] >= 20 and i + 1 < len(toks) and 1 <= _NUM_WORDS.get(toks[i + 1], 99) <= 9:
+            out.append(str(_NUM_WORDS[w] + _NUM_WORDS[toks[i + 1]]))
+            i += 2
+            continue
+        if w in _NUM_WORDS:
+            out.append(str(_NUM_WORDS[w]))
+        elif w.isdigit():
+            out.append(str(int(w)))
+        else:
+            out.append(w[:-1] if len(w) > 3 and w.endswith("s") else w)
+        i += 1
+    return out
+
+
+def _period_in_quote(period: str, quote: str) -> bool:
+    p, q = _deadline_tokens(period), _deadline_tokens(quote)
+    return bool(p) and any(q[i:i + len(p)] == p for i in range(len(q) - len(p) + 1))
+
+
+def _check_deadlines(dl, what) -> None:
+    if not dl:
+        return
+    if not isinstance(dl, list):
+        raise BriefError(f"{what}: deadlines must be a list of "
+                         "{period, what, trigger?, quote, cite}")
+    if len(dl) > MAX_DEADLINES:
+        raise BriefError(f"{what}: {len(dl)} deadlines exceeds the {MAX_DEADLINES} limit")
+    for i, d in enumerate(dl):
+        w = f"{what} deadline {i+1}"
+        if not isinstance(d, dict):
+            raise BriefError(f"{w}: must be {{period, what, trigger?, quote, cite}}")
+        if set(d) - set(DEADLINE_KEYS):
+            raise BriefError(f"{w}: keys are {', '.join(DEADLINE_KEYS)}")
+        for k, cap in DEADLINE_KEYS.items():
+            v = d.get(k, "")
+            if not isinstance(v, str):
+                raise BriefError(f"{w}: {k} must be text")
+            if len(v) > cap:
+                raise BriefError(f"{w}: {k} is {len(v)} characters, over the {cap} limit")
+            if k != "trigger" and not v.strip():
+                raise BriefError(f"{w}: {k} is required")
+        if not _period_in_quote(d["period"], d["quote"]):
+            raise BriefError(f"{w}: the period {d['period']!r} does not appear in the quote. A deadline may only state "
+                             "a limit the quoted words themselves state (\"one year\" matches \"1 year\", \"day\" matches "
+                             "\"days\"); fix the period or the quote")
+
+
 def _check_sections(sections, what, warnings=None) -> None:
     if len(sections or []) > MAX_SECTIONS:
         raise BriefError(f"{what}: {len(sections)} sections exceeds the "
@@ -836,6 +907,7 @@ def validate_brief(b: Brief) -> list[str]:
             _check_len(v.role, "role", f"axis value {v.id} role")
             _check_len(v.symbol_svg, "symbol_svg", f"axis value {v.id} symbol_svg")
             _check_sections(v.sections, f"axis value {v.id}", warnings)
+            _check_deadlines(v.deadlines, f"axis value {v.id}")
             _check_refs(v.sources, doc_ids, f"axis value {v.id}", warnings)
             for a in v.aliases:
                 _check_len(a, "name", f"axis value {v.id} alias")

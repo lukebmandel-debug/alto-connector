@@ -1040,6 +1040,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         """The page's own sections framed by what the build knows about it:
         its citation first (ALTO-013), its source notes last (ALTO-011)."""
         head = []
+        if ax is not None and getattr(obj, "deadlines", None):
+            box = dx.deadlines_html(obj.deadlines)
+            if box:
+                head.append(Section(h=dx.DEADLINES_HEADING, t=box))
         if ax is not None and getattr(obj, "cite", None):
             c = dx.cite_html(ax, obj, False)
             if c:
@@ -1735,6 +1739,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "border-top-color:var(--border) !important;}"
             "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
     nav_char_css += RAIL_CSS + MSEARCH_PANEL_CSS + HOW_CONNECT_CSS
+    if any(getattr(v, "deadlines", None) for ax in b.axes for v in ax.values):
+        nav_char_css += dx.DEADLINES_CSS
     if b.mode == "outline":
         nav_char_css += dx.ELEMENT_TREE_CSS
     if uses_note_links or index_axes:

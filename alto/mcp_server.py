@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.275"
+__version__ = "1.9.276"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1364,13 +1364,18 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
 
     values: [{id, name, role?, color?, symbol_svg?, sections?: [{h,t,prov?}],
     aliases?: [str], cite?: {ch?, p?, note?}, sources?: [source id],
-    group?: str}],
+    group?: str, deadlines?: [{period, what, trigger?, quote, cite}]}],
     upserted by id, so this can be called repeatedly as material arrives.
     `aliases` are other names the material uses for a value (running text
     naming one links to its page; "X v. Y" short forms are generated).
     `cite` is where it sits in a book; `cite_link` ({label?, url with {p}
     and optionally {sec}, sections: {chapter number: section id}}) turns each
     cite into a link.
+    `deadlines` (a statute or rule's time limits, at most 12): a big box at the
+    top of the value's page — period ("21 days", ≤40 characters), what it is for
+    (≤200), trigger ("after being served", ≤200), the exact quoted clause (≤2000) and
+    its subsection cite ("§ 1446(b)(1)", ≤120). Text only, from the page's own quoted
+    words; never a limit the quoted text does not state. Omit or [] for no box.
     `group` (hide_nav axes): a family of values — "Federal Rules of Civil
     Procedure", "28 U.S.C." — each distinct group gets its own Index chip in the
     top bar and its own index page (guide §C3: statutes and rules cited in a
