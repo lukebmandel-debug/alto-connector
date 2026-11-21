@@ -72,6 +72,9 @@ NAV_CSS = """
   #lanes-nav button[aria-pressed="true"]{ color:var(--accent); }
   #lanes-nav button:disabled{ opacity:.3; cursor:default; background:none; }
   #lanes-nav{ transition:opacity .25s; }
+  /* a narrow window (not a phone's whole view, which has its own rule in phone.py): the control row fills the foot, so the bar rides on the line above it,
+     12px clear, never under the search, list, i and star buttons (Board B-1121-LOOK267-R2) */
+  @media (max-width:900px){ html:not(.phone-whole) #lanes-nav{ bottom:calc(var(--alto-row-b, 24px) + 47px); max-width:calc(100vw - 24px); } }
   #lanes-nav.lnv-away{ opacity:0; pointer-events:none; }
   #lanes-nav .lnv-mid{ display:flex; flex-direction:column; justify-content:center; gap:4px; width:250px; padding:0 4px; }
   #lanes-nav .lnv-txt{ display:flex; align-items:baseline; gap:7px; white-space:nowrap; overflow:hidden; font-variant-numeric:tabular-nums; line-height:1; }

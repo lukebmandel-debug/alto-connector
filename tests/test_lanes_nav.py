@@ -673,3 +673,19 @@ def test_phones_keep_the_card_view(browser, page_file):
     r = pg.evaluate("({m: document.documentElement.classList.contains('mobile'), rail: !!document.getElementById('lanes-nav'), step: typeof window._altoLanesStep, travel: typeof window._altoLanesTravel})")
     assert r == {"m": True, "rail": False, "step": "undefined", "travel": "undefined"}
     assert not errs
+
+
+@pytest.mark.parametrize("w,h", [(320, 640), (390, 844), (480, 800), (768, 1024), (1440, 900)])
+def test_the_bar_overlaps_no_bottom_control_at_any_width(browser, page_file, w, h):
+    ctx = browser.new_context(viewport={"width": w, "height": h})
+    pg = ctx.new_page()
+    pg.goto(page_file.as_uri())
+    pg.wait_for_timeout(900)
+    bad = pg.evaluate("""() => { const n=document.getElementById('lanes-nav').getBoundingClientRect(), bad=[];
+      document.querySelectorAll('body *').forEach(e=>{ if(e.id==='lanes-nav'||e.closest('#lanes-nav')) return; const s=getComputedStyle(e);
+        if(s.position!=='fixed'||s.display==='none'||s.visibility==='hidden'||+s.opacity<.05) return; const r=e.getBoundingClientRect();
+        if(!r.width||!r.height||r.bottom<innerHeight*.6||r.width>innerWidth*.9) return;
+        if(r.left<n.right&&r.right>n.left&&r.top<n.bottom&&r.bottom>n.top) bad.push(e.id||e.className+''); });
+      return bad; }""")
+    ctx.close()
+    assert bad == []
