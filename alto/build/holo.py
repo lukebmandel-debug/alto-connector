@@ -464,6 +464,55 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
           "@media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
 
+# v1.9.273 (Luke L-1116-110714 "the glass bubbles in holo brought to subchips and all bottom page controls"; L-1118-001345 / B-1118-GLASSCHROME "the elements in the screenshot excluding alto glyph and logo
+# should also adopt the glass bubble style"): the SAME S1 glass (the declarations S1_CSS above writes, held equal by tests/test_holo_glass_273.py) on the top bar's group labels, chips and the x, the
+# sub-chip rows and every format's bottom controls. The title tab already wears it (1.9.265); the clef and the wordmark are left alone. Shape follows the control: pills stay pills,
+# a wide control is never a circle; the 1px border box stays (transparent), so no size or position moves. Lifted from alto-236-hologlass (8e4f37a1), re-pointed at 1.9.265.
+S1_RIM = "inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 0 16px rgba(var(--ho-rgb),.30)"
+S1_RIM_HOVER = "inset 0 1px 0 rgba(255,255,255,.5),inset 0 0 16px rgba(var(--ho-rgb),.3),0 0 22px rgba(var(--ho-rgb),.55)"
+S1_BG = "radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%)," + S1_PLATE
+S1_BLUR = "-webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;"
+_G_OUTER = ("#nav .nav-btn", "#nav .nav-group-label", "#ct-chips", "#node-nav-bar button", "#sol-ctl .sol-seg", "#sol-ctl #sol-motion", "#sol-ctl .sol-opt", "#lanes-nav", "#pal-ctl .pc-pill", "#pal-ctl .pc-city",
+            "#pal-ctl .pc-dirb", "#wpal-root .wp-bar:not(.wp-pick)", "#bldg-root .bl-btn")
+_G_INNER_ON = ("#sol-ctl .sol-seg button.on", "#nvo-a button.on", "#pal-ctl .pc-pill button.on")
+_G273 = ",".join(f"X {t}{_S1_NOT}" for t in _G_OUTER)
+G273_CSS = (_G273 + "{border:1px solid transparent !important;border-radius:999px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "color:var(--ho-ac) !important;}\n"
+            # the group names are plain labels: the glass is a lighter pill of text colour (they are not pressed), the text the page's own ink
+            + f"X #nav .nav-group-label{_S1_NOT}" + "{color:#fff !important;font-weight:700 !important;padding-inline:8px;background:radial-gradient(circle at 32% 24%,rgba(255,255,255,.1),transparent 55%),rgba(var(--ho-bgrgb),.96) !important;}\n"
+            # the lanes step bar's glyphs and count in the page's ink (they were the muted grey: 3.1:1 on the plate)
+            + f"X #lanes-nav :is(button:not(:disabled),span,b,i){_S1_NOT}" + "{color:var(--ho-tx) !important;}\n"
+            # Orbit (paused / running) in the light's bright ink: the muted ink was 4.3:1 on the plate
+            + f"X #sol-ctl #sol-motion{_S1_NOT}" + "{color:var(--ho-ac2) !important;}\n"
+            # the segmented bars' inner buttons are clear (the bar is the glass); the chosen one is a tinted pill inside it
+            + ",".join(f"X {t} button{_S1_NOT}" for t in ("#sol-ctl .sol-seg", "#pal-ctl .pc-pill")) + f",X #nvo-a button{_S1_NOT}"
+            + "{background:transparent !important;border-radius:999px !important;box-shadow:none !important;color:var(--ho-ac) !important;}\n"
+            # the Atlas's bars (Tour, Whole world path): the bar is the glass, its buttons clear (the Start Tour pill keeps Art's dark-on-cyan plate); 22px corners = a pill at the bar's 44px height, and a rounded rectangle when the phone-landscape bar wraps
+            + f"X #wpal-root .wp-bar:not(.wp-pick) button:not(.wp-tt){_S1_NOT}" + "{background:transparent !important;box-shadow:none !important;border-color:transparent !important;color:var(--ho-ac) !important;}\n"
+            + f"X #wpal-root .wp-bar:not(.wp-pick){_S1_NOT}" + "{border-radius:22px !important;}\n"
+            + ",".join(f"X {t}{_S1_NOT}" for t in _G_INNER_ON) + "{background:rgba(var(--ho-rgb),.16) !important;color:#fff !important;font-weight:700 !important;}\n"
+            + ",".join(f"X {t}:is(:hover,:focus-visible){_S1_NOT}" for t in _G_OUTER if t != "#nav .nav-group-label") + "{box-shadow:" + S1_RIM_HOVER + " !important;}\n"
+            + "X #sol-ctl .sol-opt.on" + _S1_NOT + ",X #sol-ctl #sol-motion.on" + _S1_NOT + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26))," + S1_PLATE + " !important;color:var(--ho-ac) !important;}\n"
+            + "X #nav .nav-btn:is(.active,.on)" + _S1_NOT + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26))," + S1_PLATE + " !important;}\n"
+            # the title tab (Luke B-1118-GLASSCHROME: "the title tab"): the same S1 plate as a full pill, 6px off the top edge (a margin: its width and the row below do not move); the clef and wordmark stay as they are
+            + f"@media (min-width:641px){{X:not(.mobile) #title-bar #title-text{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}}\n"
+            + f"X.pmin #nav .title{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}\n"
+            # the phone's prev / next names (B-1121-LOOK273-R3): upright, the one foot pill takes the S1 plate (its tokens: pill radius, plate, rim, blur; the strip is 44-52pt tall);
+            # on its side each name's own label (the left one a square box, the right bare text) is an S1 pill inside its 44pt-tall touch row, which is not resized
+            + "X.pmin.pmin{--nb-r:26px;--nb-g:" + S1_BG + ";--nb-bd:transparent;--nb-sh:" + S1_RIM + ";--nb-bf:blur(14px) saturate(1.5);}\n"
+            # (round 5, Luke: "text is not centered on each side respectively"): upright, the foot pill is TWO EQUAL HALVES and each name (chevron + text together) sits in the middle of its half, an
+            # over-long name cut with an ellipsis and still centred; on its side the whole 44pt control is the pill (it starts clear of the corner control, as its old padding did) and its name is centred in it
+            + "X.pmin.mobile:not(.sh-landscape) #timeline-label-bar :is(#tlb-prev,#tlb-next)" + _S1_NOT + "{flex:1 1 0 !important;width:auto !important;justify-content:center !important;text-align:center !important;padding:0 10px !important;}\n"
+            + "X.pmin.mobile.sh-landscape #timeline-label-bar :is(#tlb-prev,#tlb-next)" + _S1_NOT + "{flex:1 1 0 !important;align-self:center !important;height:44px !important;box-sizing:border-box !important;justify-content:center !important;text-align:center !important;"
+            "padding:0 14px !important;border:1px solid transparent !important;border-radius:999px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "color:var(--ho-tx) !important;}\n"
+            + "X.pmin.mobile.sh-landscape #timeline-label-bar #tlb-prev" + _S1_NOT + "{margin-left:62px !important;margin-right:6px !important;}\n"
+            + "X.pmin.mobile.sh-landscape #timeline-label-bar #tlb-next" + _S1_NOT + "{margin-right:84px !important;margin-left:6px !important;}\n"
+            + "X.pmin.mobile :is(#tlb-prev,#tlb-next) :is(.wrap-pill,.nb-t)" + _S1_NOT + "{flex:0 1 auto !important;min-width:0 !important;background:none !important;border:0 !important;box-shadow:none !important;padding:0 !important;border-radius:0 !important;color:var(--ho-tx) !important;}\n"
+            + "X.pmin.mobile #timeline-label-bar :is(#tlb-prev,#tlb-next) :is(.wrap-pill,.nb-t)" + _S1_NOT + "{display:block !important;-webkit-box-orient:horizontal !important;-webkit-line-clamp:unset !important;line-height:1.2 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;}\n"   # (round 6: one line each, always, on both sides)
+            + "X.pmin.mobile.sh-landscape :is(#tlb-prev,#tlb-next) :is(.wrap-pill,.nb-t)" + _S1_NOT + "{display:block !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;}\n"
+            # a keyboard user sees a ring, a mouse click never leaves one
+            + ",".join(f"X {t}:focus:not(:focus-visible){_S1_NOT}" for t in _G_OUTER) + "{outline:none !important;}\n"
+            + ",".join(f"X {t}:focus-visible{_S1_NOT}" for t in _G_OUTER) + "{outline:2px solid var(--ho-ac) !important;outline-offset:2px !important;}\n")
+
 # v1.9.265 (Luke L-1119-DIVIDERS-YES, Art's mock notes-art/unit-dividers/): Holo glass on the unit dividers: the desktop unit name plate and numeral, the 6px glass divider tube, the
 # phone Whole view's unit boxes (20px in) and the title plate's glass tab. Holo only (Classic, Retro and ink print are untouched: the sheet is inside @media screen and scoped to X). The
 # desktop unit name plate sits 20px in from the left edge (the engine's inline 9px is overridden), as the numeral does on the right.
@@ -551,7 +600,7 @@ def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
     base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)   # (HOME_CSS: the homepage, home_look.py)
     board = base + "\n" + HOLO_CSS
-    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS + S1_CSS + UNIT_GLASS_CSS
+    body = board + PROJ_CSS + FORMAT_CSS + atlas_cards(board) + _UNIT_CSS + S1_CSS + UNIT_GLASS_CSS + G273_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
             f"  :is({sel}.dark,{sel}.alto-stars.sk-real):not(#_){{color-scheme:dark;{_vars(TOKENS['dark'], UNITS['dark'])}}}\n")   # (the Star chart's sky is space in both themes)

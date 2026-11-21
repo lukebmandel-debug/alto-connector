@@ -179,11 +179,11 @@ def test_the_phone_unit_boxes_are_20pt_in_and_glass(site, browser):
 def test_the_title_plate_is_a_glass_tab_on_a_computer_and_a_phone(site, browser):
     pg = _open(site, browser, "contracts", False)
     c = pg.evaluate("(() => { const s = getComputedStyle(document.getElementById('title-text')); return [s.borderBottomLeftRadius, s.borderTopLeftRadius, s.borderTopWidth]; })()")
-    assert c == ["20px", "0px", "0px"], c
+    assert c == ["999px", "999px", "0px"], c      # v1.9.273 (B-1118-GLASSCHROME): the title tab is a full S1 pill now, 6px off the top edge
     _done(pg)
     pg = _open(site, browser, "outline", True, query="?view=whole")
     r = pg.evaluate("(() => { const e = document.querySelector('#nav .title'), s = getComputedStyle(e), b = e.getBoundingClientRect(); return [s.borderBottomLeftRadius, s.borderTopLeftRadius, b.left, b.right, innerWidth]; })()")
-    assert r[0] == "20px" and r[1] == "0px" and r[2] >= 75 - .5 and r[3] <= r[4] - 75 + .5, r      # clear of the phone's controls
+    assert r[0] == "999px" and r[1] == "999px" and r[2] >= 75 - .5 and r[3] <= r[4] - 75 + .5, r      # clear of the phone's controls
     _done(pg)
 
 
