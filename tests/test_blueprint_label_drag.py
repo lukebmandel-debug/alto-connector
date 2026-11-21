@@ -232,3 +232,68 @@ def test_rotation_reclamps_it(browser, site):
         assert errors == []
     finally:
         page.close()
+
+
+def _desk_geo(page):
+    return page.evaluate("""() => { const b = e => { const r = e.getBoundingClientRect(); return {l: r.left, t: r.top, r: r.right, b: r.bottom}; };
+      return {head: b(document.querySelector('#bldg-root .bl-head')), acct: b(document.getElementById('account-btn')), vw: innerWidth, vh: innerHeight}; }""")
+
+
+@pytest.mark.parametrize("w,h", [(1440, 900), (1100, 760)], ids=["d1440", "d1100"])
+def test_default_spot_is_bottom_left_beside_the_avatar(browser, site, w, h):
+    page, errors = _open(browser, site, w, h, False)
+    try:
+        g = _desk_geo(page)
+        hd, ac = g["head"], g["acct"]
+        assert hd["l"] >= ac["r"] and hd["l"] - ac["r"] <= 30, (hd, ac)         # right of the avatar, close to it
+        assert abs(hd["b"] - ac["b"]) <= 4 and hd["t"] > h / 2, (hd, ac)        # on the foot line, the lower half
+        assert g["vh"] - hd["b"] >= 19 and hd["l"] >= 19                       # 20px from the edges (the page zoom is .8)
+        assert page.evaluate(GEO)["hit"] == []                                 # clear of the avatar, the dock and the corner buttons
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_a_saved_position_beats_the_new_default(browser, site):
+    page, errors = _open(browser, site, 1440, 900, False)
+    try:
+        key = page.evaluate("Object.keys(localStorage).filter(k => k.indexOf('alto-bl-head:') === 0)[0] || ('alto-bl-head:' + location.pathname + '|' + AltoBuilding.data.name)")
+        page.evaluate("(k) => localStorage.setItem(k, JSON.stringify({x: 300, y: 120, c: 0}))", key)
+        page.reload()
+        page.wait_for_function("window.AltoBuilding && AltoBuilding.plan", timeout=30000)
+        page.wait_for_timeout(1500)
+        hd = _desk_geo(page)["head"]
+        assert hd["t"] < 300 and hd["l"] > 150, hd
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_default_spot_still_drags_and_collapses(browser, site):
+    page, errors = _open(browser, site, 1440, 900, False)
+    try:
+        a = _desk_geo(page)["head"]
+        page.click("#bldg-root .bl-hmin")
+        page.wait_for_timeout(200)
+        pill = _desk_geo(page)["head"]
+        assert pill["b"] >= a["b"] - 2 and pill["t"] > a["t"] and abs(pill["l"] - a["l"]) < 2, (a, pill)   # collapses upward-anchored: stays on the foot line
+        page.click("#bldg-root .bl-hmin")
+        page.wait_for_timeout(200)
+        _drag(page, (700, 420))
+        d = _desk_geo(page)["head"]
+        assert d["t"] < a["t"] - 100 and page.evaluate(GEO)["hit"] == []
+        assert errors == []
+    finally:
+        page.close()
+
+
+@pytest.mark.parametrize("w,h", [(390, 844), (874, 292)], ids=["p390", "phone-landscape"])
+def test_a_phone_keeps_its_top_left_default(browser, site, w, h):
+    """Phone rule (1.9.268): the phone dock/account tab/corner buttons own the foot, so the phone's default stays top-left under MAP/Search/MENU."""
+    page, errors = _open(browser, site, w, h, True)
+    try:
+        g = page.evaluate(GEO)
+        assert g["head"]["l"] == 14 and g["head"]["t"] < 180 and g["hit"] == [], g   # (the phone stylesheet's own left:14px, top under MAP/Search/MENU; not the foot)
+        assert errors == []
+    finally:
+        page.close()

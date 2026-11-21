@@ -209,7 +209,7 @@ html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go{background:var(--bl-acce
 html:not(.mobile):not(.pmin) #bldg-root .bl-dock .bl-go.bl-alt{background:transparent;color:var(--bl-accent);}
 #bldg-root .bl-dock svg{display:block;flex:none;}
 #bldg-root :is(.bl-dock,.bl-cards,.bl-credits,.bl-info,.bl-head) :focus-visible{outline:2px solid var(--bl-accent);outline-offset:2px;}
-html:not(.mobile):not(.pmin) #bldg-root .bl-head{left:14px;top:calc(var(--bl-nav,46px) + 8px);max-width:min(380px,calc(100% - 28px));padding:7px 14px 8px;border-radius:16px;}
+html:not(.mobile):not(.pmin) #bldg-root .bl-head{left:var(--bl-acct,71.5px);top:auto;bottom:var(--alto-row-b,24px);max-width:min(380px,calc(100% - 28px));padding:7px 14px 8px;border-radius:16px;}   /* (Luke, 2026-11-20: bottom-left by default, beside the account avatar on the foot line; a saved or dragged spot still wins) */
 html:not(.mobile):not(.pmin) #bldg-root .bl-head :is(p,.bl-walk){display:none !important;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-head h2{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-kind{font-size:10px;margin-bottom:1px;}
@@ -950,7 +950,7 @@ function setTop(){ // under the page's title bar and nav, which settle (slide in
   // a computer: the bottom of the lowest chip or group label on the page's bar (it wraps to a second row, or a third, in a narrow window), so the name chip and the plan stand below it, never over a chip
   var nb=46, nv=desk&&document.getElementById('nav'); if(nv) [].forEach.call(nv.querySelectorAll('button,.nav-group-label'),function(e){ var r=e.getBoundingClientRect(); if(r.width>0&&r.height>0&&r.top<300&&r.bottom>nb) nb=r.bottom; });
   var zr=S.root.getBoundingClientRect(), zz=(S.root.clientWidth&&zr.width/S.root.clientWidth)||1;   // (the page's own zoom, .8 on a computer: screen px -> css px)
-  S.root.style.setProperty('--bl-nav',Math.round(nb/zz)+'px'); dockH(); if(S.vb) applyVB(); hClamp();
+  S.root.style.setProperty('--bl-nav',Math.round(nb/zz)+'px'); var ac=desk&&document.getElementById('account-btn'), ar0=ac&&ac.getBoundingClientRect(); if(ar0&&ar0.width>1) S.root.style.setProperty('--bl-acct',Math.round((ar0.right-zr.left)/zz+12)+'px'); dockH(); if(S.vb) applyVB(); hClamp();
 }
 /* The floating name card (Luke, 2026-11-12): drag it by its grip, or collapse it to a pill. Position and state are kept per timeline in this browser only
    (never synced); it stays inside the safe area and clear of the page's fixed chrome, re-clamped on drop, rotation and resize. */
@@ -989,9 +989,9 @@ function hSolve(x,y,w,hh,B,O){
 function hPut(sx,sy){   /* screen px (the card's top-left) -> inline left/top in the root's css px */
   var r=S.root.getBoundingClientRect(), zz=hZ(), x=(sx-r.left)/zz, y=(sy-r.top)/zz;
   S.hp={x:Math.round(x*10)/10,y:Math.round(y*10)/10};
-  S.head.style.setProperty('left',S.hp.x+'px','important'); S.head.style.setProperty('top',S.hp.y+'px','important'); S.head.style.setProperty('right','auto','important');
+  S.head.style.setProperty('left',S.hp.x+'px','important'); S.head.style.setProperty('top',S.hp.y+'px','important'); S.head.style.setProperty('right','auto','important'); S.head.style.setProperty('bottom','auto','important');
 }
-function hDefault(){ S.hp=null; ['left','top','right','max-width'].forEach(function(k){ S.head.style.removeProperty(k); }); }
+function hDefault(){ S.hp=null; ['left','top','right','bottom','max-width'].forEach(function(k){ S.head.style.removeProperty(k); }); }
 function hClamp(sx,sy){   /* settle the card where it is (or at a wanted screen position): in the safe area, clear of the chrome; no spot at all -> the default one */
   if(!S.root||S.root.hidden||!S.head||!S.head.firstChild) return;
   var rr=S.root.getBoundingClientRect(), zz=hZ();
@@ -1011,7 +1011,7 @@ function hClamp(sx,sy){   /* settle the card where it is (or at a wanted screen 
 function hApply(){
   var c=!!S.hc; S.head.classList.toggle('bl-min',c);
   if(S.hTog){ S.hTog.setAttribute('aria-expanded',c?'false':'true'); S.hTog.setAttribute('aria-label',c?'Open the blueprint label: '+S.hName:'Collapse the blueprint label to a pill'); S.hTog.title=c?'Open':'Collapse'; }
-  if(S.hp) S.head.style.setProperty('left',S.hp.x+'px','important'),S.head.style.setProperty('top',S.hp.y+'px','important'),S.head.style.setProperty('right','auto','important');
+  if(S.hp) S.head.style.setProperty('left',S.hp.x+'px','important'),S.head.style.setProperty('top',S.hp.y+'px','important'),S.head.style.setProperty('right','auto','important'),S.head.style.setProperty('bottom','auto','important');
 }
 function hWire(gr,tg){
   tg.addEventListener('click',function(e){ e.stopPropagation(); S.hc=!S.hc; hApply(); hSave(); requestAnimationFrame(function(){ hClamp(); }); });
