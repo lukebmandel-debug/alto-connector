@@ -346,4 +346,7 @@ def test_images_are_hosted_immutably_and_packaged():
     assert publish_static._art_names(None) == []
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "assets/bldg/pma/*.jpg" in pyproject and "buildings/*.json" in pyproject
-    assert '"alto/assets/bldg/pma", "*.jpg"' in (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
+    import importlib.util   # behaviour, not the source text: the mcpb build lists every shipped asset file
+    spec = importlib.util.spec_from_file_location("build_mcpb_pma", ROOT / "packaging" / "build_mcpb.py")
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    assert any(f.startswith("bldg/pma/") and f.endswith(".jpg") for f in mod.asset_files())

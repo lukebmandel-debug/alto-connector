@@ -206,9 +206,13 @@ def test_a_deploy_carries_the_photographs_and_lets_browsers_keep_them(tmp_path):
 
 def test_the_photographs_travel_with_every_install():
     toml = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    mcpb = (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
     assert '"assets/backgrounds/*.jpg"' in toml and '"assets/backgrounds/t/*.jpg"' in toml
-    assert '("alto/assets/backgrounds", "*.jpg")' in mcpb and '("alto/assets/backgrounds/t", "*.jpg")' in mcpb
+    import importlib.util   # behaviour, not the source text: the mcpb build lists every shipped asset file
+    spec = importlib.util.spec_from_file_location("build_mcpb_bg", ROOT / "packaging" / "build_mcpb.py")
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    shipped = mod.asset_files()
+    assert any(f.startswith("backgrounds/") and f.endswith(".jpg") and "/" not in f[len("backgrounds/"):] for f in shipped)
+    assert any(f.startswith("backgrounds/t/") and f.endswith(".jpg") for f in shipped)
 
 
 # ── sync (alto-cloud.js) ────────────────────────────────────────────────────
