@@ -70,17 +70,43 @@ PACKAGE_INCLUDE = [
     ("alto/engine", "*.html"),
     ("alto/cloud", "*.py"),
     ("alto/cloud", "*.js"),
-    ("alto/assets", "*.svg"),
-    ("alto/assets/png", "*.png"),
-    ("alto/assets/backgrounds", "*.jpg"),
-    ("alto/assets/backgrounds/t", "*.jpg"),
-    ("alto/assets/tex", "*.png"),
-    ("alto/assets/tex", "NOTICE"),
     ("alto/buildings", "*.py"),
     ("alto/buildings", "*.json"),
-    ("alto/assets/bldg/pma", "*.jpg"),
     ("alto/legal", "*"),
 ]
+
+# alto/assets is shipped WHOLE, not by an allow-list. A per-folder list here once
+# dropped gfx/, world/, flags/ and holo_video/ from the bundle (INC277-CONN): the
+# FPV script's sha256 name is computed from alto/assets/gfx, so a connector-built
+# page named a script the site never hosted, and world palaces could not build.
+# Anything the build must NOT carry goes on this list, with the reason. Paths are
+# relative to alto/assets; a folder name excludes everything under it.
+ASSETS_EXCLUDE: list[str] = [
+    # (empty: every folder is read by a build step; packaging/check_bundle_assets.py fails on any gap)
+]
+_ASSET_JUNK = {".DS_Store", "Thumbs.db"}
+
+
+def asset_files() -> list[str]:
+    """Every file under alto/assets (posix paths relative to it) the bundle carries."""
+    base = ROOT / "alto" / "assets"
+    out = []
+    for f in sorted(base.rglob("*")):
+        if not f.is_file() or f.name in _ASSET_JUNK:
+            continue
+        rel = f.relative_to(base).as_posix()
+        if any(rel == e or rel.startswith(e.rstrip("/") + "/") for e in ASSETS_EXCLUDE):
+            continue
+        out.append(rel)
+    return out
+
+
+def stage_assets(server: Path) -> None:
+    base = ROOT / "alto" / "assets"
+    for rel in asset_files():
+        dst = server / "alto" / "assets" / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(base / rel, dst)
 
 
 def log(msg: str) -> None:
@@ -114,6 +140,7 @@ def stage_package(server: Path) -> None:
         out.mkdir(parents=True, exist_ok=True)
         for f in sorted(src_dir.glob(pattern)):
             shutil.copy2(f, out / f.name)
+    stage_assets(server)
     for extra in ("interview_guide.md", "storage.rules", "firestore.rules"):
         shutil.copy2(ROOT / "alto" / extra, server / "alto" / extra)
     if not (server / "alto" / "engine" / "timeline_template.html").exists():

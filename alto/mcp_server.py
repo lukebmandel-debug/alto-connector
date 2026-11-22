@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.278"
+__version__ = "1.9.279"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1353,14 +1353,19 @@ def set_entities(timeline_id: str, entities: list[dict],
 
 @mcp.tool(title="Set axis values", annotations=RW)
 @accounted
-def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
-                    values: list[dict], hide_nav: bool = False,
+def set_axis_values(timeline_id: str, slot: int, label: str | None = None,
+                    singular: str | None = None,
+                    values: list[dict] | None = None, hide_nav: bool | None = None,
                     filter: bool | None = None, sources: list[str] | None = None,
                     cite_link: dict | None = None, nav_label: str | None = None,
                     index_blurb: list[str] | None = None,
                     index_sections: list[dict] | None = None,
                     index_label: str | None = None) -> dict:
     """Define or extend an extra axis (slot 1 or 2) after the consent gate.
+
+    Calling again for an axis that exists keeps what you leave out: `label`,
+    `singular` and `hide_nav` stay as they are (only a new axis needs label and
+    singular). An id that is already used says which slot holds it.
 
     values: [{id, name, role?, color?, symbol_svg?, sections?: [{h,t,prov?}],
     aliases?: [str], cite?: {ch?, p?, note?}, sources?: [source id],
@@ -1407,10 +1412,18 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
     if not _consent_ok(doc):
         return CONSENT_ERROR
     axes = [dict(a) for a in (doc["brief"].get("axes") or [])]
+    if len(axes) < slot and not (label and singular):
+        return {"error": "bad_axis", "message": f"slot {slot} is new: give its label and singular"}
     while len(axes) < slot:
         axes.append({"label": label, "singular": singular, "values": []})
     ax = axes[slot - 1]
-    ax["label"], ax["singular"], ax["hide_nav"] = label, singular, bool(hide_nav)
+    if label is not None:
+        ax["label"] = label
+    if singular is not None:
+        ax["singular"] = singular
+    if hide_nav is not None or "hide_nav" not in ax:
+        ax["hide_nav"] = bool(hide_nav)
+    values = values or []
     if filter is not None:
         ax["filter"] = bool(filter)
     if sources is not None:
@@ -1439,7 +1452,7 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
     doc["brief"] = brief
     get_store().put_timeline(uid(), timeline_id, doc)
     return {"slot": slot, "values": len(ax["values"]),
-            "hide_nav": bool(hide_nav), "warnings": warnings}
+            "hide_nav": bool(ax["hide_nav"]), "warnings": warnings}
 
 
 @mcp.tool(title="Add or update nodes", annotations=RW)

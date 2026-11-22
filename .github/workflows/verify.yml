@@ -70,6 +70,9 @@ jobs:
       - name: Build the bundle
         run: python packaging/build_mcpb.py ${{ matrix.target }}
 
+      - name: The bundle carries every alto/assets folder (release check A)
+        run: python packaging/check_bundle_assets.py packaging/dist/Alto-${{ matrix.target }}.mcpb
+
       - name: Launch it and build a timeline
         run: python packaging/probe_bundle.py packaging/dist/Alto-${{ matrix.target }}.mcpb
 

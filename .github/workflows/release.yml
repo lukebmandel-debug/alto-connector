@@ -35,6 +35,9 @@ jobs:
         run: python -m pip install --quiet "mcp>=1.28,<2"
       - name: Build all three bundles
         run: python packaging/build_mcpb.py
+      - name: Every bundle carries every alto/assets folder (release check A)
+        run: |
+          for b in packaging/dist/*.mcpb; do python packaging/check_bundle_assets.py "$b"; done
       - name: Launch the native bundle and build a timeline
         run: python packaging/probe_bundle.py packaging/dist/Alto-macos-arm64.mcpb
       - uses: actions/upload-artifact@v4

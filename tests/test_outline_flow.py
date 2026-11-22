@@ -122,3 +122,30 @@ def test_a_linear_timeline_keeps_the_old_delete_behaviour():
     _consent(tid2)
     M.add_nodes(tid2, NODES)
     assert not M.delete_nodes(tid2, ["formation"]).get("error")
+
+
+def test_axis_values_keep_an_omitted_hide_nav_and_label(tid):
+    _consent(tid)
+    M.set_axis_values(tid, 1, "Cases", "Case", hide_nav=True, values=[{"id": "hadley", "name": "Hadley v. Baxendale"}])
+    r = M.set_axis_values(tid, 1, values=[{"id": "hawkins", "name": "Hawkins v. McGee"}])
+    assert not r.get("error") and r["hide_nav"] is True and r["values"] == 2, r
+    ax = M.get_timeline(tid)["brief"]["axes"][0]
+    assert (ax["label"], ax["singular"], ax["hide_nav"]) == ("Cases", "Case", True)
+    # an explicit value still changes it
+    r = M.set_axis_values(tid, 1, "Decisions", values=[], hide_nav=False)
+    ax = M.get_timeline(tid)["brief"]["axes"][0]
+    assert (ax["label"], ax["singular"], ax["hide_nav"]) == ("Decisions", "Case", False)
+
+
+def test_a_new_axis_still_needs_its_label(tid):
+    _consent(tid)
+    assert M.set_axis_values(tid, 1, values=[{"id": "x1", "name": "X"}]).get("error") == "bad_axis"
+
+
+def test_an_id_collision_names_the_slot_that_holds_it(tid):
+    _consent(tid)
+    M.set_axis_values(tid, 1, "Cases", "Case", values=[{"id": "hadley", "name": "Hadley v. Baxendale"}])
+    r = M.set_axis_values(tid, 2, "Rules", "Rule", values=[{"id": "hadley", "name": "A rule"}])
+    assert r.get("error") == "invalid_axis" and "axis slot 1 ('Cases')" in r["message"], r
+    r = M.set_axis_values(tid, 2, "Rules", "Rule", values=[{"id": "formation", "name": "A rule"}])   # an entity id
+    assert r.get("error") == "invalid_axis" and "entity list" in r["message"], r

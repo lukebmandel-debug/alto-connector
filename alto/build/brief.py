@@ -861,12 +861,12 @@ def validate_brief(b: Brief) -> list[str]:
     if not isinstance(b.autolink_overview, bool):
         raise BriefError("autolink_overview: must be true or false")
 
-    seen = set()
+    seen = {}                                   # id -> where it lives, so a collision names the slot that holds it
     for i, e in enumerate(b.entities):
         _check_id(e.id, "entity")
         if e.id in seen:
             raise BriefError(f"duplicate entity id {e.id!r}")
-        seen.add(e.id)
+        seen[e.id] = "the entity list"
         _check_len(e.name, "name", f"entity {e.id} name")
         _check_len(e.role, "role", f"entity {e.id} role")
         _check_len(e.symbol_svg, "symbol_svg", f"entity {e.id} symbol_svg")
@@ -882,7 +882,7 @@ def validate_brief(b: Brief) -> list[str]:
                 "sections from the material if it says")
         e.color = _check_hex(e.color or None, f"entity {e.id}",
                              PALETTE[i % len(PALETTE)])
-    for ax in b.axes:
+    for slot, ax in enumerate(b.axes, 1):
         _check_len(ax.label, "label", "axis label")
         _check_len(ax.singular, "singular", "axis singular")
         if ax.filter is not None and not isinstance(ax.filter, bool):
@@ -901,8 +901,9 @@ def validate_brief(b: Brief) -> list[str]:
         for v in ax.values:
             _check_id(v.id, f"axis {ax.label!r} value")
             if v.id in seen:
-                raise BriefError(f"axis value id {v.id!r} collides with another id")
-            seen.add(v.id)
+                raise BriefError(f"axis value id {v.id!r} (axis slot {slot}, {ax.label!r}) collides with another id: "
+                                 f"{seen[v.id]} already holds it")
+            seen[v.id] = f"axis slot {slot} ({ax.label!r})"
             _check_len(v.name, "name", f"axis value {v.id} name")
             _check_len(v.role, "role", f"axis value {v.id} role")
             _check_len(v.symbol_svg, "symbol_svg", f"axis value {v.id} symbol_svg")

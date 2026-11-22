@@ -168,3 +168,57 @@ def test_user_visible_prose_is_american_english():
             if re.search(word, text, re.I):
                 bad.append(f"{f.name}: {word}")
     assert not bad, f"British spellings in user-visible prose: {bad}"
+
+
+# ---- INC277-CONN: the bundle's alto/assets must be the repo's, and its hosted names the site's ----
+
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+
+import check_bundle_assets  # noqa: E402
+
+
+def _staged(tmp):
+    """The bundle's `server/` tree as build_mcpb stages it (code and assets; no runtime, no wheels)."""
+    server = Path(tmp)
+    build_mcpb.stage_package(server)
+    return server
+
+
+def test_release_check_a_every_asset_folder_is_packaged():
+    """Release check A: the staged alto/assets equals the repo's, folder by folder (gfx, world, flags, holo_video, ...)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bad = check_bundle_assets.problems(check_bundle_assets.bundle_tree(_staged(tmp)))
+    assert bad == [], bad
+
+
+def test_release_check_a_fails_on_a_dropped_folder():
+    full = check_bundle_assets.repo_tree()
+    partial = {k: v for k, v in full.items() if not k.startswith(("gfx/", "world/"))}
+    bad = check_bundle_assets.problems(partial)
+    assert any("alto/assets/gfx" in b for b in bad) and any("alto/assets/world" in b for b in bad), bad
+    assert check_bundle_assets.problems(full) == []
+
+
+def test_excluded_assets_are_explained():
+    assert isinstance(build_mcpb.ASSETS_EXCLUDE, list)   # each entry carries a comment saying why (see build_mcpb.py)
+    for e in build_mcpb.ASSETS_EXCLUDE:
+        assert (ROOT / "alto" / "assets" / e).exists(), f"{e} is on ASSETS_EXCLUDE but not in the repo"
+
+
+def _names(root):
+    out = subprocess.run([sys.executable, str(ROOT / "packaging" / "hosted_names.py"), str(root)],
+                         capture_output=True, text=True, timeout=600,
+                         env={**__import__("os").environ, "ALTO_NO_NETWORK": "1"})
+    assert out.returncode == 0, out.stderr[-2000:]
+    return json.loads(out.stdout.splitlines()[-1])
+
+
+def test_release_check_b_a_bundle_names_the_files_the_site_hosts():
+    """Release check B: every hosted file name (fpv, gfx, holo, retro, fleet, world, hvid, ...) a build from the PACKAGED code and
+    assets would name equals what the static site build (the repo) hosts."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = _names(_staged(tmp))
+    site = _names(ROOT)
+    assert bundle == site, {"only_in_bundle": sorted(set(bundle) - set(site)), "only_on_site": sorted(set(site) - set(bundle))}
+    assert any(n.startswith("bldg/palace-building-fpv-") for n in site) and any(n.startswith("gfx/") for n in site)
