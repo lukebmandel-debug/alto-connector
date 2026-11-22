@@ -91,6 +91,8 @@ opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), t
   /* the controls round the edges (rail, search, info, account, the format's own buttons): black, square, a gold rim */
   X :is(#tab-rail>button,#search-btn,#info-icon,#account-btn,#key-toggle,.alto-edit-pill,#timeline-return-pill,#sx-toggle):not(#_){background:#000 !important;color:#d9ae55 !important;
     border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  /* the edit pill's rim is an outline, not a 1px spread shadow: the page is zoomed (0.85 at 1440), the pill's width is fractional, and a sub-pixel shadow ring lost its left and right sides in WebKit (the pill sat bare at 1280-1440; outlines never paint under one device pixel) */
+  X .alto-edit-pill:not(#_):not(.in-page){box-shadow:none !important;outline:1px solid rgba(217,174,85,.55) !important;outline-offset:0 !important;}
   X #tab-rail>button:not(#_){font-family:var(--rt-f) !important;letter-spacing:.18em;}
   X :is(#tab-rail>button,#search-btn,#info-icon,#account-btn,#key-toggle):hover{box-shadow:0 0 0 1px #d9ae55 !important;}
   X :is(#tab-rail>button.active,#tab-rail>button[aria-expanded=true]){background:#d9ae55 !important;color:#000 !important;}
