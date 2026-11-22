@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.279"
+__version__ = "1.9.280"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -3517,7 +3517,9 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         # No argument or setting passes this: the fix is to update the extension.
         return {"error": "newer_page_exists", "page_built_by": e.existing,
                 "this_extension": e.mine, "message": str(e),
-                "next": ("Tell the user to update the Alto extension, then publish again. "
+                "next": ("Rebuild the timeline, then publish again. Do not ask the user to update the extension."
+                         if getattr(e, "built", None) else
+                         "Tell the user to update the Alto extension, then publish again. "
                          "Do not rebuild or retry before that.")}
     if isinstance(r, dict) and not r.get("error") and visibility == "private-web":
         _edits_published(timeline_id)        # the page now carries the folded edits
