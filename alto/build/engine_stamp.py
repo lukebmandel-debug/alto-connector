@@ -39,6 +39,19 @@ class StaleEngineError(Exception):
             f"Update the Alto extension first ({UPDATE_HOW}), then publish again.")
 
 
+class StaleBuildError(StaleEngineError):
+    """The running Alto is new enough, but the draft was BUILT by an older one."""
+
+    def __init__(self, existing: str, built: str, mine: str):
+        Exception.__init__(
+            self,
+            f"This draft was built by an older Alto ({built}); the page online was built by "
+            f"{existing}. Publishing it would lose what the newer build added. Nothing was "
+            f"changed. Rebuild the timeline, then publish again (this extension, {mine}, is "
+            f"new enough, so no update is needed).")
+        self.existing, self.mine, self.built = existing, mine, built
+
+
 def parse_version(s) -> tuple[int, ...] | None:
     """'1.9.211' -> (1, 9, 211); None for anything that is not a plain release number."""
     m = re.fullmatch(r"v?(\d+(?:\.\d+){0,3})", str(s or "").strip())
@@ -93,6 +106,12 @@ def check_no_downgrade(existing_html, new_html: str = "") -> None:
     have = page_engine(existing_html)
     if not have:
         return
-    mine = page_engine(new_html) or running_version()
+    # "mine" is the engine actually running, never the draft's stamp: stamp()
+    # keeps an old stamp, so a draft built before a connector update would
+    # make the updated connector look old.
+    mine = running_version()
     if is_older(mine, have):
         raise StaleEngineError(have, mine)
+    built = page_engine(new_html)
+    if built and is_older(built, have):
+        raise StaleBuildError(have, built, mine)

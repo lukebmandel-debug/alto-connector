@@ -319,3 +319,24 @@ def test_the_update_control_says_what_it_does():
     assert "does not update the Alto extension" in s
     assert ">Update<" not in s and "label class=\"file\">Update" not in s
     assert "Updating" not in s
+
+
+def test_updated_connector_with_old_built_draft_is_never_told_to_update(monkeypatch):
+    monkeypatch.setattr(E, "running_version", lambda: "1.9.277")
+    # old-built draft over an older page: allowed
+    E.check_no_downgrade(page("1.9.200"), page("1.9.227"))
+    # old-built draft over a page the new engine built: one clear rebuild message
+    with pytest.raises(E.StaleBuildError) as ei:
+        E.check_no_downgrade(page("1.9.277"), page("1.9.227"))
+    assert "Rebuild" in str(ei.value) and "Update the Alto extension" not in str(ei.value)
+    # freshly built, or unstamped draft: allowed
+    E.check_no_downgrade(page("1.9.277"), page("1.9.277"))
+    E.check_no_downgrade(page("1.9.277"), page(None))
+
+
+def test_older_connector_vs_newer_page_is_still_refused_even_with_new_stamped_draft(monkeypatch):
+    monkeypatch.setattr(E, "running_version", lambda: "1.9.227")
+    with pytest.raises(E.StaleEngineError) as ei:
+        E.check_no_downgrade(page("1.9.277"), page("1.9.227"))
+    assert "Update the Alto extension first" in str(ei.value)
+    E.check_no_downgrade(page("1.9.227"), page("1.9.227"))      # same version: allowed
