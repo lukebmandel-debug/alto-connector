@@ -4193,7 +4193,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     top = Math.min(top, 0);
     // Extend off: on the page (a card already past its edge may stay where it is); on: no limit either side
     if(EXT){ lo = -1e9; hi = 1e9; }
-    else { ids.forEach(function(m){ lo = Math.max(lo, dw(m) / 2 + 20 - G.x[m]); hi = Math.min(hi, 1700 + ((plan() || {}).wide || 0) - dw(m) / 2 - 20 - G.x[m]); }); lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    else { ids.forEach(function(m){ lo = Math.max(lo, dw(m) / 2 + 20 - G.x[m]); hi = Math.min(hi, 1700 + ((plan()||{}).wide||0) - dw(m) / 2 - 20 - G.x[m]); }); lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
     // offsets are stored whole: every candidate is one that stays clear once rounded
     var ox = old[0] - Math.round(old[0]), oy = old[1] - Math.round(old[1]);
     function dn(v, o){ return Math.floor(v + o + 1e-6) - o; } function up(v, o){ return Math.ceil(v + o - 1e-6) - o; }
@@ -4395,8 +4395,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       B.x[i] = G.x[i]; B.y[i] = G.y[i]; B.h[i] = G.h[i]; B.w[i] = (T.w && T.w[i]) || 290; if(B.w[i] === 270) B.w[i] = 290; if(!d.inM[i]) B.ids.push(i); });
     // where the outline's own px are on screen, from a card that is not under the pointer (that one is drawn larger)
     d.o0 = [0, 0]; var ref = B.ids[0], rc;
-    // (a unit that scrolls sideways on its own has its own offset: the reference is the card nearest the held one's row, in its unit)
-    if(G && G.y[d.id] != null){ var yy = G.y[d.id]; B.ids.forEach(function(i){ if(Math.abs(B.y[i] - yy) < Math.abs(B.y[ref] - yy)) ref = i; }); }
+    if(G && G.y[d.id] != null){ var yy = G.y[d.id]; B.ids.forEach(function(i){ if(Math.abs(B.y[i]-yy) < Math.abs(B.y[ref]-yy)) ref = i; }); }
     rc = ref && document.querySelector('#node-' + ref + ' .node-card');
     if(rc){ var rr = rc.getBoundingClientRect(), ws = worldAt(); d.o0 = [rr.left + rr.width / 2 - B.x[ref] * d.k - ws[0], rr.top + rr.height / 2 - B.y[ref] * d.k - ws[1]]; }
     d.els.forEach(function(el){ el.classList.add('aed-moving'); });

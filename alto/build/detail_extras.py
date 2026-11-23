@@ -75,12 +75,14 @@ EDGE_GLUE = r"""
   }
   function apply(u){
     u.els.forEach(function(e){ shift(e,u.ox); });
-    var Vw=vw();
-    u.L.style.left='0px'; u.R.style.left=(Vw-64)+'px';
+    var Vw=vw(), lim=Vw-u.rail;                                    // the scroller's right edge: the rail's room (its width + 20) stays clear
+    u.els.forEach(function(e){ if(e._r==null) return; var c=e.querySelector('.node-card'), x=e._r-u.ox-lim;
+      if(c) c.style.clipPath=x>0.5?'inset(-60px '+Math.ceil(x)+'px -60px -60px)':''; });
+    u.L.style.left='0px'; u.R.style.left=(lim-64)+'px';
     u.L.classList.toggle('on',u.max>u.min&&u.ox>u.min); u.R.classList.toggle('on',u.max>u.min&&u.ox<u.max);
   }
   function off(){                                                // Extend on (the board opens wide for edits): the board's own sideways scroll
-    U.forEach(function(u){ u.els.forEach(function(e){ shift(e,0); }); if(u.L){ u.L.remove(); u.R.remove(); } });
+    U.forEach(function(u){ u.els.forEach(function(e){ shift(e,0); var c=e._r!=null&&e.querySelector('.node-card'); if(c) c.style.clipPath=''; }); if(u.L){ u.L.remove(); u.R.remove(); } });
     U=[]; window._altoUnits=U; wd.style.width=''; wd.style.margin=''; wd.style.overflowX=''; cv.style.overflowX='';
     var sv=wd.querySelector('#river-svg'), sl=wd.querySelector('#glass-slab'), pad=document.getElementById('alto-foot-pad');
     if(sv){ sv.setAttribute('width','1700'); sv.style.overflow=''; } if(sl){ sl.style.removeProperty('width'); sl.style.marginLeft=''; } if(pad) pad.remove();
@@ -112,7 +114,7 @@ EDGE_GLUE = r"""
     [].slice.call(wd.querySelectorAll('.node[id^="node-"]')).forEach(function(e){
       if(e.id==='node-nav-bar'||e.closest('#node-nav-bar')) return;
       var r=e.getBoundingClientRect(), y=(r.top+r.height/2-W.top)/kk, u=of(y);
-      u.els.push(e); var l=(r.left-W.left)/kk, rr=(r.right-W.left)/kk;
+      u.els.push(e); var l=(r.left-W.left)/kk, rr=(r.right-W.left)/kk; e._r=rr;
       u.lo=Math.min(u.lo==null?1e9:u.lo,l); u.hi=Math.max(u.hi==null?-1e9:u.hi,rr);
       if(e===hub) u.hub=(l+rr)/2;
     });
@@ -123,7 +125,7 @@ EDGE_GLUE = r"""
     });
     U=bands.filter(function(u){ return u.lo!=null; });
     U.forEach(function(u){
-      var a=u.lo-30, b=u.hi+rail;                                   // the unit's own extent: margin left, the side rail's room right
+      u.rail=rail; var a=u.lo-30, b=u.hi+rail;                                   // the unit's own extent: margin left, the side rail's room right
       if(b-a<=Vw){ u.min=u.max=u.ox=Math.round(((u.lo+u.hi)/2)-Vw/2); }                    // fits: centred, no scroll
       else { u.min=Math.round(a); u.max=Math.round(b-Vw); var h=u.hub!=null?u.hub:(u.lo+u.hi)/2;
         u.ox=Math.min(u.max,Math.max(u.min,Math.round(h-(Vw-rail)/2))); }                  // opens on the hub, clamped at the ends
@@ -339,7 +341,7 @@ window._altoTreeWrite = function(R, pos, h){
   window._altoEdgeTX=R.etx;
   window._altoTreeOn=true; window._altoTreeGeo={y:R.y, h:h, x:R.x};
   window._altoSides(R, h);
-  if(window._altoUnitRefresh) setTimeout(window._altoUnitRefresh, 30);     // (a unit that scrolls on its own re-measures after cards move)
+  if(window._altoUnitRefresh) setTimeout(window._altoUnitRefresh,30);
 };
 /* Cards placed past the page's left or right edge (dragged there in edit mode): the board opens that much
    more room on that side (40 px clear of the outermost card), reached by scrolling sideways. Like a header
@@ -356,7 +358,7 @@ window._altoSides = function(R, h, lo, hi, least){
   if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
   var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
-  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],(T.wide&&(M[0]||M[1]))?T.wide:0,(T.wide&&!(M[0]||M[1]))?0:(mx>1700?Math.ceil(mx+40-1700):0));   // (a unit wider than the page scrolls on its own: layout's `wide`)   // (only for a card past the page's own edge)
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), ex=M[0]||M[1], X=Math.max(M[1],T.wide&&ex?T.wide:0,T.wide&&!ex?0:(mx>1700?Math.ceil(mx+40-1700):0));
   if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
   if(L===S[0] && X===S[1]) return S;
   w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');

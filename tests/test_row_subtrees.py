@@ -358,3 +358,45 @@ def test_retro_unit_bar_ends_at_its_numeral():
     finally:
         s.shutdown()
     assert out and all(abs(a - b) <= 6 for a, b in out), out
+
+
+@needs_pw
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_no_card_text_sits_under_the_rail_at_any_width_as_opened_or_panned_right(style):
+    import asyncio
+    import phone_matrix as pm
+    s = pm.serve({"w": tf.page(data=tf.negligence_brief())}, {}, {})
+    probe = """() => { const bad = [], rail = [...document.querySelectorAll('#tab-rail button, #tab-rail > *')].map(e => e.getBoundingClientRect()).filter(r => r.width > 4 && r.height > 4);
+        for (const r of rail) for (const fx of [0.05, 0.5, 0.95]) for (const fy of [0.05, 0.5, 0.95]) {
+            const x = r.left + r.width * fx, y = r.top + r.height * fy;
+            for (const e of document.elementsFromPoint(x, y)) if (e.closest('#world .node-card')) bad.push([Math.round(x), Math.round(y), e.className]); }
+        return {bad: bad, n: rail.length}; }"""
+
+    async def go():
+        out = {}
+        async with pm._playwright().async_playwright() as p:
+            b = await p.webkit.launch()
+            for vw, vh in ((1440, 1000), (1920, 1000), (3600, 1200)):
+                pg = await (await b.new_context(viewport={"width": vw, "height": vh}, color_scheme="dark")).new_page()
+                await pg.goto(f"http://127.0.0.1:{s.server_address[1]}/w.html?style={style}", wait_until="load", timeout=45000)
+                await pg.wait_for_timeout(3500)
+                out[f"{vw}-open"] = await pg.evaluate(probe)
+                for y in (300, 600):
+                    await pg.mouse.move(700, y)
+                    await pg.mouse.wheel(9000, 0)
+                    await pg.wait_for_timeout(500)
+                    out[f"{vw}-right-{y}"] = await pg.evaluate(probe)
+                await pg.close()
+            await b.close()
+        return out
+    try:
+        out = asyncio.run(go())
+    except Exception as e:
+        if "Executable doesn't exist" in str(e):
+            pytest.skip(f"no WebKit: {e}")
+        raise
+    finally:
+        s.shutdown()
+    for k, v in out.items():
+        assert v["n"] >= 3, (k, v)
+        assert v["bad"] == [], (k, v["bad"])
