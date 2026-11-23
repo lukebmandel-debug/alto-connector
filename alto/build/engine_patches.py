@@ -1101,7 +1101,7 @@ _ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALT
 _LANES_HOOK_OLD = "    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
 _LANES_CENTRE_OLD = "  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;"
 _LANES_CENTRE_NEW = ("  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;\n"
-                     "    if(window._altoLanesGeo || window._altoPalaceGeo || window._altoSolarView) return;   // a horizontal timeline opens at its start; a Memory Palace on its city; a star chart / System on its first sun (solar_draw.py)")
+                     "    if(window._altoLanesGeo || window._altoPalaceGeo || window._altoSolarView || window._altoOpenLeft) return;   // a horizontal timeline opens at its start; a Memory Palace on its city; a star chart / System on its first sun (solar_draw.py); a tree wider than the page (layout.py `wide`) on its hub and first branches")
 _LANES_HOOK_NEW = ("    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
                    "  if((window._altoLanes && window._altoLanes(nodeHeights)) || (window._altoPalace && window._altoPalace(nodeHeights))) return;\n")
 

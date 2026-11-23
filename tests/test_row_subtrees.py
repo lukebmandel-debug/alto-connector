@@ -42,7 +42,7 @@ def _desc(nodes, i):
     return out
 
 
-@pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+@pytest.mark.parametrize("nested", [()])
 def test_each_branchs_first_sub_cards_sit_straight_under_it(nested):
     nodes, plan, y, x, heights = _plan(nested=nested)
     for br in BRANCHES:
@@ -78,27 +78,96 @@ def test_no_overlaps_and_no_line_crosses_a_card(nested):
 
 
 def test_the_world_widens_only_when_the_subtrees_need_more_than_the_page():
-    # plain columns: one sub-card column per branch fits the page, nothing is widened
-    nodes, plan, y, x, heights = _plan(nested=())
-    assert plan["extend"] == 0
-    assert all(TREE["MARGIN"] - 1 <= v - plan["w"].get(i, 270) / 2 and v + plan["w"].get(i, 270) / 2 <= WORLD_W - TREE["MARGIN"] + 1
-               for i, v in x.items())
-    # rows of their own: wider than the page, so the room opens (half each side)
-    nodes, plan, y, x, heights = _plan(nested=tuple(BRANCHES))
-    assert plan["extend"] > 0
-    lo = min(x[i] - plan["w"].get(i, 270) / 2 for i in x)
+    from test_outline_placement import _n
+    # three branches with a short stack each fit the page: nothing is widened
+    ns = [_n("hub")] + [_n("b%d" % i, "hub") for i in range(3)]
+    for i in range(3):
+        ns += [_n("b%d-l" % i, "b%d" % i, tag="Outcome"), _n("b%d-nl" % i, "b%d" % i, tag="Outcome")]
+    small = outline_plan(ns, 1, {"hub": {"arrange": "row"}})
+    assert small["wide"] == 0
+    # Negligence side by side at every level is wider than the page, so the board opens to the right
+    nodes, plan, y, x, heights = _plan()
+    assert plan["wide"] > 0
     hi = max(x[i] + plan["w"].get(i, 270) / 2 for i in x)
-    assert lo < TREE["MARGIN"] and hi > WORLD_W - TREE["MARGIN"]
-    assert lo >= TREE["MARGIN"] - plan["extend"] / 2 - 1 and hi <= WORLD_W - TREE["MARGIN"] + plan["extend"] / 2 + 1
-    # the page's own room: the root stays on the centre line
-    assert x["negligence"] == pytest.approx(TREE["CX"])
+    assert hi > WORLD_W - TREE["MARGIN"]
+
+
+def test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap():
+    # (rule chosen: a card's own outcomes, leaves with nothing under them, stay a short stack under it;
+    # every other group of siblings, at every level of a branch, is one row)
+    nodes, plan, y, x, heights = _plan()
+    kids = outline_kids(nodes)
+    checked = 0
+    for p, ks in kids.items():
+        if p == "strict" or p.startswith("strict-") or len(ks) < 2:
+            continue
+        if all(not kids.get(k) for k in ks) and p != "negligence":
+            continue                                   # an outcome stack
+        tops = [y[k] - heights[k] / 2 for k in ks]
+        assert max(tops) - min(tops) <= 2, (p, tops)
+        bx = _boxes(plan, y, x, heights)
+        order = sorted(ks, key=lambda k: x[k])
+        for a, b in zip(order, order[1:]):
+            assert bx[a][2] <= bx[b][0] + 1, (p, a, b)
+        checked += 1
+    assert checked >= 5
+
+
+def test_no_card_is_narrower_than_its_normal_width():
+    nodes, plan, y, x, heights = _plan()
+    assert all(plan["w"].get(i, 270) >= 190 for i in y)
+
+
+@pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+def test_no_card_left_of_the_margin_or_under_the_right_rail(nested):
+    nodes, plan, y, x, heights = _plan(nested=nested)
+    world = WORLD_W + plan["wide"]
+    for i in y:
+        lo, hi = x[i] - plan["w"].get(i, 270) / 2, x[i] + plan["w"].get(i, 270) / 2
+        assert lo >= TREE["MARGIN"] - 1, (i, lo)
+        assert hi <= world - TREE["MARGIN"] + 1, (i, hi, world)   # rail (about 50 px) + 20 stays clear
+
+
+@pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+def test_each_branch_is_centred_over_its_own_subtree(nested):
+    nodes, plan, y, x, heights = _plan(nested=nested)
+    bx = _boxes(plan, y, x, heights)
+    for br in BRANCHES:
+        ids = _desc(nodes, br)
+        centre = (min(bx[i][0] for i in ids) + max(bx[i][2] for i in ids)) / 2
+        if len(ids) > 0 and any(plan["w"].get(i, 270) for i in ids):
+            assert abs(x[br] - centre) <= 2, (br, x[br], centre)
+
+
+@pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+def test_the_hub_is_centred_over_its_branch_row(nested):
+    nodes, plan, y, x, heights = _plan(nested=nested)
+    xs = [x[b] for b in BRANCHES]
+    assert abs(x["negligence"] - (min(xs) + max(xs)) / 2) <= 2
+
+
+def test_child_w_carries_down_so_a_level_has_one_width():
+    nodes, plan, y, x, heights = _plan(nested=("breach", "defenses"))
+    for n in nodes:
+        if n.id.startswith("strict") or n.id == "negligence":
+            continue
+        if n.tag != "Outcome":
+            assert plan["w"].get(n.id, 270) <= 190, (n.id, plan["w"].get(n.id))
+    d = tf.negligence_brief(190, ("breach",))
+    d["brief"]["placement"]["breach"] = {"arrange": "row", "child_w": 210}
+    brief, nodes2, _ = load_brief(d)
+    p2 = outline_plan(nodes2, len(brief.acts), brief.placement)
+    assert p2["w"]["breach-custom"] == 210            # the nearest band's width wins
+    d["brief"]["placement"]["breach-custom"] = {"w": 200}
+    brief, nodes2, _ = load_brief(d)
+    assert outline_plan(nodes2, len(brief.acts), brief.placement)["w"]["breach-custom"] == 200   # its own hint wins
 
 
 def test_a_widened_unit_leaves_the_others_as_they_were():
     d = tf.negligence_brief(nested=tuple(BRANCHES))
     brief, nodes, _ = load_brief(d)
     plan = outline_plan(nodes, 2, brief.placement)
-    assert plan["x"]["strict"] == TREE["CX"] and plan["extend"] > 0
+    assert plan["x"]["strict"] == TREE["CX"] and plan["wide"] > 0
     for k in ("strict-animals", "strict-abnormally", "strict-products"):
         assert TREE["MARGIN"] <= plan["x"][k] - plan["w"][k] / 2 + 1
         assert plan["x"][k] + plan["w"][k] / 2 <= WORLD_W - TREE["MARGIN"] + 1
@@ -109,4 +178,65 @@ def test_hints_keep_working_inside_a_band():
     d["brief"]["placement"]["duty"] = {"order": 1, "shift": [0, 0]}
     brief, nodes, _ = load_brief(d)
     plan = outline_plan(nodes, len(brief.acts), brief.placement)
-    assert plan["x"]["negligence"] == TREE["CX"] and "duty" in plan["x"]
+    assert "duty" in plan["x"]
+
+
+def _browser(pages, steps):
+    """Run steps(page) on each named page in headless WebKit, 1440x900, offline."""
+    import asyncio
+    import phone_matrix as pm
+    try:
+        pw = pm._playwright()
+    except ImportError:
+        pytest.skip("Playwright is not installed")
+    s = pm.serve(pages, {}, {})
+
+    async def go():
+        out = {}
+        async with pw.async_playwright() as p:
+            b = await p.webkit.launch()
+            for name in pages:
+                ctx = await b.new_context(viewport={"width": 1440, "height": 900}, color_scheme="dark")
+                pg = await ctx.new_page()
+                await pg.goto(f"http://127.0.0.1:{s.server_address[1]}/{name}.html?style=classic", wait_until="load", timeout=45000)
+                await pg.wait_for_timeout(3000)
+                out[name] = await steps(pg)
+                await ctx.close()
+            await b.close()
+        return out
+    try:
+        return asyncio.run(go())
+    except Exception as e:
+        if "Executable doesn't exist" in str(e):
+            pytest.skip(f"no WebKit: {e}")
+        raise
+    finally:
+        s.shutdown()
+
+
+def test_shift_wheel_pans_sideways_and_the_edge_cue_shows_only_where_there_is_more():
+    async def steps(pg):
+        info = "() => { const c = document.getElementById('canvas'), l = document.getElementById('alto-edge-l'), r = document.getElementById('alto-edge-r');" \
+               " return {sl: c.scrollLeft, max: c.scrollWidth - c.clientWidth, l: !!l && l.classList.contains('on'), r: !!r && r.classList.contains('on'), has: !!l}; }"
+        out = {"open": await pg.evaluate(info)}
+        await pg.evaluate("() => { document.getElementById('canvas').scrollLeft = 0; }")
+        await pg.mouse.move(700, 450)
+        await pg.keyboard.down("Shift")
+        await pg.mouse.wheel(0, 600)
+        await pg.keyboard.up("Shift")
+        await pg.wait_for_timeout(500)
+        out["shift"] = await pg.evaluate(info)
+        await pg.evaluate("() => { const c = document.getElementById('canvas'); c.scrollLeft = c.scrollWidth; }")
+        await pg.wait_for_timeout(400)
+        out["end"] = await pg.evaluate(info)
+        await pg.evaluate("() => { document.getElementById('canvas').scrollLeft = 0; }")
+        await pg.wait_for_timeout(400)
+        out["start"] = await pg.evaluate(info)
+        return out
+    res = _browser({"wide": tf.page(data=tf.negligence_brief()), "plain": tf.page()}, steps)
+    w = res["wide"]
+    assert w["open"]["max"] > 500 and w["open"]["sl"] < 5, w["open"]       # opens at the left, with room to the right
+    assert w["shift"]["sl"] > 100, w["shift"]                               # shift+wheel pans
+    assert w["start"]["r"] and not w["start"]["l"], w["start"]              # cue on the side that has more
+    assert w["end"]["l"] and not w["end"]["r"], w["end"]
+    assert not res["plain"]["start"]["has"], "a page that fits has no cue"

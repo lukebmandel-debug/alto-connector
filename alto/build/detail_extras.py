@@ -49,8 +49,42 @@ window._altoHubsAbove = function(pos, h){
 # builder's own hints, keeping every hub above its children by construction.
 # It sets each node's displayX, which the line router and the numeral check
 # read, and records the fanned lines' end points in _altoEdgeTX.
+EDGE_GLUE = r"""
+/* A board wider than the page (the plan's `wide`) is read by scrolling sideways: shift+wheel pans as well as the
+   trackpad's side swipe, and a faint edge on the side that has more says there is more. Phones keep their own. */
+(function(){
+  if(!window.addEventListener || !document.createElement || document.documentElement.classList.contains('mobile')) return;
+  var cv=null, L=null, R=null;
+  function upd(){
+    if(!cv) return;
+    var on=document.documentElement.classList.contains('alto-xwide'), max=cv.scrollWidth-cv.clientWidth-2;
+    L.className='alto-edge'+(on&&cv.scrollLeft>2?' on':''); R.className='alto-edge'+(on&&cv.scrollLeft<max?' on':'');
+  }
+  function init(){
+    cv=document.getElementById('canvas'); if(!cv||L) return;
+    var st=document.createElement('style');
+    st.textContent='.alto-edge{position:fixed;top:0;bottom:0;width:12px;z-index:20;pointer-events:none;opacity:0;transition:opacity .2s}.alto-edge.on{opacity:1}#alto-edge-l{left:0;background:linear-gradient(90deg,rgba(0,0,0,.2),transparent)}#alto-edge-r{right:0;background:linear-gradient(270deg,rgba(0,0,0,.2),transparent)}';
+    document.head.appendChild(st);
+    L=document.createElement('div'); L.id='alto-edge-l'; R=document.createElement('div'); R.id='alto-edge-r';
+    document.body.appendChild(L); document.body.appendChild(R);
+    cv.addEventListener('scroll',upd,{passive:true}); window.addEventListener('resize',upd);
+    window.addEventListener('wheel',function(e){
+      if(!e.shiftKey||e.ctrlKey||e.metaKey||Math.abs(e.deltaY)<=Math.abs(e.deltaX)||cv.scrollWidth<=cv.clientWidth) return;
+      cv.scrollLeft+=e.deltaY*(e.deltaMode===1?16:1); e.preventDefault();
+    },{passive:false,capture:true});
+    new MutationObserver(upd).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+    upd(); setTimeout(upd,400);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+  window.addEventListener('load',function(){ init(); upd(); });
+})();
+"""
+
+
 def tree_glue(plan: dict) -> str:
-    return "\nwindow._ALTO_TREE_PLAN=" + js_json(plan, separators=(",", ":")) + ";" + TREE_GLUE
+    return ("\nwindow._ALTO_TREE_PLAN=" + js_json(plan, separators=(",", ":")) + ";"
+            + ("window._altoOpenLeft=1;" if plan.get("wide") else "") + TREE_GLUE
+            + (EDGE_GLUE if plan.get("wide") else ""))
 
 
 TREE_GLUE = """
@@ -230,7 +264,7 @@ window._altoSides = function(R, h, lo, hi, least){
   if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
   var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
-  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],mx>1700?Math.ceil(mx+40-1700):0);   // (only for a card past the page's own edge)
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],T.wide||0,mx>1700?Math.ceil(mx+40-1700):0);   // (only for a card past the page's own edge)
   if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
   if(L===S[0] && X===S[1]) return S;
   w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');
