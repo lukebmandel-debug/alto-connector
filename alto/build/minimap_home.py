@@ -25,6 +25,8 @@ window._altoMmRow=function(){
     if(ref && (r.bottom<ref.top || r.top>ref.bottom)) return; if(!ref) ref=r;          /* (the one row: on the first member's line) */
     var l=(id==='search-btn' && r.width>r.height*1.5) ? r.right-r.height : r.left;
     R=R ? [Math.min(R[0], l), Math.min(R[1], r.top), Math.max(R[2], r.right), Math.max(R[3], r.bottom)] : [l, r.top, r.right, r.bottom]; });
+  var q=document.getElementById('tab-rail'); q=q&&q.getBoundingClientRect();                 /* (the right rail stands on the row: the minimap clears it) */
+  if(R&&q&&q.height>2&&q.bottom>innerHeight*.5) R[1]=Math.min(R[1],q.top);
   return R; };
 })();
 """

@@ -460,7 +460,7 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           # the focused Search keeps its one teal rim (border and ring one colour), over the glass
           "X #search-btn:focus-within" + _S1_NOT + "{border-color:var(--ho-ac) !important;box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}\n"
           # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)
-          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 20px / var(--alto-zoom,.8)) !important;}}\n"
+          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 30px) !important;}}\n"
           # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
           "@media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
 

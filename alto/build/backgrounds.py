@@ -412,7 +412,7 @@ html:not(.mobile) #bg-toggle{ width:34px; height:34px; box-sizing:border-box; pa
   align-items:center; justify-content:center; cursor:pointer; position:relative;
   background:var(--card-glass-bg, var(--surface));
   -webkit-backdrop-filter:blur(18px) saturate(190%); backdrop-filter:blur(18px) saturate(190%);
-  border:1px solid var(--card-glass-border, var(--border)); border-right:none; border-radius:6px 0 0 6px;
+  border:1px solid var(--card-glass-border, var(--border)); border-radius:6px 0 0 6px;
   color:var(--muted); box-shadow:0 10px 26px var(--node-rest-shadow); }
 html:not(.mobile) #bg-toggle span{ display:none; }
 html:not(.mobile) #bg-toggle:hover{ color:var(--text); border-color:var(--muted); }
