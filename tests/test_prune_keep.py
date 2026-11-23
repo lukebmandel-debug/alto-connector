@@ -164,3 +164,21 @@ def test_the_manifest_is_never_deployed():
 
 def fnmatch_ignored(name):
     return name.startswith(".")                                              # firebase.json's ignore is "**/.*" (deploy_site)
+
+
+@pytest.mark.parametrize("kw", [dict(binned=True), dict(status="unpublished")])
+def test_a_binned_or_unpublished_timelines_plan_is_pruned_while_its_other_hosted_files_are_kept(tmp_path, monkeypatch, kw):
+    site = tmp_path / "site"
+    plan, script = "bldg/plan-063d955b8ca3.json", "holo/alto-holo-9999999999.js"
+    for ref in (plan, script):
+        (site / ref).parent.mkdir(parents=True, exist_ok=True)
+        (site / ref).write_text("old")
+    _release(monkeypatch, "1.0.1", "a", "a")
+    st = _store(tmp_path, page=f'<script src="/{script}"></script> fetch("/{plan}")', binned=kw.get("binned", False))
+    if kw.get("status"):
+        doc = st.get_timeline("local", "tl1")
+        doc["status"] = kw["status"]
+        st.put_timeline("local", "tl1", doc)
+    ps.regenerate_site(st, "local", site)
+    assert (site / script).read_text() == "old"                       # its other hosted file is kept
+    assert not (site / plan).exists()                                # its Blueprint plan (the user's data) is pruned

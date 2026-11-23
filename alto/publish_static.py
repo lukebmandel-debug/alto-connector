@@ -336,6 +336,8 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
                     p_.unlink() if p_.is_file() else shutil.rmtree(p_)
             continue
         kept = _bldg_kept(out_) if folder == "bldg" else {}      # (every other folder's earlier files come back through the pins above)
+        if folder in NEVER_PRUNED:
+            kept.update(_never_pruned(out_, NEVER_PRUNED[folder]))
         if out_.exists() and not keep_all:
             shutil.rmtree(out_)
         out_.mkdir(exist_ok=True)
@@ -558,7 +560,7 @@ def _kept_earlier(d: Path, fresh, per_kind: int = 1) -> dict:
         return {}
     by_kind = {}
     for p in d.iterdir():
-        m = p.is_file() and p.name not in fresh and ASSET_NAME_RE.match(p.name)
+        m = p.is_file() and not p.is_symlink() and p.name not in fresh and ASSET_NAME_RE.match(p.name)
         if m:
             by_kind.setdefault(m.group("kind") + m.group("ext"), []).append(p)
     out = {}
@@ -587,12 +589,23 @@ def _bldg_kept(d: Path) -> dict:
     built by 1.9.154, lost its blueprint when the 1.9.155 site replaced the folder, 2026-10-23)."""
     if not d.is_dir():
         return {}
-    files = sorted((p for p in d.iterdir() if p.is_file() and BLDG_RENDERER_RE.match(p.name)), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted((p for p in d.iterdir() if p.is_file() and not p.is_symlink() and BLDG_RENDERER_RE.match(p.name)), key=lambda p: p.stat().st_mtime, reverse=True)
     out = {}
     for fpv in (False, True):
         for p in [p for p in files if ("-fpv-" in p.name) == fpv][:BLDG_KEEP]:
             out[p.name] = (p.read_bytes(), p.stat().st_mtime)
     return out
+
+
+# hosted scripts every old published page keeps naming (pages other users published are not republished each release): never pruned, by folder
+NEVER_PRUNED = {"pics": re.compile(r"^alto-ink-[0-9a-f]{8,12}\.js$"), "phone": re.compile(r"^alto-swipe-[0-9a-f]{8,12}\.js$")}
+
+
+def _never_pruned(d: Path, rx) -> dict:
+    """{name: (bytes, mtime)} of EVERY file in d whose name matches rx, left by earlier publishes (never a symlink)."""
+    if not d.is_dir():
+        return {}
+    return {p.name: (p.read_bytes(), p.stat().st_mtime) for p in d.iterdir() if p.is_file() and not p.is_symlink() and rx.match(p.name)}
 
 
 def _on_site(d: Path) -> set:
