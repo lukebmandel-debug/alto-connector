@@ -34,13 +34,68 @@ def brief(title="Torts", long_names=False):
     return copy.deepcopy(d)
 
 
-def page(title="Torts", long_names=False):
+def page(title="Torts", long_names=False, data=None):
     from alto.build.builder import build_timeline, load_brief
     from alto.build import palace_assets
     import phone_matrix as pm
-    html = build_timeline(*load_brief(brief(title, long_names)))[0]
+    html = build_timeline(*load_brief(data or brief(title, long_names)))[0]
     man = {f: "/%s/%s" % (f, n) for f, n, _t in palace_assets.assets() if f in ("retro", "holo")}
     i = html.rfind("</body>")
     html = html[:i] + pm.LOADER % json.dumps(man) + html[i:]
     j = html.find('<script id="alto-shell-js">')
     return html[:j] + pm.SEED + html[j:] if j >= 0 else html
+
+
+# ---- a Negligence unit (round "row subtrees"): six branches in one row band, each with sub-cards ----
+# Neutral invented names; a copy shaped like the Torts negligence unit, never a real account's data.
+_BRANCHES = {   # branch -> {sub-card: [leaf outcomes]}, Defenses the deepest
+    "duty": {"General rule": ["Duty owed", "No duty"], "Special relationships": ["Duty owed", "No duty"],
+             "Rescuers": ["Duty owed", "No duty"]},
+    "breach": {"Reasonable person": ["Breach", "No breach"], "Custom": ["Breach", "No breach"],
+               "Negligence per se": ["Breach", "No breach"]},
+    "fact": {"But-for test": ["Cause", "No cause"], "Substantial factor": ["Cause", "No cause"],
+             "Alternative liability": ["Cause", "No cause"]},
+    "proximate": {"Foreseeable harm": ["Proximate", "Not proximate"],
+                  "Intervening acts": ["Proximate", "Not proximate"]},
+    "damages": {"Compensatory": [], "Punitive": []},
+    "defenses": {"Contributory fault": ["Barred", "Not barred"], "Comparative fault": ["Reduced", "Not reduced"],
+                 "Assumption of risk": ["Barred", "Not barred"], "Immunities": ["Immune", "Not immune"],
+                 "Statutes of limitation": ["Barred", "Not barred"]},
+}
+_BRANCH_TITLES = {"duty": "Duty", "breach": "Breach", "fact": "Cause in Fact", "proximate": "Proximate Cause",
+                  "damages": "Damages", "defenses": "Defenses"}
+
+
+def negligence_brief(child_w=190, nested=("breach", "defenses")):
+    """One unit, Negligence: a hub with six branches in a row band (child_w wide), each branch with
+    sub-cards; the ones named in `nested` are rows of their own (the case that used to stack)."""
+    d = brief("Torts")
+    b = d["brief"]
+    b["acts"] = [{"label": "UNIT ONE - NEGLIGENCE", "short": "Unit 1 - Negligence"},
+                 {"label": "UNIT TWO - STRICT LIABILITY", "short": "Unit 2 - Strict liability"}]
+    b["axes"], b["relations"], b["filters"], d["connections"] = [], [], [], []
+    b["overview_html"] = "<p>Negligence, a test copy.</p>"
+    place = {"negligence": {"arrange": "row", "child_w": child_w}}
+    nodes = [{"id": "negligence", "act": 0, "tag": "Negligence", "title": "Negligence", "desc": "The hub.",
+              "entity_ids": ["k0"], "axis1_values": [], "sections": []}]
+
+    def add(i, parent, title, tag):
+        nodes.append({"id": i, "act": 0, "tag": tag, "title": title, "desc": "A short note on " + title.lower() + ".",
+                      "entity_ids": ["k%d" % (len(nodes) % 9)], "axis1_values": [], "sections": [], "parent": parent})
+    for br, subs in _BRANCHES.items():
+        add(br, "negligence", _BRANCH_TITLES[br], "Negligence")
+        if br in nested:
+            place[br] = {"arrange": "row"}
+        for s, outs in subs.items():
+            sid = br + "-" + s.lower().replace(" ", "-")
+            add(sid, br, s, "Negligence")
+            for o in outs:
+                add(sid + "-" + o.lower().replace(" ", "-"), sid, o, "Outcome")
+    nodes.append({"id": "strict", "act": 1, "tag": "Strict", "title": "Strict liability", "desc": "A second unit.",
+                  "entity_ids": ["k2"], "axis1_values": [], "sections": []})
+    for i in ("Animals", "Abnormally dangerous activities", "Products"):
+        add("strict-" + i.split()[0].lower(), "strict", i, "Strict")
+        nodes[-1]["act"] = 1
+    d["nodes"] = nodes
+    b["placement"] = place
+    return d

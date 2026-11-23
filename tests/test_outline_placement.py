@@ -453,16 +453,16 @@ def test_the_band_staggers_so_a_tall_card_does_not_push_its_neighbour_down():
     assert y2["duty"] - 75 == y2["hub"] + 75 + TREE["ROOT_GAP"]
 
 
-def test_a_wide_block_settles_below_its_neighbours_and_nothing_overlaps():
+def test_a_wide_block_hangs_beside_its_neighbours_and_nothing_overlaps():
+    # (changed on purpose, row-subtrees: it used to settle BELOW the neighbours' progeny, thousands
+    # of px from its own parent.) breach's three children are a band of their own, wider than
+    # breach's column: the branches move apart instead, so each hangs straight under its own card
     ns = _negligence()
     plan, y, x, _ = _run(ns, {"hub": {"arrange": "row"}, "breach": {"arrange": "row"}})
-    # breach's three children are a band of their own, wider than breach's column,
-    # so the whole block sits under what hangs from breach's neighbours
-    neighbour_bottom = max(y[i] + 75 for i in ("duty-l", "duty-nl", "cause-nl", "alt-nl"))
-    assert min(y[i] - 75 for i in ("risks", "custom", "per-se")) >= neighbour_bottom + TREE["GROUP_GAP"] - 1
+    first = min(y[i] - 75 for i in ("risks", "custom", "per-se"))
+    assert first <= y["breach"] + 75 + TREE["GROUP_GAP"] + 1
+    assert min(y[i] - 75 for i in ("duty-l", "duty-nl")) <= y["duty"] + 75 + TREE["GROUP_GAP"] + 1
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
-
-
 
 
 def _js_plan(ns, plan, h, tmp_path):
@@ -773,7 +773,9 @@ def test_the_pairs_of_a_wide_band_narrow_to_fit_across_the_page_and_share_a_leve
     spans = sorted((x[c + "-l"] - plan["w"][c + "-l"] / 2, x[c + "-nl"] + plan["w"][c + "-nl"] / 2)
                    for c in ("risks", "custom", "perse", "res"))
     assert all(b[0] >= a[1] for a, b in zip(spans, spans[1:]))               # side by side, no overlap
-    assert spans[0][0] >= TREE["MARGIN"] and spans[-1][1] <= WORLD_W - TREE["MARGIN"]
+    # (changed on purpose, row-subtrees: subtrees too wide for the page stand in the room the page opens, half each side)
+    ex = plan["extend"] / 2
+    assert spans[0][0] >= TREE["MARGIN"] - ex and spans[-1][1] <= WORLD_W - TREE["MARGIN"] + ex
     # custom's sub-concept is one of three equals in its row, level with the others'
     # pairs; what hangs from it (a row across the whole page) sits below, and did
     # not pull that row down with it
