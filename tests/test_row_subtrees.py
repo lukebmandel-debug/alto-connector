@@ -100,7 +100,7 @@ def test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap():
     kids = outline_kids(nodes)
     checked = 0
     for p, ks in kids.items():
-        if p == "strict" or p.startswith("strict-") or len(ks) < 2:
+        if len(ks) < 2:
             continue
         by = {n.id: n for n in nodes}
         if all(not kids.get(k) and by[k].tag != by[p].tag for k in ks):
@@ -112,7 +112,8 @@ def test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap():
         for a, b in zip(order, order[1:]):
             assert bx[a][2] <= bx[b][0] + 1, (p, a, b)
         checked += 1
-    assert checked >= 6
+    assert checked >= 7                                # (unit two's hub too: its concepts stand in a row)
+    assert len({x[k] for k in ("strict-animals", "strict-abnormally", "strict-products")}) == 3
     # Damages' two sub-cards are same-kind leaves: one row, not a stack
     assert y["damages-compensatory"] == y["damages-punitive"]
     assert x["damages-compensatory"] != x["damages-punitive"]
@@ -186,6 +187,19 @@ def test_hints_keep_working_inside_a_band():
     assert "duty" in plan["x"]
 
 
+def _have_pw():
+    try:
+        import phone_matrix as pm
+        pm._playwright()
+        return True
+    except Exception:
+        return False
+
+
+pw = True if _have_pw() else None
+needs_pw = pytest.mark.skipif(pw is None, reason="no Playwright")
+
+
 def _browser(pages, steps):
     """Run steps(page) on each named page in headless WebKit, 1440x900, offline."""
     import asyncio
@@ -219,35 +233,61 @@ def _browser(pages, steps):
         s.shutdown()
 
 
-def test_shift_wheel_pans_sideways_and_the_edge_cue_shows_only_where_there_is_more():
+@needs_pw
+def test_wheel_pans_only_the_unit_under_the_pointer_and_the_cue_shows_only_where_there_is_more():
     async def steps(pg):
-        info = "() => { const c = document.getElementById('canvas'), l = document.getElementById('alto-edge-l'), r = document.getElementById('alto-edge-r');" \
-               " return {sl: c.scrollLeft, max: c.scrollWidth - c.clientWidth, l: !!l && l.classList.contains('on'), r: !!r && r.classList.contains('on'), has: !!l}; }"
-        out = {"open": await pg.evaluate(info)}
-        await pg.evaluate("() => { document.getElementById('canvas').scrollLeft = 0; }")
-        await pg.mouse.move(700, 450)
+        info = "() => (window._altoUnits || []).map(u => ({min: u.min, max: u.max, ox: u.ox, l: u.L.classList.contains('on'), r: u.R.classList.contains('on')}))"
+        out = {"open": await pg.evaluate(info), "pagescroll": await pg.evaluate("() => document.getElementById('canvas').scrollLeft")}
+        y = await pg.evaluate("() => { const u = window._altoUnits[0], w = document.getElementById('world').getBoundingClientRect(); return w.top + (u.top + 400) * (w.height / document.getElementById('world').offsetHeight); }")
+        await pg.mouse.move(700, y)
         await pg.keyboard.down("Shift")
-        await pg.mouse.wheel(0, 600)
+        await pg.mouse.wheel(0, 300)
         await pg.keyboard.up("Shift")
-        await pg.wait_for_timeout(500)
-        out["shift"] = await pg.evaluate(info)
-        await pg.evaluate("() => { const c = document.getElementById('canvas'); c.scrollLeft = c.scrollWidth; }")
         await pg.wait_for_timeout(400)
-        out["end"] = await pg.evaluate(info)
-        await pg.evaluate("() => { document.getElementById('canvas').scrollLeft = 0; }")
+        out["shift"] = await pg.evaluate(info)
+        await pg.mouse.wheel(-9000, 0)                         # the trackpad's side swipe
         await pg.wait_for_timeout(400)
         out["start"] = await pg.evaluate(info)
+        await pg.mouse.wheel(9000, 0)
+        await pg.wait_for_timeout(400)
+        out["end"] = await pg.evaluate(info)
+        out["rail"] = await pg.evaluate("""() => { const rail = document.getElementById('tab-rail').getBoundingClientRect().left, u = window._altoUnits[0];
+            const w = document.getElementById('world').getBoundingClientRect(), k = w.width / document.getElementById('world').offsetWidth;
+            const r = [...document.querySelectorAll('#world .node[id^=node-]')].map(e => e.getBoundingClientRect()).filter(b => (b.top + b.height / 2 - w.top) / k < u.bot && (b.top + b.height / 2 - w.top) / k >= u.top);
+            return {rail: rail, right: Math.max(...r.map(b => b.right))}; }""")
+        await pg.mouse.wheel(-9000, 0)
+        await pg.wait_for_timeout(400)
+        out["left"] = await pg.evaluate("() => Math.min(...[...document.querySelectorAll('#world .node[id^=node-]')].map(e => e.getBoundingClientRect()).filter(b => b.top < 1300).map(b => b.left))")
         return out
-    res = _browser({"wide": tf.page(data=tf.negligence_brief()), "plain": tf.page()}, steps)
-    w = res["wide"]
-    assert w["open"]["max"] > 500 and w["open"]["l"] and w["open"]["r"], w["open"]   # opens on the hub, with room both ways
-    assert w["shift"]["sl"] > 100, w["shift"]                               # shift+wheel pans
-    assert w["start"]["r"] and not w["start"]["l"], w["start"]              # cue on the side that has more
-    assert w["end"]["l"] and not w["end"]["r"], w["end"]
-    assert not res["plain"]["start"]["has"], "a page that fits has no cue"
+    res = _browser({"wide": tf.page(data=tf.negligence_brief())}, steps)["wide"]
+    o = res["open"]
+    assert o[0]["max"] > o[0]["min"] and o[0]["l"] and o[0]["r"], o       # unit one opens mid-way, room both ways
+    assert o[1]["max"] == o[1]["min"] and not o[1]["l"] and not o[1]["r"], o   # unit two fits: centred, no cue
+    assert res["shift"][0]["ox"] > o[0]["ox"] and res["shift"][1]["ox"] == o[1]["ox"], res["shift"]   # shift+wheel pans THAT unit only
+    s0, e0 = res["start"][0], res["end"][0]
+    assert s0["ox"] == s0["min"] and s0["r"] and not s0["l"], s0
+    assert e0["ox"] == e0["max"] and e0["l"] and not e0["r"], e0
+    assert res["rail"]["right"] <= res["rail"]["rail"], res["rail"]          # panned to the end, no card under the right rail
+    assert res["left"] >= 0, res["left"]
+    assert res["pagescroll"] == 0                                           # the page does not scroll sideways
 
 
-def test_the_page_opens_with_the_hub_and_a_branch_in_view_and_pans_to_both_ends():
+@needs_pw
+def test_the_unit_bar_frames_its_unit_and_no_card_goes_under_the_rail_at_either_end():
+    # (the geometry is checked through the real wheel in the previous test; here the framing)
+    async def frame(pg):
+        return await pg.evaluate("""() => { const W = document.getElementById('world').getBoundingClientRect(), k = W.width / document.getElementById('world').offsetWidth;
+            const bar = document.querySelector('.unit-bar').getBoundingClientRect(), lab = document.querySelector('.phase-label-float').getBoundingClientRect(),
+                  num = document.querySelector('.phase-numeral').getBoundingClientRect(), rail = document.getElementById('tab-rail').getBoundingClientRect();
+            return {bar: [bar.left - W.left, bar.right - W.right], lab: [lab.left - W.left, lab.right], num: [num.left, num.right], w: [W.left, W.right], rail: rail.left}; }""")
+    res = _browser({"wide": tf.page(data=tf.negligence_brief())}, frame)["wide"]
+    assert abs(res["bar"][0] - 20) <= 22 and res["bar"][1] <= 0 and res["bar"][1] >= -40, res    # the bar spans the board
+    assert res["lab"][0] >= 0 and res["num"][1] <= res["w"][1], res                              # pill and numeral stay in view
+    assert res["num"][1] <= res["rail"] + 1, res
+
+
+@needs_pw
+def test_the_page_opens_with_each_wide_units_hub_centred_and_a_branch_in_view():
     async def steps(pg):
         res = {}
         for vw in (1440, 1920):
@@ -255,11 +295,14 @@ def test_the_page_opens_with_the_hub_and_a_branch_in_view_and_pans_to_both_ends(
             await pg.reload(wait_until="load")
             await pg.wait_for_timeout(3500)
             res[vw] = await pg.evaluate("""() => { const q = (id) => { const r = document.getElementById('node-' + id).getBoundingClientRect(); return [r.left, r.right]; };
-                const c = document.getElementById('canvas');
-                return {hub: q('negligence'), branches: ['duty', 'breach', 'fact', 'proximate', 'damages', 'defenses'].map(q), vw: innerWidth, sl: c.scrollLeft, max: c.scrollWidth - c.clientWidth}; }""")
+                const rail = document.getElementById('tab-rail').getBoundingClientRect().left;
+                const all = [...document.querySelectorAll('#world .node[id^=node-]')].map(e => e.getBoundingClientRect());
+                return {hub: q('negligence'), branches: ['duty', 'breach', 'fact', 'proximate', 'damages', 'defenses'].map(q), vw: innerWidth, rail: rail,
+                        strict: ['strict-animals', 'strict-abnormally', 'strict-products'].map(q)}; }""")
         return res
     res = _browser({"wide": tf.page(data=tf.negligence_brief())}, steps)["wide"]
     for vw, r in res.items():
         assert r["hub"][0] >= 0 and r["hub"][1] <= vw, (vw, r["hub"])                      # the hub is whole in view
-        assert any(b[0] >= 0 and b[1] <= vw for b in r["branches"]), (vw, r["branches"])  # with at least one branch
-        assert r["max"] > 300                                                               # and the board goes on beyond
+        assert abs((r["hub"][0] + r["hub"][1]) / 2 - r["rail"] / 2) <= 60, (vw, r["hub"])  # and about centred
+        assert any(b[0] >= 0 and b[1] <= vw for b in r["branches"]), (vw, r["branches"])
+        assert all(b[0] >= 0 and b[1] <= r["rail"] for b in r["strict"]), (vw, r["strict"])   # unit two fits whole, clear of the rail

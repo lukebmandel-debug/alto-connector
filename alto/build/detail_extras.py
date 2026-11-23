@@ -50,40 +50,92 @@ window._altoHubsAbove = function(pos, h){
 # It sets each node's displayX, which the line router and the numeral check
 # read, and records the fanned lines' end points in _altoEdgeTX.
 EDGE_GLUE = r"""
-/* A board wider than the page (the plan's `wide`) is read by scrolling sideways: shift+wheel pans as well as the
-   trackpad's side swipe, and a faint edge on the side that has more says there is more. Phones keep their own. */
+/* A unit wider than the page is its own horizontal scroller (the plan's `wide`): the unit's cards and lines slide
+   sideways (translate) behind the board's edge, the page still scrolls only up and down, and the unit's name pill
+   and numeral stay at the edges (they are not part of what slides). A unit that fits is centred and stays put. It
+   opens with its hub centred, clamped at the ends. Trackpad side-swipe and shift+wheel over a unit pan THAT unit
+   only; a faint edge on the side that has more says so (per unit, 8 px at the very edge). Phones keep their own. */
 (function(){
   if(!window.addEventListener || !document.createElement || document.documentElement.classList.contains('mobile')) return;
-  var cv=null, L=null, R=null;
-  function upd(){
-    if(!cv) return;
-    var on=document.documentElement.classList.contains('alto-xwide'), max=cv.scrollWidth-cv.clientWidth-2;
-    L.className='alto-edge'+(on&&cv.scrollLeft>2?' on':''); R.className='alto-edge'+(on&&cv.scrollLeft<max?' on':'');
+  var cv=null, wd=null, U=[], inited=false;
+  function k(){ var r=wd.getBoundingClientRect(); return (wd.offsetWidth&&r.width/wd.offsetWidth)||1; }
+  function vw(){ return Math.min(cv.clientWidth, wd.offsetWidth); }                         // the unit's window: the board's own width (its bars frame it)
+  function railPx(){                                                                       // how far the side rail reaches into the board, plus 20 clear
+    var o=document.getElementById('tab-rail'), r=o&&o.getBoundingClientRect(), w=wd.getBoundingClientRect();
+    return (r&&r.width&&r.left<w.right?w.right-r.left:0)+20*k();
   }
+  function cue(u,side){
+    var e=document.createElement('div'); e.className='alto-edge alto-edge-'+side; e.style.top=u.top+'px'; e.style.height=(u.bot-u.top)+'px';
+    e.style.position='absolute'; e.style.zIndex=20; wd.appendChild(e); return e;
+  }
+  function apply(u){
+    var t=(-u.ox)+'px 0';
+    u.els.forEach(function(e){ e.style.translate=u.ox?t:''; });
+    var Vw=vw();
+    u.L.style.left='0px'; u.R.style.left=(Vw-8)+'px';
+    u.L.classList.toggle('on',u.max>u.min&&u.ox>u.min+2); u.R.classList.toggle('on',u.max>u.min&&u.ox<u.max-2);
+  }
+  function build(){
+    var kk=k(), W=wd.getBoundingClientRect(), Vw=vw(), rail=railPx()/kk;
+    U.forEach(function(u){ u.els.forEach(function(e){ e.style.translate=''; }); if(u.L){ u.L.remove(); u.R.remove(); } });
+    var bands=[].slice.call(wd.querySelectorAll(':scope > .phase-band')).map(function(b){ return {top:b.offsetTop, bot:b.offsetTop+b.offsetHeight, els:[]}; })
+      .sort(function(a,b){ return a.top-b.top; });
+    if(!bands.length) bands=[{top:-1e9,bot:1e9,els:[]}];
+    function of(y){ for(var i=0;i<bands.length;i++) if(y>=bands[i].top && y<bands[i].bot) return bands[i]; return bands[y<bands[0].top?0:bands.length-1]; }
+    var T=window._ALTO_TREE_PLAN||{}, hub=T.open&&document.getElementById('node-'+T.open);
+    [].slice.call(wd.querySelectorAll('.node[id^="node-"]')).forEach(function(e){
+      if(e.id==='node-nav-bar'||e.closest('#node-nav-bar')) return;
+      var r=e.getBoundingClientRect(), y=(r.top+r.height/2-W.top)/kk, u=of(y);
+      u.els.push(e); var l=(r.left-W.left)/kk, rr=(r.right-W.left)/kk;
+      u.lo=Math.min(u.lo==null?1e9:u.lo,l); u.hi=Math.max(u.hi==null?-1e9:u.hi,rr);
+      if(e===hub) u.hub=(l+rr)/2;
+    });
+    var sv=wd.querySelector('#river-svg');
+    if(sv) [].slice.call(sv.querySelectorAll('path')).forEach(function(p){
+      var r=p.getBoundingClientRect(); if(!r.width&&!r.height) return;
+      var u=of((r.top+r.height/2-W.top)/kk); u.els.push(p); u.lo=Math.min(u.lo==null?1e9:u.lo,(r.left-W.left)/kk); u.hi=Math.max(u.hi==null?-1e9:u.hi,(r.right-W.left)/kk);
+    });
+    U=bands.filter(function(u){ return u.lo!=null; });
+    U.forEach(function(u){
+      var a=u.lo-30, b=u.hi+rail;                                   // the unit's own extent: margin left, the side rail's room right
+      if(b-a<=Vw){ u.min=u.max=u.ox=Math.round(((u.lo+u.hi)/2)-Vw/2); }                    // fits: centred, no scroll
+      else { u.min=Math.round(a); u.max=Math.round(b-Vw); var h=u.hub!=null?u.hub:(u.lo+u.hi)/2;
+        u.ox=Math.min(u.max,Math.max(u.min,Math.round(h-(Vw-rail)/2))); }                  // opens on the hub, clamped at the ends
+      u.L=cue(u,'l'); u.R=cue(u,'r'); apply(u);
+    });
+    window._altoUnits=U;
+    /* Retro's name at the foot of the page (fixed, 78 px up) stays 20+ px clear of the lowest card at the page's end */
+    var pad=document.getElementById('alto-foot-pad');
+    if(document.documentElement.classList.contains('alto-retro')){
+      var lb=0; U.forEach(function(u){ u.els.forEach(function(e){ if(e.id) lb=Math.max(lb,(e.getBoundingClientRect().bottom-W.top)/kk); }); });
+      if(!pad){ pad=document.createElement('div'); pad.id='alto-foot-pad'; pad.style.cssText='position:absolute;left:0;width:1px;height:1px;pointer-events:none'; wd.appendChild(pad); }
+      pad.style.top=Math.round(lb+170)+'px';
+    } else if(pad) pad.remove();
+  }
+  function pan(u,d){ var n=Math.min(u.max,Math.max(u.min,u.ox+d/k())); if(n===u.ox) return false; u.ox=n; apply(u); return true; }
   function init(){
-    cv=document.getElementById('canvas'); if(!cv||L) return;
+    cv=document.getElementById('canvas'); wd=document.getElementById('world'); if(!cv||!wd||inited) return; inited=true;
     var st=document.createElement('style');
-    st.textContent='.alto-edge{position:fixed;top:0;bottom:0;width:12px;z-index:20;pointer-events:none;opacity:0;transition:opacity .2s}.alto-edge.on{opacity:1}#alto-edge-l{left:0;background:linear-gradient(90deg,rgba(0,0,0,.2),transparent)}#alto-edge-r{right:0;background:linear-gradient(270deg,rgba(0,0,0,.2),transparent)}';
+    st.textContent='.alto-edge{width:8px;pointer-events:none;opacity:0;transition:opacity .2s}.alto-edge.on{opacity:1}.alto-edge-l{background:linear-gradient(90deg,rgba(0,0,0,.22),transparent)}.alto-edge-r{background:linear-gradient(270deg,rgba(0,0,0,.22),transparent)}';
     document.head.appendChild(st);
-    L=document.createElement('div'); L.id='alto-edge-l'; R=document.createElement('div'); R.id='alto-edge-r';
-    document.body.appendChild(L); document.body.appendChild(R);
-    cv.addEventListener('scroll',upd,{passive:true}); window.addEventListener('resize',upd);
+    cv.style.overflowX='hidden'; wd.style.overflowX='clip';
+    cv.addEventListener('scroll',function(){ if(cv.scrollLeft) cv.scrollLeft=0; },{passive:true});
     window.addEventListener('wheel',function(e){
-      if(!e.shiftKey||e.ctrlKey||e.metaKey||Math.abs(e.deltaY)<=Math.abs(e.deltaX)||cv.scrollWidth<=cv.clientWidth) return;
-      cv.scrollLeft+=e.deltaY*(e.deltaMode===1?16:1); e.preventDefault();
+      if(e.ctrlKey||e.metaKey||!U.length) return;
+      var dx=e.shiftKey?(e.deltaY||e.deltaX):e.deltaX;
+      if(!dx||(!e.shiftKey&&Math.abs(e.deltaX)<=Math.abs(e.deltaY))) return;
+      var r=cv.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) return;
+      var y=(e.clientY-wd.getBoundingClientRect().top)/k(), u=null;
+      for(var i=0;i<U.length;i++) if(y>=U[i].top && y<U[i].bot) u=U[i];
+      if(!u||u.max<=u.min) return;
+      pan(u,dx*(e.deltaMode===1?16:1)); e.preventDefault();
     },{passive:false,capture:true});
-    new MutationObserver(upd).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
-    upd(); setTimeout(upd,400);
-    /* it opens on the unit's hub, as far left as keeps the hub whole in view (the rest is a scroll away) */
-    function open(n){
-      var T=window._ALTO_TREE_PLAN||{}, el=T.open&&document.getElementById('node-'+T.open); if(!el) return;
-      var r=el.getBoundingClientRect(), vw=window.innerWidth;
-      if(r.right>vw-40){ cv.scrollLeft+=r.right-vw+60; if(n<3) setTimeout(function(){ open(n+1); },200); }
-    }
-    setTimeout(function(){ if(cv.scrollLeft<=1) open(0); },700);
+    window.addEventListener('resize',function(){ setTimeout(build,60); });
+    window._altoUnitRefresh=build;
+    setTimeout(build,200); setTimeout(build,900); setTimeout(build,2200);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
-  window.addEventListener('load',function(){ init(); upd(); });
+  window.addEventListener('load',function(){ init(); setTimeout(build,300); });
 })();
 """
 
@@ -271,7 +323,7 @@ window._altoSides = function(R, h, lo, hi, least){
   if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
   var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
-  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],T.wide||0,mx>1700?Math.ceil(mx+40-1700):0);   // (only for a card past the page's own edge)
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],T.wide?0:(mx>1700?Math.ceil(mx+40-1700):0));   // (a unit wider than the page scrolls on its own: layout's `wide`)   // (only for a card past the page's own edge)
   if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
   if(L===S[0] && X===S[1]) return S;
   w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');

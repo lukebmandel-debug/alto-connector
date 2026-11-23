@@ -510,6 +510,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     # centre line; the page opens the room the cards stand in, as its Extend
     # switch does). `need` is how much wider a band asked for.
     W_ = {"w": WORLD_W, "o": 0}
+    rowy = any(hint(n.id, "arrange", "auto") == "row" for n in nodes)    # some unit sets its children side by side
     need, extend, wide_r, open_at = [0.0], [0.0], [0.0], []
     LAST = {}
 
@@ -674,6 +675,11 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         elif mode == "branches":
             br = [[k] for k in ks if not leaf(k) and not concept(k)]
             direct = [k for k in ks if leaf(k) or concept(k)]
+            sidewise = []
+            if direct and rowy and len(direct) >= 2 and hint(p, "arrange", "auto") == "auto":
+                # a page that sets any unit's children side by side does so in every unit:
+                # a hub's concepts stand in a row too, not down a column
+                sidewise, direct = direct, []
             if direct:
                 spine[p] = direct
                 # A root whose children are all concepts and leaves (no sections
@@ -694,6 +700,14 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                       else [T["CX"] + W_["o"]])
                 body.append(columns([["seq", stack(b, cx, T["CARD_W"], True)]
                                      for b, cx in zip(grp, xs)], T["GROUP_GAP"]))
+            if sidewise:
+                n = len(sidewise)
+                bands = -(-n // T["MAX_ROW"])
+                start = 0
+                for r in range(bands):
+                    size = n // bands + (1 if r < n % bands else 0)
+                    chunk, start = sidewise[start:start + size], start + size
+                    body += band(p, chunk, bx, None, True)
         elif mode == "inband":
             n = len(ks)
             bands = -(-n // T["MAX_ROW"])
@@ -722,6 +736,8 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     def inband(p):
         """p hangs somewhere under a card whose children are a band (arrange
         row): at every level of that subtree siblings sit side by side."""
+        if rowy:
+            return True
         q = by_id[p].parent if p in by_id else None
         while q:
             if hint(q, "arrange", "auto") == "row":

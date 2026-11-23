@@ -223,13 +223,14 @@ def test_order_sets_a_cards_place_among_its_siblings_and_the_numerals_follow():
     assert num["cause"] == "1.c" and num["breach"] == "1.d" and num["duty"] == "1.b"
 
 
-def test_hints_for_one_unit_leave_the_others_alone():
+def test_a_row_hint_for_one_unit_sets_every_units_concepts_side_by_side():
+    # (changed on purpose, row-subtrees round 4: the same-level rule covers every unit of a page that uses a row)
     ns = _negligence() + [_n("r2", act=1), _n("a2", "r2", 1), _n("b2", "r2", 1)]
     plain = outline_plan(ns, 2)
     hinted = outline_plan(ns, 2, {"hub": {"arrange": "row"}})
-    for i in ("r2", "a2", "b2"):
-        assert plain["x"][i] == hinted["x"][i]
-    assert plain["acts"][1] == hinted["acts"][1]
+    assert plain["x"]["a2"] == plain["x"]["b2"]                    # no row hint anywhere: a column, as before
+    assert hinted["x"]["a2"] != hinted["x"]["b2"]                  # a row hint anywhere: unit two's children stand in a row too
+    assert plain["x"]["r2"] == hinted["x"]["r2"]
 
 
 def test_placing_cards_makes_auto_choose_the_tree_and_reports_the_result():
