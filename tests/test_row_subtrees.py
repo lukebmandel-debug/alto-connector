@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 import torts_fixture as tf  # noqa: E402
 from alto.build.builder import load_brief  # noqa: E402
@@ -101,8 +102,9 @@ def test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap():
     for p, ks in kids.items():
         if p == "strict" or p.startswith("strict-") or len(ks) < 2:
             continue
-        if all(not kids.get(k) for k in ks) and p != "negligence":
-            continue                                   # an outcome stack
+        by = {n.id: n for n in nodes}
+        if all(not kids.get(k) and by[k].tag != by[p].tag for k in ks):
+            continue                                   # a card's own outcomes: a short stack
         tops = [y[k] - heights[k] / 2 for k in ks]
         assert max(tops) - min(tops) <= 2, (p, tops)
         bx = _boxes(plan, y, x, heights)
@@ -110,7 +112,10 @@ def test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap():
         for a, b in zip(order, order[1:]):
             assert bx[a][2] <= bx[b][0] + 1, (p, a, b)
         checked += 1
-    assert checked >= 5
+    assert checked >= 6
+    # Damages' two sub-cards are same-kind leaves: one row, not a stack
+    assert y["damages-compensatory"] == y["damages-punitive"]
+    assert x["damages-compensatory"] != x["damages-punitive"]
 
 
 def test_no_card_is_narrower_than_its_normal_width():
@@ -235,8 +240,26 @@ def test_shift_wheel_pans_sideways_and_the_edge_cue_shows_only_where_there_is_mo
         return out
     res = _browser({"wide": tf.page(data=tf.negligence_brief()), "plain": tf.page()}, steps)
     w = res["wide"]
-    assert w["open"]["max"] > 500 and w["open"]["sl"] < 5, w["open"]       # opens at the left, with room to the right
+    assert w["open"]["max"] > 500 and w["open"]["l"] and w["open"]["r"], w["open"]   # opens on the hub, with room both ways
     assert w["shift"]["sl"] > 100, w["shift"]                               # shift+wheel pans
     assert w["start"]["r"] and not w["start"]["l"], w["start"]              # cue on the side that has more
     assert w["end"]["l"] and not w["end"]["r"], w["end"]
     assert not res["plain"]["start"]["has"], "a page that fits has no cue"
+
+
+def test_the_page_opens_with_the_hub_and_a_branch_in_view_and_pans_to_both_ends():
+    async def steps(pg):
+        res = {}
+        for vw in (1440, 1920):
+            await pg.set_viewport_size({"width": vw, "height": 900})
+            await pg.reload(wait_until="load")
+            await pg.wait_for_timeout(3500)
+            res[vw] = await pg.evaluate("""() => { const q = (id) => { const r = document.getElementById('node-' + id).getBoundingClientRect(); return [r.left, r.right]; };
+                const c = document.getElementById('canvas');
+                return {hub: q('negligence'), branches: ['duty', 'breach', 'fact', 'proximate', 'damages', 'defenses'].map(q), vw: innerWidth, sl: c.scrollLeft, max: c.scrollWidth - c.clientWidth}; }""")
+        return res
+    res = _browser({"wide": tf.page(data=tf.negligence_brief())}, steps)["wide"]
+    for vw, r in res.items():
+        assert r["hub"][0] >= 0 and r["hub"][1] <= vw, (vw, r["hub"])                      # the hub is whole in view
+        assert any(b[0] >= 0 and b[1] <= vw for b in r["branches"]), (vw, r["branches"])  # with at least one branch
+        assert r["max"] > 300                                                               # and the board goes on beyond

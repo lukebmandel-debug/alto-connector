@@ -74,6 +74,13 @@ EDGE_GLUE = r"""
     },{passive:false,capture:true});
     new MutationObserver(upd).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
     upd(); setTimeout(upd,400);
+    /* it opens on the unit's hub, as far left as keeps the hub whole in view (the rest is a scroll away) */
+    function open(n){
+      var T=window._ALTO_TREE_PLAN||{}, el=T.open&&document.getElementById('node-'+T.open); if(!el) return;
+      var r=el.getBoundingClientRect(), vw=window.innerWidth;
+      if(r.right>vw-40){ cv.scrollLeft+=r.right-vw+60; if(n<3) setTimeout(function(){ open(n+1); },200); }
+    }
+    setTimeout(function(){ if(cv.scrollLeft<=1) open(0); },700);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
   window.addEventListener('load',function(){ init(); upd(); });

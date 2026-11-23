@@ -510,7 +510,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     # centre line; the page opens the room the cards stand in, as its Extend
     # switch does). `need` is how much wider a band asked for.
     W_ = {"w": WORLD_W, "o": 0}
-    need, extend, wide_r = [0.0], [0.0], [0.0]
+    need, extend, wide_r, open_at = [0.0], [0.0], [0.0], []
     LAST = {}
 
     def carried(i):
@@ -664,9 +664,9 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         implicit = False
         if mode == "column" and wants_row(p):
             mode, implicit = "row", True
-        # (a card's own outcomes, leaves with nothing under them, stay a short stack under it:
-        # a row of them would only widen the page; everything else goes side by side)
-        elif mode == "column" and hint(p, "arrange") is None and len(ks) >= 2 and not concept(p) and inband(p):
+        # (only a card's own outcomes, leaves of another kind than it, stay a short stack under
+        # it: a row of them would only widen the page; every other sibling goes side by side)
+        elif mode == "column" and hint(p, "arrange") is None and len(ks) >= 2 and not stack_only(p, ks) and inband(p):
             mode = "inband"
         if mode == "column":
             spine[p] = ks
@@ -714,6 +714,10 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                 body += (band(p, chunk, bx, ww if implicit else None)
                          if size > 2 or implicit else pair(chunk, bx))
         return (lead, body) if parts else lead + body
+
+    def stack_only(p, ks):
+        """p's children are all outcomes: leaves of another kind than p (Liable, Not Liable)."""
+        return all(leaf(k) and k in by_id and by_id[k].tag != by_id[p].tag for k in ks)
 
     def inband(p):
         """p hangs somewhere under a card whose children are a band (arrange
@@ -1092,6 +1096,8 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                     x[r] = round((min(x[k] for k in row_) + max(x[k] for k in row_)) / 2, 2)
                 right = max(x[i_] + w[i_] / 2 for i_ in ids_x)
                 wide_r[0] = max(wide_r[0], right + T["MARGIN"] - WORLD_W)
+                if not open_at:
+                    open_at.append(r)
             extend[0] = max(extend[0], ext)
             W_["w"], W_["o"] = WORLD_W, 0
             ops += one
@@ -1131,7 +1137,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     out = {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
            "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"], "room": ROOM,
            "bus_span": T["BUS_SPAN"], "bus_above": T["BUS_ABOVE"], "warnings": warns,
-           "extend": extend[0], "wide": max(0, round(wide_r[0]))}
+           "extend": extend[0], "wide": max(0, round(wide_r[0])), "open": open_at[0] if open_at else ""}
     for hk in ("shift", "slide"):
         hv = {i: [float(h[hk][0]), float(h[hk][1])] for i, h in H.items()
               if i in by_id and isinstance(h, dict) and h.get(hk)}
@@ -1151,6 +1157,7 @@ def plan_js(plan: dict) -> dict:
             out[hk] = plan[hk]
     if plan.get("wide"):
         out["wide"] = plan["wide"]
+        out["open"] = plan.get("open", "")
     return out
 
 

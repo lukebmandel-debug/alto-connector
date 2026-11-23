@@ -103,10 +103,10 @@ def test_a_hub_sets_its_children_as_a_band_and_their_progeny_hang_below_it():
         assert y[child] - 75 >= y[parent] + 75 + TREE["GROUP_GAP"] - 1
     assert y["duty-l"] - 75 >= (lower + 150 if y["duty"] > min(tops.values()) + 75
                                 else y["duty"] + 75 + TREE["GROUP_GAP"]) - 1
-    # (changed on purpose, row-subtrees: a card's outcomes stay a stack under it, at full width; cause's
-    # outcomes and sub-concept are siblings, one row, the card centred over them)
-    assert x["duty-l"] == x["duty-nl"] == x["duty"] and x["alt"] > x["cause-l"]
-    assert plan["w"].get("duty-l", TREE["CARD_W"]) == TREE["CARD_W"] and y["duty-l"] < y["duty-nl"]
+    # (changed on purpose, row-subtrees: same-kind siblings are one row under their card, centred, at full width;
+    # only a card's own outcomes, leaves of another kind, stay a stack. Here every node is a "Concept".)
+    assert y["duty-l"] == y["duty-nl"] and x["duty"] == (x["duty-l"] + x["duty-nl"]) / 2 and x["alt"] > x["cause-l"]
+    assert plan["w"].get("duty-l", TREE["CARD_W"]) == TREE["CARD_W"]
     check = placement_check(ns, plan, y, x, _heights(ns))
     assert check["overlaps"] == [] and check["off_margin"] == []
 
