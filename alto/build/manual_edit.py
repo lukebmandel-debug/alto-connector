@@ -244,6 +244,12 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.mobile #alto-edit-exit .ee-h.ee-undo:not(.ee-clef)::before{left:-10px;}
   html.mobile #alto-edit-exit .ee-h.ee-redo:not(.ee-clef)::before{left:-6px;right:-4px;}
   #alto-edit-exit .ee-country{width:auto;padding:0 10px;line-height:1;font:inherit;font-size:12.5px;white-space:nowrap;}
+  #alto-edit-exit .ee-claude{display:inline-flex;align-items:center;gap:6px;padding:0 11px;line-height:1;font-size:12.5px;}
+  #alto-edit-exit .ee-claude::after{content:"Claude";}
+  html.mobile #alto-edit-exit .ee-claude{min-width:40px;height:40px;justify-content:center;padding:0 9px;}
+  html.mobile #alto-edit-exit .ee-claude.ee-h:not(.ee-clef)::before{top:-2px;bottom:-2px;left:-2px;right:-2px;}
+  html.mobile #alto-edit-exit .ee-done{padding:0 10px;}
+  html.mobile #alto-edit-exit .ee-claude::after{content:none;}   /* phones: the star alone, so the bar clears INFO and MARK */
   html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}
   /* what else sits at the foot of the screen moves up while editing */
@@ -610,7 +616,9 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
     background-color:color-mix(in srgb,var(--accent,#a78bfa) 9%,transparent);}
   .aed-ph{border-radius:6px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted) 55%,transparent);font-style:normal;font-size:.92em;}
   :where(html.alto-editing.mobile #canvas .node-card),:where(html.alto-editing.mobile #canvas .node:hover .node-card){outline-width:1.5px;outline-offset:2px;}   /* (cards run nearly edge to edge on a phone) */
-  html.mobile #alto-edit-exit{height:44px;bottom:calc(74px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px);box-sizing:border-box;}
+  html.mobile #alto-edit-exit{height:44px;bottom:calc(74px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 40px);box-sizing:border-box;}
+  @media (max-width:389px){html.mobile #alto-edit-exit{bottom:calc(128px + env(safe-area-inset-bottom,0px));}}
+  @media (max-width:359px){html.mobile #alto-edit-exit .ee-w{display:none;}}   /* too narrow to fit between INFO and MARK: the bar rides above that row */
   @media (prefers-reduced-motion:reduce){#alto-edit-rail,#alto-edit-exit,#alto-edit-exit .ee-dot,html.alto-editing .aed-uc{animation:none !important;}}
 </style>"""
 
@@ -1330,7 +1338,6 @@ MANUAL_JS = r"""<script id="alto-manual">
   function slug(s){ return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, ''); }
 
   // The timeline's own name: the title bar, the browser tab, the drawer on a phone. The
-  // homepage's list reads it from the account's listing record, which is told once it settles.
   function setTimelineTitle(v){
     v = String(v || '').replace(/\s+/g, ' ').trim();
     var te = document.getElementById('title-text'); if(te) te.textContent = v;
@@ -1622,17 +1629,20 @@ MANUAL_JS = r"""<script id="alto-manual">
     Object.keys(out).forEach(function(k){ if(out[k] && out[k].done && (out[k].t || 0) < cut) delete out[k]; });
     return {v:1, ops: out};
   }
-  function push(){
+  function push(now, done){
     clearTimeout(pushT);
-    var c = cloud(); if(!c || !c.user || typeof c.putEdits !== 'function'){ setStatus('offline'); return; }
+    var c = cloud(); if(!c || !c.user || typeof c.putEdits !== 'function'){ setStatus('offline'); if(done) done(); return; }
     setStatus('saving');
     pushT = setTimeout(function(){
       c.getEdits(TID).then(function(remote){
         STORE = merge(STORE, remote); wr();
         return c.putEdits(TID, STORE);
-      }).then(function(){ setStatus('saved'); }, function(){ setStatus('error'); pushT = setTimeout(push, 8000); });
-    }, 600);
+      }).then(function(){ setStatus('saved'); if(done) done(); }, function(){ setStatus('error'); pushT = setTimeout(push, 8000); if(done) done(); });
+    }, now ? 0 : 600);
   }
+  // Claude from the edit bar: what is typed or pending is saved first (a text in hand, then the account at once, capped), so Claude opens on the doc as it is.
+  function claude(){ endField(true); var go = function(){ go = 0; window._altoEditTimeline(); };
+    setTimeout(function(){ if(go) go(); }, 2500); if(status === 'saved') go(); else push(1, function(){ if(go) go(); }); }
   function listen(){
     var c = cloud(); if(!c || !c.user || unwatch || !c.watchEdits) return;
     unwatch = c.watchEdits(TID, function(remote){
@@ -1779,7 +1789,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     navSync(); treeSettle();
   }
   // Editing gives some cards another height (a tag that wraps beside its number): the tree is laid out
-  // over the heights as they now are, so the first card moved does not shift every card below it.
   function treeSettle(){ extSync(); if(plan() && window._altoTreeOn && !isSolar() && !root.classList.contains('mobile') && !PHONE) relayoutSoon(); }
   function exit(){
     if(!editing()) return;
@@ -1822,15 +1831,16 @@ MANUAL_JS = r"""<script id="alto-manual">
   function exitPill(){
     var b = document.getElementById('alto-edit-exit'); if(b) return b;
     b = document.createElement('div'); b.id = 'alto-edit-exit';
-    b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎ Editing</span><span class="ee-st">All changes saved</span>'
+    b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎<span class="ee-w"> Editing</span></span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
       + '<span class="ee-mv" role="group" aria-label="What dragging a card moves"><i aria-hidden="true">Drag moves</i><button type="button" data-mv="tree" title="Dragging a card, or the arrow keys, moves it with every card under it. Hold Option to move the one card.">Branch</button><button type="button" data-mv="card" title="Dragging a card, or the arrow keys, moves that card only: the cards under it stay. Hold Option to move the branch.">Card</button></span><button type="button" class="ee-ext" aria-pressed="false" title="Extend: open the board to the left and right without limit, to place cards out there. Off, cards stay on the page. Cards already out there always stay in view.">Extend</button>'
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + (window.AltoWorld && window.AltoWorld.pickCountry ? '<button type="button" class="ee-h ee-country" aria-label="Add a country" title="Add a country: a new card that stands on it">+ Country</button>' : '')
+      + (window._altoEditTimeline ? pillHTML().split('<span')[0].replace('aep-half', 'ee-h ee-claude') : '')
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
-      if(t.hasAttribute('data-mv')) setMove(t.getAttribute('data-mv')); else if(t.classList.contains('ee-ext')) setExtend(!EXT); else if(t.classList.contains('ee-country')) window.AltoWorld.pickCountry(t); else if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
+      if(t.hasAttribute('data-mv')) setMove(t.getAttribute('data-mv')); else if(t.classList.contains('ee-ext')) setExtend(!EXT); else if(t.classList.contains('ee-country')) window.AltoWorld.pickCountry(t); else if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-claude')) claude(); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     if(!document.getElementById('alto-edit-rail')){ var rl = document.createElement('div'); rl.id = 'alto-edit-rail'; rl.setAttribute('aria-hidden', 'true'); document.body.appendChild(rl); }
     document.body.appendChild(b); placePill(); setMove(MOVE); extSync(); return b;
   }
@@ -1963,7 +1973,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
   }
   // A mini timeline (subtree.py layout "timeline"): every item's words and date are fields;
-  // a computer also gets + (an event after it), a flag and a box tag at its date, ← →, ✕.
   function decorateTL(bx, key, T0){
     var fresh = false;
     bx.querySelectorAll('.amt-i[data-i]').forEach(function(c){
@@ -2092,7 +2101,6 @@ MANUAL_JS = r"""<script id="alto-manual">
   function solarDeep(np, id){ return isSolar() && !!np && depthOf(np) + 1 + (id ? heightOf(id) : 0) > SOLAR_MAX; }
   function solarNo(){ toast('A solar system goes sun, planet, moon, satellite — no further. Choose a card nearer the sun.'); }
   // The page's cards changed shape: the solar layer (window._altoSolarSync, solar_draw.py)
-  // draws the systems again from the live tables. Without it the circles stay as built.
   var solarWarned = false;
   function solarSync(){
     if(!isSolar()) return;
@@ -2480,7 +2488,6 @@ MANUAL_JS = r"""<script id="alto-manual">
       {t: 'Rename it…', fn: function(){ askName(document.querySelector('.lanes-tag[data-ln-tag="' + lid + '"]') || document.body, 'Name this line', l.label, function(v){
         v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== l.label) put({label: v}, 'Renamed'); }); }}];
     // legacy (lanes v1) branch / join points: shown only on a line that has them, to change or clear;
-    // a line is on the page wherever a main-line event has it in `present` (the card's ⟿ menu)
     if(l.from) A.push({t: 'It branches off at “' + titleOf(l.from) + '” — change…', sub: 'Click the event on another line where it splits away.',
         fn: function(){ startLinePick(lid, 'from'); }});
     if(l.to) A.push({t: 'It joins at “' + titleOf(l.to) + '” — change…', sub: 'Click the event where it converges.',
@@ -4123,9 +4130,6 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
 
   // Move a card of an outline: press and drag (a finger: press and hold first), or the arrow keys. WHAT moves is
-  // the bar's "Branch | Card" switch (Option flips it for one move). WHERE it goes is on screen while it is held,
-  // as the drop will leave the page: held ON a card it goes into the outline there (under / before / after it,
-  // by where on the card; Shift: never); on open board it stays where it is held, the cards below making room,
   // or it goes back. It is never sent somewhere the pointer is not.
   var drag = null, dragJustEnded = false, MOVE = 'tree';
   try{ if(localStorage.getItem('alto-drag-moves') === 'card') MOVE = 'card'; }catch(e){}
@@ -4168,7 +4172,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     return null;
   }
   // where the board is on screen: a drag is measured against it, so the page scrolling under a held card
-  // (or the board opening more room at its side) never moves the card off the pointer
   function worldAt(){ var w = document.getElementById('world'), r = w ? w.getBoundingClientRect() : {left: 0, top: 0}; return [r.left, r.top]; }
   function heldAt(d){ var s = worldAt(); d.wx = (d.px - d.x0 - (s[0] - d.s0[0])) / d.k; d.wy = (d.py - d.y0 - (s[1] - d.s0[1])) / d.k; }
   /* Where a move may land. `ids` are the cards that move together (old: their stored offset); every other
@@ -4245,7 +4248,6 @@ MANUAL_JS = r"""<script id="alto-manual">
       }};
   }
   // Where cards held on open board land, {at, push?, snap?, slid?, edge?, no?, home?}: where they are held; touching
-  // cards there, a free spot within SNAP px, else there with the cards below stepping down, else nowhere (they go back).
   var SNAP = 60;
   function landing(d){
     var S = d.S, ox = d.old[0] - Math.round(d.old[0]), oy = d.old[1] - Math.round(d.old[1]);
@@ -4426,7 +4428,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(more && !d.raf) d.raf = requestAnimationFrame(frame);
   }
   // the drag as hints: [shift, slide] with this card's own offset set to old + where it lands, and each card
-  // that makes room carried down (a shift takes the cards under it: each gives only what its parent has not)
   function hintsWith(d, L){
     var T = plan() || {}, sh = Object.assign({}, T.shift || {}), sl = Object.assign({}, T.slide || {}), P = (OUT && OUT.parent) || {};
     (d.mode === 'card' ? sl : sh)[d.id] = [Math.round(d.old[0] + L.at[0]), Math.round(d.old[1] + L.at[1])];
@@ -4435,7 +4436,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     return [sh, sl];
   }
   // On screen while held: the page as the drop leaves it (on a card: showTent; on open board: the held cards where
-  // they land, the cards that make room where they will be). With no room they stay at the pointer, marked.
   function preview(d){
     var t = d.mode === 'tree' && !d.free && d.B && OUT ? target(d) : null;
     if(!t) d.tg = null;
@@ -4456,8 +4456,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     holdEdges();
   }
   // connectors are drawn where the cards were laid out; while any card is carried off its place (the held ones, the ones
-  // making room) a line would run through the cards now sitting on it, so none is shown until the drop settles them
-  // (the drop redraws every line); a projection laid out afresh on another card draws its own, and shows them
   function holdEdges(on){
     var h = false; if(on !== false) document.querySelectorAll('#world .node').forEach(function(el){ if(h) return; var t = trOf(el); if(t[0] || t[1]) h = true; });
     root.classList.toggle('aed-lines-held', h);
@@ -4502,7 +4500,6 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
   }
   // Store the move: this card's offset (hk 'shift' carries its branch, 'slide' is it alone) grows by (wx, wy).
-  // The layout is worked out again at once, so nothing jumps back first. burst: a press of an arrow key
   // within a quick burst of the last joins its step of undo.
   var NUDGE = null;
   function commitMove(id, hk, f, wx, wy, burst, push){
