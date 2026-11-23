@@ -97,6 +97,12 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   html:not(.alto-retro):not(.alto-holo) .course-tile .tile-sub{ min-height:0; }
   html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ width:56px; height:56px; right:10px; bottom:10px; top:auto; }
 }
+@media (min-width:641px) and (max-width:743px){ html:not(.alto-retro,.alto-holo) .course-tile:has(.sp-card) .priv-sym{ margin-top:12px; } html:not(.alto-retro,.alto-holo) .course-tile .sp-make{ white-space:nowrap; font-size:12px; padding:0 8px; } }   /* a narrow tablet: the glyph stays under the pill, 12px clear (the card is 12px taller); the label stays on one line */
+@media (min-width:744px){   /* 1.9.278: the glyph leaves the line under the study-plan pill (tablet: beside it; computer: in the button row) */
+  html:not(.alto-retro,.alto-holo) .course-tile:has(.sp-card) .tile-sub{ min-height:17px; }
+  html:not(.alto-retro,.alto-holo) .course-tile:has(.sp-card) .priv-sym{ position:absolute; right:6px; bottom:68px; height:26px; align-items:center; }
+}
+@media (min-width:901px){ html:not(.alto-retro,.alto-holo) .course-tile:has(.sp-card) .priv-sym{ right:24px; bottom:12px; } }
 @media (max-width:640px){   /* (a phone draws no download button, so the row starts at the card's left padding) */
   html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-share{ left:12px; }
   html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-reports{ left:46px; }
