@@ -40,8 +40,7 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
   html.mobile #notes-panel.fw-mode{background:var(--bg) !important;}   /* a sheet to write on: nothing of the page may show through the text */
   html:not(.mobile) #notes-panel.fw-dragging{transition:none !important;}
   html:not(.mobile).fw-open #detail-page{padding-right:calc(var(--fw-w,460px) + 62px) !important;}   /* the page being read stays beside the box, not under it */
-  /* While the panel is open on a desktop the floating controls (engine_patches desktop-controls-row, via
-     --np-dock) and the right-edge tabs sit just left of it; the Notes tab itself is redundant (the panel's x closes it). */
+
   html:not(.mobile).np-docked #tab-rail{right:var(--np-dock,0px);}
   html:not(.mobile).np-docked #notes-toggle{display:none !important;}
   html:not(.mobile).np-docked #ef-panel{right:calc(46px + var(--np-dock,0px));}
@@ -211,8 +210,7 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     var c = $('fw-attach-n'); if(c) c.textContent = '(' + n + (n === 1 ? ' word' : ' words') + ')';
     var i = a.querySelector('input'); if(i) i.checked = ATT;
   }
-  /* What a report takes from here: {html, text, words}, or null when it is not wanted (or nothing is written).
-     `force` is the Freewrite pane's own Report button. The document is flushed and rebuilt from the whitelist first. */
+
   function forReport(force){
     if(!ed || !(force || ATT)) return null;
     flush();
