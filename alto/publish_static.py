@@ -111,6 +111,8 @@ def rules_path() -> Path:
 # from a build-time artifact. Read by publish_timeline; a stdio MCP server
 # cannot print, so a silent fallback would otherwise be invisible.
 LAST_STALE: list[str] = []
+# What the last regenerate_site() kept and pruned of the hosted folders, one line (see _keep_report); read by tests and the publish log.
+LAST_PRUNE: list[str] = []
 
 
 def _private_web(store, uid: str) -> list[dict]:
@@ -168,6 +170,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         (site / "offline.html").unlink()
     stale_notes = LAST_STALE
     stale_notes.clear()
+    LAST_PRUNE.clear()
     name_by_pid = {p["project_id"]: p["name"] for p in store.list_projects(uid)}
 
     (site / "index.html").write_text(hosted_home(build_home([])),
@@ -212,7 +215,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             "paste it).")
     from .build import palace_tiles
     cmap_refs: set = set()
-    named_refs = _stored_page_refs(store, uid, private)       # the hosted files the pages stored BEFORE this run name: a republish may be refused, and then they stay
+    named_refs, store_ok = _stored_page_refs(store, uid)     # the hosted files the pages stored BEFORE this run name (binned ones too): a republish may be refused, and then they stay
     for t in private:
         key = check_component(t["private_key"], "private_key")
         live_keys.add(key)
@@ -240,6 +243,20 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
 
     # Never prune what a stored page names (a refused or skipped republish leaves its page naming the file of an earlier build): read those
     # files now, before any folder below is replaced, and put back whichever the replacing dropped (see _pin_named / _restore_kept).
+    from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS, RETIRED_FOLDERS
+    from .build import fpv_gfx
+    from .buildings.pma_art import ART_FOLDER, files as art_files
+    new_assets = palace_assets(building_plans=_building_plans(store, uid), cmap_refs=cmap_refs)
+    fresh_by = {}
+    for f_, n_, _t in new_assets:
+        fresh_by.setdefault(f_, set()).add(n_)
+    fresh_by.setdefault(fpv_gfx.FOLDER, set()).update(n for n, _b in fpv_gfx.files())
+    fresh_by.setdefault(ART_FOLDER, set()).update(n for n, _b in art_files())
+    # The previous release's versioned files stay one release (a connector one release behind builds pages that name them): the manifest decides which.
+    keep_prev, manifest = _keep_plan(site, fresh_by)
+    named_refs = set(named_refs) | {f"{f_}/{n_}" for f_, ns in keep_prev.items() for n_ in ns}
+    keep_all = not store_ok                                    # the store could not be read: nothing is pruned (item "never prune blind")
+    before = _listing(site, fresh_by)
     pinned = _pin_named(site, named_refs)
 
     # ── share links ─────────────────────────────────────────────────────
@@ -304,8 +321,6 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         shutil.copytree(bg_src, bg_out / f"v{BG_V}")
     # The Memory Palace's hosted scripts (build/palace_assets.py: the fleet's toy weapons, the Memory Blueprint, ...): code, not page, each in a
     # folder named by the content hash of its file.
-    from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS, RETIRED_FOLDERS
-    new_assets = palace_assets(building_plans=_building_plans(store, uid), cmap_refs=cmap_refs)
     for folder in RETIRED_FOLDERS:                                # the city's first-person view, retired: nothing of it stays on the site
         if (site / folder).exists():
             shutil.rmtree(site / folder)
@@ -317,14 +332,13 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             fresh = {n for f, n, _t in new_assets if f == folder}
             keep = fresh
             for p_ in out_.iterdir():
-                if p_.name not in keep:
+                if p_.name not in keep and not keep_all:
                     p_.unlink() if p_.is_file() else shutil.rmtree(p_)
             continue
-        fresh = {n for f, n, _t in new_assets if f == folder}
-        kept = _bldg_kept(out_) if folder == "bldg" else _kept_earlier(out_, fresh)
-        if out_.exists():
+        kept = _bldg_kept(out_) if folder == "bldg" else {}      # (every other folder's earlier files come back through the pins above)
+        if out_.exists() and not keep_all:
             shutil.rmtree(out_)
-        out_.mkdir()
+        out_.mkdir(exist_ok=True)
         for kname, (kbytes, kt) in kept.items():
             (out_ / kname).write_bytes(kbytes)
             os.utime(out_ / kname, (kt, kt))                 # its age kept: the oldest go first
@@ -333,39 +347,34 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         (site / folder / aname).write_text(atext, encoding="utf-8")
     # The FPV graphics pass (build/fpv_gfx.py): CC0 material sets and the HDRI sky as KTX2, the Basis transcoder; binary, content-hash named, under /gfx/,
     # fetched lazily by the Memory Blueprint's first-person renderer (never by their low tiers); without them the procedural look stays
-    from .build import fpv_gfx
     gfx_out = site / fpv_gfx.FOLDER
-    gfx_kept = _kept_earlier(gfx_out, {n for n, _b in fpv_gfx.files()})
-    if gfx_out.exists():
+    if gfx_out.exists() and not keep_all:
         shutil.rmtree(gfx_out)
     for gname, gbytes in fpv_gfx.files():
         gfx_out.mkdir(parents=True, exist_ok=True)
         (gfx_out / gname).write_bytes(gbytes)
-    _restore_kept(gfx_out, gfx_kept)
     # Holographic's looping background clips (build/holo_video.py): binary, content-hash named, under /hvid/, named only by the hosted Holographic script
     from .build import holo_video
     hv_out = site / holo_video.FOLDER
-    if hv_out.exists():
+    if hv_out.exists() and not keep_all:
         shutil.rmtree(hv_out)
     for hname, hbytes in holo_video.files():
         hv_out.mkdir(parents=True, exist_ok=True)
         (hv_out / hname).write_bytes(hbytes)
     # The curated buildings' artwork images (alto/buildings: the PMA's public-domain paintings), binary, content-hash named, under /bart/
-    from .buildings.pma_art import ART_FOLDER, files as art_files
     art_out = site / ART_FOLDER
-    art_kept = _kept_earlier(art_out, {n for n, _b in art_files()})
-    if art_out.exists():
+    if art_out.exists() and not keep_all:
         shutil.rmtree(art_out)
     for aname, abytes in art_files():
         art_out.mkdir(parents=True, exist_ok=True)
         (art_out / aname).write_bytes(abytes)
-    _restore_kept(art_out, art_kept)
     # A page names a city file the cache does not have: its map would not load. Say so (publish_timeline refuses a stale build unless ALTO_ALLOW_STALE).
     for name in palace_tiles.LAST_MISSING:
         if name not in _on_site(site / palace_tiles.FOLDER):
             stale_notes.append(f"city data {name}: a published palace names it, but it is not in {palace_tiles.blob_dir()} — rebuild that page "
                                "(or restore the folder) before publishing, or its map does not load")
     _restore_kept(site, pinned)
+    _keep_report(site, before, fresh_by, keep_prev, keep_all, manifest)
     for key, text in legal.pages().items():              # /privacy/ /terms/ /credits/: the words are alto/legal/*.md
         ldir = site / key
         ldir.mkdir(exist_ok=True)
@@ -376,30 +385,36 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
 PIN_SKIP = ("street/", "tex/")                        # retired folders (palace_assets.RETIRED_FOLDERS): a publish removes them on purpose
 
 
-def _stored_page_refs(store, uid: str, timelines=None) -> set:
-    """Every hosted file (hosted_refs) named by the private.html stored for a timeline that is published (private-web) AT THIS DEPLOY: the scan
-    verify_assets runs after one. Recomputed on every deploy and never from a draft, an unpublished or a binned timeline (its plan can be a home
-    with its lat/lon): once a timeline stops being published, what only it names is pruned on the next deploy. A store that cannot be read is a
-    WARNING (and a stale note), not silence: the deploy then prunes as it did before."""
+def _stored_page_refs(store, uid: str, timelines=None) -> tuple[set, bool]:
+    """(refs, ok): every hosted file (hosted_refs) named by ANY page stored for ANY of the user's timelines (private.html and timeline.html), binned
+    (Recently deleted) ones, drafts and unpublished ones included: a binned timeline can be restored, and its page must still find its files. The one
+    exception is a Memory Blueprint plan (bldg/plan-<hash>.json, the user's own building data, publicly hosted): only a published, unbinned
+    timeline keeps its plan, so a plan is still pruned once its timeline stops being published or is binned. Recomputed on every deploy.
+    ok is False when the store could not be read (quota or error): the deploy then prunes NOTHING (see regenerate_site / _warn_unpinned)."""
     out = set()
     try:
-        rows = _private_web(store, uid) if timelines is None else timelines
+        rows = store.list_timelines(uid) if timelines is None else timelines
         binned = {pg["key"] for pg in store.list_pages(uid) if pg.get("binned")} if hasattr(store, "list_pages") else set()
     except Exception as e:                                  # noqa: BLE001
         _warn_unpinned(f"the stored pages could not be listed ({e})")
-        return out
+        return out, False
+    ok = True
     for t in rows:
-        if t.get("status") != "published" or t.get("visibility") != "private-web" or t.get("binned") or t.get("private_key") in binned:
-            continue
+        live = t.get("status") == "published" and t.get("visibility") == "private-web" and not t.get("binned") and t.get("private_key") not in binned
         try:
-            out |= hosted_refs(store.get_artifact(uid, t.get("timeline_id") or t.get("id"), "private.html"))
+            refs = set()
+            for art in ("private.html", "timeline.html"):
+                refs |= hosted_refs(store.get_artifact(uid, t.get("timeline_id") or t.get("id"), art))
         except Exception as e:                              # noqa: BLE001
             _warn_unpinned(f"{t.get('timeline_id') or t.get('id')}: its stored page could not be read ({e})")
-    return out
+            ok = False
+            continue
+        out |= refs if live else {r for r in refs if not r.startswith("bldg/plan-")}
+    return out, ok
 
 
 def _warn_unpinned(why: str) -> None:
-    msg = f"hosted files named by stored pages are not being kept ({why}); a deploy prunes them as before"
+    msg = f"stored pages could not be read ({why}); this deploy keeps EVERY hosted file already on the site and prunes nothing"
     logging.getLogger(__name__).warning(msg)
     LAST_STALE.append(msg)
 
@@ -443,6 +458,94 @@ def _building_plans(store, uid: str) -> dict:
 
 
 ASSET_NAME_RE = re.compile(r"^(?P<kind>[^ ]+?)-[0-9a-f]{8,12}(?P<ext>\.[A-Za-z0-9.]+)$")
+
+
+KEEP_MANIFEST = ".release-keep.json"          # a dotfile: Hosting's ignore ("**/.*") never deploys it; it lives in the site folder
+KEEP_SKIP = ("bldg/plan-",)                   # a Memory Blueprint plan is the user's data, kept only while its timeline is published (see _stored_page_refs)
+
+
+def _kind(name: str):
+    m = ASSET_NAME_RE.match(name)
+    return (m.group("kind") + m.group("ext")) if m else None
+
+
+def _keep_plan(site: Path, fresh_by: dict) -> tuple[dict, dict]:
+    """(keep, manifest): `keep` is {folder: {names}} of earlier versioned hosted files to keep through THIS publish, `manifest` the record to write
+    at its end. Deterministic, from the manifest alone: for each kind of file (<kind>-<hash><ext>) the manifest holds the names this release wrote
+    ("current", every build of the same version) and the previous release's ("previous"). A publish of a NEW version makes what the old release wrote
+    and this one no longer writes the "previous" (kept from then on until the NEXT change of that kind); a publish of the same version only adds
+    to "current" (and keeps those earlier builds). With no manifest (first run) the newest earlier file of each kind on disk (_kept_earlier) is
+    the previous. mcp_server.__version__ names the release."""
+    try:
+        from .mcp_server import __version__ as release
+    except Exception:                                       # noqa: BLE001
+        release = ""
+    try:
+        old = json.loads((site / KEEP_MANIFEST).read_text("utf-8"))
+        assert old.get("v") == 1 and isinstance(old["current"], dict) and isinstance(old["previous"], dict)
+    except Exception:                                       # noqa: BLE001 — missing or unreadable: start from the disk
+        old = None
+    cur, prev, keep = {}, {}, {}
+    for folder, names in sorted(fresh_by.items()):
+        by_kind = {}
+        for n in sorted(names):
+            if _kind(n) and not f"{folder}/{n}".startswith(KEEP_SKIP):
+                by_kind.setdefault(_kind(n), set()).add(n)
+        kinds = {}
+        if old is None:
+            ek = {}
+            for n in _kept_earlier(site / folder, names):
+                if not f"{folder}/{n}".startswith(KEEP_SKIP):
+                    ek.setdefault(_kind(n), set()).add(n)
+            for k in sorted(set(by_kind) | set(ek)):
+                kinds[k] = (by_kind.get(k, set()), ek.get(k, set()), set())
+        else:
+            oc, op = old["current"].get(folder, {}), old["previous"].get(folder, {})
+            for k in sorted(set(by_kind) | set(oc) | set(op)):
+                fresh_k, cur_old, prev_old = by_kind.get(k, set()), set(oc.get(k, ())), set(op.get(k, ()))
+                if old.get("release") == release:           # the same version again: its earlier builds stay beside this one
+                    kinds[k] = (fresh_k, prev_old - fresh_k, cur_old - fresh_k)
+                else:                                       # a new version: what the old one wrote and this one does not is the previous release's
+                    gone = cur_old - fresh_k
+                    kinds[k] = (fresh_k, gone or ((prev_old - fresh_k) if fresh_k else set()), set())
+        for k, (f_, p_, same) in kinds.items():
+            if f_ | same:
+                cur.setdefault(folder, {})[k] = sorted(f_ | same)
+            if p_:
+                prev.setdefault(folder, {})[k] = sorted(p_)
+            keep.setdefault(folder, set()).update((p_ | same) - names)
+    pr = (old or {}).get("release")
+    manifest = {"v": 1, "release": release, "previous_release": (old or {}).get("previous_release") if pr == release else pr,
+                "current": cur, "previous": prev}
+    return keep, manifest
+
+
+def _listing(site: Path, fresh_by: dict) -> dict:
+    """{folder: {file names}} now on disk, for the folders a publish replaces (and hvid, the clips the hosted Holographic script names)."""
+    return {f: {p.name for p in (site / f).iterdir()} for f in list(fresh_by) + ["hvid"] if (site / f).is_dir()}
+
+
+def _keep_report(site: Path, before: dict, fresh_by: dict, keep: dict, keep_all: bool, manifest: dict) -> None:
+    """Write the manifest and the ONE log line of this publish (per site): how many earlier files were kept and pruned, the names pruned, and any
+    file the manifest wants kept that this site does not have (the only way two sites' keep sets can differ)."""
+    after = _listing(site, fresh_by)
+    pruned = sorted(f"{f}/{n}" for f, ns in before.items() for n in ns - after.get(f, set()))
+    kept = sorted(f"{f}/{n}" for f, ns in before.items() for n in ns & after.get(f, set()) if n not in fresh_by.get(f, set()))
+    missing = sorted(f"{f}/{n}" for f, ns in keep.items() for n in ns if n not in after.get(f, set()))
+    try:
+        site_id = (firebase_configured() or (None, site.parent.name))[1]
+    except Exception:                                       # noqa: BLE001
+        site_id = site.parent.name
+    line = (f"prune [{site_id}] release {manifest.get('release') or '?'}: kept {len(kept)} earlier hosted file(s), pruned {len(pruned)}"
+            + (" (store unreadable: pruned NOTHING)" if keep_all else "")
+            + (f"; pruned: {', '.join(pruned[:20])}{' ...' if len(pruned) > 20 else ''}" if pruned else "")
+            + (f"; wanted by the keep manifest but missing here: {', '.join(missing[:20])}" if missing else ""))
+    LAST_PRUNE.append(line)
+    logging.getLogger(__name__).log(logging.WARNING if (missing or keep_all) else logging.INFO, line)
+    try:
+        (site / KEEP_MANIFEST).write_text(json.dumps(manifest, sort_keys=True, indent=1), encoding="utf-8")
+    except OSError as e:
+        logging.getLogger(__name__).warning("the keep manifest could not be written (%s): the next publish starts from the disk", e)
 
 
 def _kept_earlier(d: Path, fresh, per_kind: int = 1) -> dict:
