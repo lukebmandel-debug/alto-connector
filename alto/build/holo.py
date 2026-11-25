@@ -525,7 +525,7 @@ UNIT_GLASS_CSS = r"""
  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 30%,transparent),0 0 16px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 38%,transparent) !important;
  -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
   X #world .phase-numeral:not(#_):not(#__){min-width:64px;box-sizing:border-box;text-align:center;justify-content:center;}
-  X #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:88px !important;height:6px !important;margin-top:-3px;border-radius:999px;
+  X #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:48px !important;height:6px !important;margin-top:-3px;border-radius:999px;
  background:linear-gradient(90deg,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 30%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 70%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent)) !important;
  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 12px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 35%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   X:not(.mobile) #title-bar #title-text:not(#_):not(#__):not(#___){

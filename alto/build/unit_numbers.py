@@ -30,7 +30,9 @@ KEY_SUFFIX = "-un"
 CHOICES = ("roman", "numbers")
 
 # Whole-text unit numbers (.phase-numeral, .un-n) and path numbers (the rest).
-SEL = ".phase-numeral,.node-order,.ol-num,.print-ol-num,.alto-lead-num,.el-num,.un-n,.un-p"
+# Card number labels (.node-order) are always arabic, whatever the choice (Luke 2026-11-24: "in nodes, the number label always uses the
+# numeral version, not the roman numeral").
+SEL = ".phase-numeral,.ol-num,.print-ol-num,.alto-lead-num,.el-num,.un-n,.un-p"
 
 OWNER_EMPTY = '<script id="alto-un-owner">window._ALTO_UN_OWNER=null;</script>'
 OWNER_BLOCK = re.compile(r'<script id="alto-un-owner">[\s\S]*?</script>')
