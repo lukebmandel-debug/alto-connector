@@ -4145,6 +4145,7 @@ MANUAL_JS = r"""<script id="alto-manual">
      one built without it takes it on when Claude builds the page next. Cards are dragged on the board as it is
      (no open board beyond it: the old Extend's side room is gone). */
   var EXT = !!window._ALTO_EXTEND_PAGE;
+  function UNITS(){ return !!(window._altoUnitMode && window._altoUnitMode()); }   // (each unit scrolls sideways on its own: EDGE_GLUE)
   function extSync(){
     document.querySelectorAll('#alto-edit-exit .ee-ext').forEach(function(b){ b.classList.toggle('on', EXT); b.setAttribute('aria-pressed', EXT ? 'true' : 'false'); });
   }
@@ -4179,7 +4180,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   // where the board is on screen: a drag is measured against it, so the page scrolling under a held card
   function worldAt(){ var w = document.getElementById('world'), r = w ? w.getBoundingClientRect() : {left: 0, top: 0}; return [r.left, r.top]; }
-  function heldAt(d){ var s = worldAt(); d.wx = (d.px - d.x0 - (s[0] - d.s0[0])) / d.k; d.wy = (d.py - d.y0 - (s[1] - d.s0[1])) / d.k; }
+  function heldAt(d){ var s = worldAt(), pn = d.els && d.els[0] && window._altoUnitOx ? window._altoUnitOx(d.els[0]) - (d.ox0 || 0) : 0; d.wx = (d.px - d.x0 - (s[0] - d.s0[0])) / d.k + pn; d.wy = (d.py - d.y0 - (s[1] - d.s0[1])) / d.k; }
   /* Where a move may land. `ids` are the cards that move together (old: their stored offset); every other
      card of the unit stays where it is. Offsets are counted from where the cards are now. A spot is free
      when each moving card is clear of each other card by the room the layout keeps (layout.ROOM; the same
@@ -4200,8 +4201,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     });
     if(!isFinite(ut)) top = Math.min(top, 0);             // a whole unit: never higher than it is
     top = Math.min(top, 0);
-    // Extend off: on the page (a card already past its edge may stay where it is); on: no limit either side
-    { ids.forEach(function(m){ lo = Math.max(lo, dw(m) / 2 + 20 - G.x[m]); hi = Math.min(hi, 1700 + ((plan()||{}).wide||0) - dw(m) / 2 - 20 - G.x[m]); }); lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    // no limit either side, Extend on or off (Luke 2026-11-25, Torts: "I could not drag a node beyond the canvas"):
+    // off, the board opens that way (_altoSides); on, the card's unit row reaches it (EDGE_GLUE)
     // offsets are stored whole: every candidate is one that stays clear once rounded
     var ox = old[0] - Math.round(old[0]), oy = old[1] - Math.round(old[1]);
     function dn(v, o){ return Math.floor(v + o + 1e-6) - o; } function up(v, o){ return Math.ceil(v + o - 1e-6) - o; }
@@ -4406,6 +4407,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     rc = ref && document.querySelector('#node-' + ref + ' .node-card');
     if(rc){ var rr = rc.getBoundingClientRect(), ws = worldAt(); d.o0 = [rr.left + rr.width / 2 - B.x[ref] * d.k - ws[0], rr.top + rr.height / 2 - B.y[ref] * d.k - ws[1]]; }
     d.els.forEach(function(el){ el.classList.add('aed-moving'); });
+    d.ox0 = d.els[0] && window._altoUnitOx ? window._altoUnitOx(d.els[0]) : 0;   // (a unit that scrolls sideways on its own: its pan while held)
     root.classList.add('alto-dragging');
   }
   window.addEventListener('pointermove', function(e){
@@ -4424,11 +4426,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     function pace(p, size){ var v = p < E ? -(E - p) : p > size - E ? p - (size - E) : 0; return Math.max(-26, Math.min(26, v * 0.45)); }
     var v = pace(d.py, H), u = Math.round(Math.max(-8, Math.min(8, pace(d.px, W)))), sc = d.sc || document.scrollingElement || root;
     if(v){ var t0 = sc.scrollTop; sc.scrollTop += v; more = sc.scrollTop !== t0; }
-    if(u){ var l0 = sc.scrollLeft; sc.scrollLeft += u;
+    if(u && UNITS() && d.els[0] && window._altoUnitNudge){ window._altoUnitNudge(d.els[0], u / d.k); more = true; }   // Extend on: the held card's unit scrolls, as far as it is held there
+    else if(u){ var l0 = sc.scrollLeft; sc.scrollLeft += u;
       if(sc.scrollLeft !== l0) more = true;
       else more = true; }                                                                    // (the board opens further that way: below)
     // held at the screen's left edge with the board at its left end: the board opens further, a step a frame
-    d.least = EXT && u < 0 && sc.scrollLeft <= 0 && d.S ? (window._altoSideX || [0])[0] - u : 0;
+    d.least = !UNITS() && u < 0 && sc.scrollLeft <= 0 && d.S ? (window._altoSideX || [0])[0] - u : 0;
     if(d.least){ var G = window._altoTreeGeo; window._altoSides(G, G.h, d.ext && d.ext[0], d.ext && d.ext[1], d.least); }
     heldAt(d);
     preview(d); dragTip(d);
@@ -4451,7 +4454,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var G = window._altoTreeGeo, R = null, LD = d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD.at; d.land = LD;
     if(G && d.S){ var H = hintsWith(d, LD); try{ R = layoutAll(G.h, H[0], H[1]); }catch(e){ R = null; } }
     // the board reaches as far as the held cards and their landing, either side
-    if(R && d.S && EXT){ d.ext = [d.S.box[0] + Math.min(d.wx, L[0]), d.S.box[1] + Math.max(d.wx, L[0])]; window._altoSides(R, G.h, d.ext[0], d.ext[1], d.least); }
+    if(R && d.S && !UNITS()){ d.ext = [d.S.box[0] + Math.min(d.wx, L[0]), d.S.box[1] + Math.max(d.wx, L[0])]; window._altoSides(R, G.h, d.ext[0], d.ext[1], d.least); }
     var at = LD.no || LD.home ? [d.wx, d.wy] : L, held = Math.round(at[0]) + 'px ' + Math.round(at[1]) + 'px';
     document.querySelectorAll('#world .node').forEach(function(el){
       if(el.classList.contains('aed-moving')){ el.style.translate = held; el.classList.toggle('aed-no', !!LD.no); return; }
@@ -4493,7 +4496,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     var hk = d.mode === 'card' ? 'slide' : 'shift', f = field('p|' + d.id + '|' + hk);
     var LD = cancel === true || !f ? null : d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD && !LD.no && !LD.home && LD.at;
+    if(L && UNITS()) window._altoShowId = d.id;                              // (the unit row is scrolled to show where it landed)
     var ok = L && commitMove(d.id, hk, f, L[0], L[1], false, LD.push);
+    if(ok && !UNITS()) setTimeout(function(){                                   // (dropped at the window's edge on a board that opened: scrolled into view, 60 px clear)
+      var c = document.querySelector('#node-' + d.id + ' .node-card'), sc = d.sc || document.getElementById('canvas'); if(!c || !sc) return;
+      var r = c.getBoundingClientRect(), W = window.innerWidth, v = r.right > W - 60 ? r.right - (W - 60) : r.left < 60 ? r.left - 60 : 0;
+      if(v) sc.scrollBy({left: v, behavior: 'smooth'}); }, 650);
     clearPreview(); selCard(d.id);
     if(!ok && window._altoTreeGeo) window._altoSides(window._altoTreeGeo, window._altoTreeGeo.h);     // (room opened for a move not made closes again)
     if(LD && LD.no) toast('No room there, so it went back. Drop it on a card to put it under, before or after that card.');
