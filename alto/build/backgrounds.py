@@ -322,7 +322,7 @@ HEAD_JS = r"""(function(){
       bg=c.k==='x' ? pattern(c.p, w) : 'linear-gradient(160deg,'+w[0]+','+w[1]+')'; top=w[0]; q=w[0];
     }
     PV.forEach(function(n){ if(!(n in pv)) st.removeProperty(n); }); Object.keys(pv).forEach(function(n){ st.setProperty(n,pv[n]); }); PV=Object.keys(pv);
-    r.classList.toggle('alto-bg-map', c.k==='m'); r.classList.toggle('alto-bg-h', c.k==='h');
+    r.classList.toggle('alto-bg-map', c.k==='m'); r.classList.toggle('alto-bg-h', c.k==='h' || !!c.u);   // (an imported picture too: Holographic's grid plate would paint over it otherwise, holo.py)
     st.setProperty('--alto-bg',bg); st.setProperty('--alto-top',top); st.setProperty('--alto-q',q); st.setProperty('--alto-veil',veil);
     st.setProperty('--alto-bright',bright); st.setProperty('--alto-blur',blur); st.setProperty('--alto-t',T+'px'); st.setProperty('--alto-mask',mask);
     r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
