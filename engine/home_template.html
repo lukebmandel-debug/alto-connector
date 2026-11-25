@@ -2405,7 +2405,8 @@ function setHomeSort(v){
 function sortProjects(groups){
   const mode = homeSort();
   const added = g => g.items.reduce((m, p) => Math.min(m, p.added || p.updatedAt || m), Infinity);
-  const viewed = g => g.items.reduce((m, p) => Math.max(m, p.viewedAt || 0), 0);
+  let LV = {}; try{ LV = JSON.parse(localStorage.getItem('alto-viewed-v1') || '{}') || {}; }catch(e){}   // (this browser's own view times, private_shell: the order is final at first paint)
+  const viewed = g => g.items.reduce((m, p) => Math.max(m, p.viewedAt || 0, +LV[p.key] || 0), 0);
   const nm = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
   const cmp = mode === 'alpha' ? nm
     : mode === 'added' ? (a, b) => (added(b) - added(a)) || nm(a, b)

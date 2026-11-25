@@ -47,3 +47,14 @@ def test_listing_records_carry_when_added_and_when_viewed():
 def test_the_private_shell_records_that_the_owner_opened_it():
     js = private_shell.shell()
     assert "AltoCloud.markViewed(KEY)" in js
+
+
+def test_recently_viewed_order_is_final_at_first_paint():
+    """Luke 2026-11-22: the row 'keeps jumping around a second or two after reloading'. The opened page keeps its view
+    time in this browser too, and the homepage sorts by the newer of that and the account's, so the cached first paint
+    already has the order the account's answer would give."""
+    from alto.build import private_shell
+    from alto.build.pages import build_home
+    shell = "".join(str(v) for v in vars(private_shell).values() if isinstance(v, str))
+    assert "alto-viewed-v1" in shell and "markViewed(KEY)" in shell
+    assert "+LV[p.key]" in build_home([])
