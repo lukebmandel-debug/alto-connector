@@ -142,9 +142,47 @@ html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
 html.alto-xwide:not(.mobile) #world{ left:var(--xl,0px); }
 html.alto-xwide:not(.mobile) #world #glass-slab{ width:calc(max(1700px, 100vw / var(--alto-zoom, 0.8)) + var(--xl,0px) + var(--xr,0px)) !important; margin-left:calc((var(--xr,0px) - var(--xl,0px)) / 2); }
 html.alto-xwide:not(.mobile) #world #river-svg{ overflow:visible !important; }
-/* The unit numeral stays tucked at the right end of its bar when the board has side room (Luke 2026-11-24: "the unit number is tucked on
-   the right side, not free floating"): the bar reaches --xr further right, so the numeral goes with it. */
-html.alto-xwide:not(.mobile) #world .phase-numeral:not(#_){ right:calc(9px - var(--xr,0px)) !important; }
+/* The unit numeral stays tucked at the right end of its bar (Luke 2026-11-24: "the unit number is tucked on the right side, not free
+   floating"). The band already reaches --xr (outline-side-room-band), so the numeral needs no side-room rule of its own (1.9.285's added
+   --xr twice). When the numeral is drawn in, clear of the Alto wordmark and the side rail (--num-shift, the engine's chip-edge script), the
+   bar's right end comes in with it: a margin shrinks the absolutely placed bar by the same amount. */
+html:not(.mobile) #world .unit-bar:not(#_){ margin-right:calc(0px - var(--num-shift,0px)); }
+/* The unit numeral's INK sits in the middle of its plate, both ways, in every style (Luke 2026-11-24: "both vertical and horizontal
+   centering"). Georgia's figures are old-style (a 2 sits on the x-height, a 3 hangs below the line, a 6 rises above it) and italic, so no
+   fixed nudge centres them all: each numeral's own glyphs are measured (canvas measureText, in the font the style gives it) and the plate's
+   text is shifted by the difference between its line box's centre and its ink's centre. Re-run when a numeral is drawn or renumbered, when
+   the style changes (the html class), and when fonts arrive. */
+</style><script id="alto-numeral-centre">(function(){
+var C=document.createElement('canvas').getContext('2d'), R=document.documentElement, seen=typeof WeakSet!=='undefined'?new WeakSet():null, pend=0;
+function fix(el){
+  if(R.classList.contains('mobile')) return;
+  var t=(el.textContent||'').trim(); if(!t) return;
+  el.style.paddingTop=el.style.paddingBottom=el.style.paddingLeft=el.style.paddingRight='';
+  var cs=getComputedStyle(el), fs=parseFloat(cs.fontSize)||0; if(!fs) return;
+  C.font=cs.fontStyle+' '+cs.fontWeight+' '+fs+'px '+cs.fontFamily;
+  try{ C.letterSpacing=(cs.letterSpacing==='normal'?'0px':cs.letterSpacing); }catch(e){}
+  var m=C.measureText(t); if(m.actualBoundingBoxAscent==null || m.fontBoundingBoxAscent==null) return;
+  var A=m.fontBoundingBoxAscent, D=m.fontBoundingBoxDescent, lh=parseFloat(cs.lineHeight); if(!(lh>0)) lh=A+D;
+  var base=(lh-(A+D))/2+A, ink=base+(m.actualBoundingBoxDescent-m.actualBoundingBoxAscent)/2;
+  var dy=lh/2-ink, dx=m.width/2-(m.actualBoundingBoxRight-m.actualBoundingBoxLeft)/2;
+  /* move the TEXT inside its plate, not the plate: the plate is a flex box that centres its text, so unequal padding shifts the text by
+     half the difference (the plate's own size and place are untouched). The style's own padding is read once with ours cleared. */
+  el.style.paddingTop=el.style.paddingBottom=el.style.paddingLeft=el.style.paddingRight='';
+  var c2=getComputedStyle(el), pl=parseFloat(c2.paddingLeft)||0, pr=parseFloat(c2.paddingRight)||0, pt=parseFloat(c2.paddingTop)||0, pb=parseFloat(c2.paddingBottom)||0;
+  var h=Math.max(Math.abs(dx),(pl+pr)/2), v=Math.max(Math.abs(dy),(pt+pb)/2);
+  el.style.paddingLeft=Math.max(0,h+dx).toFixed(2)+'px'; el.style.paddingRight=Math.max(0,h-dx).toFixed(2)+'px';
+  el.style.paddingTop=Math.max(0,v+dy).toFixed(2)+'px'; el.style.paddingBottom=Math.max(0,v-dy).toFixed(2)+'px';
+}
+var mo=window.MutationObserver?new MutationObserver(function(){ all(); }):null;
+function all(){ if(pend) return; pend=1; requestAnimationFrame(function(){ pend=0;
+  document.querySelectorAll('.phase-numeral').forEach(function(el){ if(mo && seen && !seen.has(el)){ seen.add(el); mo.observe(el,{childList:true,characterData:true,subtree:true}); } fix(el); }); }); }
+function start(){ var w=document.getElementById('world'); if(w && mo) mo.observe(w,{childList:true});
+  if(mo) new MutationObserver(all).observe(R,{attributes:true,attributeFilter:['class']});
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(all);
+  all(); setTimeout(all,1500); setTimeout(all,4000); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+window._altoNumeralCentre=all;
+})();</script><style>
 /* Every fade that comes with a focus change rides the growth's clock and curve
    (motion-one-body): the other cards dimming, the new card brightening, the
    headers and lines fading. They ran on CSS's own 'ease' over .25-.3s, done
@@ -2690,6 +2728,9 @@ PATCHES += [
      "new": "    lbl.style.top=(bandTop+BOX_TOP)+'px'; if(hx) lbl.style.height=(BOX_H+hx)+'px';", "count": 1},
     {"name": "outline-side-room-band", "old": "left:0;right:0;background:transparent;--unit-color:${pm.colorRaw};`;",
      "new": "left:calc(0px - var(--xl,0px));right:calc(0px - var(--xr,0px));background:transparent;--unit-color:${pm.colorRaw};`;", "count": 1},
+    {"name": "unit-bar-follows-numeral-shift",
+     "old": "    for(var i=0;i<ns.length;i++){ ns[i].style.setProperty('--num-shift', s+'px'); }",
+     "new": "    for(var i=0;i<ns.length;i++){ ns[i].style.setProperty('--num-shift', s+'px'); }\n    var _w=document.getElementById('world'); if(_w) _w.style.setProperty('--num-shift', s+'px');", "count": 1},
     {"name": "unit-header-grows-tube", "old": "    bar.style.height=TUBE_H+'px';",
      "new": "    bar.style.height=(TUBE_H+hx)+'px';", "count": 1},
     {"name": "unit-header-grows-gaps", "old": "bottom:bandTop+TUBE_TOP+TUBE_H+4, cy:bandTop+TUBE_TOP+TUBE_H/2}",
