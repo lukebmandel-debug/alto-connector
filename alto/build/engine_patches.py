@@ -145,6 +145,8 @@ html.alto-xwide:not(.mobile) #world #river-svg{ overflow:visible !important; }
 /* The unit numeral stays tucked at the right end of its bar when the board has side room (Luke 2026-11-24: "the unit number is tucked on
    the right side, not free floating"): the bar reaches --xr further right, so the numeral goes with it. */
 html.alto-xwide:not(.mobile) #world .phase-numeral:not(#_){ right:calc(9px - var(--xr,0px)) !important; }
+/* The numeral's ink sits in the middle of its plate (Luke 2026-11-24: Georgia's figures ride ~.045em low and ~.025em left of the box's centre). */
+html:not(.mobile):not(.alto-retro) #world .phase-numeral:not(#_){ translate:calc(var(--num-shift,0px) + .025em) -.045em; }
 /* Every fade that comes with a focus change rides the growth's clock and curve
    (motion-one-body): the other cards dimming, the new card brightening, the
    headers and lines fading. They ran on CSS's own 'ease' over .25-.3s, done
