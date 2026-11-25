@@ -171,6 +171,8 @@ LIB_JS = r"""(function(){
     ' font-size:13px;line-height:1;color:#fff;background:rgba(0,0,0,.45);opacity:0;transition:opacity .15s;cursor:pointer;}',
     '#bg-panel .bg-tile.bg-mine:hover .bg-more,#bg-panel .bg-tile.bg-mine:focus-within .bg-more,html.mobile #bg-panel .bg-more,#bg-panel .bg-tile.bg-mine.active .bg-more{opacity:1;}',
     '@media (hover:none){#bg-panel .bg-more{opacity:1 !important;}}',
+    '#bg-panel .bg-tile.bg-mine .bg-del{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#fff;background:rgba(0,0,0,.6);cursor:pointer;}',
+    '#bg-panel .bg-tile.bg-mine .bg-del:hover{background:#b3261e;}',
     '#bg-panel .bg-tile.bg-add{background:var(--card-glass-bg,var(--surface));color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;',
     ' border:1.5px dashed var(--muted);box-shadow:none;}',
     '#bg-panel .bg-tile.bg-add .bg-name{position:static;background:none;text-shadow:none;color:var(--text);padding:0;text-align:center;font-size:10.5px;}',
@@ -264,6 +266,9 @@ LIB_JS = r"""(function(){
       var t=ui.tile(id, L[id]); t._yours=1; t.classList.add('bg-mine');
       var m=el('span', 'bg-more', '\u22ef'); m.setAttribute('role', 'button'); m.setAttribute('aria-label', 'Rename or remove '+L[id].n); m.title='Rename or remove';
       m.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); manage(id); });
+      var dx=el('span', 'bg-del', '\u2715'); dx.setAttribute('role', 'button'); dx.setAttribute('aria-label', 'Delete '+L[id].n); dx.title='Delete this background';   /* Luke 2026-11-24: a plain way to delete an import (asks first, in the panel) */
+      dx.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); manage(id, 'remove'); });
+      t.appendChild(dx);
       t.appendChild(m); g.appendChild(t);
     });
     sec.appendChild(g);

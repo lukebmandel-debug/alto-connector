@@ -142,6 +142,9 @@ html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
 html.alto-xwide:not(.mobile) #world{ left:var(--xl,0px); }
 html.alto-xwide:not(.mobile) #world #glass-slab{ width:calc(max(1700px, 100vw / var(--alto-zoom, 0.8)) + var(--xl,0px) + var(--xr,0px)) !important; margin-left:calc((var(--xr,0px) - var(--xl,0px)) / 2); }
 html.alto-xwide:not(.mobile) #world #river-svg{ overflow:visible !important; }
+/* The unit numeral stays tucked at the right end of its bar when the board has side room (Luke 2026-11-24: "the unit number is tucked on
+   the right side, not free floating"): the bar reaches --xr further right, so the numeral goes with it. */
+html.alto-xwide:not(.mobile) #world .phase-numeral:not(#_){ right:calc(9px - var(--xr,0px)) !important; }
 /* Every fade that comes with a focus change rides the growth's clock and curve
    (motion-one-body): the other cards dimming, the new card brightening, the
    headers and lines fading. They ran on CSS's own 'ease' over .25-.3s, done
