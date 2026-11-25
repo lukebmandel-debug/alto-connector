@@ -435,6 +435,11 @@ class Brief:
     # who wants every Liable / Not Liable beside its concept sets "beside" once
     # rather than placing each card.
     outcomes: str = "stack"
+    # Extend (the owner's choice, per page; Luke 2026-11-25): an outline's rows keep
+    # their cards' width and each unit wider than the window scrolls sideways on its
+    # own, instead of cramming or stacking downward. Readers then get a switch to fold
+    # it back into the window. Off (the default): the page as it was before Extend.
+    extend: bool = False
     # Where individual cards go, {node id: hints} (layout.outline_plan). The
     # tree's own arrangement is the default; a hint overrides it for one card
     # and the cards under it follow. `arrange` says how a card's children sit
@@ -798,6 +803,8 @@ def validate_brief(b: Brief) -> list[str]:
         raise BriefError(f"layout {b.layout!r}: must be one of {LAYOUTS}")
     if b.tree_lines not in TREE_LINES:
         raise BriefError(f"tree_lines {b.tree_lines!r}: must be one of {TREE_LINES}")
+    if not isinstance(b.extend, bool):
+        raise BriefError(f"extend {b.extend!r}: must be true or false")
     if b.outcomes not in OUTCOME_LAYOUTS:
         raise BriefError(f"outcomes {b.outcomes!r}: must be one of {OUTCOME_LAYOUTS}")
     if b.unit_numbers not in UNIT_NUMBERS:

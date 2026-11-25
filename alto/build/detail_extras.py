@@ -49,8 +49,166 @@ window._altoHubsAbove = function(pos, h){
 # builder's own hints, keeping every hub above its children by construction.
 # It sets each node's displayX, which the line router and the numeral check
 # read, and records the fanned lines' end points in _altoEdgeTX.
-def tree_glue(plan: dict) -> str:
-    return "\nwindow._ALTO_TREE_PLAN=" + js_json(plan, separators=(",", ":")) + ";" + TREE_GLUE
+EDGE_GLUE = r"""
+/* A unit wider than the page is its own horizontal scroller (the plan's `wide`): the unit's cards and lines slide
+   sideways (translate) behind the board's edge, the page still scrolls only up and down, and the unit's name pill
+   and numeral stay at the edges (they are not part of what slides). A unit that fits is centred and stays put. It
+   opens with its hub centred, clamped at the ends. Trackpad side-swipe and shift+wheel over a unit pan THAT unit
+   only; a faint edge on the side that has more says so (per unit, 8 px at the very edge). Phones keep their own. */
+(function(){
+  if(!window.addEventListener || !document.createElement) return;
+  var cv=null, wd=null, U=[], inited=false;
+  function k(){ var r=wd.getBoundingClientRect(); return (wd.offsetWidth&&r.width/wd.offsetWidth)||1; }
+  function vw(){ return Math.min(cv.clientWidth, wd.offsetWidth); }                         // the unit's window: the board's own width (its bars frame it)
+  function railPx(){                                                                       // how far the side rail reaches into the board, plus 20 clear
+    var o=document.getElementById('tab-rail'), r=o&&o.getBoundingClientRect(), w=wd.getBoundingClientRect();
+    return (r&&r.width&&r.left<w.right?w.right-r.left:0)+20*k();
+  }
+  /* a card is moved by its margin (the engine centres cards with it), never by `translate`: a card being dragged is moved by that */
+  function shift(e,ox){
+    if(e.tagName==='path'||e.ownerSVGElement) e.style.translate=ox?(-ox)+'px 0':'';
+    else e.style.marginLeft=ox?'calc(var(--mx,0px) + var(--fx,0px) - '+ox+'px)':'';
+  }
+  /* What says a unit has more sideways (Luke 2026-11-25: no halo). window._altoEdgeCue: 'chev' (a small round
+     arrow at the row's end, under its bar, on the side that has more; a click pans), 'track' (a thin line under
+     the bar with the part in view marked) or 'none' (only the lit switch beside Search). */
+  function mode(){ return window._altoEdgeCue||'chev'; }
+  function cue(u,side){
+    var e=document.createElement(side==='t'?'div':'button');
+    if(side==='t'){ e.className='alto-edge-t'; e.innerHTML='<i></i>'; }
+    else { e.type='button'; e.className='alto-edge-c alto-edge-'+side; e.setAttribute('aria-label',side==='l'?'More to the left':'More to the right'); e.tabIndex=-1;
+      e.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(side==='l'?'M15 6l-6 6 6 6':'M9 6l6 6-6 6')+'"/></svg>';
+      e.addEventListener('click',function(ev){ ev.stopPropagation(); var d=(vw()-u.rail)*0.7*k(); pan(u,side==='l'?-d:d); }); }
+    e.style.top=(u.cueTop+(side==='t'?0:10))+'px';
+    wd.appendChild(e); return e;
+  }
+  function apply(u){
+    u.els.forEach(function(e){ shift(e,u.ox); });
+    var Vw=vw(), lim=Vw-u.rail, F=48;                              // the scroller's right edge: the rail's room (its width + 20) stays clear
+    /* a card at the right end fades out over its last 48 px before the rail's room, never a hard cut */
+    u.els.forEach(function(e){ if(e._r==null) return; var c=e.querySelector('.node-card'); if(!c) return;
+      var cw=c.offsetWidth||1, x=e._r-u.ox-lim, end=cw-x, m=x>-F?'linear-gradient(90deg,#000 '+Math.round(end-F)+'px,transparent '+Math.round(end)+'px)':'';
+      c.style.webkitMaskImage=m; c.style.maskImage=m;
+      c.style.clipPath=x>0.5?'inset(-60px '+Math.ceil(x)+'px -60px -60px)':'';   // (where the fade has ended: nothing of it under the rail, to see or to touch)
+    });
+    var more=u.max>u.min, m_=mode();
+    u.L.style.left='20px'; u.R.style.left=(lim-20-34)+'px';
+    u.L.classList.toggle('on',m_==='chev'&&more&&u.ox>u.min); u.R.classList.toggle('on',m_==='chev'&&more&&u.ox<u.max);
+    var span=lim-40, th=more?Math.max(24,span*Vw/(u.max-u.min+Vw)):span, at=more?(span-th)*(u.ox-u.min)/(u.max-u.min):0;
+    u.T.style.left='20px'; u.T.style.width=span+'px'; u.T.classList.toggle('on',m_==='track'&&more);
+    var i=u.T.firstChild; i.style.width=th+'px'; i.style.transform='translateX('+at+'px)';
+  }
+  function off(){                                                // Extend on (the board opens wide for edits): the board's own sideways scroll
+    U.forEach(function(u){ u.els.forEach(function(e){ shift(e,0); var c=e._r!=null&&e.querySelector('.node-card'); if(c){ c.style.webkitMaskImage=''; c.style.maskImage=''; c.style.clipPath=''; } }); if(u.L){ u.L.remove(); u.R.remove(); u.T.remove(); } });
+    U=[]; window._altoUnits=U; wd.style.width=''; wd.style.margin=''; wd.style.overflowX=''; cv.style.overflowX='';
+    var sv=wd.querySelector('#river-svg'), sl=wd.querySelector('#glass-slab'), pad=document.getElementById('alto-foot-pad');
+    if(sv){ sv.setAttribute('width','1700'); sv.style.overflow=''; } if(sl){ sl.style.removeProperty('width'); sl.style.marginLeft=''; } if(pad) pad.remove();
+  }
+  function build(){
+    var rc=document.documentElement.classList;
+    if(rc.contains('alto-xwide') || rc.contains('mobile') || rc.contains('phone-whole') || rc.contains('alto-ext-off')){ off(); return; }   // (a phone: its Card view, or its Whole view, whose open unit scrolls sideways itself; or the reader's Extend switch off)
+    var keep={}; U.forEach(function(u){ keep[u.top]=u.ox; });
+    U.forEach(function(u){ u.els.forEach(function(e){ shift(e,0); }); if(u.L){ u.L.remove(); u.R.remove(); u.T.remove(); } });
+    /* the board is as wide as the window (no 1,700 cap): the bars, the glass and the lines reach both edges */
+    var ww=Math.max(1700,cv.clientWidth), sv0=wd.querySelector('#river-svg'), sl0=wd.querySelector('#glass-slab');
+    wd.style.width=ww+'px'; wd.style.margin='0'; cv.style.overflowX='hidden'; wd.style.overflowX='clip';
+    if(sv0){ sv0.setAttribute('width',ww); sv0.style.overflow='visible'; }
+    if(sl0){ sl0.style.setProperty('width',ww+'px','important'); sl0.style.marginLeft='0'; }
+    var kk=k(), W=wd.getBoundingClientRect(), Vw=vw(), rail=railPx()/kk, retro=document.documentElement.classList.contains('alto-retro');
+    var bars=[].slice.call(wd.querySelectorAll(':scope > .unit-bar'));
+    var bands=[].slice.call(wd.querySelectorAll(':scope > .phase-band')).map(function(b){ return {top:b.offsetTop, bot:b.offsetTop+b.offsetHeight, els:[], band:b}; })
+      .sort(function(a,b){ return a.top-b.top; });
+    bands.forEach(function(u){                                   // the unit's bar: the fade starts under it, never over the pill or numeral
+      var br=bars.filter(function(x){ return x.offsetTop>=u.top-8 && x.offsetTop<u.bot; })[0];
+      u.cueTop=br?br.offsetTop+br.offsetHeight+6:u.top;
+      if(br){ if(br.dataset.r0==null) br.dataset.r0=br.style.right;
+        var nm=u.band.querySelector('.phase-numeral');
+        if(retro && nm){ var nr=nm.getBoundingClientRect(); br.style.right=Math.max(0,Math.round(ww-(nr.right-W.left)/kk))+'px'; }   // Retro: the line ends at the numeral
+        else br.style.right=br.dataset.r0; }
+    });
+    if(!bands.length) bands=[{top:-1e9,bot:1e9,els:[]}];
+    function of(y){ for(var i=0;i<bands.length;i++) if(y>=bands[i].top && y<bands[i].bot) return bands[i]; return bands[y<bands[0].top?0:bands.length-1]; }
+    var T=window._ALTO_TREE_PLAN||{}, hub=T.open&&document.getElementById('node-'+T.open);
+    [].slice.call(wd.querySelectorAll('.node[id^="node-"]')).forEach(function(e){
+      if(e.id==='node-nav-bar'||e.closest('#node-nav-bar')) return;
+      var r=e.getBoundingClientRect(), y=(r.top+r.height/2-W.top)/kk, u=of(y);
+      u.els.push(e); var l=(r.left-W.left)/kk, rr=(r.right-W.left)/kk; e._r=rr;
+      u.lo=Math.min(u.lo==null?1e9:u.lo,l); u.hi=Math.max(u.hi==null?-1e9:u.hi,rr);
+      if(e===hub) u.hub=(l+rr)/2;
+    });
+    var sv=wd.querySelector('#river-svg');
+    if(sv) [].slice.call(sv.querySelectorAll('path')).forEach(function(p){
+      var r=p.getBoundingClientRect(); if(!r.width&&!r.height) return;
+      var u=of((r.top+r.height/2-W.top)/kk); u.els.push(p); u.lo=Math.min(u.lo==null?1e9:u.lo,(r.left-W.left)/kk); u.hi=Math.max(u.hi==null?-1e9:u.hi,(r.right-W.left)/kk);
+    });
+    U=bands.filter(function(u){ return u.lo!=null; });
+    U.forEach(function(u){
+      u.rail=rail; var a=u.lo-30, b=u.hi+rail;                                   // the unit's own extent: margin left, the side rail's room right
+      if(b-a<=Vw){ u.min=u.max=u.ox=Math.round(((u.lo+u.hi)/2)-Vw/2); }                    // fits: centred, no scroll
+      else { u.min=Math.round(a); u.max=Math.round(b-Vw); var h=u.hub!=null?u.hub:(u.lo+u.hi)/2;
+        u.ox=Math.min(u.max,Math.max(u.min,Math.round(h-(Vw-rail)/2))); }                  // opens on the hub, clamped at the ends
+      if(keep[u.top]!=null && u.max>u.min) u.ox=Math.min(u.max,Math.max(u.min,keep[u.top]));   // a rebuild (a card moved, the window resized) keeps the pan
+      u.L=cue(u,'l'); u.R=cue(u,'r'); u.T=cue(u,'t'); apply(u);
+    });
+    window._altoUnits=U;
+    /* Retro's name at the foot of the page (fixed, 78 px up) stays 20+ px clear of the lowest card at the page's end */
+    var pad=document.getElementById('alto-foot-pad');
+    if(document.documentElement.classList.contains('alto-retro')){
+      var lb=0; U.forEach(function(u){ u.els.forEach(function(e){ if(e.id) lb=Math.max(lb,(e.getBoundingClientRect().bottom-W.top)/kk); }); });
+      if(!pad){ pad=document.createElement('div'); pad.id='alto-foot-pad'; pad.style.cssText='position:absolute;left:0;width:1px;height:1px;pointer-events:none'; wd.appendChild(pad); }
+      pad.style.top=Math.round(lb+170)+'px';
+    } else if(pad) pad.remove();
+  }
+  function pan(u,d){ var n=Math.min(u.max,Math.max(u.min,u.ox+d/k())); if(n===u.ox) return false; u.ox=n; apply(u); return true; }
+  function init(){
+    cv=document.getElementById('canvas'); wd=document.getElementById('world'); if(!cv||!wd||inited) return; inited=true;
+    var st=document.createElement('style');
+    st.textContent='.alto-edge-c{position:absolute;z-index:30;width:34px;height:34px;box-sizing:border-box;padding:0;margin:0;display:flex;align-items:center;justify-content:center;cursor:pointer;'
+      +'border-radius:50%;border:1px solid var(--card-glass-border,var(--border));background:var(--card-glass-bg,var(--surface));color:var(--muted);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);'
+      +'box-shadow:0 4px 14px var(--node-rest-shadow,rgba(0,0,0,.12));opacity:0;pointer-events:none;transition:opacity .25s}'
+      +'.alto-edge-c.on{opacity:.9;pointer-events:auto}.alto-edge-c:hover{opacity:1;color:var(--text)}'
+      +'html.alto-retro .alto-edge-c{border-radius:0;background:#000;border-color:rgba(217,174,85,.75);color:#d9ae55;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}'
+      +'html.alto-holo .alto-edge-c{background:rgba(6,22,26,.72);border-color:rgba(60,230,210,.55);color:#5fe8d8;box-shadow:0 0 10px rgba(60,230,210,.25)}'
+      +'.alto-edge-t{position:absolute;z-index:30;height:3px;border-radius:2px;background:color-mix(in srgb,var(--muted,#888) 22%,transparent);opacity:0;pointer-events:none;transition:opacity .25s;overflow:hidden}'
+      +'.alto-edge-t.on{opacity:1}.alto-edge-t i{display:block;height:100%;border-radius:2px;background:color-mix(in srgb,var(--muted,#888) 70%,transparent)}'
+      +'html.alto-retro .alto-edge-t{border-radius:0;background:rgba(217,174,85,.22)}html.alto-retro .alto-edge-t i{border-radius:0;background:#d9ae55}'
+      +'html.alto-holo .alto-edge-t{background:rgba(60,230,210,.18)}html.alto-holo .alto-edge-t i{background:#5fe8d8;box-shadow:0 0 6px rgba(60,230,210,.6)}'
+      +'html.printing .alto-edge-c,html.printing .alto-edge-t{display:none}';
+    document.head.appendChild(st);
+    cv.addEventListener('scroll',function(){ if(U.length && cv.scrollLeft) cv.scrollLeft=0; },{passive:true});
+    window.addEventListener('wheel',function(e){
+      if(e.ctrlKey||e.metaKey||!U.length) return;
+      var dx=e.shiftKey?(e.deltaY||e.deltaX):e.deltaX;
+      if(!dx||(!e.shiftKey&&Math.abs(e.deltaX)<=Math.abs(e.deltaY))) return;
+      var r=cv.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) return;
+      var y=(e.clientY-wd.getBoundingClientRect().top)/k(), u=null;
+      for(var i=0;i<U.length;i++) if(y>=U[i].top && y<U[i].bot) u=U[i];
+      if(!u||u.max<=u.min) return;
+      pan(u,dx*(e.deltaMode===1?16:1)); e.preventDefault();
+    },{passive:false,capture:true});
+    window.addEventListener('resize',function(){ setTimeout(build,60); });
+    window._altoUnitRefresh=build;
+    var sig=function(){ var c=document.documentElement.classList; return [c.contains('alto-xwide'),c.contains('alto-retro'),c.contains('alto-holo'),c.contains('dark'),c.contains('mobile'),c.contains('phone-whole'),c.contains('alto-ext-off')].join(); }, last=sig();
+    new MutationObserver(function(){ var n=sig(); if(n!==last){ last=n; setTimeout(build,50); } }).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+    setTimeout(build,200); setTimeout(build,900); setTimeout(build,2200);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+  window.addEventListener('load',function(){ init(); setTimeout(build,300); });
+})();
+"""
+
+
+def tree_glue(plan: dict, off: dict = None, tid: str = "", ext: bool = False) -> str:
+    """The tree plan for the page. `off`: Extend is on for this page (brief.extend) and changes its
+    layout, so the page also carries the plan without it, for the reader's switch (EXT_VIEW_GLUE)."""
+    if not off:
+        return (("\nwindow._ALTO_EXTEND_PAGE=1;" if ext else "") + "\nwindow._ALTO_TREE_PLAN=" + js_json(plan, separators=(",", ":")) + ";"
+                + ("window._altoOpenLeft=1;" if plan.get("wide") else "") + TREE_GLUE
+                + (EDGE_GLUE if plan.get("wide") else ""))
+    return ("\nwindow._ALTO_TREE_PLAN=window._ALTO_TREE_PLAN_ON=" + js_json(plan, separators=(",", ":")) + ";"
+            + "window._ALTO_TREE_PLAN_OFF=" + js_json(off, separators=(",", ":")) + ";"
+            + "window._ALTO_EXT_KEY=" + js_json("alto-extview-" + tid) + ";window._ALTO_EXTEND_PAGE=1;"
+            + EXT_VIEW_GLUE + TREE_GLUE + EDGE_GLUE)
 
 
 TREE_GLUE = """
@@ -193,7 +351,11 @@ window._altoTreeCalc = function(h, shift, TP, slide){
     if(moved.length){
       var mv={}, mine=NODES.map(function(n){ return n.id; }).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; }), y0={}, x0={};
       mine.forEach(function(i){ y0[i]=y[i]; x0[i]=x[i]; });
-      moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; mv[i]=1; });
+      moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; mv[i]=1;
+        /* without Extend a card placed past the page's edge (by the old Extend, before 1.9.287) comes back inside it, 20 px
+           clear; with Extend its unit's row reaches it (EDGE_GLUE). Luke 2026-11-25, interview question 4. */
+        if(!T.wide && !(window._ALTO_TREE_PLAN_ON && !document.documentElement.classList.contains('alto-ext-off'))){ var hw=((T.w&&T.w[i])||270); if(hw===270) hw=290; hw/=2;
+          x[i]=Math.min(Math.max(x[i],20+hw),1680-hw); } });
       window._altoMakeRoom(y, x, h, T.w, mine, mv, P0, T.room||T.row_gap, start);
       window._altoSeparate(y, x, h, T.w, mine, y0, x0, P0, T.room||T.row_gap);
       bottom=Math.max.apply(null, Object.keys(y).map(function(i){ return y[i]+h[i]/2; }));
@@ -214,6 +376,7 @@ window._altoTreeWrite = function(R, pos, h){
   window._altoEdgeTX=R.etx;
   window._altoTreeOn=true; window._altoTreeGeo={y:R.y, h:h, x:R.x};
   window._altoSides(R, h);
+  if(window._altoUnitRefresh) setTimeout(window._altoUnitRefresh,30);
 };
 /* Cards placed past the page's left or right edge (dragged there in edit mode): the board opens that much
    more room on that side (40 px clear of the outermost card), reached by scrolling sideways. Like a header
@@ -230,9 +393,9 @@ window._altoSides = function(R, h, lo, hi, least){
   if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
   var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
-  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],mx>1700?Math.ceil(mx+40-1700):0);   // (only for a card past the page's own edge)
-  if(L<S[0] && !window._altoExtOff) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
-  L=0; X=0;   // (Luke 2026-11-24: Extend is withdrawn, back to the page before it: no side room opens, the unit bars keep their page length)
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), ex=M[0]||M[1], X=Math.max(M[1],T.wide&&ex?T.wide:0,T.wide&&!ex?0:(mx>1700?Math.ceil(mx+40-1700):0));
+  if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
+  L=0; X=0;   // (Luke 2026-11-24: no side room opens for the whole board; Extend is each unit's own sideways scroll, EDGE_GLUE)
   if(L===S[0] && X===S[1]) return S;
   w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');
   document.documentElement.classList.toggle('alto-xwide', !!(L||X));
@@ -1522,3 +1685,90 @@ FOCUS_SETTLE = """<script id="alto-focus-settle">
   window.initLayout._altoSettle = 1;
 })();
 </script>"""
+
+
+# ── Extend: the reader's switch (Luke 2026-11-25, interview ORG/notes-ceo/extend-interview-1125.md) ──
+# Only on a page whose owner turned Extend on (brief.extend) and whose layout it changes. On (the default):
+# each unit's rows keep their cards' width and a unit wider than the window scrolls sideways on its own
+# (EDGE_GLUE). Off: the page folded back into the window as it is without Extend (the OFF plan). Kept per
+# page in this browser. The switch never takes an editing button's place (Luke: "the button cannot replace
+# the editing buttons, put it somewhere it won't interfere but looks normal").
+EXT_VIEW_GLUE = """
+(function(){
+  var R=document.documentElement, KEY=window._ALTO_EXT_KEY||'alto-extview', off=false;
+  try{ off=localStorage.getItem(KEY)==='0'; }catch(e){}
+  function use(o){ off=!!o; R.classList.toggle('alto-ext-off',off); window._ALTO_TREE_PLAN=off?window._ALTO_TREE_PLAN_OFF:window._ALTO_TREE_PLAN_ON;
+    window._altoOpenLeft=(!off && window._ALTO_TREE_PLAN_ON.wide)?1:0; }
+  use(off);
+  function sync(){ if(window._altoExtLook) setTimeout(window._altoExtLook,0); [].forEach.call(document.querySelectorAll('.alto-ext-btn'),function(b){ b.classList.toggle('on',!off); b.setAttribute('aria-pressed',off?'false':'true');
+    b.title=off?'Extend is off: each unit fits the window. Click to let wide units scroll sideways.':'Extend is on: wide units scroll sideways. Click to fit each unit in the window.'; }); }
+  window._altoExtView=function(on, owner){      // owner: the editing bar's switch (the page's own setting, not this reader's)
+    if(on===undefined) return !off;
+    if(!!on===!off) return !off;
+    use(!on); if(!owner) try{ if(on) localStorage.removeItem(KEY); else localStorage.setItem(KEY,'0'); }catch(e){}
+    sync();
+    try{ if(typeof initLayout==='function') initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(e){}
+    if(window._altoUnitRefresh) setTimeout(window._altoUnitRefresh,60);
+    return !off;
+  };
+  window._altoExtSync=sync;
+  /* The switch: one more round button in the bottom row, just left of Search, wearing the look of its
+     neighbour (Info) in whatever style and theme is on, so it reads as one of the row. It takes no other
+     button's place, and steps aside while Search is open or the page is being edited. Phones: Card view has
+     no switch (each card is whole there); Whole view has the same button, 44 px to touch. */
+  var b=null, SVG='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>';
+  function look(){
+    if(!b) return;
+    var s=document.getElementById('search-btn'), nb=document.getElementById('info-btn')||document.getElementById('mode-toggle');
+    var hide=!s || !nb || !window._ALTO_EXTEND_PAGE || R.classList.contains('mobile') || R.classList.contains('printing') || R.classList.contains('alto-editing') || s.classList.contains('expanded');
+    var r=s&&s.getBoundingClientRect(), c=nb&&getComputedStyle(nb);
+    if(!hide && (!r.width || c.display==='none' || c.visibility==='hidden')) hide=true;
+    b.style.display=hide?'none':'flex'; if(hide) return;
+    var k=(s.offsetWidth&&r.width/s.offsetWidth)||1;      // (the page's zoom: a fixed box's px are the zoomed page's)
+    var q=nb.getBoundingClientRect(), gap=Math.max(6, q.left-r.right)/k, w=s.offsetWidth, touch=R.classList.contains('phone-whole');
+    b.style.width=b.style.height=w+'px';
+    b.style.left=(r.left/k-gap-w).toFixed(2)+'px'; b.style.top=(r.top/k).toFixed(2)+'px';
+    ['backgroundColor','backgroundImage','borderTopWidth','borderTopStyle','borderTopColor','borderRightWidth','borderRightStyle','borderRightColor',
+     'borderBottomWidth','borderBottomStyle','borderBottomColor','borderLeftWidth','borderLeftStyle','borderLeftColor','borderRadius','boxShadow','color','opacity']
+      .forEach(function(k){ b.style[k]=c[k]; });
+    var bf=c.backdropFilter||c.webkitBackdropFilter||''; b.style.backdropFilter=bf; b.style.webkitBackdropFilter=bf;
+    var ic=nb.querySelector('svg'); if(ic){ var ics=getComputedStyle(ic); b.style.color=(ics.stroke&&ics.stroke!=='none'&&ics.stroke.indexOf('url')<0)?ics.stroke:ics.color; }
+    /* on: the switch is lit, a fine ring in its own ink inside its edge (the row's other buttons have none) */
+    b.style.boxShadow=(c.boxShadow&&c.boxShadow!=='none'?c.boxShadow+', ':'')+(off?'':'inset 0 0 0 1.5px currentColor');
+    b.classList.toggle('touch',touch);
+  }
+  function make(){
+    if(b || !document.body) return;
+    b=document.createElement('button'); b.type='button'; b.id='ext-view-btn'; b.className='alto-ext-btn'; b.setAttribute('aria-label','Extend'); b.innerHTML=SVG;
+    b.addEventListener('click',function(e){ e.stopPropagation(); window._altoExtView(off); });
+    var st=document.createElement('style');
+    st.textContent='#ext-view-btn{position:fixed;z-index:300;box-sizing:border-box;padding:0;margin:0;display:none;align-items:center;justify-content:center;cursor:pointer;font:inherit;transition:opacity .2s}'
+      +'#ext-view-btn svg{opacity:.55;transition:opacity .2s}#ext-view-btn.on svg{opacity:1}#ext-view-btn:hover svg{opacity:1}'
+      +'#ext-view-btn:focus-visible{outline:2px solid currentColor;outline-offset:2px}'
+      +'#ext-view-btn.touch::after{content:"";position:absolute;inset:-7px}'
+      +'html.mobile #ext-view-btn,html.printing #ext-view-btn{display:none !important}';
+    document.head.appendChild(st); document.body.appendChild(b); sync(); look();
+    var s=document.getElementById('search-btn');
+    if(s && window.MutationObserver) new MutationObserver(look).observe(s,{attributes:true,attributeFilter:['class','style']});
+    if(window.MutationObserver) new MutationObserver(function(){ setTimeout(look,30); setTimeout(look,400); }).observe(R,{attributes:true,attributeFilter:['class','style']});
+    window.addEventListener('resize',function(){ setTimeout(look,60); });
+    [300,1200,3000].forEach(function(t){ setTimeout(look,t); });
+  }
+  /* a phone: a row of the MENU drawer, in the Whole view only (Card view shows each card whole either way) */
+  function row(){
+    var body=document.getElementById('nav-drawer-body'); if(!body) return;
+    var r=document.getElementById('ext-drawer-row');
+    if(!r){ r=document.createElement('button'); r.type='button'; r.id='ext-drawer-row'; r.className='drawer-btn pmin-word'; r.style.gridColumn='1 / -1';
+      r.innerHTML='<span class="drawer-icon">'+SVG+'</span><span class="drawer-label"></span>';
+      r.addEventListener('click',function(e){ e.stopPropagation(); if(window.closeNavDrawer) closeNavDrawer(); setTimeout(function(){ window._altoExtView(off); },0); });
+      body.appendChild(r); }
+    r.querySelector('.drawer-label').textContent='Extend \u00b7 '+(off?'Off':'On');
+    if(window._ALTO_EXTEND_PAGE && R.classList.contains('phone-whole')) r.style.removeProperty('display'); else r.style.setProperty('display','none','important');
+  }
+  function hook(){ var o=window.openNavDrawer; if(typeof o!=='function'||o._ext) return; var w=function(){ row(); return o.apply(this,arguments); }; w._ext=1; window.openNavDrawer=w; }
+  var sync0=sync; sync=function(){ sync0(); row(); }; window._altoExtSync=sync;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',make); else make();
+  window.addEventListener('load',function(){ make(); hook(); row(); setTimeout(hook,1000); setTimeout(hook,2500); });
+  window._altoExtLook=look;
+})();
+"""

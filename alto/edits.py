@@ -406,6 +406,9 @@ def _target(key, brief, by_id, conns):
         if p[1] in by_id:
             return by_id[p[1]], CHIP_ATTR[p[2]], "list"
         return (None, None, "pending") if NEW_CARD.match(p[1]) else None
+    # the owner's Extend switch for an outline (manual_edit `pg|extend`, 1 or 0): brief.extend
+    if kind == "pg" and len(p) == 2 and p[1] == "extend" and brief.get("mode") == "outline":
+        return brief, "extend", "pgflag"
     if kind == "ln" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]) and p[1] != "main":
         return brief, p[1], "lane"
     # a horizontal timeline's flashback (lanes.py): the whole {id, label}, or None to remove it
@@ -1211,6 +1214,18 @@ def fold(store, uid, tid) -> "dict | None":
                 holder["photos"] = new
             else:
                 holder.pop("photos", None)
+        elif kind == "pgflag":
+            cur, nv = bool(holder.get(f)), bool(v)
+            if cur == nv:
+                already.append(k)
+                continue
+            if cur != bool(b):
+                conflicts.append(k)
+                continue
+            if nv:
+                holder[f] = True
+            else:
+                holder.pop(f, None)
         elif kind == "lane":
             # a line of a horizontal timeline (lanes.py): the whole line, or None to remove it
             from .build.lanes import norm_line

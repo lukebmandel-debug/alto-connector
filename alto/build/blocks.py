@@ -1004,7 +1004,14 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     tid = b.timeline_id
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
-    tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes) if tree else None
+    tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes, b.extend) if tree else None
+    # Extend (brief.extend, the owner's choice): the page carries the plan without it too, for the
+    # reader's switch (detail_extras.EXT_VIEW_GLUE). A page Extend changes nothing on has no switch.
+    tree_off = None
+    if tree and b.extend:
+        tree_off = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes, False)
+        if plan_js(tree_off) == plan_js(tree_plan):
+            tree_off = None
     # A System (solar.py): its plan goes to the page whole, as
     # window._ALTO_SOLAR (solar_draw reads it), and its circles' centres as a
     # tree plan the page's _altoTree runs like any other.
@@ -1551,7 +1558,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",parent:" + json.dumps(_parent) + "};"
                    + NUM_JS + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
-                   + (dx.tree_glue(plan_js(tree_plan)) if tree
+                   + (dx.tree_glue(plan_js(tree_plan), plan_js(tree_off) if tree_off else None, tid, b.extend) if tree
                       else _solar_glue(solar_plan_, nodes) if solar_plan_
                       else dx.HUBS_ABOVE_GLUE))
     if b.mode == "lanes":
@@ -1665,14 +1672,17 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # An outline's flanking outcome cards are narrower on desktop, so a tree
     # row (flank | concept | flank, twice) fits the 1700px world (layout.TREE);
     # so are the cards of a placed row of three or more.
-    if tree:
+    # (with Extend's two plans, each plan's widths hold only in its own view: html.alto-ext-off is the reader's "off")
+    for _tp, _hx in ((tree_plan, ":not(.alto-ext-off)" if tree_off else ""), (tree_off, ".alto-ext-off")):
+        if not (tree and _tp):
+            continue
         _narrow: dict[int, list] = {}
-        for _i, _w in tree_plan["w"].items():
+        for _i, _w in _tp["w"].items():
             if _w != TREE["CARD_W"]:
                 _narrow.setdefault(_w, []).append(_i)
         if _narrow:
             nav_char_css += "".join(
-                "\n  " + ",".join(f"html:not(.mobile) #node-{i} .node-card"
+                "\n  " + ",".join(f"html:not(.mobile){_hx} #node-{i} .node-card"
                                   for i in sorted(ids))
                 + f"{{width:{_w:g}px;}}" for _w, ids in sorted(_narrow.items()))
             _fl = sorted(i for ids in _narrow.values() for i in ids)
@@ -1696,14 +1706,16 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # On a narrow (flank) card the number takes its place beside the tag as a
     # float, so a tag too wide to share the line drops below it instead of
     # running under the number (Outcome / 2.b.1.1-1 on a 180px card).
-    if tree and b.mode == "outline":
-        _nar = sorted(i for i, _w in tree_plan["w"].items() if _w != TREE["CARD_W"])
+    for _tp, _hx in ((tree_plan, ":not(.alto-ext-off)" if tree_off else ""), (tree_off, ".alto-ext-off")):
+        if not (tree and _tp and b.mode == "outline"):
+            continue
+        _nar = sorted(i for i, _w in _tp["w"].items() if _w != TREE["CARD_W"])
         if _nar:
             nav_char_css += ("\n  " + ",".join(
-                f"html:not(.mobile) #canvas #node-{i} .node-card .node-order" for i in _nar)
+                f"html:not(.mobile){_hx} #canvas #node-{i} .node-card .node-order" for i in _nar)
                 + "{position:static;float:right;margin:0 -2px 0 14px;}"
                 + "\n  " + ",".join(
-                    f"html:not(.mobile) #canvas #node-{i} .node-card .node-tag" for i in _nar)
+                    f"html:not(.mobile){_hx} #canvas #node-{i} .node-card .node-tag" for i in _nar)
                 + "{padding-right:0;}")
     # A card sized by its owner (brief.card_size): its width, and the least
     # height it takes. After the tree's widths above, so it wins.

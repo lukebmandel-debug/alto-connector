@@ -158,7 +158,7 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
         return positions, heights, world_h, mgrid, mobile_h, report
     if brief.mode == "outline" and brief.layout != "flow":
         plan = outline_plan(nodes, len(brief.acts), sized_placement(brief),
-                            brief.tree_lines, brief.outcomes)
+                            brief.tree_lines, brief.outcomes, brief.extend)
         th = {n.id: max(card_height(n.desc, n.title, plan["w"].get(n.id, TREE["CARD_W"])),
                         (brief.card_size.get(n.id) or {}).get("h") or 0)
               for n in nodes}

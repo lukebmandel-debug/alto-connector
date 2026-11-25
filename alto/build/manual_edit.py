@@ -293,7 +293,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-exit .ee-mv button{border-radius:14px;padding:0 11px;background:transparent;font-size:12.5px;opacity:.8;}
   #alto-edit-exit .ee-mv button.on{background:#f4f6fc;color:#12151f;font-weight:600;opacity:1;}
   #alto-edit-exit .ee-ext{display:none;padding:0 12px;font-size:12.5px;white-space:nowrap;}
-  /* (Extend withdrawn, Luke 2026-11-24: the switch stays hidden) */
+  html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-ext{display:inline-block;}
   #alto-edit-exit .ee-ext.on{background:#f4f6fc;color:#12151f;font-weight:600;}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-sel > .node-card{outline:2px solid var(--accent,#a78bfa);outline-offset:3px;}
   /* a System circle dragged onto another to go under it (MANUAL_JS solar drag) */
@@ -1500,6 +1500,11 @@ MANUAL_JS = r"""<script id="alto-manual">
       return {kind:'card', sig:function(){ return String(xkd.l || ''); }, get:function(){ return XA[id] ? 1 : 0; },
         set:function(v){ if(v) XA[id] = 1; else delete XA[id]; CHTOUCH = true; navSync(); drawFiltersSoon(); }};
     }
+    if(kind === 'pg' && id === 'extend' && p.length === 2){
+      return {kind:'card', get:function(){ return EXT ? 1 : 0; },
+        set:function(v){ EXT = !!v; window._ALTO_EXTEND_PAGE = EXT ? 1 : 0; extSync(); if(window._altoExtLook) window._altoExtLook();
+          if(window._ALTO_TREE_PLAN_ON && window._altoExtView) window._altoExtView(EXT, true); }};
+    }
     if(kind === 'sz' && p.length === 2){
       if(!srcNode(id)) return null;
       return {kind:'card', get:function(){ var z = sizeOf(id); return z ? JSON.parse(JSON.stringify(z)) : null; },
@@ -1833,7 +1838,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     b = document.createElement('div'); b.id = 'alto-edit-exit';
     b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎<span class="ee-w"> Editing</span></span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
-      + '<span class="ee-mv" role="group" aria-label="What dragging a card moves"><i aria-hidden="true">Drag moves</i><button type="button" data-mv="tree" title="Dragging a card, or the arrow keys, moves it with every card under it. Hold Option to move the one card.">Branch</button><button type="button" data-mv="card" title="Dragging a card, or the arrow keys, moves that card only: the cards under it stay. Hold Option to move the branch.">Card</button></span><button type="button" class="ee-ext" aria-pressed="false" title="Extend: open the board to the left and right without limit, to place cards out there. Off, cards stay on the page. Cards already out there always stay in view.">Extend</button>'
+      + '<span class="ee-mv" role="group" aria-label="What dragging a card moves"><i aria-hidden="true">Drag moves</i><button type="button" data-mv="tree" title="Dragging a card, or the arrow keys, moves it with every card under it. Hold Option to move the one card.">Branch</button><button type="button" data-mv="card" title="Dragging a card, or the arrow keys, moves that card only: the cards under it stay. Hold Option to move the branch.">Card</button></span><button type="button" class="ee-ext" aria-pressed="false" title="Extend: each unit keeps its rows at full width and scrolls sideways when it is wider than the window, instead of cramming cards in or stacking them downward. Readers get a switch beside Search to fit it back in the window.">Extend</button>'
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + (window.AltoWorld && window.AltoWorld.pickCountry ? '<button type="button" class="ee-h ee-country" aria-label="Add a country" title="Add a country: a new card that stands on it">+ Country</button>' : '')
@@ -4133,20 +4138,21 @@ MANUAL_JS = r"""<script id="alto-manual">
   // or it goes back. It is never sent somewhere the pointer is not.
   var drag = null, dragJustEnded = false, MOVE = 'tree';
   try{ if(localStorage.getItem('alto-drag-moves') === 'card') MOVE = 'card'; }catch(e){}
-  /* Extend (the editing bar's switch, off unless the owner turns it on; kept for this timeline in this browser):
-     on, the board is open to the left and right without limit: a stretch of open board stands each side, a card
-     dragged to the screen's edge opens more, and a card may be put anywhere out there. Off, cards are kept on
-     the page as before and nothing opens. Either way a card already out there stays where it is, on board that
-     reaches it (window._altoSideX): the board keeps the room its cards use. */
-  var EXT = false, EXT_KEY = 'alto-extend-' + TID, EXT_OPEN = 600;
-  try{ EXT = localStorage.getItem(EXT_KEY) === '1'; }catch(e){}
+  /* Extend (Luke 2026-11-25, ORG/notes-ceo/extend-interview-1125.md): the owner's choice for this page, the
+     editing bar's switch (or Claude, place_nodes extend). Saved like any edit (`pg|extend`, folded into
+     brief.extend). On, each unit's rows keep their cards' width and a unit wider than the window scrolls sideways
+     on its own; readers get a switch beside Search to fold it back. A page built with it shows the change at once;
+     one built without it takes it on when Claude builds the page next. Cards are dragged on the board as it is
+     (no open board beyond it: the old Extend's side room is gone). */
+  var EXT = !!window._ALTO_EXTEND_PAGE;
   function extSync(){
     document.querySelectorAll('#alto-edit-exit .ee-ext').forEach(function(b){ b.classList.toggle('on', EXT); b.setAttribute('aria-pressed', EXT ? 'true' : 'false'); });
-    var on = false, G = window._altoTreeGeo;   // (Extend withdrawn, Luke 2026-11-24)
-    window._altoSideMin = on ? [EXT_OPEN, EXT_OPEN] : null;
-    if(G && window._altoSides) window._altoSides(G, G.h);
   }
-  function setExtend(v){ EXT = !!v; try{ localStorage.setItem(EXT_KEY, EXT ? '1' : '0'); }catch(e){} extSync(); }
+  function setExtend(v){
+    if(!change('pg|extend', v ? 1 : 0)) return;
+    if(!window._ALTO_TREE_PLAN_ON && v) toast('Extend is on for this page. It takes effect the next time Claude builds it.');
+    else toast(v ? 'Extend on: wide units scroll sideways. ⌘Z puts it back.' : 'Extend off: each unit fits the window. ⌘Z puts it back.');
+  }
   function subtree(id){ var K = (window._ALTO_OUTLINE || {}).kids || {}, out = [id];
     for(var i = 0; i < out.length; i++) (K[out[i]] || []).forEach(function(c){ out.push(c); }); return out; }
   function modeFor(id, alt){ return subtree(id).length > 1 && (MOVE === 'card') !== !!alt ? 'card' : 'tree'; }
@@ -4195,8 +4201,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!isFinite(ut)) top = Math.min(top, 0);             // a whole unit: never higher than it is
     top = Math.min(top, 0);
     // Extend off: on the page (a card already past its edge may stay where it is); on: no limit either side
-    if(EXT){ lo = -1e9; hi = 1e9; }
-    else { ids.forEach(function(m){ lo = Math.max(lo, dw(m) / 2 + 20 - G.x[m]); hi = Math.min(hi, 1700 - dw(m) / 2 - 20 - G.x[m]); }); lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    { ids.forEach(function(m){ lo = Math.max(lo, dw(m) / 2 + 20 - G.x[m]); hi = Math.min(hi, 1700 + ((plan()||{}).wide||0) - dw(m) / 2 - 20 - G.x[m]); }); lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
     // offsets are stored whole: every candidate is one that stays clear once rounded
     var ox = old[0] - Math.round(old[0]), oy = old[1] - Math.round(old[1]);
     function dn(v, o){ return Math.floor(v + o + 1e-6) - o; } function up(v, o){ return Math.ceil(v + o - 1e-6) - o; }
@@ -4396,7 +4401,9 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(G) Object.keys(G.y).forEach(function(i){ var el = document.getElementById('node-' + i); if(G.h[i] == null || !el || !el.offsetWidth) return;
       B.x[i] = G.x[i]; B.y[i] = G.y[i]; B.h[i] = G.h[i]; B.w[i] = (T.w && T.w[i]) || 290; if(B.w[i] === 270) B.w[i] = 290; if(!d.inM[i]) B.ids.push(i); });
     // where the outline's own px are on screen, from a card that is not under the pointer (that one is drawn larger)
-    d.o0 = [0, 0]; var ref = B.ids[0], rc = ref && document.querySelector('#node-' + ref + ' .node-card');
+    d.o0 = [0, 0]; var ref = B.ids[0], rc;
+    if(G && G.y[d.id] != null){ var yy = G.y[d.id]; B.ids.forEach(function(i){ if(Math.abs(B.y[i]-yy) < Math.abs(B.y[ref]-yy)) ref = i; }); }
+    rc = ref && document.querySelector('#node-' + ref + ' .node-card');
     if(rc){ var rr = rc.getBoundingClientRect(), ws = worldAt(); d.o0 = [rr.left + rr.width / 2 - B.x[ref] * d.k - ws[0], rr.top + rr.height / 2 - B.y[ref] * d.k - ws[1]]; }
     d.els.forEach(function(el){ el.classList.add('aed-moving'); });
     root.classList.add('alto-dragging');

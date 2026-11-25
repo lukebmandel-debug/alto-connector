@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.301"
+__version__ = "1.9.302"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -2881,7 +2881,7 @@ def _tree_boxes(b, nodes, conns, ids=None) -> dict:
     positions, heights, _, _, _, report = run_layout(b, nodes, conns)
     if report.get("layout") != "tree":
         return {}
-    plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines, b.outcomes)
+    plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines, b.outcomes, b.extend)
     return {n.id: {"x": round(plan["x"][n.id]), "top": round(positions[n.id] - heights[n.id] / 2),
                    "w": plan["w"].get(n.id, 270), "h": round(heights[n.id])}
             for n in nodes if n.id in plan["x"] and (ids is None or n.id in ids)}
@@ -2944,7 +2944,7 @@ def run_layout_preview(timeline_id: str, layout: str = "",
 @accounted
 def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
                 clear: list[str] | None = None, reset: bool = False,
-                outcomes: str = "") -> dict:
+                outcomes: str = "", extend: bool | None = None) -> dict:
     """Place an outline's cards where the user wants them, instead of where the
     tree puts them. ONLY at the user's request: they say what goes where ("put
     the six concepts in a row under the hub", "move Damages to the left", "Cause
@@ -3007,6 +3007,12 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     a concept has outcomes AND other concepts, they are equals: one row of
     children under it, not a pair with the concepts hung below. 'stack': the default, outcomes down
     the spine like any child. '' leaves the setting as it is.
+    extend: the page's Extend, ONLY when the user asks for it (true/false;
+    omit to leave it). On, a unit's rows keep their cards' full width and each
+    child's cards hang straight below it, side by side; a unit wider than the
+    window scrolls sideways on its own instead of cramming or stacking downward,
+    and readers get a switch beside Search to fit it back in the window. The
+    owner can also turn it on in editing (the bar's Extend switch).
 
     The reply lays the result out and says what is wrong: `placement.overlaps`
     (pairs of cards on top of each other: move one with x/dx/dy, or float it),
@@ -3052,6 +3058,11 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     brief["placement"] = pl
     if outcomes:
         brief["outcomes"] = outcomes
+    if extend is not None:
+        if extend:
+            brief["extend"] = True
+        else:
+            brief.pop("extend", None)
     try:
         b, all_nodes, conns = _load_full({**doc, "brief": brief})
         from .build.brief import validate_brief, validate_nodes
