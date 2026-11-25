@@ -232,45 +232,13 @@ window._altoSides = function(R, h, lo, hi, least){
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
   var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), X=Math.max(M[1],mx>1700?Math.ceil(mx+40-1700):0);   // (only for a card past the page's own edge)
   if(L<S[0] && !window._altoExtOff) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
-  window._altoSideNeed=[L,X]; if(window._altoExtShow) window._altoExtShow();
-  if(window._altoExtOff && !document.documentElement.classList.contains('alto-editing')){ L=0; X=0; }   // (the reader's Extend switch is off: the page as it is without side room)
+  L=0; X=0;   // (Luke 2026-11-24: Extend is withdrawn, back to the page before it: no side room opens, the unit bars keep their page length)
   if(L===S[0] && X===S[1]) return S;
   w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');
   document.documentElement.classList.toggle('alto-xwide', !!(L||X));
   if(L!==S[0] && !(least && L===least)) cv.scrollLeft+=L-S[0];  // what was in view stays in view (but a held card at the left edge is given the room)
   return window._altoSideX=[L,X];
 };
-/* The reader's Extend switch (Luke 2026-11-24: a toggle "without having to open manual editing", only on an outline that uses Extend):
-   a tab on the right rail, shown when the outline's cards stand past the page's edge (window._altoSideNeed) or Extend was turned on in
-   editing. On (the default): the side room as the editor left it, scrolled sideways. Off: the page at its own width, the unit bars and
-   numerals as they were before. Kept per outline in this browser. Editing always shows the room. */
-(function(){
-  var KEY='alto-extview-'+location.pathname, b=null;
-  try{ window._altoExtOff = localStorage.getItem(KEY)==='0'; }catch(e){}
-  function used(){ var N=window._altoSideNeed||[0,0], t=false;
-    try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k && k.indexOf('alto-extend-')===0 && localStorage.getItem(k)==='1' && location.pathname.indexOf(k.slice(12))>=0) t=true; } }catch(e){}
-    return N[0]>0 || N[1]>0 || t; }
-  function sync(){ if(!b) return; b.classList.toggle('on', !window._altoExtOff); b.setAttribute('aria-pressed', window._altoExtOff?'false':'true'); }
-  window._altoExtShow=function(){
-    var R=document.documentElement; if(R.classList.contains('mobile')) return;
-    var rail=document.getElementById('tab-rail'); if(!rail) return;
-    if(!b){ if(!used()) return;
-      b=document.createElement('button'); b.id='ext-toggle'; b.type='button'; b.title='Extend: the board opened to the left and right, scrolled sideways'; b.setAttribute('aria-label','Extend');
-      b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>';
-      b.addEventListener('click', function(e){ e.stopPropagation(); window._altoExtOff=!window._altoExtOff; try{ localStorage.setItem(KEY, window._altoExtOff?'0':'1'); }catch(x){}
-        sync(); var G=window._altoTreeGeo; if(G && window._altoSides) window._altoSides(G, G.h); });
-      rail.appendChild(b); sync(); }
-  };
-  var st=document.createElement('style'); st.textContent=
-    'html:not(.mobile) #ext-toggle{width:34px;height:34px;box-sizing:border-box;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;position:static;'
-   +'background:var(--card-glass-bg,var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);'
-   +'border:1px solid var(--card-glass-border,var(--border));border-right:none;border-radius:6px 0 0 6px;color:var(--muted);box-shadow:0 10px 26px var(--node-rest-shadow);}'
-   +'html:not(.mobile) #ext-toggle:hover{color:var(--text);border-color:var(--muted);}'
-   +'html:not(.mobile) #ext-toggle.on{color:var(--accent,#6d5bd0);border-color:var(--accent,#6d5bd0);}'
-   +'html.mobile #ext-toggle,html.printing #ext-toggle{display:none !important;}';
-  (document.head||document.documentElement).appendChild(st);
-  setTimeout(function(){ if(window._altoExtShow) window._altoExtShow(); }, 1500);
-})();
 window._altoTree = function(pos, h){
   if(document.documentElement.classList.contains('mobile')) return false;
   var R=window._altoTreeCalc(h); if(!R) return false;
