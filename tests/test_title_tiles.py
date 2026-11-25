@@ -52,7 +52,7 @@ def test_the_image_of_every_symbol_is_a_self_contained_css_url_in_its_own_ink():
 
 def test_a_timeline_page_carries_the_tab_and_its_own_symbol_and_a_system_its_dark_sheet():
     t = _build("outline")
-    assert 'id="alto-title-tab"' in t and "border-radius:0 0 14px 14px" in t and "--tt-w:18px" in t
+    assert 'id="alto-title-tab"' in t and "border-radius:0 0 14px 14px" in t and "--tt-w:0px" in t   # (Luke 2026-11-22/24: no format symbol in a page's title tab)
     tpl = json.dumps(format_symbols.SYMBOLS["outline"][1])
     assert t.count(tpl) == 1 and "--tt-sym:" not in t and "stroke='%231a1a2e'" not in t        # (the drawing once; the inks are put in by the script, checked in a browser below)
     assert json.dumps(format_symbols.SYMBOLS["lanes"][1]) in _build("lanes") and "currentColor" not in t.split('id="alto-title-tab"')[1].split("</style>")[0]

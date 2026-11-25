@@ -36,16 +36,14 @@ def _world():
     return build_timeline(*load_brief(d))[0]
 
 
-def test_the_rail_css_docks_it_on_the_bottom_row_with_a_backing():
+def test_the_rail_stands_on_the_right_edge_as_on_1_9_281():   # Luke 2026-11-23: "put them back where they were"
     css = filter_panel.RAIL_CSS
-    assert "@media(min-width:641px){html:not(.mobile) #tab-rail{top:auto;bottom:calc(var(--alto-row-b,24px) + 43px);right:calc(var(--np-dock,0px) + 30px);" in css   # (from 641px up only: a phone-width window keeps the edge rail, clear of the lanes bottom bar)
-    assert "#tab-rail>button:not(#_){border-radius:6px;" in css
-    assert "background:var(--bg);box-shadow:0 0 0 4px var(--bg)" in css
-    assert "top:calc(50% - 32px)" in css and "html.mobile #account-btn{display:none !important;}" in css   # (the base rule and the phone rule stay)
+    assert "top:calc(50% - 32px)" in css and "html.mobile #account-btn{display:none !important;}" in css
+    assert "bottom:calc(var(--alto-row-b,24px) + 43px)" not in css
 
 
-def test_the_minimap_row_counts_the_rail_so_the_map_steps_above_it():
-    assert "getElementById('tab-rail')" in minimap_home.MM_HOME_JS and "R[1]=Math.min(R[1],q.top)" in minimap_home.MM_HOME_JS
+def test_the_minimap_row_no_longer_counts_the_rail():
+    assert "R[1]=Math.min(R[1],q.top)" not in minimap_home.MM_HOME_JS
 
 
 @pytest.fixture(scope="module")
