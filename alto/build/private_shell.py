@@ -305,6 +305,11 @@ _JS = """
       }catch(e){}
       // Opened by its owner: the homepage's "recently viewed" order reads this.
       try{ if(u && window.AltoCloud && window.AltoCloud.markViewed) window.AltoCloud.markViewed(KEY); }catch(e){}
+      // ...and the same moment kept in this browser, so the homepage's first paint already has it (Luke 2026-11-22: the row
+      // "keeps jumping around a second or two after reloading": it painted the cached order, then the account's newer view moved it).
+      try{ if(u && KEY){ var LV = JSON.parse(localStorage.getItem('alto-viewed-v1') || '{}') || {}; LV[KEY] = Math.floor(Date.now() / 1000);
+        var ks = Object.keys(LV); if(ks.length > 300){ ks.sort(function(a, b){ return LV[a] - LV[b]; }).slice(0, ks.length - 300).forEach(function(k){ delete LV[k]; }); }
+        localStorage.setItem('alto-viewed-v1', JSON.stringify(LV)); } }catch(e){}
       document.open();
       document.write(withHandoff(pageHtml));
       document.close();
