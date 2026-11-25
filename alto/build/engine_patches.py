@@ -142,11 +142,6 @@ html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
 html.alto-xwide:not(.mobile) #world{ left:var(--xl,0px); }
 html.alto-xwide:not(.mobile) #world #glass-slab{ width:calc(max(1700px, 100vw / var(--alto-zoom, 0.8)) + var(--xl,0px) + var(--xr,0px)) !important; margin-left:calc((var(--xr,0px) - var(--xl,0px)) / 2); }
 html.alto-xwide:not(.mobile) #world #river-svg{ overflow:visible !important; }
-/* The unit numeral stays tucked at the right end of its bar (Luke 2026-11-24: "the unit number is tucked on the right side, not free
-   floating"). The band already reaches --xr (outline-side-room-band), so the numeral needs no side-room rule of its own (1.9.285's added
-   --xr twice). When the numeral is drawn in, clear of the Alto wordmark and the side rail (--num-shift, the engine's chip-edge script), the
-   bar's right end comes in with it: a margin shrinks the absolutely placed bar by the same amount. */
-html:not(.mobile) #world .unit-bar:not(#_){ margin-right:calc(0px - var(--num-shift,0px)); }
 /* The unit numeral's INK sits in the middle of its plate, both ways, in every style (Luke 2026-11-24: "both vertical and horizontal
    centering"). Georgia's figures are old-style (a 2 sits on the x-height, a 3 hangs below the line, a 6 rises above it) and italic, so no
    fixed nudge centres them all: each numeral's own glyphs are measured (canvas measureText, in the font the style gives it) and the plate's
@@ -2728,9 +2723,6 @@ PATCHES += [
      "new": "    lbl.style.top=(bandTop+BOX_TOP)+'px'; if(hx) lbl.style.height=(BOX_H+hx)+'px';", "count": 1},
     {"name": "outline-side-room-band", "old": "left:0;right:0;background:transparent;--unit-color:${pm.colorRaw};`;",
      "new": "left:calc(0px - var(--xl,0px));right:calc(0px - var(--xr,0px));background:transparent;--unit-color:${pm.colorRaw};`;", "count": 1},
-    {"name": "unit-bar-follows-numeral-shift",
-     "old": "    for(var i=0;i<ns.length;i++){ ns[i].style.setProperty('--num-shift', s+'px'); }",
-     "new": "    for(var i=0;i<ns.length;i++){ ns[i].style.setProperty('--num-shift', s+'px'); }\n    var _w=document.getElementById('world'); if(_w) _w.style.setProperty('--num-shift', s+'px');", "count": 1},
     {"name": "unit-header-grows-tube", "old": "    bar.style.height=TUBE_H+'px';",
      "new": "    bar.style.height=(TUBE_H+hx)+'px';", "count": 1},
     {"name": "unit-header-grows-gaps", "old": "bottom:bandTop+TUBE_TOP+TUBE_H+4, cy:bandTop+TUBE_TOP+TUBE_H/2}",

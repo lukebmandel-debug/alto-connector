@@ -293,7 +293,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-exit .ee-mv button{border-radius:14px;padding:0 11px;background:transparent;font-size:12.5px;opacity:.8;}
   #alto-edit-exit .ee-mv button.on{background:#f4f6fc;color:#12151f;font-weight:600;opacity:1;}
   #alto-edit-exit .ee-ext{display:none;padding:0 12px;font-size:12.5px;white-space:nowrap;}
-  html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-ext{display:inline-block;}
+  /* (Extend withdrawn, Luke 2026-11-24: the switch stays hidden) */
   #alto-edit-exit .ee-ext.on{background:#f4f6fc;color:#12151f;font-weight:600;}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-sel > .node-card{outline:2px solid var(--accent,#a78bfa);outline-offset:3px;}
   /* a System circle dragged onto another to go under it (MANUAL_JS solar drag) */
@@ -4142,7 +4142,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   try{ EXT = localStorage.getItem(EXT_KEY) === '1'; }catch(e){}
   function extSync(){
     document.querySelectorAll('#alto-edit-exit .ee-ext').forEach(function(b){ b.classList.toggle('on', EXT); b.setAttribute('aria-pressed', EXT ? 'true' : 'false'); });
-    var on = EXT && editing() && root.classList.contains('alto-drag-ok'), G = window._altoTreeGeo;
+    var on = false, G = window._altoTreeGeo;   // (Extend withdrawn, Luke 2026-11-24)
     window._altoSideMin = on ? [EXT_OPEN, EXT_OPEN] : null;
     if(G && window._altoSides) window._altoSides(G, G.h);
   }

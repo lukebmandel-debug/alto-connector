@@ -405,6 +405,7 @@ def _hold_at_edge(pg, card, side, ms=2200):
 SIDES = "(()=>{var c=document.getElementById('canvas'), s=window._altoSideX||[0,0]; return {l:s[0], r:s[1], sw:c.scrollWidth, sl:c.scrollLeft, wide:document.documentElement.classList.contains('alto-xwide')};})()"
 
 
+@pytest.mark.skip(reason="Extend withdrawn (Luke 2026-11-24): back to the page before it")
 @pytest.mark.parametrize("side,card", [("left", "x69"), ("right", "x68")])
 def test_with_extend_on_a_drop_past_the_edge_opens_the_board_that_way_and_is_never_clamped(page, side, card):
     g0, s0 = page.evaluate(GEO), page.evaluate(SIDES)
@@ -452,6 +453,7 @@ def _extend(pg, on):
         pg.wait_for_timeout(400)
 
 
+@pytest.mark.skip(reason="Extend withdrawn (Luke 2026-11-24): back to the page before it")
 @pytest.mark.parametrize("side,card", [("left", "x69"), ("right", "x68")])
 def test_extend_is_off_by_default_and_a_drop_past_the_edge_then_opens_nothing(fresh, side, card):
     """Luke, 2026-11-13: "default is to not have extensions". Off, the board is as it always was."""
@@ -469,6 +471,7 @@ def test_extend_is_off_by_default_and_a_drop_past_the_edge_then_opens_nothing(fr
     assert _same(g1, g0, skip=[card]) == [] and _touching(g1) == [] and fresh.evaluate(LINES) == []
 
 
+@pytest.mark.skip(reason="Extend withdrawn (Luke 2026-11-24): back to the page before it")
 def test_the_extend_switch_opens_board_each_side_closes_it_again_and_is_remembered(page):
     g0 = page.evaluate(GEO)
     _extend(page, True)
@@ -600,6 +603,7 @@ def test_a_burst_of_presses_is_one_step_of_undo(page):
     assert _val(page, "p|offer|shift") == [20, 0]
 
 
+@pytest.mark.skip(reason="Extend withdrawn (Luke 2026-11-24): back to the page before it")
 def test_a_phone_has_no_switch_and_no_drag(request, url):
     pw = pytest.importorskip("playwright.sync_api")
     p = pw.sync_playwright().start()
