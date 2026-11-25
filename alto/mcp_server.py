@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.296"
+__version__ = "1.9.297"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1513,6 +1513,8 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
      it and the user's own notes link them, but you never nest by yourself,
      never write a child the notes do not hold, and the child is on its
      parent's line (a child never crosses the line); omit it otherwise)}.
+    `id`, `parent` and `nest` may also be a card's shown number ("8.g", from
+    get_nodes' `num`) to mean that existing card.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
     head a section "Text" unless it is a quote — head it for what it is.
@@ -1585,6 +1587,18 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
                 return {"error": "invalid_nodes", "message": f"node '{nid}': {f} is required (a string)"}
     st = get_store()
     existing = st.list_nodes(uid(), timeline_id)
+    _refs = ("id", "parent", "nest")
+    if any(isinstance(n.get(k), str) and n[k].strip()[:1].isdigit() for n in nodes for k in _refs):
+        # a card's shown number ("8.g") stands for its id here
+        ids, nums = {n["id"] for n in existing}, _card_numbers(timeline_id)
+        nodes = [dict(n) for n in nodes]
+        for n in nodes:
+            for k in _refs:
+                if isinstance(n.get(k), str) and n[k].strip()[:1].isdigit():
+                    rid, nerr = _by_number(n[k], ids, nums)
+                    if nerr:
+                        return {**nerr, "message": f"node {k} {n[k]!r}: " + nerr["message"]}
+                    n[k] = rid
     merged = {n["id"]: n for n in existing}
     old_by_id = dict(merged)
     for n in nodes:
@@ -1832,15 +1846,24 @@ def get_nodes(timeline_id: str, ids: list[str] | None = None,
     act, sections, filters, axis values, sources ...), so an incremental
     session can follow the existing cards' conventions. ids: only these nodes;
     act: only the nodes in that unit; fields: only these keys (id is always
-    kept). With none of them every node is returned in full."""
+    kept). With none of them every node is returned in full. Each node
+    carries `num`, the number its card shows on the page ("8.g"); ids may be
+    such numbers too."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     _fold_edits(timeline_id)
-    nodes = [{k: v for k, v in n.items() if not k.startswith("_")}
+    nums = _card_numbers(timeline_id)
+    nodes = [{"id": n["id"], "num": nums.get(n["id"], ""),
+              **{k: v for k, v in n.items() if not k.startswith("_") and k not in ("id", "num")}}
              for n in get_store().list_nodes(uid(), timeline_id)]
     if ids:
-        want = set(ids)
+        known, want = {n["id"] for n in nodes}, set()
+        for r in ids:
+            rid, nerr = _by_number(r, known, nums)
+            if nerr:
+                return nerr
+            want.add(rid or r)
         missing = sorted(want - {n["id"] for n in nodes})
         nodes = [n for n in nodes if n["id"] in want]
     else:
@@ -1848,7 +1871,7 @@ def get_nodes(timeline_id: str, ids: list[str] | None = None,
     if act is not None:
         nodes = [n for n in nodes if n.get("act") == act]
     if fields:
-        keep = set(fields) | {"id"}
+        keep = set(fields) | {"id", "num"}
         nodes = [{k: v for k, v in n.items() if k in keep} for n in nodes]
     return {"count": len(nodes), "nodes": nodes,
             **({"missing": missing} if missing else {})}
@@ -2768,6 +2791,44 @@ def _load_full(doc):
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
+def _card_numbers(timeline_id: str) -> dict:
+    """id → the number the page shows on that card (builder.card_numbers: the
+    build's own code, arabic path form), or {} when the draft cannot be laid out yet."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return {}
+    try:
+        from .build.builder import card_numbers
+        b, nodes, _ = _load_full(doc)
+        return card_numbers(b, nodes)
+    except Exception:                                   # noqa: BLE001 — an unbuildable draft has no numbers yet
+        return {}
+
+
+def _by_number(ref, ids, nums: dict):
+    """(id, None) for a node id or a card's shown number ("8.g"), (None, error dict) for an
+    unknown or ambiguous number, (None, None) when `ref` is neither. An id always wins."""
+    if ref in ids:
+        return ref, None
+    if not isinstance(ref, str) or not ref.strip()[:1].isdigit():
+        return None, None
+    from .build.numbering import parse_num, format_num
+    want = {re.sub(r"[.\s]+$", "", ref.strip().lower())}
+    p = parse_num(ref)
+    if p:
+        want.add(format_num(*p))
+    hits = sorted(i for i, v in nums.items() if v in want and i in ids)
+    if len(hits) == 1:
+        return hits[0], None
+    if not hits:
+        return None, {"error": "unknown_number",
+                      "message": f"no card on this page shows the number {ref!r}",
+                      "hint": "get_nodes lists each card's `num` beside its id; use the id or a number from there"}
+    return None, {"error": "ambiguous_number",
+                  "message": f"{ref!r} is shown on more than one card ({', '.join(hits[:6])})",
+                  "hint": "use the node id instead"}
+
+
 def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
     """An error dict when the hub_look / palace_view argument cannot apply, else None."""
     if hub_look:
@@ -3589,10 +3650,11 @@ def _published_now(timeline_id: str) -> None:
 @mcp.tool(title="Get state", annotations=RO)
 @accounted
 def get_timeline(timeline_id: str, compact: bool = False) -> dict:
-    """Full draft state for resuming: brief, consent, node ids, connection
-    count, status, urls, built_at/published_at. status "published — unpublished
-    changes" means the web copy is older than the draft: build (if edited) and
-    publish_timeline again. compact=true trims the brief to a summary (each axis
+    """Full draft state for resuming: brief, consent, node ids (node_numbers:
+    id → the number its card shows, "8.g"), connection count, status, urls,
+    built_at/published_at. status "published — unpublished changes" means the
+    web copy is older than the draft: build (if edited) and publish_timeline
+    again. compact=true trims the brief to a summary (each axis
     value as {id, name}, overview_html as its length) — use it to look around
     a large page; get_nodes gives the nodes' content."""
     doc, err = _timeline_or_error(timeline_id)
@@ -3606,6 +3668,7 @@ def get_timeline(timeline_id: str, compact: bool = False) -> dict:
     st = get_store()
     nodes = st.list_nodes(uid(), timeline_id)
     conns = st.get_connections(uid(), timeline_id)
+    nums = _card_numbers(timeline_id)
     return {
         **({"manual_edits": edits} if edits else {}),
         "timeline_id": timeline_id,
@@ -3613,6 +3676,7 @@ def get_timeline(timeline_id: str, compact: bool = False) -> dict:
         "brief": (_brief_compact if compact else _brief_out)(doc.get("brief")),
         "consent": doc.get("consent"),
         "node_ids": [n["id"] for n in nodes],
+        "node_numbers": {n["id"]: v for n in nodes if (v := nums.get(n["id"]))},
         "connection_count": len(conns),
         "urls": doc.get("urls", {}),
         **_completeness(doc, nodes, conns),

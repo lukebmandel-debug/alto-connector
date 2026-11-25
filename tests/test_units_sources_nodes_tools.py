@@ -107,7 +107,7 @@ def test_get_nodes_filters_and_compact_timeline():
     ids = [n["id"] for n in OUTLINE["nodes"]][:2]
     r = srv.get_nodes(tid, ids=ids + ["ghost"], fields=["title"])
     assert r["count"] == 2 and r["missing"] == ["ghost"]
-    assert all(set(n) == {"id", "title"} for n in r["nodes"])
+    assert all(set(n) == {"id", "num", "title"} for n in r["nodes"])
     assert all(n["act"] == 1 for n in srv.get_nodes(tid, act=1)["nodes"])
     full, small = srv.get_timeline(tid), srv.get_timeline(tid, compact=True)
     assert small["node_ids"] == full["node_ids"]

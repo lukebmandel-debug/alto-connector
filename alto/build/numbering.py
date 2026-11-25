@@ -66,6 +66,18 @@ def path_numbers(seqs: list, kids: dict, parent: dict) -> dict:
     return out
 
 
+def outline_numbers(nodes, n_acts: int):
+    """(id → number, kids, parent) for an outline's placed nodes — what the
+    page's window._ALTO_OUTLINE carries (blocks.py) and the tools report."""
+    kids: dict = {}
+    for n in nodes:
+        if n.parent:
+            kids.setdefault(n.parent, []).append(n.id)
+    parent = {n.id: n.parent for n in nodes if n.parent}
+    return path_numbers([[n.id for n in nodes if n.act == a] for a in range(n_acts)],
+                        kids, parent), kids, parent
+
+
 _TOK = re.compile(r"\.?([a-z]+)|[.\-](\d+)")
 
 
