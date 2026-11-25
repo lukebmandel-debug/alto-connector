@@ -63,14 +63,14 @@ def test_with_no_stored_page_naming_it_the_plan_is_pruned_as_before(tmp_path):
     site = _site(tmp_path)
     ps.regenerate_site(_store(tmp_path, "<p>nothing hosted</p>"), "local", site)
     assert not (site / "bldg/plan-063d955b8ca3.json").exists()
-    assert not (site / "hvid/clip-aaaaaaaaaa.mp4").exists()
+    # (hvid/clip-aaaaaaaaaa.mp4 may stay: the previous release's retro script names it, and what a kept script names is kept with it)
 
 
-def test_an_unreadable_store_pins_nothing_and_a_missing_file_is_skipped(tmp_path):
+def test_an_unreadable_store_reports_not_ok_and_a_missing_file_is_skipped(tmp_path):
     class Bad:
         def list_timelines(self, uid):
             raise RuntimeError("quota")
-    assert ps._stored_page_refs(Bad(), "u") == set()
+    assert ps._stored_page_refs(Bad(), "u") == (set(), False)
     assert ps._pin_named(tmp_path, {"bldg/plan-063d955b8ca3.json", "street/x-aaaaaaaaaa.json", "../x-aaaaaaaaaa.js"}) == {}
 
 
@@ -111,5 +111,5 @@ def test_a_symlink_is_not_pinned_and_an_unreadable_store_warns(tmp_path, caplog)
             raise RuntimeError("quota")
     ps.LAST_STALE.clear()
     with caplog.at_level("WARNING"):
-        assert ps._stored_page_refs(Bad(), "u") == set()
-    assert "not being kept" in caplog.text and any("quota" in n for n in ps.LAST_STALE)
+        assert ps._stored_page_refs(Bad(), "u") == (set(), False)
+    assert "prunes nothing" in caplog.text and any("quota" in n for n in ps.LAST_STALE)
