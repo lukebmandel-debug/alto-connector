@@ -72,7 +72,7 @@ CHROME_CSS = r"""
 opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), the format symbol in the light ink beside it (title_tab.py).
      Shown where the name shows: the homepage, a detail page, a narrow window (the crown on the board carries it otherwise) */
   @media (min-width:641px){
-  X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:8px;--tt-i:var(--tt-syd) !important;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
+  X:not(.mobile) #title-bar #title-text:not(#_){--tt-pt:10px;--tt-i:var(--tt-syd) !important;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;
     box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-weight:500 !important;font-size:14px;letter-spacing:.3em;text-transform:uppercase;translate:0 calc(3px / var(--alto-zoom,.8));
     clip-path:none;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X:is(.alto-home,.alto-rep):not(.mobile) #title-bar #title-text:not(#_){box-shadow:none !important;border:1.5px solid #d9ae55 !important;border-top-width:0 !important;}

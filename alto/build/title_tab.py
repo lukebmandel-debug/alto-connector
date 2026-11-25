@@ -25,8 +25,8 @@ html:not(.mobile) #title-bar #title-text:not(#_)::after{content:"";position:abso
 html.dark:not(.mobile) #title-bar #title-text:not(#_){--tt-i:var(--tt-syd);}
 """
 BASE_CSS = r"""
-html:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:7px;position:relative;align-self:start;box-sizing:border-box;display:block;white-space:nowrap;
-  padding:var(--tt-pt) var(--tt-px) calc(var(--tt-pt) + 3px) calc(var(--tt-px) + var(--tt-sw,0px));font-size:20px;font-weight:600;letter-spacing:.04em;text-transform:none;}
+html:not(.mobile) #title-bar #title-text:not(#_){--tt-px:20px;--tt-pt:9px;position:relative;align-self:start;box-sizing:border-box;display:block;white-space:nowrap;
+  padding:var(--tt-pt) var(--tt-px) calc(var(--tt-pt) - 1px) calc(var(--tt-px) + var(--tt-sw,0px));font-size:20px;font-weight:600;letter-spacing:.04em;text-transform:none;}
 html:not(.mobile) #title-bar #title-text:not(#_):hover::before{left:calc(var(--tt-px) + var(--tt-sw,0px));top:var(--tt-pt);}
 """
 
