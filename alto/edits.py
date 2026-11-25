@@ -1771,7 +1771,23 @@ def fold(store, uid, tid) -> "dict | None":
         store.put_timeline(uid, tid, doc)
     if touched["conns"]:
         store.put_connections(uid, tid, conns)
-    _mark(store, uid, tid, {k: live[k].get("t") for k in written + already})
+    # A new section whose place never came is "gone"; one with nothing in it
+    # is marked folded (nothing to keep), one with words stays live and is
+    # reported loudly. No op is ever removed from the edits document.
+    secs_of = {}
+    for k in missing:
+        if kinds.get(k) in _NEW_SEC_KINDS:
+            secs_of.setdefault(_new_sec_id(k), []).append(k)
+    empty_secs, hidden_text, quiet = [], [], set()
+    for sid, ks in secs_of.items():
+        if all(_empty_val(live[k].get("v")) for k in ks):
+            quiet.update(ks)
+            if not all(live[k].get("f") for k in ks):
+                empty_secs.append(sid)
+        else:
+            hidden_text.append(f"text kept but not shown: {sid}")
+    missing = [k for k in missing if k not in quiet]
+    _mark(store, uid, tid, {k: live[k].get("t") for k in written + already + sorted(quiet)})
     titles = {n["id"]: n.get("title") for n in nodes}
     rep = {"folded": len(written), "already_in_draft": len(already),
            "conflicts": conflicts, "gone": missing,
@@ -1823,6 +1839,14 @@ def fold(store, uid, tid) -> "dict | None":
         rep["solar_positions_ignored"] = len(solar_ignored)
         rep["note"] += (" A System places every circle itself, so positions dragged "
                         "or sizes set on the page (solar_positions_ignored) were not kept.")
+    if empty_secs:
+        rep["empty_sections"] = empty_secs
+        rep["note"] += (" empty_sections: empty section, nothing to keep.")
+    if hidden_text:
+        rep["hidden_text"] = hidden_text
+        rep["note"] += (" hidden_text: the owner typed this text in new sections the "
+                        "page never placed; it is kept, not lost, but not shown — tell "
+                        "the user which, in plain words.")
     if units_gone:
         rep["units_deleted"] = units_gone
         rep["note"] += (" The owner deleted units on the page (units_deleted); their "
@@ -1861,6 +1885,26 @@ def fold(store, uid, tid) -> "dict | None":
 
 
 DTPRE_OF = {"n": "n", "c": "c", "env": "a0", "theme": "a1"}
+
+
+_NEW_SEC_KINDS = ("newsec", "newtree", "newtreef", "newstudy", "newphotos")
+
+
+def _empty_val(v) -> bool:
+    return v is None or v == [] or v == {} or (isinstance(v, str) and not v.strip())
+
+
+def _new_sec_id(k: str) -> str:
+    """'<owner>/<section>' for a new-section op key."""
+    p = k.split("|")
+    if p[0] in ("n", "c", "env", "theme") and len(p) == 5:
+        kind, owner, sec = p[0], p[1], p[3]
+    else:
+        m = NEW_TREE.match(p[1]) if len(p) > 1 else None
+        if not m:
+            return k
+        kind, owner, sec = _OWNER[m.group(1)], m.group(2), m.group(3)
+    return f"{owner if kind == 'n' else kind + ':' + owner}/{sec}"
 
 
 def _mark(store, uid, tid, keys_t: dict) -> None:
