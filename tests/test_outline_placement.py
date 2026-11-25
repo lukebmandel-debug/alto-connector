@@ -86,17 +86,16 @@ def test_a_hub_sets_its_children_as_a_band_and_their_progeny_hang_below_it():
     ks = outline_kids(ns)["hub"]
     assert len(ks) == 6
     xs = [x[k] for k in ks]
-    assert xs == sorted(xs) and len({round(b - a, 1) for a, b in zip(xs, xs[1:])}) == 1
-    assert x["hub"] == pytest.approx(sum(xs) / 6)                # centred under the hub
-    # six full-width cards do not fit one row, so they stagger into two:
-    # neighbours alternate, a row's own cards share a top
+    # (changed on purpose, row-subtrees: the cards keep their order but are spaced by what hangs from them, not evenly)
+    assert xs == sorted(xs) and len(set(xs)) == 6
+    assert x["hub"] == pytest.approx((min(xs) + max(xs)) / 2)    # centred over its row (changed on purpose, row-subtrees)
+    # six full-width cards stay one row and the page widens (changed on purpose, row-subtrees:
+    # cards are never squeezed or staggered to fit the page; the reader scrolls sideways)
     assert {plan["w"][k] for k in ks} == {TREE["CARD_W"]}
     tops = {k: y[k] - 75 for k in ks}
-    assert len(set(tops.values())) == 2
-    assert [tops[k] == tops[ks[0]] for k in ks] == [True, False] * 3
+    assert len(set(tops.values())) == 1 and plan["wide"] > 0
     lower = max(tops.values())
-    assert lower == pytest.approx(min(tops.values()) + 150 + TREE["STAGGER_GAP"])
-    assert min(xs) - 135 >= TREE["MARGIN"] and max(xs) + 135 <= WORLD_W - TREE["MARGIN"]
+    assert min(xs) - 135 >= TREE["MARGIN"] - 1 and max(xs) + 135 <= WORLD_W - TREE["MARGIN"] + plan["wide"] + 1
     # the band has priority: its cards are placed first, and what hangs from them
     # packs in beneath, straight under each parent and narrow enough to clear the
     # cards of the other row, so it never has to wait for a neighbour
@@ -104,15 +103,18 @@ def test_a_hub_sets_its_children_as_a_band_and_their_progeny_hang_below_it():
         assert y[child] - 75 >= y[parent] + 75 + TREE["GROUP_GAP"] - 1
     assert y["duty-l"] - 75 >= (lower + 150 if y["duty"] > min(tops.values()) + 75
                                 else y["duty"] + 75 + TREE["GROUP_GAP"]) - 1
-    assert x["duty-l"] == x["duty-nl"] == x["duty"] and x["alt"] == x["cause"]
-    assert plan["w"]["duty-l"] < TREE["CARD_W"] and y["duty-l"] < y["duty-nl"]
+    # (changed on purpose, row-subtrees: same-kind siblings are one row under their card, centred, at full width;
+    # only a card's own outcomes, leaves of another kind, stay a stack. Here every node is a "Concept".)
+    assert y["duty-l"] == y["duty-nl"] and x["duty"] == (x["duty-l"] + x["duty-nl"]) / 2 and x["alt"] > x["cause-l"]
+    assert plan["w"].get("duty-l", TREE["CARD_W"]) == TREE["CARD_W"]
     check = placement_check(ns, plan, y, x, _heights(ns))
     assert check["overlaps"] == [] and check["off_margin"] == []
 
 
 @pytest.mark.parametrize("k, rows, below_w", [(3, 1, 270), (4, 1, 270), (5, 1, 270),
-                                              (6, 2, 180), (7, 2, 180)])
-def test_a_band_keeps_its_cards_whole_and_staggers_before_it_squeezes(k, rows, below_w):
+                                              (6, 1, 270), (7, 1, 270)])
+def test_a_band_keeps_its_cards_whole_and_widens_rather_than_squeezes(k, rows, below_w):
+    # (changed on purpose, row-subtrees: six and seven used to stagger into two rows with narrowed progeny)
     ns = [_n("r")]
     for i in range(k):
         ns += [_n(f"k{i}", "r"), _n(f"k{i}-a", f"k{i}")]
@@ -122,7 +124,7 @@ def test_a_band_keeps_its_cards_whole_and_staggers_before_it_squeezes(k, rows, b
     assert {plan["w"][f"k{i}-a"] for i in range(k)} == {below_w}
     lo = min(x[f"k{i}"] for i in range(k)) - 135
     hi = max(x[f"k{i}"] for i in range(k)) + 135
-    assert lo >= TREE["MARGIN"] and hi <= WORLD_W - TREE["MARGIN"]
+    assert lo >= TREE["MARGIN"] - 1 and hi <= WORLD_W - TREE["MARGIN"] + plan["wide"] + 1
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
 
 
@@ -221,13 +223,14 @@ def test_order_sets_a_cards_place_among_its_siblings_and_the_numerals_follow():
     assert num["cause"] == "1.c" and num["breach"] == "1.d" and num["duty"] == "1.b"
 
 
-def test_hints_for_one_unit_leave_the_others_alone():
+def test_a_row_hint_for_one_unit_sets_every_units_concepts_side_by_side():
+    # (changed on purpose, row-subtrees round 4: the same-level rule covers every unit of a page that uses a row)
     ns = _negligence() + [_n("r2", act=1), _n("a2", "r2", 1), _n("b2", "r2", 1)]
     plain = outline_plan(ns, 2)
     hinted = outline_plan(ns, 2, {"hub": {"arrange": "row"}})
-    for i in ("r2", "a2", "b2"):
-        assert plain["x"][i] == hinted["x"][i]
-    assert plain["acts"][1] == hinted["acts"][1]
+    assert plain["x"]["a2"] == plain["x"]["b2"]                    # no row hint anywhere: a column, as before
+    assert hinted["x"]["a2"] != hinted["x"]["b2"]                  # a row hint anywhere: unit two's children stand in a row too
+    assert plain["x"]["r2"] == hinted["x"]["r2"]
 
 
 def test_placing_cards_makes_auto_choose_the_tree_and_reports_the_result():
@@ -246,8 +249,8 @@ def test_the_built_page_runs_the_plan_and_narrows_the_progeny_of_a_staggered_ban
     html, report = build_timeline(b, _two_units(), [])
     assert report["layout"]["layout"] == "tree"
     assert "window._ALTO_TREE_PLAN=" in html and "window._ALTO_TREE_C" not in html
-    assert "html:not(.mobile) #node-duty-l .node-card" in html
-    assert "{width:180px;}" in html and '["band",' in html
+    # (changed on purpose, row-subtrees: no progeny is narrowed to fit any more)
+    assert "html:not(.mobile) #node-duty-l .node-card" not in html and '["band",' in html
 
 
 @needs_node
@@ -428,7 +431,7 @@ def test_tiers_choose_a_cards_row_in_the_band_and_leave_the_notes_order_alone():
     assert y[lower[0]] > y[upper[0]] and plan["warnings"] == []
     # a tier that leaves neighbours on one line says so, and still overlaps nothing
     plan2, y2, x2, _ = _run(ns, {"hub": {"arrange": "row"}, "breach": {"tier": 2}})
-    assert any("overlap sideways" in w for w in plan2["warnings"])
+    assert plan2["warnings"] == []          # (changed on purpose, row-subtrees: one row never overlaps sideways, so nothing to warn)
     assert placement_check(ns, plan2, y2, x2, _heights(ns))["overlaps"] == []
     xs = [x[k] for k in ks]
     assert xs == sorted(xs)                                      # left to right is still the notes' order
@@ -449,20 +452,22 @@ def test_the_band_staggers_so_a_tall_card_does_not_push_its_neighbour_down():
     # evenly tall: the first card is on the upper row. With a tall first card the
     # band flips, so it sits on the lower row beside its neighbour instead of
     # holding the whole band down
-    assert y1["std"] < y1["duty"] and y2["std"] > y2["duty"]
+    # (changed on purpose, row-subtrees: which alternation is shorter now also depends on the columns hanging under the cards,
+    # so only the flip is asserted: a tall first card goes to the lower row beside its neighbour)
+    assert y2["std"] > y2["duty"]
     assert y2["duty"] - 75 == y2["hub"] + 75 + TREE["ROOT_GAP"]
 
 
-def test_a_wide_block_settles_below_its_neighbours_and_nothing_overlaps():
+def test_a_wide_block_hangs_beside_its_neighbours_and_nothing_overlaps():
+    # (changed on purpose, row-subtrees: it used to settle BELOW the neighbours' progeny, thousands
+    # of px from its own parent.) breach's three children are a band of their own, wider than
+    # breach's column: the branches move apart instead, so each hangs straight under its own card
     ns = _negligence()
     plan, y, x, _ = _run(ns, {"hub": {"arrange": "row"}, "breach": {"arrange": "row"}})
-    # breach's three children are a band of their own, wider than breach's column,
-    # so the whole block sits under what hangs from breach's neighbours
-    neighbour_bottom = max(y[i] + 75 for i in ("duty-l", "duty-nl", "cause-nl", "alt-nl"))
-    assert min(y[i] - 75 for i in ("risks", "custom", "per-se")) >= neighbour_bottom + TREE["GROUP_GAP"] - 1
+    first = min(y[i] - 75 for i in ("risks", "custom", "per-se"))
+    assert first <= y["breach"] + 75 + TREE["GROUP_GAP"] + 1
+    assert min(y[i] - 75 for i in ("duty-l", "duty-nl")) <= y["duty"] + 75 + TREE["GROUP_GAP"] + 1
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
-
-
 
 
 def _js_plan(ns, plan, h, tmp_path):
@@ -557,7 +562,8 @@ def _torts_negligence():
 def test_outcomes_stay_in_the_stack_unless_asked():
     ns = _torts_negligence()
     stacked = outline_plan(ns, 1, {"hub": {"arrange": "row"}})
-    assert stacked["x"]["cause-l"] == stacked["x"]["cause-nl"] == stacked["x"]["cause"]
+    # (changed on purpose, row-subtrees: cause's outcomes and its sub-concept are siblings, so one row under it, the card centred over them)
+    assert stacked["x"]["cause-nl"] == stacked["x"]["cause"] and stacked["x"]["cause-l"] < stacked["x"]["alt"]
     plain = outline_plan(ns, 1, {"hub": {"arrange": "row"}}, "fan", "stack")
     assert plain["acts"] == stacked["acts"]
 
@@ -767,13 +773,16 @@ def test_the_pairs_of_a_wide_band_narrow_to_fit_across_the_page_and_share_a_leve
     pairs = [c + s for c in ("risks", "custom", "perse", "res") for s in ("-l", "-nl")]
     # four 380px pairs cannot sit across 1470px, so the cards narrow (not below the minimum)
     ow = {plan["w"][i] for i in pairs}
-    assert len(ow) == 1 and TREE["MIN_OUT_W"] <= ow.pop() < TREE["FLANK_W"]
+    # (changed on purpose, row-subtrees: cards are never squeezed to fit; the page widens, so they narrow only if it did not)
+    ow = ow.pop() if len(ow) == 1 else None
+    assert ow == TREE["FLANK_W"] if plan["wide"] else TREE["MIN_OUT_W"] <= ow < TREE["FLANK_W"]
     # and so they all hang at the same level, none held down by a neighbour
     assert len({y[i] for i in pairs}) == 1
     spans = sorted((x[c + "-l"] - plan["w"][c + "-l"] / 2, x[c + "-nl"] + plan["w"][c + "-nl"] / 2)
                    for c in ("risks", "custom", "perse", "res"))
     assert all(b[0] >= a[1] for a, b in zip(spans, spans[1:]))               # side by side, no overlap
-    assert spans[0][0] >= TREE["MARGIN"] and spans[-1][1] <= WORLD_W - TREE["MARGIN"]
+    # (changed on purpose, row-subtrees: subtrees too wide for the page stand in the room the page opens to the right)
+    assert spans[0][0] >= TREE["MARGIN"] and spans[-1][1] <= WORLD_W - TREE["MARGIN"] + plan["wide"]
     # custom's sub-concept is one of three equals in its row, level with the others'
     # pairs; what hangs from it (a row across the whole page) sits below, and did
     # not pull that row down with it
@@ -856,7 +865,7 @@ def test_a_shift_moves_the_card_and_its_progeny_and_the_rest_make_room():
         # where it was put — or lower, when it would touch another dragged card
         assert y1[i] >= y0[i] + dy - 1e-6, i
     assert y1["breach"] == pytest.approx(y0["breach"] + 340)
-    assert y1["custom"] == pytest.approx(y0["custom"] + 355)
+    assert y1["custom"] >= y0["custom"] + 355 - 1e-6        # (changed on purpose, row-subtrees: or lower, where the rows now make room)
     _no_two_touch(y1, x1, h, plan["w"], y0, x0, act0)
     # every other card is where it was, or out of the dragged cards' way
     for i in act0:
@@ -865,7 +874,8 @@ def test_a_shift_moves_the_card_and_its_progeny_and_the_rest_make_room():
         assert x1[i] == pytest.approx(x0[i]), i
         for j in moved:
             assert not _clash(y1, x1, h, plan["w"], i, j), (i, j)
-    assert any(y1[i] != pytest.approx(y0[i]) for i in act0 if i not in moved)
+    # (changed on purpose, row-subtrees: with every level side by side there is room beside the moved cards,
+    # so the others need not move down; what is asserted above is that nothing clashes)
     # the next unit starts below whatever the shift pushed lower
     low0 = max(y1[i] + h[i] / 2 for i in act0)
     assert min(y1[i] - h[i] / 2 for i in ("r2", "a2", "a2-l")) > low0
