@@ -68,7 +68,9 @@ def vars_css(key: str | None) -> str:
           + "\" fill=\"none\" stroke=\"'+c+'\" stroke-width=\"" + str(g / 16) + "\" stroke-linecap=\"round\" stroke-linejoin=\"round\">'+m.split('currentColor').join(c)+'</svg>')"
           ".replace(/\"/g,\"'\").replace(/</g,'%3C').replace(/>/g,'%3E').replace(/#/g,'%23')+'\")')}"
           + ("s.setProperty('--tt-syd','var(--tt-sym)');" if key == "system" else "") + "})();")
-    return "</style><script>" + js + "</script><style>:root{--tt-w:18px;--tt-sw:26px;}"
+    # Luke 2026-11-22/24: the format symbol belongs on the homepage only, never in a page's title tab, so the tab gives it no room (the
+    # markup stays for search.format_name_js).
+    return "</style><script>" + js + "</script><style>:root{--tt-w:0px;--tt-sw:0px;}"
 
 
 def block(key: str | None = None) -> str:

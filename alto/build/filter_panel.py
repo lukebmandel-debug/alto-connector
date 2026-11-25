@@ -48,13 +48,6 @@ RAIL_GLUE = """
 RAIL_CSS = (
     "\n  #tab-rail{position:fixed;right:0;top:calc(50% - 32px);z-index:395;"
     "display:flex;flex-direction:column;align-items:flex-end;gap:8px;}"
-    # Docked on the bottom-right toggle row (Luke 2026-11-20, "the right side toggles are incorrectly free floating"): the rail stands on
-    # the row's top, level with the row's right end (30px, as the edit pill), on an opaque backing so no line or map shows through the gaps.
-    # Only from 641px up: a phone-width window keeps the rail on the edge, clear of the lanes bottom bar (Board round 4).
-    # The old edge-tab shape (rounded left, cut right) rounds all four corners now it floats in; the glyph and the vertical Notes stay centred.
-    "@media(min-width:641px){html:not(.mobile) #tab-rail{top:auto;bottom:calc(var(--alto-row-b,24px) + 43px);right:calc(var(--np-dock,0px) + 30px);"
-    "background:var(--bg);box-shadow:0 0 0 4px var(--bg)}"
-    "html:not(.mobile) #tab-rail>button:not(#_){border-radius:6px;display:flex;align-items:center;justify-content:center}}"
     "\n  html:not(.mobile) #tab-rail > button{position:static !important;"
     "transform:none !important;top:auto !important;right:auto !important;margin:0;}"
     "\n  html.printing #tab-rail{display:none !important;}"
@@ -384,7 +377,7 @@ def filter_panel_css() -> str:
         "position:relative;"
         "background:var(--card-glass-bg, var(--surface));"
         "-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);"
-        "border:1px solid var(--card-glass-border, var(--border));"
+        "border:1px solid var(--card-glass-border, var(--border));border-right:none;"
         "border-radius:6px 0 0 6px;color:var(--muted);"
         "box-shadow:0 10px 26px var(--node-rest-shadow);}"
         "\n  #filter-toggle{touch-action:manipulation;}"
