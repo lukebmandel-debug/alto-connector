@@ -29,7 +29,7 @@ except ImportError:
 def test_holo_carries_the_glass_rules_and_classic_and_retro_do_not():
     h = holo.css()
     flat = h.replace("\n", "")
-    for part in ("html.alto-holo #world :is(.phase-label-float,.phase-numeral)", "html.alto-holo #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:calc(88px + var(--xr,0px)) !important;height:6px",
+    for part in ("html.alto-holo #world :is(.phase-label-float,.phase-numeral)", "html.alto-holo #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:88px !important;height:6px",
                  "html.alto-holo.pmin .ix-tile", "#title-bar #title-text", "html.alto-holo.pmin #nav .title", "margin-inline:4px"):
         assert part in flat, part
     r = retro.css()
