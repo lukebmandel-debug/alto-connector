@@ -493,6 +493,8 @@ G273_CSS = (_G273 + "{border:1px solid transparent !important;border-radius:999p
             + ",".join(f"X {t}:is(:hover,:focus-visible){_S1_NOT}" for t in _G_OUTER if t != "#nav .nav-group-label") + "{box-shadow:" + S1_RIM_HOVER + " !important;}\n"
             + "X #sol-ctl .sol-opt.on" + _S1_NOT + ",X #sol-ctl #sol-motion.on" + _S1_NOT + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26))," + S1_PLATE + " !important;color:var(--ho-ac) !important;}\n"
             + "X #nav .nav-btn:is(.active,.on)" + _S1_NOT + "{background:linear-gradient(rgba(var(--ho-rgb),.26),rgba(var(--ho-rgb),.26))," + S1_PLATE + " !important;}\n"
+            # the chips' plate is denser than the other controls' (cards scroll under the clear bars: no text on text; Board L-1123 chip backdrop)
+            + "X #nav .nav-btn" + _S1_NOT + ",X #nav .nav-btn:is(.active,.on)" + _S1_NOT + "{background-color:rgba(var(--ho-bgrgb),.96) !important;}\n"
             # the title tab (Luke B-1118-GLASSCHROME: "the title tab"): the same S1 plate as a full pill, 6px off the top edge (a margin: its width and the row below do not move); the clef and wordmark stay as they are
             + f"@media (min-width:641px){{X:not(.mobile) #title-bar #title-text{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}}\n"
             + f"X.pmin #nav .title{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}\n"
