@@ -173,6 +173,8 @@ LIB_JS = r"""(function(){
     '@media (hover:none){#bg-panel .bg-more{opacity:1 !important;}}',
     '#bg-panel .bg-tile.bg-mine .bg-del{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#fff;background:rgba(0,0,0,.6);cursor:pointer;}',
     '#bg-panel .bg-tile.bg-mine .bg-del:hover{background:#b3261e;}',
+    '#bg-panel .bg-retro-note{display:none;margin:6px 2px 0;font-size:12px;line-height:1.35;opacity:.8;}',
+    'html.alto-retro #bg-panel .bg-retro-note{display:block;}',
     '#bg-panel .bg-tile.bg-add{background:var(--card-glass-bg,var(--surface));color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;',
     ' border:1.5px dashed var(--muted);box-shadow:none;}',
     '#bg-panel .bg-tile.bg-add .bg-name{position:static;background:none;text-shadow:none;color:var(--text);padding:0;text-align:center;font-size:10.5px;}',
@@ -236,12 +238,14 @@ LIB_JS = r"""(function(){
   function styles(){
     var S=window._altoStyle, ui=B.ui; if(!S || !ui || document.getElementById('bg-style')) return;
     var row=el('div', 'bg-sec'), seg=el('div', 'bg-seg'); row.id='bg-style'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Style');
-    function mark(){ var c=S.get(); [].forEach.call(seg.children, function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+    function mark(){ var R=document.documentElement, c=R.classList.contains('alto-holo') ? 'holo' : R.classList.contains('alto-retro') ? 'retro' : S.get();   /* the style the page actually shows (Board B-1123 style-row-state: a Holo page lit Classic) */
+      [].forEach.call(seg.children, function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
     [['classic', 'Classic'], ['retro', 'Retro'], ['holo', 'Holographic']].filter(function(v){ return !S.list || S.list.indexOf(v[0])>=0; }).forEach(function(v){
       var b=el('button', 'bg-segb', v[1]); b.type='button'; b.setAttribute('data-sty', v[0]);
       b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : v[0]==='holo' ? 'Holographic: one cyan light, square wireframe cards, a faint grid' : 'Classic: Alto\u2019s own look, with the background below';
       b.addEventListener('click', function(e){ e.stopPropagation(); S.set(v[0]); mark(); }); seg.appendChild(b); });
     row.appendChild(el('div', 'bg-h', 'Style')); row.appendChild(seg); ui.body.insertBefore(row, ui.body.firstChild); mark();
+    new MutationObserver(mark).observe(document.documentElement, {attributes:true, attributeFilter:['class']});
     // Holographic's backgrounds move (looping clips); Motion: On | Still keeps them still. Shown with that style, kept with the background choice (window._altoMotion)
     var M=window._altoMotion; if(!M || (S.list && S.list.indexOf('holo')<0)) return;
     var mr=el('div', 'bg-sec'), ms=el('div', 'bg-seg'); mr.id='bg-motion'; ms.setAttribute('role', 'group'); ms.setAttribute('aria-label', 'Motion');
@@ -272,6 +276,7 @@ LIB_JS = r"""(function(){
       t.appendChild(m); g.appendChild(t);
     });
     sec.appendChild(g);
+    sec.appendChild(el('div', 'bg-retro-note', 'Retro uses plain black \u2014 your picture shows in Classic and Holo.'));   /* Board B-1123: shown in Retro only (CSS) */
     mng=el('div', 'bg-mng'); mng.hidden=true; sec.appendChild(mng);
     ui.mark();
   }
