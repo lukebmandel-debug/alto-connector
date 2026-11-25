@@ -2723,6 +2723,11 @@ PATCHES += [
      "new": "    lbl.style.top=(bandTop+BOX_TOP)+'px'; if(hx) lbl.style.height=(BOX_H+hx)+'px';", "count": 1},
     {"name": "outline-side-room-band", "old": "left:0;right:0;background:transparent;--unit-color:${pm.colorRaw};`;",
      "new": "left:calc(0px - var(--xl,0px));right:calc(0px - var(--xr,0px));background:transparent;--unit-color:${pm.colorRaw};`;", "count": 1},
+    # Luke 2026-11-24 (his 4 Nov shot): the unit numeral sits at the right end of its full-width bar, as before 1.9.244; it no longer
+    # steps in to clear the Alto wordmark or the side rail (they never share its height). It still stays inside the window's edge.
+    {"name": "unit-numeral-at-bar-end",
+     "old": "['#title-bar .brand-word','#tab-rail'].forEach(function(q){",
+     "new": "[].forEach(function(q){", "count": 1},
     {"name": "unit-header-grows-tube", "old": "    bar.style.height=TUBE_H+'px';",
      "new": "    bar.style.height=(TUBE_H+hx)+'px';", "count": 1},
     {"name": "unit-header-grows-gaps", "old": "bottom:bandTop+TUBE_TOP+TUBE_H+4, cy:bandTop+TUBE_TOP+TUBE_H/2}",
