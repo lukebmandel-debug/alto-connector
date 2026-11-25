@@ -211,3 +211,21 @@ def test_phones_whole_view_has_the_switch_in_the_menu_and_card_view_has_none():
     card = _run({"c": page}, steps, vp=(390, 844), query="?style=classic", mobile=True)["c"]
     assert card["btn"] in (None, "none") and (card["row"] is None or card["row"][0] == "none"), card
     assert card["sw"] == card["iw"]
+
+
+@needs_pw
+@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
+def test_no_halo_a_quiet_cue_and_the_row_end_fades_before_the_rail(style):
+    # Luke 2026-11-25: "i don't think we need the halo effect, find another way to indicate extend mode is on"
+    async def steps(pg):
+        return await pg.evaluate("""() => { const u = window._altoUnits[0], rail = document.getElementById('tab-rail').getBoundingClientRect().left;
+          const glow = [...document.querySelectorAll('#world *')].filter(e => { const s = getComputedStyle(e), r = e.getBoundingClientRect();
+            return r.height > 300 && r.width < 120 && (s.backdropFilter || s.webkitBackdropFilter || 'none') !== 'none' && !e.closest('.node'); }).length;
+          const R = u.R.getBoundingClientRect(), masks = [...document.querySelectorAll('#world .node-card')].filter(c => (c.style.maskImage || c.style.webkitMaskImage)).length;
+          const cut = [...document.querySelectorAll('#world .node-card')].filter(c => c.style.clipPath).length;
+          const lit = getComputedStyle(document.getElementById('ext-view-btn')).boxShadow.indexOf('inset') >= 0;
+          return {glow, right: [R.left, R.right, getComputedStyle(u.R).opacity], rail, masks, cut, lit, old: document.querySelectorAll('.alto-edge').length}; }""")
+    r = _run({"on": tf.page(data=tf.negligence_brief())}, steps, query=f"?style={style}")["on"]
+    assert r["glow"] == 0 and r["old"] == 0, r                                # no glowing panel
+    assert float(r["right"][2]) > 0.5 and r["right"][1] <= r["rail"] - 20, r  # the arrow says there is more, clear of the rail
+    assert r["masks"] >= 1 and r["masks"] >= r["cut"] and r["lit"], r       # a card at the end fades out before any clip; the switch is lit

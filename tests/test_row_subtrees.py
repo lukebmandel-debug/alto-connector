@@ -318,7 +318,7 @@ def test_the_board_fills_the_window_with_no_cap_and_no_seam_and_the_cue_sits_bel
             await pg.wait_for_timeout(3500)
             res[vw] = await pg.evaluate("""() => { const w = document.getElementById('world'), c = document.getElementById('canvas'), s = document.getElementById('glass-slab'),
                 bar = document.querySelector('.unit-bar').getBoundingClientRect(), W = w.getBoundingClientRect(), S = s.getBoundingClientRect(),
-                cues = [...document.querySelectorAll('.alto-edge')].map(e => e.getBoundingClientRect());
+                cues = [...document.querySelectorAll('.alto-edge-c,.alto-edge-t')].map(e => e.getBoundingClientRect());
                 return {world: w.offsetWidth, canvas: c.clientWidth, wl: W.left, wr: W.right, sl: S.left, sr: S.right, vw: innerWidth, barTop: bar.top, barBottom: bar.bottom,
                         cueTops: cues.map(r => r.top), units: window._altoUnits.map(u => [u.min, u.max])}; }""")
         return res
