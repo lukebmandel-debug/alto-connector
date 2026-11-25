@@ -108,6 +108,12 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   html:not(.alto-retro):not(.alto-holo) .course-tile:has(.tile-download) .tile-reports{ left:46px; }
   html:not(.alto-retro):not(.alto-holo) .course-tile:not(:has(.tile-share)) .tile-reports{ left:12px; }
 }
+@media (max-width:360px){   /* a narrow phone (a card ~122-142px wide): the ⋯ keeps only the title's first line short (a float, not padding), so a word too long for
+     that line starts under the ⋯ instead of running under it; the plate is 34px, still bottom right but clear of the second button */
+  html:not(.alto-retro):not(.alto-holo) .course-tile.has-more .tile-title{ padding-right:0; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile.has-more .tile-title::before{ content:''; float:right; width:26px; height:16px; }
+  html:not(.alto-retro):not(.alto-holo) .course-tile .tile-emblem{ width:34px; height:34px; right:6px; bottom:9px; }
+}
 """
 
 
