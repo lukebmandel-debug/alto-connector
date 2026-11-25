@@ -871,3 +871,32 @@ def test_the_page_carries_the_glyphs_axes_and_sizes():
     for need in ("function withGlyph(", "function deleteUnit(", "function navSync(", "function chipPop(",
                  "function startResize(", "function growFor(", "function chipMenu("):
         assert need in MANUAL_JS, need
+
+
+def test_an_empty_gone_section_is_marked_and_a_typed_one_stays_live_and_loud():
+    # Board B-1122-EMPTY-OPS: an empty new section is not a data-loss alarm;
+    # typed text the page never placed stays live and is reported loudly.
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "n|formation|s|new-f3ls47|h": {"b": "", "v": "", "t": 1},
+        "n|formation|s|new-f3ls47|t": {"b": "", "v": "", "t": 2},
+        "sd|n-formation-new-e0e0e0|study": {"b": None, "v": [], "t": 3},
+        "n|formation|s|new-k33p99|h": {"b": "", "v": "", "t": 4},
+        "n|formation|s|new-k33p99|t": {"b": "", "v": "Typed words", "t": 5},
+    }}
+    n_ops = len(st.edits["ops"])
+    r = fold(st, "u", "t1")
+    assert len(st.edits["ops"]) == n_ops                       # nothing removed
+    ops = st.edits["ops"]
+    assert sorted(r["empty_sections"]) == ["formation/new-e0e0e0", "formation/new-f3ls47"], r
+    assert "nothing to keep" in r["note"]
+    for k in ("n|formation|s|new-f3ls47|h", "n|formation|s|new-f3ls47|t", "sd|n-formation-new-e0e0e0|study"):
+        assert ops[k].get("f") and k not in r["gone"]
+    assert r["hidden_text"] == ["text kept but not shown: formation/new-k33p99"]
+    assert "tell the user" in r["note"]
+    for k in ("n|formation|s|new-k33p99|h", "n|formation|s|new-k33p99|t"):
+        assert not ops[k].get("f") and not ops[k].get("done") and k in r["gone"]
+    # again: the empty ones are not listed twice, the typed one still is
+    r2 = fold(st, "u", "t1")
+    assert len(st.edits["ops"]) == n_ops
+    assert not r2.get("empty_sections") and r2["hidden_text"] == r["hidden_text"]
