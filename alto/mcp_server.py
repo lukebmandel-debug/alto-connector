@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.295"
+__version__ = "1.9.296"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -591,8 +591,37 @@ def _completeness(doc, nodes, connections) -> dict:
         "entities": len((doc.get("brief") or {}).get("entities", [])),
         "nodes": len(nodes),
         "connections": len(connections),
-        "status": doc.get("status", "draft"),
+        "status": _status_out(doc),
     }
+
+
+STALE = "published — unpublished changes"
+
+
+def _src_digest(brief, nodes, conns) -> str:
+    """What a page is made of (brief, nodes, connections), as a short digest:
+    the build stores it as built_src, a publish as published_src."""
+    import hashlib
+    body = json.dumps([brief, [{k: v for k, v in n.items() if k != "_seq"} for n in nodes], conns],
+                      sort_keys=True, default=str)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:12]
+
+
+def _status_out(doc, current_src: str = "") -> str:
+    """The status a tool reports. A page that was published and has since been
+    rebuilt (or edited) with different content reads STALE, never "published":
+    the web copy is the older one until publish_timeline runs again. The stored
+    status keeps its three values (draft/built/published)."""
+    st = doc.get("status", "draft")
+    pub = doc.get("published_src")
+    if not pub or st not in ("built", "published"):
+        return st
+    cur = current_src or doc.get("built_src") or pub
+    return "published" if cur == pub and doc.get("built_src", pub) == pub else STALE
+
+
+def _publish_times(doc) -> dict:
+    return {k: doc[k] for k in ("built_at", "published_at") if doc.get(k)}
 
 
 @mcp.tool(title="Get interview guide", annotations=RO)
@@ -875,7 +904,7 @@ def _projects_listing() -> dict:
     def row(t):
         r = {"timeline_id": t["timeline_id"],
              "title": (t.get("brief") or {}).get("title"),
-             "status": t.get("status", "draft")}
+             "status": _status_out(t)}
         if t.get("private_key") in binned:
             r["in_recently_deleted"] = time.strftime(
                 "%Y-%m-%d", time.gmtime(binned[t["private_key"]]))
@@ -3009,7 +3038,9 @@ def build_timeline(timeline_id: str, layout: str = "",
     build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
-    the draft first; the reply's manual_edits says how many."""
+    the draft first; the reply's manual_edits says how many. On a page
+    already published, status "published — unpublished changes" means the web
+    copy is now older: follow `next` and publish it."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -3082,7 +3113,12 @@ def build_timeline(timeline_id: str, layout: str = "",
     offline_path = st.put_artifact(uid(), timeline_id, "offline.html", offline)
     doc["status"] = "built"
     doc["build_report"] = report
+    doc["built_at"] = _now()
+    doc["built_src"] = _src_digest(doc.get("brief"), st.list_nodes(uid(), timeline_id),
+                                   st.get_connections(uid(), timeline_id))
     st.put_timeline(uid(), timeline_id, doc)
+    status = _status_out(doc)
+    stale = status == STALE
     # The path goes here, not only in publish_timeline. Someone who never
     # wants a shareable link has no reason to call publish, and would
     # otherwise be told the build succeeded without ever learning that a
@@ -3094,7 +3130,12 @@ def build_timeline(timeline_id: str, layout: str = "",
                      "opens in any browser, no server or account needed. "
                      "Give the user the path. publish_timeline is only "
                      "needed for a shareable web link."),
-            "next": "publish_timeline, if they want a link as well"}
+            "status": status, **_publish_times(doc),
+            **({"stale_note": ("The web copy is out of date: it still shows the page as it was "
+                               "last published. Publish to update it.")} if stale else {}),
+            "next": (f"publish_timeline(timeline_id={timeline_id!r}, visibility="
+                     f"{doc.get('visibility') or 'private-web'!r}) — the web copy is out of date until then"
+                     if stale else "publish_timeline, if they want a link as well")}
 
 
 @mcp.tool(title="Preview as an Artifact", annotations=RW)
@@ -3521,15 +3562,37 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                          if getattr(e, "built", None) else
                          "Tell the user to update the Alto extension, then publish again. "
                          "Do not rebuild or retry before that.")}
-    if isinstance(r, dict) and not r.get("error") and visibility == "private-web":
-        _edits_published(timeline_id)        # the page now carries the folded edits
+    if isinstance(r, dict) and not r.get("error") and r.get("status") != "waiting_for_sign_in":
+        _published_now(timeline_id)
+        if visibility == "private-web":
+            _edits_published(timeline_id)        # the page now carries the folded edits
+        r = {**r, "status": "published"}
     return r
+
+
+def _published_now(timeline_id: str) -> None:
+    """Record that what was last built is what is online now (get_timeline's
+    status goes back to plain "published")."""
+    st = get_store()
+    doc = st.get_timeline(uid(), timeline_id)
+    if not doc:
+        return
+    src = doc.get("built_src")
+    if not src:
+        src = _src_digest(doc.get("brief"), st.list_nodes(uid(), timeline_id),
+                          st.get_connections(uid(), timeline_id))
+        doc["built_src"] = src
+    doc["published_src"] = src
+    doc["published_at"] = _now()
+    st.put_timeline(uid(), timeline_id, doc)
 
 @mcp.tool(title="Get state", annotations=RO)
 @accounted
 def get_timeline(timeline_id: str, compact: bool = False) -> dict:
     """Full draft state for resuming: brief, consent, node ids, connection
-    count, status, urls. compact=true trims the brief to a summary (each axis
+    count, status, urls, built_at/published_at. status "published — unpublished
+    changes" means the web copy is older than the draft: build (if edited) and
+    publish_timeline again. compact=true trims the brief to a summary (each axis
     value as {id, name}, overview_html as its length) — use it to look around
     a large page; get_nodes gives the nodes' content."""
     doc, err = _timeline_or_error(timeline_id)
@@ -3551,9 +3614,10 @@ def get_timeline(timeline_id: str, compact: bool = False) -> dict:
         "consent": doc.get("consent"),
         "node_ids": [n["id"] for n in nodes],
         "connection_count": len(conns),
-        "status": doc.get("status"),
         "urls": doc.get("urls", {}),
         **_completeness(doc, nodes, conns),
+        "status": _status_out(doc, _src_digest(doc.get("brief"), nodes, conns)),
+        **_publish_times(doc),
     }
 
 
