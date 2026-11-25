@@ -245,7 +245,7 @@ def test_a_choice_writes_every_unit_number_of_every_format_its_way(browser, site
     r = pg.evaluate(GRAB)
     want = ROMAN if choice == "roman" else ARABIC
     assert r["mode"] == choice and r["attr"] == choice
-    assert r["orders"] and all(want.match(h) for h in _heads(r["orders"])), r["orders"][:6]
+    assert r["orders"] and all(ARABIC.match(h) for h in _heads(r["orders"])), r["orders"][:6]   # card labels always arabic (Luke 2026-11-24)
     assert all(want.match(t) for t in r["numerals"] + r["un"]), (r["numerals"], r["un"])
     # the levels under the unit never change: the same marks as the page's own (arabic) numbers
     canon = pg.evaluate("() => [...document.querySelectorAll('#world .node[id^=\"node-\"]')].map(e => NODE_ORDER_MAP[e.id.slice(5)] || '')")
@@ -268,7 +268,7 @@ def test_switching_moves_no_card_and_needs_no_reload(browser, site, name, phone)
         r = pg.evaluate(GRAB)
         assert r["mode"] == v
         assert r["pos"] == first["pos"], [k for k in r["pos"] if r["pos"][k] != first["pos"].get(k)][:5]
-        assert all((ROMAN if v == "roman" else ARABIC).match(h) for h in _heads(r["orders"]))
+        assert all(ARABIC.match(h) for h in _heads(r["orders"]))   # card labels always arabic (Luke 2026-11-24)
     # the band numerals' collision box is the wider of the two spellings, so it is the same whichever is shown
     boxes = pg.evaluate("""() => [...document.querySelectorAll('.phase-numeral')].filter(e => e.offsetWidth).map(e => {
       const w = window._altoUN.wide(e), t = e.textContent, n = /\\d/.test(t) ? +t : null;
