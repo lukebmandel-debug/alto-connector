@@ -1,0 +1,271 @@
+...F......FF..FF..FFF.....FF...FF...........                             [100%]
+=================================== FAILURES ===================================
+_ test_the_page_carries_both_plans_and_the_switch_only_when_the_owner_turned_extend_on _
+
+    def test_the_page_carries_both_plans_and_the_switch_only_when_the_owner_turned_extend_on():
+        on = tf.page(data=tf.negligence_brief())
+        off = tf.page(data=tf.negligence_brief(extend=False))
+        assert "_ALTO_TREE_PLAN_OFF=" in on and "_ALTO_EXTEND_PAGE=1" in on and "alto-extview-" in on
+>       assert "_ALTO_TREE_PLAN_OFF=" not in off and "_ALTO_EXTEND_PAGE" not in off
+E       AssertionError: assert ('_ALTO_TREE_PLAN_OFF=' not in '<!DOCTYPE h...>\n</html>\n'
+E         
+E         '_ALTO_TREE_PLAN_OFF=' is contained here:
+E           y>
+E           </html> and '_ALTO_EXTEND_PAGE' not in '<!DOCTYPE h...>\n</html>\n'
+E         
+E         '_ALTO_EXTEND_PAGE' is contained here:
+E         ?           ^^^
+E           v; window._ALTO_EXTEND_PAGE = EXT ? 1 : 0; extSync(); if(window._altoExtLook) window._altoExtLook();
+E         ?           ^^^^^^   ++++++++++++++
+E                     if(window._ALTO_TREE_PLAN_ON && window._altoExtView) window._altoExtView(EXT, true); }};
+E               }...
+E         
+E         ...Full output truncated (4804 lines hidden), use '-vv' to show)
+
+tests/test_extend_1125.py:66: AssertionError
+__________ test_without_extend_a_card_past_the_edge_comes_back_inside __________
+
+    @needs_pw
+    def test_without_extend_a_card_past_the_edge_comes_back_inside():
+        d = tf.negligence_brief(extend=False)
+        d["brief"]["placement"]["damages"] = {"shift": [2600, 0]}
+        d2 = tf.negligence_brief()
+        d2["brief"]["placement"]["damages"] = {"shift": [2600, 0]}
+    
+        async def steps(pg):
+            return await pg.evaluate("""() => { const w = document.getElementById('world'), k = w.getBoundingClientRect().width / w.offsetWidth;
+                const e = document.getElementById('node-damages'); return [parseFloat(e.style.left), (window._altoUnits||[]).map(u => u.max)]; }""")
+>       r = _run({"off": tf.page(data=d), "on": tf.page(data=d2)}, steps, query="?style=classic")
+                         ^^^^^^^^^^^^^^^
+
+tests/test_extend_1125.py:194: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/torts_fixture.py:41: in page
+    html = build_timeline(*load_brief(data or brief(title, long_names)))[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+alto/build/builder.py:215: in build_timeline
+    warnings = validate_brief(brief)
+               ^^^^^^^^^^^^^^^^^^^^^
+alto/build/brief.py:833: in validate_brief
+    _check_placement(b, warnings)
+alto/build/brief.py:1102: in _check_placement
+    number(nid, f"{key} dx", v[0], -PLACE_WORLD_W, PLACE_WORLD_W)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+nid = 'damages', key = 'shift dx', v = 2600, lo = -1700, hi = 1700
+
+    def number(nid, key, v, lo, hi):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
+>           raise BriefError(f"placement {nid}: {key} must be a number from "
+                             f"{lo} to {hi}, not {v!r}")
+E           alto.build.brief.BriefError: placement damages: shift dx must be a number from -1700 to 1700, not 2600
+
+alto/build/brief.py:1073: BriefError
+___ test_phones_whole_view_has_the_switch_in_the_menu_and_card_view_has_none ___
+
+    @needs_pw
+    def test_phones_whole_view_has_the_switch_in_the_menu_and_card_view_has_none():
+        async def steps(pg):
+            await pg.evaluate("() => window.openNavDrawer && openNavDrawer()")
+            await pg.wait_for_timeout(700)
+            return await pg.evaluate("""() => { const r = document.getElementById('ext-drawer-row'), b = document.getElementById('ext-view-btn');
+                return {row: r ? [getComputedStyle(r).display, r.getBoundingClientRect().height, r.textContent] : null,
+                        btn: b ? getComputedStyle(b).display : null, sw: document.documentElement.scrollWidth, iw: innerWidth}; }""")
+        page = tf.page(data=tf.negligence_brief())
+        whole = _run({"w": page}, steps, vp=(390, 844), query="?style=classic&view=whole", mobile=True)["w"]
+        assert whole["row"][0] != "none" and whole["row"][1] >= 44 and "Extend" in whole["row"][2], whole
+        assert whole["sw"] == whole["iw"]
+        card = _run({"c": page}, steps, vp=(390, 844), query="?style=classic", mobile=True)["c"]
+>       assert card["btn"] in (None, "none") and (card["row"] is None or card["row"][0] == "none"), card
+E       AssertionError: {'row': ['flex', 44, 'Extend · On'], 'btn': 'none', 'sw': 390, 'iw': 390}
+E       assert ('none' in (None, 'none') and (['flex', 44, 'Extend · On'] is None or 'flex' == 'none'
+E         
+E         - none
+E         + flex))
+
+tests/test_extend_1125.py:212: AssertionError
+__ test_sibling_subtrees_sit_side_by_side_each_under_its_own_parent[nested1] ___
+
+nested = ('breach', 'defenses')
+
+    @pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+    def test_sibling_subtrees_sit_side_by_side_each_under_its_own_parent(nested):
+        nodes, plan, y, x, heights = _plan(nested=nested)
+        bx = _boxes(plan, y, x, heights)
+        span = {}
+        for br in BRANCHES:
+            ids = _desc(nodes, br)
+            span[br] = (min(bx[i][0] for i in ids), max(bx[i][2] for i in ids))
+            # the subtree is centred on, or at least hangs across, its own branch's column
+            assert span[br][0] - 1 <= x[br] <= span[br][1] + 1, br
+        order = sorted(BRANCHES, key=lambda b: x[b])
+        for a, b in zip(order, order[1:]):
+>           assert span[a][1] <= span[b][0] + 1, (a, b, span[a], span[b])   # no two subtrees share any width
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: ('duty', 'breach', (115.0, 305.0), (115.0, 1225.0))
+E           assert 305.0 <= (115.0 + 1)
+
+tests/test_row_subtrees.py:67: AssertionError
+__ test_sibling_subtrees_sit_side_by_side_each_under_its_own_parent[nested2] ___
+
+nested = ('duty', 'breach', 'fact', 'proximate', 'damages', 'defenses')
+
+    @pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+    def test_sibling_subtrees_sit_side_by_side_each_under_its_own_parent(nested):
+        nodes, plan, y, x, heights = _plan(nested=nested)
+        bx = _boxes(plan, y, x, heights)
+        span = {}
+        for br in BRANCHES:
+            ids = _desc(nodes, br)
+            span[br] = (min(bx[i][0] for i in ids), max(bx[i][2] for i in ids))
+            # the subtree is centred on, or at least hangs across, its own branch's column
+            assert span[br][0] - 1 <= x[br] <= span[br][1] + 1, br
+        order = sorted(BRANCHES, key=lambda b: x[b])
+        for a, b in zip(order, order[1:]):
+>           assert span[a][1] <= span[b][0] + 1, (a, b, span[a], span[b])   # no two subtrees share any width
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: ('duty', 'breach', (115.0, 1225.0), (115.0, 1225.0))
+E           assert 1225.0 <= (115.0 + 1)
+
+tests/test_row_subtrees.py:67: AssertionError
+_____________ test_no_overlaps_and_no_line_crosses_a_card[nested2] _____________
+
+nested = ('duty', 'breach', 'fact', 'proximate', 'damages', 'defenses')
+
+    @pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+    def test_no_overlaps_and_no_line_crosses_a_card(nested):
+        nodes, plan, y, x, heights = _plan(nested=nested)
+        check = placement_check(nodes, plan, y, x, heights)
+        assert check["overlaps"] == [] and check["off_margin"] == []
+        edges = [(n.parent, n.id) for n in nodes if n.parent]
+        base = line_crossings(edges, x, y, heights, True)
+>       assert base == 0, base
+E       AssertionError: 28
+E       assert 28 == 0
+
+tests/test_row_subtrees.py:78: AssertionError
+_____ test_the_world_widens_only_when_the_subtrees_need_more_than_the_page _____
+
+    def test_the_world_widens_only_when_the_subtrees_need_more_than_the_page():
+        from test_outline_placement import _n
+        # three branches with a short stack each fit the page: nothing is widened
+        ns = [_n("hub")] + [_n("b%d" % i, "hub") for i in range(3)]
+        for i in range(3):
+            ns += [_n("b%d-l" % i, "b%d" % i, tag="Outcome"), _n("b%d-nl" % i, "b%d" % i, tag="Outcome")]
+        small = outline_plan(ns, 1, {"hub": {"arrange": "row"}})
+        assert small["wide"] == 0
+        # Negligence side by side at every level is wider than the page, so the board opens to the right
+        nodes, plan, y, x, heights = _plan()
+>       assert plan["wide"] > 0
+E       assert 0 > 0
+
+tests/test_row_subtrees.py:91: AssertionError
+________ test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap ________
+
+    def test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap():
+        # (rule chosen: a card's own outcomes, leaves with nothing under them, stay a short stack under it;
+        # every other group of siblings, at every level of a branch, is one row)
+        nodes, plan, y, x, heights = _plan()
+        kids = outline_kids(nodes)
+        checked = 0
+        for p, ks in kids.items():
+            if len(ks) < 2:
+                continue
+            by = {n.id: n for n in nodes}
+            if all(not kids.get(k) and by[k].tag != by[p].tag for k in ks):
+                continue                                   # a card's own outcomes: a short stack
+            tops = [y[k] - heights[k] / 2 for k in ks]
+>           assert max(tops) - min(tops) <= 2, (p, tops)
+E           AssertionError: ('duty', [644.0, 1230.0, 1816.0])
+E           assert (1816.0 - 644.0) <= 2
+E            +  where 1816.0 = max([644.0, 1230.0, 1816.0])
+E            +  and   644.0 = min([644.0, 1230.0, 1816.0])
+
+tests/test_row_subtrees.py:109: AssertionError
+__________ test_each_branch_is_centred_over_its_own_subtree[nested1] ___________
+
+nested = ('breach', 'defenses')
+
+    @pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+    def test_each_branch_is_centred_over_its_own_subtree(nested):
+        nodes, plan, y, x, heights = _plan(nested=nested)
+        bx = _boxes(plan, y, x, heights)
+        for br in BRANCHES:
+            ids = _desc(nodes, br)
+            centre = (min(bx[i][0] for i in ids) + max(bx[i][2] for i in ids)) / 2
+            if len(ids) > 0 and any(plan["w"].get(i, 270) for i in ids):
+>               assert abs(x[br] - centre) <= 2, (br, x[br], centre)
+E               AssertionError: ('breach', 466.0, 670.0)
+E               assert 204.0 <= 2
+E                +  where 204.0 = abs((466.0 - 670.0))
+
+tests/test_row_subtrees.py:145: AssertionError
+__________ test_each_branch_is_centred_over_its_own_subtree[nested2] ___________
+
+nested = ('duty', 'breach', 'fact', 'proximate', 'damages', 'defenses')
+
+    @pytest.mark.parametrize("nested", [(), ("breach", "defenses"), tuple(BRANCHES)])
+    def test_each_branch_is_centred_over_its_own_subtree(nested):
+        nodes, plan, y, x, heights = _plan(nested=nested)
+        bx = _boxes(plan, y, x, heights)
+        for br in BRANCHES:
+            ids = _desc(nodes, br)
+            centre = (min(bx[i][0] for i in ids) + max(bx[i][2] for i in ids)) / 2
+            if len(ids) > 0 and any(plan["w"].get(i, 270) for i in ids):
+>               assert abs(x[br] - centre) <= 2, (br, x[br], centre)
+E               AssertionError: ('duty', 210.0, 670.0)
+E               assert 460.0 <= 2
+E                +  where 460.0 = abs((210.0 - 670.0))
+
+tests/test_row_subtrees.py:145: AssertionError
+______________ test_child_w_carries_down_so_a_level_has_one_width ______________
+
+    def test_child_w_carries_down_so_a_level_has_one_width():
+        nodes, plan, y, x, heights = _plan(nested=("breach", "defenses"))
+        for n in nodes:
+            if n.id.startswith("strict") or n.id == "negligence":
+                continue
+            if n.tag != "Outcome":
+>               assert plan["w"].get(n.id, 270) <= 190, (n.id, plan["w"].get(n.id))
+E               AssertionError: ('breach-reasonable-person', 270)
+E               assert 270 <= 190
+E                +  where 270 = <built-in method get of dict object at 0x10bfeec80>('breach-reasonable-person', 270)
+E                +    where <built-in method get of dict object at 0x10bfeec80> = {'negligence': 270, 'duty': 190, 'breach': 190, 'fact': 190, ...}.get
+E                +    and   'breach-reasonable-person' = Node(id='breach-reasonable-person', act=0, tag='Negligence', title='Reasonable person', desc='A short note on reasonab...], color='', base_y=0, parent='breach', line='', when='', present=[], flash='', gap='', nest='', sources=[], photos=[]).id
+
+tests/test_row_subtrees.py:161: AssertionError
+______________ test_a_widened_unit_leaves_the_others_as_they_were ______________
+
+    def test_a_widened_unit_leaves_the_others_as_they_were():
+        d = tf.negligence_brief(nested=tuple(BRANCHES))
+        brief, nodes, _ = load_brief(d)
+        plan = outline_plan(nodes, 2, brief.placement)
+>       assert plan["x"]["strict"] == TREE["CX"] and plan["wide"] > 0
+E       assert (850 == 850 and 0 > 0)
+
+tests/test_row_subtrees.py:176: AssertionError
+=============================== warnings summary ===============================
+alto/build/blocks.py:669
+  /Users/lukemandel/.alto-work/extend-1125/src/alto/build/blocks.py:669: SyntaxWarning: invalid escape sequence '\d'
+    var tk=d.match(/[MLQ]|-?\d*\.?\d+(?:e-?\d+)?/gi)||[], i=0, out='', px=0, py=0, pen=false, lastT=0;
+
+alto/build/mobile_chrome.py:36
+  /Users/lukemandel/.alto-work/extend-1125/src/alto/build/mobile_chrome.py:36: SyntaxWarning: invalid escape sequence '\s'
+    var tx=(el.textContent||'').replace(/\s+/g,' ').trim(), snip;
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_extend_1125.py::test_the_page_carries_both_plans_and_the_switch_only_when_the_owner_turned_extend_on
+FAILED tests/test_extend_1125.py::test_without_extend_a_card_past_the_edge_comes_back_inside
+FAILED tests/test_extend_1125.py::test_phones_whole_view_has_the_switch_in_the_menu_and_card_view_has_none
+FAILED tests/test_row_subtrees.py::test_sibling_subtrees_sit_side_by_side_each_under_its_own_parent[nested1]
+FAILED tests/test_row_subtrees.py::test_sibling_subtrees_sit_side_by_side_each_under_its_own_parent[nested2]
+FAILED tests/test_row_subtrees.py::test_no_overlaps_and_no_line_crosses_a_card[nested2]
+FAILED tests/test_row_subtrees.py::test_the_world_widens_only_when_the_subtrees_need_more_than_the_page
+FAILED tests/test_row_subtrees.py::test_siblings_sit_side_by_side_at_every_level_one_y_no_overlap
+FAILED tests/test_row_subtrees.py::test_each_branch_is_centred_over_its_own_subtree[nested1]
+FAILED tests/test_row_subtrees.py::test_each_branch_is_centred_over_its_own_subtree[nested2]
+FAILED tests/test_row_subtrees.py::test_child_w_carries_down_so_a_level_has_one_width
+FAILED tests/test_row_subtrees.py::test_a_widened_unit_leaves_the_others_as_they_were
+12 failed, 32 passed, 2 warnings in 152.92s (0:02:32)
+EXIT 1

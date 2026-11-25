@@ -22,7 +22,7 @@ BRANCHES = list(tf._BRANCHES)
 def _plan(child_w=190, nested=("breach", "defenses"), h=H):
     d = tf.negligence_brief(child_w, nested)
     brief, nodes, _ = load_brief(d)
-    plan = outline_plan(nodes, len(brief.acts), brief.placement)
+    plan = outline_plan(nodes, len(brief.acts), brief.placement, extend=True)
     heights = {n.id: h for n in nodes}
     y, x, world = run_plan(plan, nodes, heights)
     return nodes, plan, y, x, heights
@@ -84,7 +84,7 @@ def test_the_world_widens_only_when_the_subtrees_need_more_than_the_page():
     ns = [_n("hub")] + [_n("b%d" % i, "hub") for i in range(3)]
     for i in range(3):
         ns += [_n("b%d-l" % i, "b%d" % i, tag="Outcome"), _n("b%d-nl" % i, "b%d" % i, tag="Outcome")]
-    small = outline_plan(ns, 1, {"hub": {"arrange": "row"}})
+    small = outline_plan(ns, 1, {"hub": {"arrange": "row"}}, extend=True)
     assert small["wide"] == 0
     # Negligence side by side at every level is wider than the page, so the board opens to the right
     nodes, plan, y, x, heights = _plan()
@@ -162,17 +162,17 @@ def test_child_w_carries_down_so_a_level_has_one_width():
     d = tf.negligence_brief(190, ("breach",))
     d["brief"]["placement"]["breach"] = {"arrange": "row", "child_w": 210}
     brief, nodes2, _ = load_brief(d)
-    p2 = outline_plan(nodes2, len(brief.acts), brief.placement)
+    p2 = outline_plan(nodes2, len(brief.acts), brief.placement, extend=True)
     assert p2["w"]["breach-custom"] == 210            # the nearest band's width wins
     d["brief"]["placement"]["breach-custom"] = {"w": 200}
     brief, nodes2, _ = load_brief(d)
-    assert outline_plan(nodes2, len(brief.acts), brief.placement)["w"]["breach-custom"] == 200   # its own hint wins
+    assert outline_plan(nodes2, len(brief.acts), brief.placement, extend=True)["w"]["breach-custom"] == 200   # its own hint wins
 
 
 def test_a_widened_unit_leaves_the_others_as_they_were():
     d = tf.negligence_brief(nested=tuple(BRANCHES))
     brief, nodes, _ = load_brief(d)
-    plan = outline_plan(nodes, 2, brief.placement)
+    plan = outline_plan(nodes, 2, brief.placement, extend=True)
     assert plan["x"]["strict"] == TREE["CX"] and plan["wide"] > 0
     for k in ("strict-animals", "strict-abnormally", "strict-products"):
         assert TREE["MARGIN"] <= plan["x"][k] - plan["w"][k] / 2 + 1
@@ -183,7 +183,7 @@ def test_hints_keep_working_inside_a_band():
     d = tf.negligence_brief()
     d["brief"]["placement"]["duty"] = {"order": 1, "shift": [0, 0]}
     brief, nodes, _ = load_brief(d)
-    plan = outline_plan(nodes, len(brief.acts), brief.placement)
+    plan = outline_plan(nodes, len(brief.acts), brief.placement, extend=True)
     assert "duty" in plan["x"]
 
 
@@ -283,7 +283,7 @@ def test_the_unit_bar_frames_its_unit_and_no_card_goes_under_the_rail_at_either_
     res = _browser({"wide": tf.page(data=tf.negligence_brief())}, frame)["wide"]
     assert abs(res["bar"][0] - 20) <= 22 and res["bar"][1] <= 0 and res["bar"][1] >= -40, res    # the bar spans the board
     assert res["lab"][0] >= 0 and res["num"][1] <= res["w"][1], res                              # pill and numeral stay in view
-    assert res["num"][1] <= res["rail"] + 1, res
+    # (no rail clamp on the numeral: 1.9.288 put it back at its bar's right end, Luke 2026-11-04 / 2026-11-24)
 
 
 @needs_pw

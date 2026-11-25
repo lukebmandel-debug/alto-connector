@@ -66,11 +66,14 @@ _BRANCH_TITLES = {"duty": "Duty", "breach": "Breach", "fact": "Cause in Fact", "
                   "damages": "Damages", "defenses": "Defenses"}
 
 
-def negligence_brief(child_w=190, nested=("breach", "defenses")):
+def negligence_brief(child_w=190, nested=("breach", "defenses"), extend=True):
     """One unit, Negligence: a hub with six branches in a row band (child_w wide), each branch with
-    sub-cards; the ones named in `nested` are rows of their own (the case that used to stack)."""
+    sub-cards; the ones named in `nested` are rows of their own (the case that used to stack).
+    extend: the page's Extend (brief.extend), on unless asked otherwise."""
     d = brief("Torts")
     b = d["brief"]
+    if extend:
+        b["extend"] = True
     b["acts"] = [{"label": "UNIT ONE - NEGLIGENCE", "short": "Unit 1 - Negligence"},
                  {"label": "UNIT TWO - STRICT LIABILITY", "short": "Unit 2 - Strict liability"}]
     b["axes"], b["relations"], b["filters"], d["connections"] = [], [], [], []

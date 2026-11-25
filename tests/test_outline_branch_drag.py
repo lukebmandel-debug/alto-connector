@@ -326,11 +326,7 @@ def _seated_beside(pg, card, wx, wy):
 def test_cards_follow_the_pointer_and_never_land_on_another_card_in_every_style(request, url, engine, style):
     pg = _edit(_open(request, url, engine, style))
     assert pg.evaluate("getComputedStyle(document.querySelector('#alto-edit-exit .ee-mv')).display") != "none"
-    g_ = pg.evaluate(GEO)
-    _extend(pg, True)                                               # the Extend switch, in this style
-    assert pg.evaluate(SIDES)["l"] >= 600 and pg.evaluate(SIDES)["wide"] and _same(pg.evaluate(GEO), g_) == []
-    _extend(pg, False)
-    assert pg.evaluate(SIDES)["l"] == 0 and not pg.evaluate(SIDES)["wide"]
+    # (the old Extend's open board each side is gone, Luke 2026-11-24/25: no side room to check here)
     _card_alone_follows_the_pointer(pg, ["expectation-damages"], "option")
     _card_alone_follows_the_pointer(pg, ["foreseeability", "mitigation", "restitution", "reliance-damages", "damage-limits", "certainty"], "switch")
     g0 = pg.evaluate(GEO)

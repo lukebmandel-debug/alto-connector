@@ -84,21 +84,21 @@ def test_a_card_dragged_in_a_panned_unit_lands_where_it_is_held(page):
     assert pg.evaluate(UNITS)[0]["ox"] == u[0]["ox"]                                         # the unit is still panned where it was
 
 
-def test_extend_on_gives_the_board_its_own_sideways_scroll_and_off_brings_the_per_unit_scroll_back(page):
+def test_the_owners_extend_switch_folds_the_units_back_and_saves_the_page_setting(page):
+    # (replaces the old Extend test: the board-wide side room is gone, Luke 2026-11-24/25; the editing bar's switch
+    # is now the page's own setting, saved as the edit `pg|extend` and folded into brief.extend)
     pg = page
     assert not pg.evaluate(XWIDE) and len(pg.evaluate(UNITS)) == 2
-    pg.click("#alto-edit-exit .ee-ext")
-    pg.wait_for_timeout(900)
-    assert pg.evaluate(XWIDE) and pg.evaluate(UNITS) == []                                    # Extend on: one board, scrolled as a whole
-    assert pg.evaluate("() => { const c = document.getElementById('canvas'); return c.scrollWidth - c.clientWidth; }") > 500
-    assert pg.evaluate("() => document.getElementById('canvas').style.overflowX") == ""
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#alto-edit-exit .ee-ext')).display") != "none"
+    assert pg.evaluate("() => document.querySelector('#alto-edit-exit .ee-ext').classList.contains('on')")
+    assert pg.evaluate("() => getComputedStyle(document.getElementById('ext-view-btn')).display") == "none"   # (no reader switch while editing)
     pg.click("#alto-edit-exit .ee-ext")
     pg.wait_for_timeout(1200)
-    pg.evaluate("() => { const c = document.getElementById('canvas'); c.scrollLeft = 1e6; initLayout(); }")      # (room closes as the view lets it)
-    pg.wait_for_timeout(500)
-    pg.evaluate("() => initLayout()")
-    pg.wait_for_timeout(900)
+    assert pg.evaluate(UNITS) == [] and not pg.evaluate(XWIDE)                                 # Extend off: each unit fits the page
+    assert pg.evaluate("() => document.documentElement.classList.contains('alto-ext-off')")
+    assert pg.evaluate("() => document.getElementById('canvas').scrollWidth - document.getElementById('canvas').clientWidth") <= 2
+    pg.click("#alto-edit-exit .ee-ext")
+    pg.wait_for_timeout(1400)
     u = pg.evaluate(UNITS)
-    assert len(u) == 2 and u[0]["max"] > u[0]["min"], u                                       # Extend off: each unit scrolls on its own again
-    assert not pg.evaluate(XWIDE)
+    assert len(u) == 2 and u[0]["max"] > u[0]["min"], u                                       # on again: each unit scrolls on its own
     assert pg.evaluate("() => document.getElementById('canvas').scrollLeft") == 0

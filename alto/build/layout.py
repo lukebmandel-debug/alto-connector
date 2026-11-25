@@ -385,7 +385,7 @@ def _fit_pair(k: int, bx: float, world: float = WORLD_W):
     return w, [round(v + shift, 2) for v in xs], True
 
 
-def _band(k: int, bx: float, width: float = None, world: float = WORLD_W):
+def _band(k: int, bx: float, width: float = None, world: float = WORLD_W, ext: bool = True):
     """(xs, card width, progeny width, staggered) for a band of k >= 3 cards
     centred on bx. The cards keep their full width (or the `width` asked for:
     a narrower card leaves a wider pitch): when that leaves them closer than
@@ -398,7 +398,20 @@ def _band(k: int, bx: float, width: float = None, world: float = WORLD_W):
     # Cards keep their width, and so does what hangs from them: they are never squeezed or
     # stacked into two rows to fit the page. A band wider than the page widens the world,
     # and the reader scrolls sideways (a `tier` hint still sets rows by hand).
-    pitch = max(min(T["PITCH_MAX"], (usable - w) / (k - 1)), w + T["BAND_GAP"])
+    pitch = min(T["PITCH_MAX"], (usable - w) / (k - 1))
+    if not ext:
+        # Extend off (the page as it was before Extend): a band that does not fit the page
+        # narrows its pitch and staggers into two rows. In one row a column is as wide as
+        # the pitch leaves; staggered, it is sized to clear the other row's cards by half
+        # the gap each side, so it never has to wait for a tall neighbour.
+        xs = [bx + (j - (k - 1) / 2) * pitch for j in range(k)]
+        lo, hi = T["MARGIN"] + w / 2, WORLD_W - T["MARGIN"] - w / 2
+        shift = max(0, lo - min(xs)) - max(0, max(xs) - hi)
+        stagger = pitch < w + T["BAND_GAP"]
+        cw = int(max(T["MIN_W"], min(w, (2 * (pitch - w / 2 - T["BAND_GAP"] / 2)) if stagger
+                                     else pitch - T["BAND_GAP"])))
+        return [round(v + shift, 2) for v in xs], w, cw, stagger
+    pitch = max(pitch, w + T["BAND_GAP"])
     xs = [bx + (j - (k - 1) / 2) * pitch for j in range(k)]
     lo, hi = T["MARGIN"] + w / 2, world - T["MARGIN"] - w / 2
     shift = max(0, lo - min(xs)) - max(0, max(xs) - hi)
@@ -418,7 +431,7 @@ def sized_placement(brief) -> dict:
 
 
 def outline_plan(nodes, act_count: int, placement: dict = None,
-                 lines: str = "fan", outcomes: str = "stack") -> dict:
+                 lines: str = "fan", outcomes: str = "stack", extend: bool = False) -> dict:
     """The tree's layout as a program, from the nodes' structure and the
     brief's placement hints alone (no card heights needed).
 
@@ -510,13 +523,20 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     # centre line; the page opens the room the cards stand in, as its Extend
     # switch does). `need` is how much wider a band asked for.
     W_ = {"w": WORLD_W, "o": 0}
-    rowy = any(hint(n.id, "arrange", "auto") == "row" for n in nodes)    # some unit sets its children side by side
-    need, extend, wide_r, open_at = [0.0], [0.0], [0.0], []
+    # Extend (the owner's page switch, brief.extend): rows keep their cards' width and every
+    # child's subtree hangs straight below it, side by side; a unit wider than the page is
+    # scrolled sideways on its own (detail_extras.EDGE_GLUE). Off: the page as it was.
+    if extend:
+        outcomes = "stack"   # (in Extend a card's outcomes stack under it, as row-subtrees round 5 was approved; flanks beside would only widen the rows)
+    rowy = extend and any(hint(n.id, "arrange", "auto") == "row" for n in nodes)    # some unit sets its children side by side
+    need, ext_room, wide_r, open_at = [0.0], [0.0], [0.0], []
     LAST = {}
 
     def carried(i):
         """A band's `child_w` carries down to every card under it (the nearest
         band's wins; a card's own `w` wins over it), so a level has one width."""
+        if not extend:
+            return 1e9
         p_ = by_id[i].parent if i in by_id else None
         while p_:
             v = hint(p_, "child_w")
@@ -667,7 +687,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             mode, implicit = "row", True
         # (only a card's own outcomes, leaves of another kind than it, stay a short stack under
         # it: a row of them would only widen the page; every other sibling goes side by side)
-        elif mode == "column" and hint(p, "arrange") is None and len(ks) >= 2 and not stack_only(p, ks) and inband(p):
+        elif extend and mode == "column" and hint(p, "arrange") is None and len(ks) >= 2 and not stack_only(p, ks) and inband(p):
             mode = "inband"
         if mode == "column":
             spine[p] = ks
@@ -903,7 +923,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             xs, bw, cw, stagger = [round(v + sh, 2) for v in xs], tw, tw, False
         else:
             bw_ = hint(p, "child_w") or (carried(chunk[0]) if carried(chunk[0]) < 1e8 else None)
-            xs, bw, cw, stagger = _band(k_, bx, bw_, W_["w"])
+            xs, bw, cw, stagger = _band(k_, bx, bw_, W_["w"], extend)
         if shifts:
             xs = [round(v + s_, 2) for v, s_ in zip(xs, shifts)]
         given = [hint(c, "tier") for c in chunk]
@@ -1018,7 +1038,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         they need, and the band stays centred on its parent. If the subtrees
         together are wider than the world the layout asks for more room
         (`need`; the unit is laid out again in a wider world)."""
-        if tight:
+        if tight or not extend:
             return band_once(p, chunk, bx, tight)
         shifts, mark, need0 = None, len(warns), need[0]
         for tries in range(3):
@@ -1088,22 +1108,22 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                 c_ = q.pop()
                 ids_r.append(c_)
                 q += kids.get(c_, [])
-            for _ in range(8):
-                W_["w"], W_["o"] = WORLD_W + ext, ext / 2
+            for _ in range(8 if extend else 1):
+                W_["w"], W_["o"] = WORLD_W + ext, (ext / 2 if ext else 0)
                 need[0] = 0.0
                 del warns[mark_w:]
                 cx = at(r, T["CX"] + W_["o"], T["CARD_W"])
                 one = settled(r, [card(r, T["ROOT_GAP"])]
                               + children(r, cx, T["CARD_W"], True))
-                if need[0] < 1:
+                if need[0] < 1 or not extend:
                     break
                 ext += 2 * -(-need[0] // 2)
             # moved back by the room opened on the left, then right until the leftmost
             # card is clear of the left margin: the board only ever opens to the right
             ids_x = [i_ for i_ in ids_r if i_ in x]
             left = min(x[i_] - w[i_] / 2 for i_ in ids_x) - W_["o"]
-            sh_ = max(0.0, T["MARGIN"] - left)
-            for i_ in ids_x:
+            sh_ = max(0.0, T["MARGIN"] - left) if extend else 0.0
+            for i_ in (ids_x if (W_["o"] or sh_) else ()):
                 x[i_] = round(x[i_] - W_["o"] + sh_, 2)
             if ext or sh_:
                 # the hub centred over its branch row
@@ -1114,7 +1134,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                 wide_r[0] = max(wide_r[0], right + T["MARGIN"] - WORLD_W)
                 if not open_at:
                     open_at.append(r)
-            extend[0] = max(extend[0], ext)
+            ext_room[0] = max(ext_room[0], ext)
             W_["w"], W_["o"] = WORLD_W, 0
             ops += one
         acts.append(ops)
@@ -1153,7 +1173,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     out = {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
            "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"], "room": ROOM,
            "bus_span": T["BUS_SPAN"], "bus_above": T["BUS_ABOVE"], "warnings": warns,
-           "extend": extend[0], "wide": max(0, round(wide_r[0])), "open": open_at[0] if open_at else ""}
+           "extend": ext_room[0], "wide": max(0, round(wide_r[0])), "open": open_at[0] if open_at else ""}
     for hk in ("shift", "slide"):
         hv = {i: [float(h[hk][0]), float(h[hk][1])] for i, h in H.items()
               if i in by_id and isinstance(h, dict) and h.get(hk)}
