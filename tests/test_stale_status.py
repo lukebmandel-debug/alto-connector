@@ -11,6 +11,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from test_mcp_flow import SAMPLE, fresh_store, _setup_draft  # noqa: E402,F401
 from alto import mcp_server as srv  # noqa: E402
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_real_deploy(monkeypatch, tmp_path):
+    """No real site: deploys and their checks are stubbed, as in test_mcp_flow (CI has no firebase CLI, and an
+    earlier test can leave a fake one on the path)."""
+    import alto.publish_static as ps
+    site = tmp_path / "site"; site.mkdir()
+    monkeypatch.setattr(ps, "firebase_configured", lambda: ("firebase", "x", "proj"))
+    monkeypatch.setattr(ps, "regenerate_site", lambda st, u: site)
+    monkeypatch.setattr(ps, "deploy_site", lambda s: "https://x.web.app")
+    monkeypatch.setattr(ps, "verify_live", lambda s, live: [])
+    monkeypatch.setattr(ps, "LAST_STALE", [])
 
 
 def _built():
