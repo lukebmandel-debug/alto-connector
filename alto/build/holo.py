@@ -460,7 +460,7 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           # the focused Search keeps its one teal rim (border and ring one colour), over the glass
           "X #search-btn:focus-within" + _S1_NOT + "{border-color:var(--ho-ac) !important;box-shadow:0 0 0 1px var(--ho-ac),0 0 14px rgba(var(--ho-rgb),.4) !important;}\n"
           # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)
-          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 30px) !important;}}\n"
+          "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 20px / var(--alto-zoom,.8)) !important;}}\n"
           # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
           "@media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
 
@@ -524,7 +524,7 @@ UNIT_GLASS_CSS = r"""
  background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.14),transparent 55%),linear-gradient(color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 20%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 20%,transparent)),rgba(var(--ho-bgrgb),.86) !important;
  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 30%,transparent),0 0 16px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 38%,transparent) !important;
  -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
-  X #world .phase-numeral:not(#_):not(#__){min-width:64px;box-sizing:border-box;text-align:center;justify-content:center;}
+  X #world .phase-numeral:not(#_):not(#__){min-width:64px;box-sizing:border-box;text-align:center;justify-content:center;translate:calc(var(--num-shift,0px) + .025em) -.045em;}
   X #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:calc(88px + var(--xr,0px)) !important;height:6px !important;margin-top:-3px;border-radius:999px;
  background:linear-gradient(90deg,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 30%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 70%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent)) !important;
  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 12px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 35%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
