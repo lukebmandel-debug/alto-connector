@@ -46,7 +46,9 @@ html.ct-on :is(#title-text,.nav-group-label){--ct-g:color-mix(in srgb,var(--surf
    in the theme's own ink, a size up, on a denser pad of the theme's surface, so ink and pad contrast whatever the background,
    picture or pattern is under them (Retro sets its own, retro.py) */
 #nav .nav-group-label:not(#_){opacity:1;font-size:10px;font-weight:600;color:var(--text);
-  --ct-a:80%;--ct-pad:3px;border-radius:4px;}
+  --ct-a:94%;--ct-pad:3px;border-radius:4px;}
+/* cards scroll under the clear bars: each chip carries its own near-opaque frosted plate (no band across the bar; Board L-1123 chip backdrop) */
+html.ct-on:not(.mobile) #nav .nav-btn{background:color-mix(in srgb,var(--surface,#fff) 92%,transparent);-webkit-backdrop-filter:blur(12px) saturate(160%);backdrop-filter:blur(12px) saturate(160%);}
 /* the bars are see-through now, the board under them: a click there reaches the board unless it is on a control */
 html.ct-on :is(#title-bar,#nav,#node-nav-bar),html.ct-on :is(#title-bar,#nav,#node-nav-bar) *{pointer-events:none;}
 html.ct-on :is(#title-bar,#nav,#node-nav-bar) :is(button,a,input,select,textarea,label,svg,[role=button],[onclick],[tabindex],#title-text),
