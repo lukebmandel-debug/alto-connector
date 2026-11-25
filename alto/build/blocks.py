@@ -20,7 +20,7 @@ from urllib.parse import quote as url_q
 
 from . import format_symbols, info_help
 from .brief import Brief, Node, Section, COL_SETS, roman, building_view, world_view
-from .numbering import NUM_JS, path_numbers
+from .numbering import NUM_JS, outline_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .solar_stars import STARS_CSS, STARS_JS
@@ -1543,13 +1543,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # unit's top card is the unit's number; under it a, b, c, then .1,
         # .1, -1, then letters again (numbering.py). The full path is both the
         # card's number and its label, so every list shows whose child it is.
-        _kids: dict[str, list] = {}
-        for n in nodes:
-            if n.parent:
-                _kids.setdefault(n.parent, []).append(n.id)
-        _parent = {n.id: n.parent for n in nodes if n.parent}
-        _num = path_numbers([[n.id for n in nodes if n.act == a] for a in range(len(b.acts))],
-                            _kids, _parent)
+        _num, _kids, _parent = outline_numbers(nodes, len(b.acts))
         _label = dict(_num)
         orders += ("\nwindow._ALTO_OUTLINE={num:" + json.dumps(_num)
                    + ",label:" + js_json(_label)

@@ -95,6 +95,34 @@ def place(brief: Brief, nodes: list[Node]) -> None:
         assign_columns(nodes, brief.columns)
 
 
+def card_numbers(brief: Brief, nodes: list[Node]) -> dict:
+    """id → the number the page shows on each card, in its arabic path form
+    ("8.g", "2.e.6.2-1c"; a timeline's "3.4", a Memory Palace's "3.4-2") —
+    the same code the build uses, on the same placed order. Mutates `nodes`
+    (ordering, columns) as a build would, so pass a fresh load."""
+    from .numbering import outline_numbers
+    if brief.mode == "palace" and not (building_view(brief) or world_view(brief)):
+        from .palace import apply_towers
+        apply_towers(brief, nodes)
+    place(brief, nodes)
+    seqs: list = [[] for _ in brief.acts]
+    for n in nodes:
+        if 0 <= n.act < len(seqs):
+            seqs[n.act].append(n.id)
+    num = {i: f"{a + 1}.{k + 1}" for a, ids in enumerate(seqs) for k, i in enumerate(ids)}
+    if brief.mode == "outline":
+        num.update(outline_numbers(nodes, len(brief.acts))[0])
+    elif brief.mode == "palace":
+        from .palace import structure, numbers
+        units, floors, _of = structure(brief, nodes)
+        fn = None
+        if not (building_view(brief) or world_view(brief)):
+            from .palace_towers import tower_data
+            fn = tower_data(brief, units, floors)[1]
+        num.update(numbers(units, floors, fn))
+    return num
+
+
 def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
     """Column assignment + desktop arrangement + mobile grid. Returns layout
     info; report["layout"] says which arrangement the desktop map uses.
