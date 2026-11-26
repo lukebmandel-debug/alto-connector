@@ -66,3 +66,28 @@ def test_a_page_with_only_known_keys_is_not_refused(store):
     tid = srv.create_timeline(pid, {"title": "Torts", "mode": "linear", "columns": 3, "node_noun": "Event", "period_noun": "Era", "acts": [{"label": "One"}, {"label": "Two"}]})["timeline_id"]
     srv.record_materials_consent(tid, [{"name": "n.pdf", "kind": "notes"}], True)
     assert "error" not in srv.add_nodes(tid, json.loads(json.dumps(NODES)))
+
+
+# ── two accounts, the same timeline_id, only one saved by a newer Alto ──
+from tests.test_accounts import world, _seed  # noqa: E402,F401
+
+
+def _mark_newer(w, account, tid="contracts-i"):
+    a, _ = w.A.resolve(account)
+    with w.A.scope(a):
+        st, u = w.srv.get_store(), w.srv.uid()
+        doc = st.get_timeline(u, tid)
+        doc["brief"]["glowfuture"] = {"on": True}
+        st.put_timeline(u, tid, doc)
+
+
+@pytest.mark.parametrize("newer,other", [("me-alto", "school-alto"), ("school-alto", "me-alto")])
+def test_the_newer_page_is_checked_in_the_account_the_call_names(world, newer, other):
+    for acct in ("school-alto", "me-alto"):
+        _seed(world, acct)
+    _mark_newer(world, newer)
+    new = [{"id": "zz", "act": 0, "title": "Zed", "tag": "", "desc": "d"}]
+    r = world.srv.add_nodes("contracts-i", new, account=newer)
+    assert r.get("error") == "page_saved_by_newer_alto" and r.get("account") == newer, r
+    ok = world.srv.add_nodes("contracts-i", new, account=other)
+    assert ok.get("error") != "page_saved_by_newer_alto" and "accepted" in ok, ok            # (the other account's page is not newer: written)
