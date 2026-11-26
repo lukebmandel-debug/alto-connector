@@ -82,7 +82,12 @@ DIR_CSS = r"""
   #pal-ctl .pc-dirb:hover,#pal-ctl .pc-dirb:focus-visible{border-color:var(--muted);color:var(--text);outline:none;} #pal-ctl .pc-dirb.on{color:var(--accent,#6d5bd0);border-color:color-mix(in srgb,var(--accent,#6d5bd0) 55%,transparent);}
 """
 
-DIR_JS = r"""
+# Directions (route planning between two buildings, the zoom row's button, the phone's Directions buttons and the hint sentences about them) is switched OFF for now
+# (Luke, 2026-11-26: "please temporarily take out transit directions/look up navigation features from memory map"; the train stations and the airport scene stay). One flag: set it
+# True to bring everything back; the engine, its panel and its tests stay in the tree (tests/test_palace_directions*.py wait for the flag).
+DIRECTIONS_ON = False
+
+DIR_JS = "var DIRECTIONS_ON=" + ("true" if DIRECTIONS_ON else "false") + ";" + r"""
 /* ═══ DIRECTIONS (palace_directions.py): the planner, the drawing and the panel ═══ */
 var DIR=(function(){
 var S={on:false, from:null, to:null, focus:'to', q:'', plans:null, opt:0, nav:null, ad:null, host:null, cur:null};
@@ -270,7 +275,7 @@ function adapter(){ var p=pan(), body=p.querySelector('.dr-body');
     onClose:function(){ p.classList.remove('on'); var b=document.getElementById('pal-dir-btn'); if(b) b.classList.remove('on'); },
     onRender:function(){ var i=body.querySelector('.dr-f.on input'); if(i && !i.value && document.activeElement!==i) i.focus({preventScroll:true}); }}; }
 window._palDirOpen=function(o){ if(window._focusedNodeId && window.exitFocus) try{ window.exitFocus(); }catch(x){} DIR.open(adapter(), o); };
-window._palDirMount=function(c){ if(c.querySelector('.pc-dirb')) return; var b=document.createElement('button'); b.type='button'; b.className='pc-dirb'; b.id='pal-dir-btn'; b.setAttribute('aria-label','Directions'); b.title='Directions';
+window._palDirMount=function(c){ if(!DIRECTIONS_ON || c.querySelector('.pc-dirb')) return; var b=document.createElement('button'); b.type='button'; b.className='pc-dirb'; b.id='pal-dir-btn'; b.setAttribute('aria-label','Directions'); b.title='Directions';
   b.innerHTML='<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.500l7.500 7.500-7.500 7.500L2.500 10z"/><path d="M6.800 11.300V9.200a1.200 1.200 0 0 1 1.200-1.200h3.700M10.800 6.300L12.500 8l-1.700 1.700"/></svg>';
   b.addEventListener('click', function(e){ e.stopPropagation(); if(DIR.isOn()) DIR.close(); else window._palDirOpen({}); }); c.appendChild(b); };
 /* while Directions asks for an end, a click on a building, landmark or station is the answer (and only then); on the window, in the capture phase, so it comes before the palace's own click-to-enlarge */

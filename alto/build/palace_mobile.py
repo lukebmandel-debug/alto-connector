@@ -221,7 +221,7 @@ function pmSelect(p, fly){ PM.sel=p; var sv=MM.svg;
 function pmDesc(id){ var n=TT[id]||{}, t=String(n.desc||n.body||n.text||n.summary||'').replace(/<[^>]+>/g,' ').replace(/[*_`#>]+/g,'').replace(/\s+/g,' ').trim();
   if(t.length>300){ t=t.slice(0,300); t=t.replace(/\s+\S*$/,'')+'…'; } return t; }
 function pmCard(p){ var h='', ic=function(d){ return '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };
-  var acts='<div class="pm-acts"><button type="button" class="pm-act pri" data-a="dir">'+ic('<path d="M10 2.500l7.500 7.500-7.500 7.500L2.500 10z"/><path d="M6.800 11.300V9.200a1.200 1.200 0 0 1 1.200-1.200h3.700M10.800 6.300L12.500 8l-1.700 1.700"/>')+'Directions</button>'
+  var acts='<div class="pm-acts">'+(DIRECTIONS_ON?'<button type="button" class="pm-act pri" data-a="dir">'+ic('<path d="M10 2.500l7.500 7.500-7.500 7.500L2.500 10z"/><path d="M6.800 11.300V9.200a1.200 1.200 0 0 1 1.200-1.200h3.700M10.800 6.300L12.500 8l-1.700 1.700"/>')+'Directions</button>':'')
     +(p.k==='b'||(p.k==='l'&&p.page)?'<button type="button" class="pm-act" data-a="open">'+ic('<path d="M6 4h8v8M14 4L5 13"/>')+'Open</button>':'')
     +'<button type="button" class="pm-act" data-a="share">'+ic('<path d="M10 12V3M6.500 6.500L10 3l3.500 3.500M5 10v6h10v-6"/>')+'Share</button></div>';
   if(p.k==='b'){ var id=p.id, fl=P.fl[id]||[], u=ACT[id], pm=PHASE_META[u], dn=(P.d||[]).filter(function(q){ return q.u===u; })[0], col=pm?pm.colorRaw:'var(--accent)', d=pmDesc(id), rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
@@ -241,7 +241,7 @@ function pmHeadHtml(){ var p=PM.sel, ic=function(d){ return '<svg viewBox="0 0 2
     return '<div class="pm-hrow"><div class="pm-pt">'+(p.num?'<small>'+esc(p.num)+'</small>':'')+'<b>'+esc(p.name)+'</b>'+(sub?'<span>'+esc(sub)+'</span>':'')+'</div><button type="button" class="pm-btn ghost" data-a="x" aria-label="Close">'+x+'</button></div>'; }
   if(PM.mode==='dir') return '<div class="pm-hrow"><div class="pm-pt"><b>Directions</b></div></div>';
   return '<div class="pm-hrow"><label class="pm-search">'+ic('<circle cx="9" cy="9" r="5.500"/><path d="M13.200 13.200L17 17"/>')+'<input class="pm-q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Search the city" aria-label="Search buildings, landmarks and stations"></label>'
-    +'<button type="button" class="pm-btn" data-a="dir" aria-label="Directions">'+ic('<path d="M10 2.500l7.500 7.500-7.500 7.500L2.500 10z"/><path d="M6.800 11.300V9.200a1.200 1.200 0 0 1 1.200-1.200h3.700M10.800 6.300L12.500 8l-1.700 1.700"/>')+'</button></div>'; }
+    +(DIRECTIONS_ON?'<button type="button" class="pm-btn" data-a="dir" aria-label="Directions">'+ic('<path d="M10 2.500l7.500 7.500-7.500 7.500L2.500 10z"/><path d="M6.800 11.300V9.200a1.200 1.200 0 0 1 1.200-1.200h3.700M10.800 6.300L12.500 8l-1.700 1.700"/>')+'</button>':'')+'</div>'; }
 function pmHome(){ var h='<div class="pm-h6" style="margin-top:6px">Neighbourhoods</div><ul class="pm-list">';
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return; h+='<li data-d="'+d.u+'"><span class="pm-bd un-n" style="--bd:'+esc(pm.colorRaw)+'">'+esc(window._altoU(d.u+1, 'roman'))+'</span><div><b>'+esc(d.n||pm.label)+'</b><small>'+esc(pm.label)+' · '+(((P.units||[])[d.u]||[]).length)+' buildings</small></div></li>'; });
   h+='</ul>'; var lms=(M.landmarks||[]).filter(function(l){ return l.n && l.page; }).slice(0,12);
