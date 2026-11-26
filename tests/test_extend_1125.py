@@ -182,7 +182,8 @@ def test_switching_off_folds_each_unit_into_the_window_and_is_remembered():
 
 
 @needs_pw
-def test_without_extend_a_card_past_the_edge_comes_back_inside():
+def test_a_card_past_the_edge_stays_there_with_extend_on_or_off():
+    # (reverses interview question 4: Luke 2026-11-25, Torts, "I could not drag a node beyond the canvass with extend mode on or off")
     d = tf.negligence_brief(extend=False)
     d["brief"]["placement"]["damages"] = {"shift": [1600, 0]}
     d2 = tf.negligence_brief()
@@ -190,10 +191,10 @@ def test_without_extend_a_card_past_the_edge_comes_back_inside():
 
     async def steps(pg):
         return await pg.evaluate("""() => { const w = document.getElementById('world'), k = w.getBoundingClientRect().width / w.offsetWidth;
-            const e = document.getElementById('node-damages'); return [parseFloat(e.style.left), (window._altoUnits||[]).map(u => u.max)]; }""")
+            const e = document.getElementById('node-damages'); return [parseFloat(e.style.left), (window._altoUnits||[]).map(u => u.max), document.documentElement.classList.contains('alto-xwide')]; }""")
     r = _run({"off": tf.page(data=d), "on": tf.page(data=d2)}, steps, query="?style=classic")
-    assert r["off"][0] <= 1680 - 190 / 2, r["off"]                             # pulled back onto the page, 20 px clear (a 190 px card)
-    assert r["on"][0] > 1700 and r["on"][1][0] > 0, r["on"]                    # with Extend: its row reaches it
+    assert r["off"][0] > 1700 and r["off"][2], r["off"]                         # without Extend: it stays out there and the board opens to it
+    assert r["on"][0] > 1700 and r["on"][1][0] > 0 and not r["on"][2], r["on"]  # with Extend: its row reaches it (no board-wide room)
 
 
 @needs_pw

@@ -58,6 +58,12 @@ EDGE_GLUE = r"""
 (function(){
   if(!window.addEventListener || !document.createElement) return;
   var cv=null, wd=null, U=[], inited=false;
+  /* whether the units scroll sideways on their own: an Extend page with the reader's switch on, on a desktop */
+  window._altoUnitMode=function(){ var c=document.documentElement.classList; return !!window._ALTO_TREE_PLAN_ON && !c.contains('alto-ext-off') && !c.contains('mobile') && !c.contains('phone-whole'); };
+  function unitOf(el){ for(var i=0;i<U.length;i++) if(U[i].els.indexOf(el)>=0) return U[i]; return null; }
+  window._altoUnitOx=function(el){ var u=unitOf(el); return u?u.ox:0; };
+  /* a card held at the window's edge while dragged: its unit scrolls that way, without limit (the row reaches it on the drop) */
+  window._altoUnitNudge=function(el,d){ var u=unitOf(el); if(!u||!d) return false; u.ox+=d; u.max=Math.max(u.max,u.ox); u.min=Math.min(u.min,u.ox); apply(u); return true; };
   function k(){ var r=wd.getBoundingClientRect(); return (wd.offsetWidth&&r.width/wd.offsetWidth)||1; }
   function vw(){ return Math.min(cv.clientWidth, wd.offsetWidth); }                         // the unit's window: the board's own width (its bars frame it)
   function railPx(){                                                                       // how far the side rail reaches into the board, plus 20 clear
@@ -106,7 +112,7 @@ EDGE_GLUE = r"""
   }
   function build(){
     var rc=document.documentElement.classList;
-    if(rc.contains('alto-xwide') || rc.contains('mobile') || rc.contains('phone-whole') || rc.contains('alto-ext-off')){ off(); return; }   // (a phone: its Card view, or its Whole view, whose open unit scrolls sideways itself; or the reader's Extend switch off)
+    if(!window._altoUnitMode() || rc.contains('alto-xwide')){ off(); return; }   // (a phone: its Card view, or its Whole view, whose open unit scrolls sideways itself; or the reader's Extend switch off)
     var keep={}; U.forEach(function(u){ keep[u.top]=u.ox; });
     U.forEach(function(u){ u.els.forEach(function(e){ shift(e,0); }); if(u.L){ u.L.remove(); u.R.remove(); u.T.remove(); } });
     /* the board is as wide as the window (no 1,700 cap): the bars, the glass and the lines reach both edges */
@@ -143,14 +149,17 @@ EDGE_GLUE = r"""
     });
     U=bands.filter(function(u){ return u.lo!=null; });
     U.forEach(function(u){
-      u.rail=rail; var a=u.lo-30, b=u.hi+rail;                                   // the unit's own extent: margin left, the side rail's room right
+      u.rail=rail; var a=u.lo-30, b=u.hi+rail+8;                                   // the unit's own extent: margin left, the side rail's room right
       if(b-a<=Vw){ u.min=u.max=u.ox=Math.round(((u.lo+u.hi)/2)-Vw/2); }                    // fits: centred, no scroll
       else { u.min=Math.round(a); u.max=Math.round(b-Vw); var h=u.hub!=null?u.hub:(u.lo+u.hi)/2;
         u.ox=Math.min(u.max,Math.max(u.min,Math.round(h-(Vw-rail)/2))); }                  // opens on the hub, clamped at the ends
       if(keep[u.top]!=null && u.max>u.min) u.ox=Math.min(u.max,Math.max(u.min,keep[u.top]));   // a rebuild (a card moved, the window resized) keeps the pan
+      var sh=window._altoShowId&&document.getElementById('node-'+window._altoShowId);           // a card just dropped: scrolled into view, 20 px clear
+      if(sh&&u.els.indexOf(sh)>=0&&u.max>u.min){ var sr=sh.getBoundingClientRect(), sl=(sr.left-W.left)/kk, sx=(sr.right-W.left)/kk;
+        if(sx-u.ox>Vw-rail-8) u.ox=sx-(Vw-rail-8); if(sl-u.ox<20) u.ox=sl-20; u.ox=Math.round(Math.min(u.max,Math.max(u.min,u.ox))); }
       u.L=cue(u,'l'); u.R=cue(u,'r'); u.T=cue(u,'t'); apply(u);
     });
-    window._altoUnits=U;
+    window._altoUnits=U; if(window._altoShowId && !document.documentElement.classList.contains('alto-dragging')) setTimeout(function(){ window._altoShowId=null; },1500);
     /* Retro's name at the foot of the page (fixed, 78 px up) stays 20+ px clear of the lowest card at the page's end */
     var pad=document.getElementById('alto-foot-pad');
     if(document.documentElement.classList.contains('alto-retro')){
@@ -173,7 +182,8 @@ EDGE_GLUE = r"""
       +'.alto-edge-t.on{opacity:1}.alto-edge-t i{display:block;height:100%;border-radius:2px;background:color-mix(in srgb,var(--muted,#888) 70%,transparent)}'
       +'html.alto-retro .alto-edge-t{border-radius:0;background:rgba(217,174,85,.22)}html.alto-retro .alto-edge-t i{border-radius:0;background:#d9ae55}'
       +'html.alto-holo .alto-edge-t{background:rgba(60,230,210,.18)}html.alto-holo .alto-edge-t i{background:#5fe8d8;box-shadow:0 0 6px rgba(60,230,210,.6)}'
-      +'html.printing .alto-edge-c,html.printing .alto-edge-t{display:none}';
+      +'html.printing .alto-edge-c,html.printing .alto-edge-t{display:none}'
+      +'.node.aed-moving .node-card{-webkit-mask-image:none!important;mask-image:none!important;clip-path:none!important}';   // (a card being dragged is never faded or cut at the row's end)
     document.head.appendChild(st);
     cv.addEventListener('scroll',function(){ if(U.length && cv.scrollLeft) cv.scrollLeft=0; },{passive:true});
     window.addEventListener('wheel',function(e){
@@ -352,10 +362,8 @@ window._altoTreeCalc = function(h, shift, TP, slide){
       var mv={}, mine=NODES.map(function(n){ return n.id; }).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; }), y0={}, x0={};
       mine.forEach(function(i){ y0[i]=y[i]; x0[i]=x[i]; });
       moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; mv[i]=1;
-        /* without Extend a card placed past the page's edge (by the old Extend, before 1.9.287) comes back inside it, 20 px
-           clear; with Extend its unit's row reaches it (EDGE_GLUE). Luke 2026-11-25, interview question 4. */
-        if(!T.wide && !(window._ALTO_TREE_PLAN_ON && !document.documentElement.classList.contains('alto-ext-off'))){ var hw=((T.w&&T.w[i])||270); if(hw===270) hw=290; hw/=2;
-          x[i]=Math.min(Math.max(x[i],20+hw),1680-hw); } });
+        /* a card past the page's edge stays there (Luke 2026-11-25, Torts): without Extend the board opens that way
+           (_altoSides); with it the card's unit row reaches it (EDGE_GLUE) */ });
       window._altoMakeRoom(y, x, h, T.w, mine, mv, P0, T.room||T.row_gap, start);
       window._altoSeparate(y, x, h, T.w, mine, y0, x0, P0, T.room||T.row_gap);
       bottom=Math.max.apply(null, Object.keys(y).map(function(i){ return y[i]+h[i]/2; }));
@@ -393,9 +401,11 @@ window._altoSides = function(R, h, lo, hi, least){
   if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
   var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
-  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), ex=M[0]||M[1], X=Math.max(M[1],T.wide&&ex?T.wide:0,T.wide&&!ex?0:(mx>1700?Math.ceil(mx+40-1700):0));
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), ex=M[0]||M[1], wr=w.getBoundingClientRect(), kw=(w.offsetWidth&&wr.width/w.offsetWidth)||1, tr=document.getElementById('tab-rail'), rq=tr&&tr.getBoundingClientRect(),
+      rw=rq&&rq.width&&rq.left<innerWidth?(innerWidth-rq.left)/kw:0,                // (the side rail's width: the right-hand room keeps a card 20+ px clear of it)
+      X=Math.max(M[1],T.wide&&ex?T.wide:0,T.wide&&!ex?0:(mx+rw>1700?Math.ceil(mx+48+rw-1700):0));
   if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
-  L=0; X=0;   // (Luke 2026-11-24: no side room opens for the whole board; Extend is each unit's own sideways scroll, EDGE_GLUE)
+  if(window._altoUnitMode && window._altoUnitMode()){ L=0; X=0; }   // (Extend on: each unit scrolls sideways on its own, EDGE_GLUE; off: the board opens to reach a card dragged past its edge, Luke 2026-11-25)
   if(L===S[0] && X===S[1]) return S;
   w.style.setProperty('--xl',L+'px'); w.style.setProperty('--xr',X+'px');
   document.documentElement.classList.toggle('alto-xwide', !!(L||X));
