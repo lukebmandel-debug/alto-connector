@@ -2445,7 +2445,14 @@ def _user_plan_refusal(brief: dict) -> dict | None:
     if (brief or {}).get("palace_view") != "building":
         return None
     bd = (brief or {}).get("building") or {}
-    if bd.get("plan_z") and bd.get("plan_h") not in _curated_plan_hashes():
+    if not bd.get("plan_z"):
+        return None
+    from .build import building_schema as bs
+    try:                                            # the hash is recomputed from the plan itself: a stored plan_h is never trusted (a forged brief could pair its own plan_z with a curated hash)
+        h = bs.plan_hash(bs.unpack(bd["plan_z"]))
+    except Exception:                               # noqa: BLE001 — a plan that cannot be decoded is refused (fail closed)
+        return {"error": "user_plan_not_allowed", "message": _USER_PLAN_MSG}
+    if h not in _curated_plan_hashes():
         return {"error": "user_plan_not_allowed", "message": _USER_PLAN_MSG}
     return None
 

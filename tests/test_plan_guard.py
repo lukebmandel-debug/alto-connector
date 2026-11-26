@@ -85,3 +85,30 @@ def test_a_curated_plan_publishes_and_the_public_value_stays_refused(store):
     assert srv.build_timeline(tid).get("verify") == "passed"
     assert srv.publish_timeline(tid, "private").get("error") != "user_plan_not_allowed"
     assert srv.publish_timeline(tid, "link")["error"] == "link_removed"   # no public visibility exists, so no acknowledgement flag is needed
+
+
+def _built_with(store, plan_z, plan_h):
+    tid = _tl()
+    assert srv.set_up_building(tid, demo=True)["ok"]
+    assert srv.build_timeline(tid).get("verify") == "passed"
+    doc = store.get_timeline(srv.uid(), tid)
+    doc["brief"]["building"] = {**doc["brief"]["building"], "plan_z": plan_z, "plan_h": plan_h}
+    store.put_timeline(srv.uid(), tid, doc)
+    return tid
+
+
+@pytest.mark.parametrize("visibility", ["private-web", "private"])
+def test_a_forged_brief_with_a_curated_hash_is_refused_and_nothing_is_hosted(store, visibility):
+    p = _drawn()
+    tid = _built_with(store, bs.pack(p), bs.plan_hash(bs.fixture()))     # the user's plan under the curated plan's hash
+    r = srv.publish_timeline(tid, visibility)
+    assert r["error"] == "user_plan_not_allowed"
+    from alto import publish_static
+    assert publish_static._building_plans(store, srv.uid()) == {}
+    assert store.get_timeline(srv.uid(), tid).get("status") != "published"
+
+
+def test_an_undecodable_plan_is_refused(store):
+    for z in ("not base64 at all!!", "AAAA", ""):
+        tid = _built_with(store, z or "x", bs.plan_hash(bs.fixture()))
+        assert srv.publish_timeline(tid, "private-web")["error"] == "user_plan_not_allowed"
