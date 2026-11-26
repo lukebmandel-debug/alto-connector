@@ -383,7 +383,10 @@ def _guarded_tool(*a, **kw):
         if fn.__name__ in _NEWER_EXEMPT or "timeline_id" not in inspect.signature(fn).parameters:
             return deco(fn)
         if getattr(fn, "_accounted", False):         # (@accounted runs the check itself, inside the call's account: the page is read from the account the call names)
-            fn._newer_guard = True
+            f = fn
+            while f is not None:                     # (every layer of the stack: other decorators may sit between this and @accounted)
+                f._newer_guard = True
+                f = getattr(f, "__wrapped__", None)
             return deco(fn)
         sig = inspect.signature(fn)
 
