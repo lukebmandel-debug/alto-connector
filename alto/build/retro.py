@@ -664,7 +664,7 @@ function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLine
 function sys(){ return r.classList.contains('alto-stars') || !!document.getElementById('solar-svg'); }
 function sec(){ var U=(window._altoBg||{}).ui; if(!U||!U.body) return null; return [].filter.call(U.body.querySelectorAll('.bg-sec'), function(s){ var h=s.querySelector('.bg-h'); return h && h.textContent==='Retro'; })[0]||null; }
 function bgs(on){
-  var B=window._altoBg; if(!B||!B.C) return; on=on && !sys(); var cur=B.read();
+  var B=window._altoBg; if(!B||!B.C) return; on=on && !sys() && !B.auto; var cur=B.read();
   Object.keys(BGS).forEach(function(id){ if(on) B.C[id]=BGS[id]; else delete B.C[id]; });
   if(cur in BGS) B.apply(cur);
   var U=B.ui, s=sec();

@@ -174,9 +174,14 @@ HEAD_JS = r"""(function(){
   function retroNow(){ if(r.classList.contains('alto-retro') || r.classList.contains('sk-retro')) return true;
     try{ return LST.indexOf('retro')>0 && localStorage.getItem(SK)==='retro'; }catch(e){ return false; } }
   function paged(){ return r.classList.contains('detail-open') || r.classList.contains('summary-open'); }
-  function only(){ return retroNow() || (AUTO && !paged()); }
+  // Luke, 2026-11-20: Retro's own backgrounds (retro_backgrounds.py: group 'Retro', added to the catalog by the hosted Retro script while a
+  // timeline, a horizontal timeline or an outline is in Retro, never on a page that makes its own background) are the one exception to "plain black":
+  // while one is in the catalog the picker is the full one, and a chosen one of them is what is drawn.
+  function retroOwn(){ if(AUTO) return false; for(var k in C) if(C[k] && C[k].g==='Retro') return true; return false; }
+  function only(){ return (retroNow() && !retroOwn()) || (AUTO && !paged()); }
   var ov; // an id asked for by name (apply(id)); else what was chosen
-  function want(){ return retroNow() ? '' : AUTO && !paged() ? DEF : ov===undefined ? read() : ov; }
+  function ownRetro(w){ return !!(C[w] && C[w].g==='Retro'); }
+  function want(){ if(retroNow()){ var w=ov===undefined ? read() : ov; return retroOwn() && ownRetro(w) ? w : ''; } return AUTO && !paged() ? DEF : ov===undefined ? read() : ov; }
   var lw=null;
   function retarget(){ var w=want(); if(w===lw) return; lw=w; cur=get(w) ? w : ''; sig=''; }
   // the opaque key in a private or shared page's address: what a gate knows about this page before it has it
