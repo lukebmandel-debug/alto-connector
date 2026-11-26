@@ -789,12 +789,14 @@ LANES_CSS = KEY_CSS + """
   @media print{.lanes-flag{border-style:solid;}}
   .lanes-unit{position:absolute;z-index:6;top:0;border-left:1.5px solid color-mix(in srgb,var(--unit-color) 30%,transparent);pointer-events:none;}
   .lanes-unit:first-child{border-left:0;}
-  .lanes-unit .lu-chip{position:absolute;left:14px;top:22px;white-space:normal;max-width:560px;font-size:12px;font-weight:800;
-    letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
-    background:color-mix(in srgb,var(--surface) 80%,transparent);border:1.5px solid color-mix(in srgb,var(--unit-color) 45%,transparent);}
-  .lanes-unit .lu-chip b{font-weight:800;margin-right:7px;}
-  html.alto-lanes:not(.mobile) #world .lanes-unit.lu-pinned{z-index:60;border-left-color:transparent;}
-  .lanes-unit .lu-chip.lu-pin{background:color-mix(in srgb,var(--surface) 96%,transparent);box-shadow:0 4px 14px rgba(0,0,0,.12);}   /* riding an edge (unitPin): nothing shows through */
+  /* the unit labels are set into the main line where each unit begins, like a station's name on the track (Luke 2026-11-26:
+     "i want unit labels embedded in the main timeline, not free floating"): the line runs into and out of them */
+  #lanes-ulabels{position:absolute;left:0;top:0;width:0;height:0;z-index:60;pointer-events:none;}
+  #lanes-ulabels .lu-chip{position:absolute;left:0;top:0;width:max-content;white-space:normal;text-align:center;line-height:1.25;font-size:12px;font-weight:800;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:5px 12px;border-radius:14px;box-sizing:border-box;overflow:hidden;
+    background:var(--surface,#fff);border:1.5px solid color-mix(in srgb,var(--unit-color) 55%,transparent);}
+  #lanes-ulabels .lu-chip b{font-weight:800;margin-right:7px;}
+  html.mobile #lanes-ulabels{display:none !important;}
   html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
   /* the most compact boards (the fit in LANES_JS): a card shows its title only, the labels are smaller, and at
@@ -1292,7 +1294,7 @@ function layoutLanes(h){
   L.lines.forEach(function(l){ l.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }); });
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
                        pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG, w:w, boxes:BTG, boxOff:Math.max(14, Math.min(28, fv('b0',u)/2.4))*mode.cz});
-  units(world, order, X, w, H, W);
+  units(world, order, X, w, H, W, main);
   KG={order:order, X:X, pos:pos, w:w, h:h, sideOf:sideOf, kids:kids, kidIds:kidIds, P:WORLD_PAD_TOP};
   placeKids();
   /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
@@ -1859,7 +1861,7 @@ function slabX(slab){
 }
 window._altoLanesSlab=function(){ slabX(document.getElementById('glass-slab')); };
 /* the units: columns of time, each from its first event to its last */
-function units(world, order, X, w, H, W){
+function units(world, order, X, w, H, W, main){
   world.querySelectorAll('.lanes-unit').forEach(function(e){ e.remove(); });
   var R=ACT_SEQS.map(function(ids){ var xs=ids.filter(function(i){ return X[i]!=null; }); if(!xs.length) return null;
     return [Math.min.apply(null,xs.map(function(i){ return X[i]-w[i]/2; })), Math.max.apply(null,xs.map(function(i){ return X[i]+w[i]/2; }))]; });
@@ -1870,16 +1872,27 @@ function units(world, order, X, w, H, W){
     var cut=nx ? Math.max(last+40, (R[a][1]+nx[0])/2) : W;
     cuts.push(cut); last=cut;
   }
+  var box=document.getElementById('lanes-ulabels');
+  if(!box){ box=document.createElement('div'); box.id='lanes-ulabels'; world.appendChild(box); }
+  box.innerHTML='';
+  /* the line's dots (its events and where other lines meet it): a label never covers one */
+  var dots=(main && main.ev || []).map(function(i){ return X[i]; }).filter(function(x){ return x!=null; }).sort(function(p,q){ return p-q; });
+  UL={y:(main && main.y!=null ? main.y : 0)+WORLD_PAD_TOP, dots:dots, rr:9*(MODE_Z()||1)+6, x0:(main && main.x0!=null ? main.x0 : 0)+8, x1:(main && main.x1!=null ? main.x1 : W)-8, chips:[]};
   var stops=[];
   ACT_SEQS.forEach(function(ids,a){
     var pm=PHASE_META[a]; if(!pm || !R[a]) return;
     var u=document.createElement('div'); u.className='lanes-unit';
     u.style.left=cuts[a]+'px'; u.style.width=(cuts[a+1]-cuts[a])+'px'; u.style.height=(H+WORLD_PAD_TOP)+'px';
     u.style.setProperty('--unit-color', pm.colorRaw);
-    u.innerHTML='<div class="lu-chip"><b></b><span></span></div>';
-    if(cuts[a]<=0) u.querySelector('.lu-chip').style.left='66px';   // clear of the key's toggle at the top left
-    u.querySelector('b').className='un-n'; u.querySelector('b').textContent=window._altoU(a+1, 'roman'); u.querySelector('span').textContent=(pm.label.split(' — ')[1]||pm.label);
     world.insertBefore(u, world.firstChild);
+    var ch=document.createElement('div'); ch.className='lu-chip'; ch.setAttribute('data-unit', a);
+    ch.style.setProperty('--unit-color', pm.colorRaw);
+    ch.innerHTML='<b class="un-n"></b><span></span>';
+    ch.querySelector('b').textContent=window._altoU(a+1, 'roman'); ch.querySelector('span').textContent=(pm.label.split(' — ')[1]||pm.label);
+    box.appendChild(ch);
+    var g=gapAt(cuts[a]), nat=ch.offsetWidth, cw=Math.min(nat, g[1]-g[0]);
+    var x=Math.max(g[0], Math.min(g[1]-cw, cuts[a]-cw/2));
+    UL.chips.push({el:ch, a:a, nat:nat, l:cuts[a], r:cuts[a+1], x:x, w:cw});
     stops.push([pm.colorRaw+'b3', (cuts[a]+cuts[a+1])/2]);
   });
   var slab=document.getElementById('glass-slab');
@@ -1888,35 +1901,54 @@ function units(world, order, X, w, H, W){
   slab._ln={W:W, stops:stops}; slabX(slab);
   window._headerTint={slabTop:0, slabH:H, stops:[{p:0,c:PHASE_META[0].colorRaw},{p:100,c:PHASE_META[0].colorRaw}]};
   if(window.updateHeaderTint) try{ window.updateHeaderTint(); }catch(e){}
-  unitPinSoon();
+  unitPin();
+}
+var UL=null;
+function MODE_Z(){ var f=window._altoLanesFit; return f && f.mode && f.mode.cz || 1; }
+/* the stretch of line between the dots around x: [from, to] */
+function gapAt(x){ var d=UL.dots, lo=UL.x0, hi=UL.x1; for(var i=0;i<d.length;i++){ if(d[i]<=x) lo=Math.max(lo, d[i]+UL.rr); else { hi=Math.min(hi, d[i]-UL.rr); break; } } return [lo, Math.max(lo+40, hi)]; }
+/* the main line's height (world px) at world x: the drawn line itself, which dips where the story turns back */
+function lineYAt(xw){
+  var p=document.querySelector('#lanes-svg path.ln-main'), w=document.getElementById('world'); if(!p || !w || !p.getTotalLength) return UL.y;
+  var m=p.getScreenCTM(), wr=w.getBoundingClientRect(), k=(w.offsetWidth && wr.width/w.offsetWidth)||1; if(!m) return UL.y;
+  var L=p.getTotalLength(), lo=0, hi=L, sx=wr.left+xw*k, q;
+  function X(t){ q=p.getPointAtLength(t); return m.a*q.x+m.c*q.y+m.e; }
+  if(sx<=X(0)) { X(0); } else if(sx>=X(L)) { X(L); } else { for(var i=0;i<28;i++){ var t=(lo+hi)/2; if(X(t)<sx) lo=t; else hi=t; } X((lo+hi)/2); }
+  return ((m.b*q.x+m.d*q.y+m.f)-wr.top)/k;
+}
+function putChip(c, x, cw){
+  var e=c.el, ws=Math.round(cw)+'px';
+  if(e.style.maxWidth!==ws) e.style.maxWidth=ws;
+  var xs=x.toFixed(1)+'px', ys=(lineYAt(x+e.offsetWidth/2)-e.offsetHeight/2).toFixed(1)+'px';
+  if(e.style.left!==xs) e.style.left=xs; if(e.style.top!==ys) e.style.top=ys;
 }
 /* the unit labels stay in view (Luke 2026-11-25: "unit labels in expanded horizontal timeline need to be visible at all
-   times"): a unit's label rides the top of the board when the view is scrolled down past it, and its left edge while the
-   unit runs on past that edge, until the next unit's label takes over (it never leaves its own unit). Below the bars at
-   the top and 20 px in from the left (clear of the key's toggle); its natural place whenever that is in view. */
+   times"): along the main line. While a unit runs on past the window's left edge its label rides the line 20 px in (clear of
+   the key's toggle and the quiet cue), in the first stretch between dots it fits, until the next unit's label meets it and
+   takes over. It never leaves the line. */
 var UPIN=0;
 function unitPinSoon(){ if(!UPIN) UPIN=requestAnimationFrame(unitPin); }
 function unitPin(){
   UPIN=0;
-  var world=document.getElementById('world'), c=document.getElementById('canvas'); if(!world || !c || de.classList.contains('mobile')) return;
-  var us=world.querySelectorAll('.lanes-unit'); if(!us.length) return;
+  var world=document.getElementById('world'), c=document.getElementById('canvas'); if(!world || !c || !UL || !UL.chips.length || de.classList.contains('mobile')) return;
   if(!c._lnPin){ c._lnPin=1; c.addEventListener('scroll', unitPinSoon, {passive:true}); window.addEventListener('resize', unitPinSoon); }
-  var wr=world.getBoundingClientRect(), k=(world.offsetWidth && wr.width/world.offsetWidth)||1;
-  var kt=document.getElementById('key-toggle'), q=kt && kt.getBoundingClientRect(), ktOn=q && q.width && q.height && q.top<window.innerHeight/2 && getComputedStyle(kt).display!=='none';
-  var T=Math.max(ktOn ? q.bottom+10 : 0, (de.classList.contains('phone-whole') ? 44 : 104)+6);      /* (the foot of the bars at the top) */
-  [].forEach.call(us, function(u){
-    var ch=u.querySelector('.lu-chip'); if(!ch) return;
-    if(ch._l0==null){ ch._l0=parseFloat(ch.style.left)||14; ch._t0=22; }
-    var r=u.getBoundingClientRect(), cw=ch.offsetWidth, chh=ch.offsetHeight, uw=u.offsetWidth, uh=u.offsetHeight;
-    var y=Math.max(ch._t0, Math.min(uh-chh-22, (T-r.top)/k));
-    var L=ktOn && q.bottom>r.top+y*k-4 && q.top<r.top+(y+chh)*k+4 ? q.right+12 : 20;
-    if(window._altoLanesExtOn && window._altoLanesExtOn()) L=Math.max(L, 66);     // (clear of the quiet cue, 20 px in)
-    var x=Math.max(ch._l0, Math.min(uw-cw-14, (L-r.left)/k));
-    var xs=x.toFixed(1)+'px', ys=y.toFixed(1)+'px';
-    if(ch.style.left!==xs) ch.style.left=xs; if(ch.style.top!==ys) ch.style.top=ys;
-    var pin=y>ch._t0+1 || x>ch._l0+1; if(ch.classList.contains('lu-pin')!==pin) ch.classList.toggle('lu-pin', pin);
-    if(u.classList.contains('lu-pinned')!==pin) u.classList.toggle('lu-pinned', pin);      // (above the cards, like the bars: they pass behind it)
-  });
+  var wr=world.getBoundingClientRect(), k=(world.offsetWidth && wr.width/world.offsetWidth)||1, sy=wr.top+UL.y*k, L=20;
+  [].slice.call(document.querySelectorAll('#key-toggle,[data-ln-edge]')).forEach(function(e){      // (the key's toggle, Extend's quiet cues)
+    if(!e || e.hidden || getComputedStyle(e).display==='none') return; var q=e.getBoundingClientRect();
+    if(q.width && q.height && q.left<160 && q.top<sy+24 && q.bottom>sy-24) L=Math.max(L, q.right+12); });
+  var Lw=(L-wr.left)/k, C=UL.chips, nextX=Infinity;
+  for(var i=C.length-1;i>=0;i--){
+    var ch=C[i], x=ch.x, cw=ch.w, ride=false;
+    if(x<Lw && ch.r>Lw){                                   // its unit runs on past the left edge: ride the line
+      var g=gapAt(Lw), gx=Math.max(Lw, g[0]);
+      while(g[1]-gx<Math.min(ch.nat, 110) && g[1]<UL.x1-1){ g=gapAt(g[1]+2*UL.rr+1); gx=g[0]; }
+      x=gx; cw=Math.min(ch.nat, g[1]-gx); ride=true;
+      if(x+cw>nextX-8) x=Math.max(ch.x, nextX-8-cw);         // (the next unit's label takes over)
+    }
+    putChip(ch, x, cw);
+    if(ch.el.classList.contains('lu-pin')!==ride) ch.el.classList.toggle('lu-pin', ride);
+    nextX=x;
+  }
 }
 /* arrow keys: along a line ←/→ in time; ↑/↓ to the nearest event on the next line over */
 window._altoLanesNav=function(id, dir){
@@ -2243,7 +2275,7 @@ LANES_EXT_TAIL = r"""
       +'@media print{.ln-ext-cue{display:none !important}}';
     document.head.appendChild(st);
     ['-1','1'].forEach(function(d){
-      var b=document.createElement('button'); b.type='button'; b.className='ln-ext-cue'; b.hidden=true;
+      var b=document.createElement('button'); b.type='button'; b.className='ln-ext-cue'; b.setAttribute('data-ln-edge',''); b.hidden=true;
       b.setAttribute('aria-label', d==='-1' ? 'Scroll up' : 'Scroll down');
       b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+SV[d]+'"/></svg>';
       b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(); if(!c || !window._altoLanesVy) return;
