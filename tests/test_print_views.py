@@ -215,11 +215,11 @@ def test_a_tall_timeline_prints_across_pages_without_a_blank_one(browser, built_
         pg.evaluate("window.altoPrint('ink')")
         pg.wait_for_timeout(300)
         plan = pg.evaluate("window._altoInkLast")
-        assert plan["orient"] == "landscape"
-        assert pg.evaluate("document.querySelectorAll('.ink-tile').length") == len(plan["rows"]) * plan["cols"]
+        assert plan["orient"] == "landscape" and plan.get("flow")         # a horizontal timeline is re-flowed into sheets, as an outline is (2026-11-26)
+        assert pg.evaluate("document.querySelectorAll('.ink-tile').length") == plan["sheets"]
         pg.emulate_media(media="print")
         pdf = pg.pdf(prefer_css_page_size=True, format=fmt)
-        assert _pages(pdf) == len(plan["rows"]) * plan["cols"], fmt   # one sheet per tile, none left over
+        assert _pages(pdf) == plan["sheets"], fmt                        # one sheet per tile, none left over
 
 
 def test_outline_and_all_detail_pages_come_in_outline_order(browser, built):
@@ -408,12 +408,12 @@ def test_a_link_asks_for_the_sheets_and_the_page_keeps_to_them(browser, built):
     assert plan["flow"] and plan["s"] >= 0.5 or plan["sheets"] == 8
 
 
-def test_the_picture_of_a_timeline_that_is_not_an_outline_keeps_to_the_sheets_asked_for(browser, built_lanes):
+def test_a_horizontal_timeline_flows_into_the_sheets_asked_for(browser, built_lanes):
     _, f = built_lanes
     pg = _open(browser, f)
     for n in (1, 2):
         plan = _stage(pg, n)
-        assert not plan.get("flow") and len(plan["rows"]) * plan["cols"] <= n
+        assert plan.get("flow") and plan["sheets"] <= n
         assert _pages(pg.pdf(prefer_css_page_size=True)) <= n
         pg.evaluate("window._altoInkUnstage()")
 

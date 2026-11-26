@@ -72,6 +72,9 @@ PRINT_CSS = r"""<style id="alto-print-views">
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card::before,html :is(#alto-ink-host,#alto-ink-measure) .ink-card::after{content:none !important;display:none !important;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card.hub{border-width:2px !important;padding:6px 9px 7px !important;}
+  /* a horizontal timeline's unit heading: its numeral and name on one line, as the line's own label reads */
+  html :is(#alto-ink-host,#alto-ink-measure) .ink-card.ink-unit .node-title{display:inline !important;margin:0 !important;font-size:15px !important;letter-spacing:.06em !important;text-transform:uppercase !important;}
+  html :is(#alto-ink-host,#alto-ink-measure) .ink-card.ink-unit .node-order{font-size:13px !important;font-weight:700 !important;font-style:normal !important;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card .node-order{position:static !important;display:inline !important;margin:0 6px 0 0 !important;padding:0 !important;
     font:italic 10px/1.2 Georgia,serif !important;letter-spacing:.04em !important;opacity:1 !important;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card .node-tag{display:inline !important;margin:0 !important;padding:0 !important;font-size:9px !important;
@@ -335,18 +338,42 @@ PRINT_JS = r"""<script id="alto-print-views-js">
   var AUTO_SCALE = 0.5, SLACK = 0.975;
 
   // The outline as compact sheets. Returns false when this page is not an outline tree (the picture is drawn instead).
+  /* a horizontal timeline as a tree for the sheets (Luke 2026-11-26, "please fix horizontal timeline print ink saver to be like it is for
+     outline"): each unit a heading card, its events under it in page order, every card nested in an event under that event (lanes.py nestOf) */
+  function lanesTree(){
+    var L = window._ALTO_LANES;
+    if(!L || !L.ev || typeof NODES === 'undefined' || !NODES.length) return null;
+    var ev = L.ev, has = {}, par = {}, kids = {}, act = {}, units = [];
+    NODES.forEach(function(n){ has[n.id] = 1; });
+    NODES.forEach(function(n){ var e = ev[n.id] || {}, pp = e.p, q = pp && ev[pp];
+      if(pp && pp !== n.id && has[pp] && q && (q.l || 'main') === (e.l || 'main')){ par[n.id] = pp; (kids[pp] = kids[pp] || []).push(n.id); } });
+    var seqs = typeof ACT_SEQS !== 'undefined' ? ACT_SEQS : [], meta = typeof PHASE_META !== 'undefined' ? PHASE_META : [];
+    seqs.forEach(function(ids, a){ (ids || []).forEach(function(i){ if(act[i] == null) act[i] = a; }); });
+    var named = seqs.length > 1 || (meta[0] && meta[0].label);
+    if(named) seqs.forEach(function(ids, a){ var pm = meta[a]; if(!pm) return;
+      units.push({a:a, n:(window._altoU ? window._altoU(a + 1, 'roman') : String(a + 1)), t:(pm.label.split(' \u2014 ')[1] || pm.label)}); });
+    return {par:par, kids:kids, act:act, units:units};
+  }
   function flowStage(){
-    var O = window._ALTO_OUTLINE;
-    if(!O || !O.kids || typeof NODES === 'undefined' || !NODES.length) return false;
-    var par = O.parent || {}, kids = O.kids || {}, num = O.num || {}, byId = {}, items = [], seen = {};
+    var O = window._ALTO_OUTLINE, LT = (!O || !O.kids) ? lanesTree() : null;
+    if((!O || !O.kids) && !LT) return false;
+    if(typeof NODES === 'undefined' || !NODES.length) return false;
+    var par = LT ? LT.par : (O.parent || {}), kids = LT ? LT.kids : (O.kids || {}), num = LT ? {} : (O.num || {}), byId = {}, items = [], seen = {};
     NODES.forEach(function(n){ byId[n.id] = n; });
-    function walk(id, dep){
+    function walk(id, dep, up){
       if(!byId[id] || seen[id]) return;
-      seen[id] = 1; items.push({id:id, d:dep, p:par[id] || ''});
+      seen[id] = 1; items.push({id:id, d:dep, p:par[id] || up || ''});
       (kids[id] || []).forEach(function(k){ walk(k, dep + 1); });
     }
-    NODES.forEach(function(n){ if(!par[n.id]) walk(n.id, 0); });
-    if(items.length !== NODES.length) return false;
+    if(LT && LT.units.length){
+      LT.units.forEach(function(u){
+        var hid = '\u0001u' + u.a; items.push({id:hid, d:0, p:'', unit:u, title:u.n + '  ' + u.t}); seen[hid] = 1;
+        NODES.forEach(function(n){ if(!par[n.id] && LT.act[n.id] === u.a) walk(n.id, 1, hid); });
+      });
+      NODES.forEach(function(n){ if(!par[n.id]) walk(n.id, 1); });
+    }
+    else NODES.forEach(function(n){ if(!par[n.id]) walk(n.id, 0); });
+    if(items.filter(function(it){ return !it.unit; }).length !== NODES.length) return false;
     var idx = {}; items.forEach(function(it, i){ idx[it.id] = i; });
 
     // links that are not parent -> child, kept as "See also"
@@ -360,6 +387,12 @@ PRINT_JS = r"""<script id="alto-print-views-js">
 
     // one compact copy of every card
     for(var i = 0; i < items.length; i++){
+      if(items[i].unit){                                               // a unit's heading (a horizontal timeline): its numeral and name, as the line's label has them
+        var uh = document.createElement('div'); uh.className = 'node-card ink-card hub ink-unit';
+        uh.innerHTML = '<span class="node-order"></span><span class="node-title"></span>';
+        uh.querySelector('.node-order').textContent = items[i].unit.n; uh.querySelector('.node-title').textContent = items[i].unit.t;
+        items[i].el = uh; continue;
+      }
       var el = document.getElementById('node-' + items[i].id), card = el && el.querySelector('.node-card');
       if(!card) return false;
       var cl = card.cloneNode(true);
