@@ -18,6 +18,7 @@ LT_CSS = r"""
   @media (max-width:480px){ html.alto-retro.alto-lanes:not(.detail-open) #lt-t{gap:10px;}   /* a phone-width window: half the letter-spacing, the title takes the whole run from the logo to 20px short of the right edge */
     html.alto-retro.alto-lanes #lt-t::before,html.alto-retro.alto-lanes #lt-t::after{flex:1 1 10px;}
     html.alto-retro.alto-lanes #lt-t .lt-w{letter-spacing:.2em;font-size:13px;} }
+  html.alto-retro.alto-lanes #lt-t .lt-w{background:#000;padding:0 10px;}   /* black behind the words, like Retro's chips: a card passing under the crown never shows through them */
   @media print{ #lt-t{display:none !important;} }
 """
 

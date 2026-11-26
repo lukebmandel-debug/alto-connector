@@ -2227,6 +2227,9 @@ LANES_EXT_TAIL = r"""
       +'html.phone-whole .ln-ext-cue::after{content:"";position:absolute;inset:-5px}'
       +'html.alto-retro .ln-ext-cue,html.alto-holo .ln-ext-cue{border-radius:0}'
       +'html.alto-editing .ln-ext-cue,html.detail-open .ln-ext-cue,html.printing .ln-ext-cue{display:none !important}'
+      /* a phone held sideways: the top row's name and marks stand on the board itself, so while the board runs under them they take
+         the desktop name tab's frosted backing (the board goes behind them, never shows through) */
+      +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
       +'@media print{.ln-ext-cue{display:none !important}}';
     document.head.appendChild(st);
     ['-1','1'].forEach(function(d){
@@ -2244,6 +2247,7 @@ LANES_EXT_TAIL = r"""
     var on=window._altoLanesExtOn && window._altoLanesExtOn(), mt=c.scrollHeight-c.clientHeight, y=c.scrollTop;
     var a=on && mt>2 && y>2, z=on && mt>2 && y<mt-2, B=bounds();
     cues['-1'].hidden=!a; cues['1'].hidden=!z;
+    if(R.classList.contains('ln-under')!==!!a) R.classList.toggle('ln-under', !!a);
     var k=(c.offsetWidth && c.getBoundingClientRect().width/c.offsetWidth)||1;      // (the page's zoom: a fixed box's px are the zoomed page's)
     ['-1','1'].forEach(function(d){ var e=cues[d]; e.style.left=(20/k).toFixed(2)+'px'; e.style.width=e.style.height=(34/k).toFixed(2)+'px'; });
     cues['-1'].style.top=((B.t+12)/k).toFixed(2)+'px'; cues['1'].style.top=((B.b-46)/k).toFixed(2)+'px';
