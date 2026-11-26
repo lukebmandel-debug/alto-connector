@@ -1357,24 +1357,30 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     nav = "".join(nav)
 
     overview_html = b.overview_html
+    if overview_html and not re.sub(r"<[^>]+>|&nbsp;|\s+", "", overview_html):
+        overview_html = ""                                       # (markup with no words in it is as empty as none)
     if not overview_html:
-        # A Memory Palace's Overview reads like an outline's: each district's
-        # buildings, and the floors in each.
-        if b.mode in ("outline", "palace"):
-            overview_html = dx.outline_overview(b, nodes)
-            _bare = [(x.short or x.label) for i, x in enumerate(b.acts)
-                     if not (x.summary or "").strip()
-                     and any(n.act == i and not n.parent for n in nodes)]
-            if _bare:
-                _warn0.append("no overview summary for " + ", ".join(_bare)
-                              + " — the Overview composes one from the hub's "
-                              "description and its concepts' names; "
-                              "set_overview(section_summaries) to write a real one")
-        else:
-            _warn0.append("no overview authored — the Overview (\u2605) opens blank; "
-                          "set_overview to write one")
+        # A page with no authored Overview composes one from what it has (Luke, 2026-11-26: his lanes timeline's Overview opened a dimmed, empty panel):
+        # each section's summary (or the hub's description and the names of what it branches into) and links to its events / hubs, as an outline's
+        # always has; a Memory Palace's reads the same, each district's buildings and floors.
+        overview_html = dx.outline_overview(b, nodes)
+        if not re.sub(r"<[^>]+>|\s+|Overview", "", overview_html or ""):
+            overview_html = ""                                   # (nothing to say: the button goes, below)
+        _bare = [(x.short or x.label) for i, x in enumerate(b.acts)
+                 if not (x.summary or "").strip()
+                 and any(n.act == i and not n.parent for n in nodes)]
+        if b.mode in ("outline", "palace") and _bare:
+            _warn0.append("no overview summary for " + ", ".join(_bare)
+                          + " — the Overview composes one from the hub's "
+                          "description and its concepts' names; "
+                          "set_overview(section_summaries) to write a real one")
+        elif b.mode not in ("outline", "palace"):
+            _warn0.append("no overview authored — the Overview (\u2605) is composed from the sections and their events; "
+                          "set_overview to write a real one")
+    # an Overview with nothing in it is never offered: no button, no panel, no dimmed layer
     overview = (f'<div id="summary-inner">\n{overview_html}\n    </div>'
-                if overview_html else '<div id="summary-inner"></div>')
+                if overview_html else
+                '<div id="summary-inner"></div><style id="alto-no-ov">html #overview-toggle,html #summary-wrap{display:none !important}</style>')
 
     # ── JS data consts ───────────────────────────────────────────────────────
     # Keys are quoted because entity ids are slugs and may contain hyphens,
