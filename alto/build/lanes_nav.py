@@ -102,6 +102,30 @@ NAV_CSS = """
   html.alto-lanes #canvas.ln-ov.ln-zin{ cursor:grab; }
   html.alto-lanes #canvas.ln-ov.ln-drag{ cursor:grabbing; }
   html.alto-lanes #canvas.ln-ov #world, html.alto-lanes #canvas.ln-ovanim #world{ pointer-events:none; transform-origin:0 0; will-change:transform; }
+  /* the minimap (Luke 2026-11-26, "instead of the view whole timeline button in the middle nav controls zooming out, make a minimap simplified where
+     we usually have them that shows where the user is in the whole thing"): where every desktop minimap sits (minimap_home.py), just above the
+     bottom-right buttons and as wide as they are; the main line, the cards, the event the steps are on, and the box the window shows. A phone keeps
+     its whole-timeline button in the bar (no minimap there). */
+  html:not(.phone-whole) #lanes-nav:not(.lnv-nomm) .lnv-ov{ display:none; }   /* (a window too narrow for the minimap to clear the bar keeps the button: lnv-nomm) */
+  #ln-mm{ position:fixed; z-index:305; box-sizing:border-box; padding:5px 7px; border-radius:12px; cursor:pointer; touch-action:none; user-select:none; -webkit-user-select:none;
+    background:var(--surface, #fff); border:1px solid var(--card-glass-border, var(--border)); box-shadow:0 10px 26px var(--node-rest-shadow);   /* (opaque: no card's text reads through it) */
+    opacity:0; visibility:hidden; pointer-events:none; transition:opacity .25s ease, visibility 0s .25s; }
+  #ln-mm.on{ opacity:1; visibility:visible; pointer-events:auto; transition:opacity .25s ease; }
+  #ln-mm svg{ display:block; width:100%; height:100%; overflow:visible; }
+  #ln-mm .mm-l{ fill:none; stroke:color-mix(in srgb, var(--accent) 62%, var(--text)); stroke-linecap:round; stroke-linejoin:round; stroke-width:2.5px; vector-effect:non-scaling-stroke; }
+  #ln-mm .mm-c{ fill:var(--muted); fill-opacity:.38; }
+  #ln-mm .mm-c.k{ fill-opacity:.2; }
+  #ln-mm .mm-c.h{ fill:var(--accent); fill-opacity:1; }
+  #ln-mm .mm-v{ fill:var(--accent); fill-opacity:.12; stroke:var(--accent); stroke-width:1.5px; vector-effect:non-scaling-stroke; }
+  #ln-mm:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  html.alto-retro #ln-mm{ border-radius:0; background:#000; border-color:#d9ae55; }
+  html.alto-retro #ln-mm .mm-l{ stroke:#d9ae55; } html.alto-retro #ln-mm .mm-c{ fill:#efe6cf; } html.alto-retro #ln-mm .mm-c.h{ fill:#d9ae55; }
+  html.alto-retro #ln-mm .mm-v{ fill:#d9ae55; fill-opacity:.1; stroke:#d9ae55; }
+  html.alto-holo #ln-mm{ border-radius:0; background:#05070b; border-color:#4ff0e0; }
+  html.alto-holo #ln-mm .mm-l, html.alto-holo #ln-mm .mm-v{ stroke:#4ff0e0; } html.alto-holo #ln-mm .mm-c.h, html.alto-holo #ln-mm .mm-v{ fill:#4ff0e0; }
+  html.mobile #ln-mm, html.phone-whole #ln-mm, html.detail-open #ln-mm, html.printing #ln-mm, html.alto-editing #ln-mm{ display:none !important; }
+  @media print{ #ln-mm{ display:none !important; } }
+  @media (prefers-reduced-motion:reduce){ #ln-mm{ transition:none; } }
 """
 
 NAV_JS = r"""
@@ -905,7 +929,7 @@ function ovAnim(from, to, done){
   }
   _ovA=requestAnimationFrame(fr);
 }
-function ovEnter(){
+function ovEnter(){ if(MM) MM.classList.remove('on');      /* (the whole timeline shows it all: the minimap steps aside) */
   if(!on() || _ov) return;
   if(window._focusedNodeId && window.exitFocus) window.exitFocus();
   cancelAll();
@@ -917,7 +941,7 @@ function ovEnter(){
   ovAnim(from, to, function(){});
 }
 /* back down to step mode, resting on this event (null: where the steps were) */
-function ovLeave(id, instant, then){
+function ovLeave(id, instant, then){ mmLater(400);
   if(!_ov) return;
   var c=cv(), from=_ov; id=id||_cur||stops().ids[0];
   if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; c.classList.remove('ln-ovanim'); }
@@ -1063,7 +1087,7 @@ function zEnter(){
   cancelAll(); M.vy=null; var here=current(); if(here) setCur(here);
   var c=cv(), off=worldOff(c);
   _ov={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop, hand:1};
-  ovHold(true); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
+  ovHold(true); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov'); if(MM) MM.classList.remove('on');
   if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title=OV_BACK; R.ov.setAttribute('aria-label', OV_BACK); }
   return true;
 }
@@ -1147,7 +1171,67 @@ document.addEventListener('gestureend', function(e){
   if(!_zg) return; _gzUntil=performance.now()+450; e.preventDefault(); e.stopImmediatePropagation();
   _zg=null; zSettle();
 }, {passive:false});
-window._altoLanesZoom={s:function(){ return _ov ? _ov.s : 1; }, view:function(){ return _ov ? {s:_ov.s, tx:_ov.tx, ty:_ov.ty} : null; }, step:zStep, reset:function(){ if(_ov) ovLeave(null); }};
+window._altoLanesZoom={s:function(){ return _ov ? _ov.s : 1; }, view:function(){ return _ov ? {s:_ov.s, tx:_ov.tx, ty:_ov.ty} : null; }, step:zStep, reset:function(){ if(_ov) ovLeave(null); },
+  whole:function(){ if(_ov) ovLeave(null); else ovEnter(); }};      /* (the whole timeline, as the phone's bar button has it; the desktop reaches it by pinch / ⌘ + scroll) */
+
+/* ── the minimap (see NAV_CSS): drawn from the board as laid out, in the board's own px; the box follows the camera ── */
+var MM=null, _mmR=0, _mmG=null;
+function mmRow(){ return window._altoMmRow ? window._altoMmRow() : null; }
+function mmMake(){ if(MM) return MM; MM=document.createElement('div'); MM.id='ln-mm'; MM.className='alto-mm'; MM.setAttribute('role','navigation'); MM.tabIndex=-1;
+  MM.setAttribute('aria-label','Minimap: the whole timeline; the box is what the window shows. Click to go there.'); MM.title='Where you are in the whole timeline: click to go there';
+  document.body.appendChild(MM);
+  var dn=null;
+  MM.addEventListener('pointerdown', function(e){ if(e.button) return; e.preventDefault(); e.stopPropagation(); dn={id:e.pointerId}; try{ MM.setPointerCapture(e.pointerId); }catch(er){} });
+  MM.addEventListener('pointerup', function(e){ if(!dn || e.pointerId!==dn.id) return; dn=null; var id=mmAt(e.clientX); if(!id || !on()) return;
+    if(_ov) ovLeave(null, true); if(window._focusedNodeId && window.exitFocus) try{ window.exitFocus(); }catch(er){} step(id,'rail'); });
+  MM.addEventListener('pointercancel', function(){ dn=null; });
+  return MM; }
+/* the board in its own px: each shown card, the main line, the window's box (all read off the screen, so any fit scale or page zoom is undone alike) */
+function mmGeo(){
+  var c=cv(), w=document.getElementById('world'); if(!c || !w || !w.offsetWidth) return null;
+  var wr=w.getBoundingClientRect(), k=wr.width/w.offsetWidth || 1, cards=[], b=[Infinity, Infinity, -Infinity, -Infinity];
+  function add(r, cls, id){ var x=(r.left-wr.left)/k, y=(r.top-wr.top)/k, ww=r.width/k, hh=r.height/k; if(!ww || !hh) return;
+    cards.push([x, y, ww, hh, cls, id]); b=[Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x+ww), Math.max(b[3], y+hh)]; }
+  document.querySelectorAll('#world .node').forEach(function(n){ var cd=n.querySelector('.node-card'); if(!cd || getComputedStyle(n).display==='none' || n.style.visibility==='hidden') return;
+    add(cd.getBoundingClientRect(), n.classList.contains('ln-kid') ? 'k' : '', n.id.slice(5)); });
+  var ln=document.querySelector('#lanes-svg path.ln-main'), lm=null;
+  if(ln && ln.getScreenCTM){ var M=ln.getScreenCTM(), q=ln.getBoundingClientRect(); if(M && q.width){
+    lm={d:ln.getAttribute('d'), m:[M.a/k, M.b/k, M.c/k, M.d/k, (M.e-wr.left)/k, (M.f-wr.top)/k]};
+    var x0=(q.left-wr.left)/k, x1=(q.right-wr.left)/k, y0=(q.top-wr.top)/k, y1=(q.bottom-wr.top)/k; b=[Math.min(b[0], x0), Math.min(b[1], y0), Math.max(b[2], x1), Math.max(b[3], y1)]; } }
+  if(!cards.length) return null;
+  return {k:k, wr:wr, cards:cards, lm:lm, b:b}; }
+function mmView(){ var c=cv(), w=document.getElementById('world'); if(!c || !w || !w.offsetWidth) return null; var wr=w.getBoundingClientRect(), k=wr.width/w.offsetWidth || 1, cr=c.getBoundingClientRect();
+  return [(cr.left-wr.left)/k, (cr.top-wr.top)/k, cr.width/k, cr.height/k]; }
+function mmAt(cx){ if(!_mmG || !MM) return null; var sv=MM.querySelector('svg'), M=sv && sv.getScreenCTM && sv.getScreenCTM(); if(!M) return null;
+  var p=sv.createSVGPoint(); p.x=cx; p.y=0; var x=p.matrixTransform(M.inverse()).x, S=stops().ids, best=null, bd=Infinity;
+  _mmG.cards.forEach(function(q){ if(S.indexOf(q[5])<0) return; var d=Math.abs(q[0]+q[2]/2-x); if(d<bd){ bd=d; best=q[5]; } }); return best; }
+function mmDraw(){
+  var m=mmMake(), G=mmGeo(), row=mmRow(); _mmG=G;
+  if(!G || !row || !on() || _ov || phone()){ m.classList.remove('on'); if(R && !_ov) R.el.classList.toggle('lnv-nomm', !row && !phone()); return; }
+  var z=parseFloat(getComputedStyle(de).zoom)||1; row=row.map(function(v){ return v/z; });      /* (a zoomed page: fixed px are its own) */
+  var rw=(row[2]-row[0]), x0=G.b[0], y0=G.b[1], W=Math.max(1, G.b[2]-x0), H=Math.max(1, G.b[3]-y0);
+  var cw=rw-14, ch=Math.max(30, Math.min(96, cw*H/W)), pd=W/cw*3;
+  m.style.width=rw+'px'; m.style.height=(ch+10)+'px'; m.style.left=row[0]+'px'; m.style.top=(row[1]-(window._altoMmGap||12)-ch-10)+'px';
+  var s='<svg viewBox="'+[x0-pd, y0-pd, W+2*pd, H+2*pd].map(function(v){ return v.toFixed(0); }).join(' ')+'" preserveAspectRatio="none" aria-hidden="true">';      /* (the whole length across its width; a tall Expanded board is drawn shallower) */
+  var cur=current();
+  G.cards.forEach(function(q){ s+='<rect class="mm-c'+(q[4] ? ' '+q[4] : '')+(q[5]===cur ? ' h' : '')+'" x="'+q[0].toFixed(0)+'" y="'+q[1].toFixed(0)+'" width="'+q[2].toFixed(0)+'" height="'+q[3].toFixed(0)+'"/>'; });
+  if(G.lm) s+='<g transform="matrix('+G.lm.m.map(function(v){ return v.toFixed(4); }).join(' ')+')"><path class="mm-l" d="'+G.lm.d+'"/></g>';
+  m.innerHTML=s+'<rect class="mm-v"/></svg>';
+  var q=m.getBoundingClientRect(), nb=R && R.el.getBoundingClientRect(), hit=!!(nb && nb.width && q.left<nb.right+8 && nb.left<q.right+8 && q.top<nb.bottom+8 && nb.top<q.bottom+8) || q.top<0;
+  if(R) R.el.classList.toggle('lnv-nomm', hit);
+  if(hit){ m.classList.remove('on'); return; }
+  m.classList.add('on'); mmBox(); }
+function mmBox(){ _mmR=0; if(!MM) return; if(_ov){ MM.classList.remove('on'); return; } if(!MM.classList.contains('on') || !_mmG){ mmLater(60); return; } var r=MM.querySelector('.mm-v'), v=mmView(); if(!r || !v) return;
+  var b=_mmG.b, x0=Math.max(v[0], b[0]), y0=Math.max(v[1], b[1]), x1=Math.min(v[0]+v[2], b[2]), y1=Math.min(v[1]+v[3], b[3]);
+  r.setAttribute('x', x0.toFixed(0)); r.setAttribute('y', y0.toFixed(0)); r.setAttribute('width', Math.max(0, x1-x0).toFixed(0)); r.setAttribute('height', Math.max(0, y1-y0).toFixed(0));
+  var cur=current();      /* the lit card follows the steps */
+  [].forEach.call(MM.querySelectorAll('.mm-c'), function(e, i){ var on1=_mmG.cards[i] && _mmG.cards[i][5]===cur; if(e.classList.contains('h')!==on1) e.classList.toggle('h', on1); }); }
+function mmSoon(){ if(!_mmR) _mmR=requestAnimationFrame(mmBox); }
+var _mmT=0; function mmLater(ms){ clearTimeout(_mmT); _mmT=setTimeout(mmDraw, ms||60); }
+(function(){ var c=cv(); if(c) c.addEventListener('scroll', mmSoon, {passive:true}); })();
+window.addEventListener('resize', function(){ mmLater(120); });
+if(window.MutationObserver) new MutationObserver(function(){ mmLater(80); }).observe(de, {attributes:true, attributeFilter:['class']});
+window._altoLanesMm=function(){ mmDraw(); return MM; };
 
 /* a click is never read as part of a pinch or a drag: none for a moment after one (a second finger's pointerdown, a gesture, a zoom wheel) */
 document.addEventListener('click', function(e){
@@ -1179,6 +1263,7 @@ function relaid(first){
   if(_cur && !document.getElementById('node-'+_cur)) _cur=null;
   if(_cur){ var n=document.getElementById('node-'+_cur); if(n) n.classList.add('ln-cur'); }
   railMarks();
+  mmLater(first ? 400 : 60);
   if(_ov){ var c=cv(); _ov=_ov.hand ? ovClamp(_ov) : ovFit(); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; ui(current(),0); return; }
   /* a re-layout (a resize, an edit) keeps the view on the event the steps were on */
   if(M.raf){ M.stale=true; ui(current(),0); return; }        // mid-travel: tick carries on from the view as it is
