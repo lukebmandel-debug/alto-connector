@@ -369,3 +369,18 @@ def test_a_tall_board_opens_expanded_on_its_main_line_not_its_top_edge(site):
     assert pg.evaluate(ROOM)["top"] < 5, r
     assert not pg._errs, pg._errs
     ctx.close()
+
+
+@pytest.mark.parametrize("w,h,phone,q", [(1440, 900, False, ""), (390, 844, True, ""), (844, 390, True, "?view=whole")], ids=["d1440", "p390", "l844"])
+def test_the_open_overview_is_dense_enough_that_cards_under_it_are_a_tint(site, w, h, phone, q):
+    """B-1126-OVERVIEW-SEETHRU: the open Overview over the board is ~90%+ opaque (cards behind it never read as a second line of text), and a shut one shows no words."""
+    ctx, pg = _open(site, "on", w, h, phone=phone, q=q)
+    pg.evaluate("() => { const o = document.getElementById('ln-offer'); if (o) o.remove(); }")
+    shut = pg.evaluate("() => getComputedStyle(document.getElementById('summary-inner')).visibility")
+    assert shut == "hidden", shut
+    pg.evaluate("() => toggleSummary()")
+    pg.wait_for_timeout(1000)
+    d = pg.evaluate("""() => { const w = document.getElementById('summary-wrap'), s = getComputedStyle(w), a = (s.backgroundColor.match(/[\\d.]+/g) || []).map(Number), al = a.length > 3 ? a[3] : 1;
+      const l = 1 - Math.pow(1 - al, 1 + (s.backgroundImage.match(/linear-gradient/g) || []).length); return {open: w.classList.contains('open'), vis: getComputedStyle(document.getElementById('summary-inner')).visibility, eff: l}; }""")
+    assert d["open"] and d["vis"] == "visible" and d["eff"] >= 0.9, d
+    ctx.close()
