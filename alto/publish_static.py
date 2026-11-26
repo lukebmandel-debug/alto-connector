@@ -436,6 +436,13 @@ def _pin_named(site: Path, refs) -> dict:
     return out
 
 
+def _curated_plan_hashes() -> set:
+    """Hashes of the plans Alto ships (alto/buildings CURATED): the only Memory Blueprint plans that may be hosted under /bldg/."""
+    from . import buildings
+    from .build import building_schema as bs
+    return {bs.plan_hash(v["load"]()) for v in buildings.CURATED.values()}
+
+
 def _building_plans(store, uid: str) -> dict:
     """{plan-<hash>.json: JSON text} of every published Memory Blueprint (build/building_schema.py): the file its page fetches from /bldg/."""
     from .build import building_schema as bs
@@ -452,7 +459,10 @@ def _building_plans(store, uid: str) -> dict:
         if not z:
             continue
         try:
-            name, text = bs.hosted_json(bs.unpack(z))
+            plan = bs.unpack(z)
+            if bs.plan_hash(plan) not in _curated_plan_hashes():     # plan-guard: only the plans Alto ships are hosted publicly (hash recomputed from the plan, never the stored plan_h; fails closed)
+                continue
+            name, text = bs.hosted_json(plan)
         except Exception:                                   # noqa: BLE001 — a plan that cannot be read ships nothing (the page keeps its cards)
             continue
         out[name] = text

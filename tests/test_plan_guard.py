@@ -112,3 +112,20 @@ def test_an_undecodable_plan_is_refused(store):
     for z in ("not base64 at all!!", "AAAA", ""):
         tid = _built_with(store, z or "x", bs.plan_hash(bs.fixture()))
         assert srv.publish_timeline(tid, "private-web")["error"] == "user_plan_not_allowed"
+
+
+def test_the_hosting_code_hosts_no_drawn_plan_even_for_a_forged_published_doc(store):
+    """An imported / hand-made doc with status 'published' and a user plan (any plan_h) gets no /bldg/ file; a curated plan still does."""
+    from alto import publish_static
+    tid = _built_with(store, bs.pack(_drawn()), bs.plan_hash(bs.fixture()))
+    doc = store.get_timeline(srv.uid(), tid)
+    doc["status"] = "published"
+    store.put_timeline(srv.uid(), tid, doc)
+    assert publish_static._building_plans(store, srv.uid()) == {}
+    doc["brief"]["building"] = {**doc["brief"]["building"], "plan_z": "garbage"}
+    store.put_timeline(srv.uid(), tid, doc)
+    assert publish_static._building_plans(store, srv.uid()) == {}
+    good = bs.fixture()
+    doc["brief"]["building"] = {**doc["brief"]["building"], "plan_z": bs.pack(good), "plan_h": bs.plan_hash(good)}
+    store.put_timeline(srv.uid(), tid, doc)
+    assert list(publish_static._building_plans(store, srv.uid())) == [bs.file_name(bs.plan_hash(good))]
