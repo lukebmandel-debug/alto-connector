@@ -144,13 +144,14 @@ def test_the_desktop_unit_plate_sits_20px_in_and_wears_the_glass(site, browser):
         assert x["rad"] != "15px" and x["bf"] and x["bf"] != "none" and float(x["bw"][:-2]) >= 1, x
     # the tube (the bar's ::before) is the bar's box less its own left / right insets: scaled by the page zoom to screen pixels
     e = pg.evaluate("""() => { const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1, pl = document.querySelector('.phase-label-float').getBoundingClientRect().left,
-      nr = document.querySelector('.phase-numeral').getBoundingClientRect().right;
+      nq = document.querySelector('.phase-numeral').getBoundingClientRect(), nr = nq.right, nl = nq.left;
       return [...document.querySelectorAll('.unit-bar')].map(b => { const r = b.getBoundingClientRect(), q = getComputedStyle(b, '::before');
-        return {l: r.left + parseFloat(q.left) * z, r: r.right - parseFloat(q.right) * z, pl: pl, nr: nr, iw: innerWidth}; }); }""")
+        return {l: r.left + parseFloat(q.left) * z, r: r.right - parseFloat(q.right) * z, pl: pl, nl: nl, nr: nr, iw: innerWidth}; }); }""")
     assert e
     for x in e:
         assert x["l"] >= 20 - .5 and x["r"] <= x["iw"] - 20 + .5, x          # the tube never comes within 20px of either edge
-        assert abs(x["l"] - x["pl"]) <= 2 and abs(x["r"] - x["nr"]) <= 2, x   # and ends at the pill's left edge and the numeral's right edge
+        assert abs(x["l"] - x["pl"]) <= 2, x                                  # starts at the pill's left edge
+        assert x["nl"] + 2 <= x["r"] <= x["nr"] + 2, x                        # and runs into the numeral plate, its end hidden under it (1.9.289: right 48px)
     tube = pg.evaluate("getComputedStyle(document.querySelector('.unit-bar'), '::before').height")
     assert abs(float(tube[:-2]) - 6) < .1, tube                    # (WebKit's page zoom rounds it: 5.995px)
     _done(pg)
