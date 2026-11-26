@@ -180,7 +180,10 @@ JS = r"""(function(){
 SHEET_JS = r"""function c0(){ var t=window._headerTint, c=t && t.stops && t.stops[0] && t.stops[0].c;
     if(c && /^#[0-9a-f]{6}$/i.test(c)) de.style.setProperty('--ct-c0', c+'b3'); }
   var uh=window.updateHeaderTint; if(typeof uh==='function') window.updateHeaderTint=function(){ c0(); return uh.apply(this, arguments); };
-  c0(); window.addEventListener('load', c0);"""
+  c0(); window.addEventListener('load', c0);
+  /* a long timeline lays itself out after the page has loaded (and again on a resize or an edit): the engine writes the sheet's gradient and its colours then, so the reach is
+     re-read whenever the sheet's style is written (Luke, 2026-11-26: the top ~110 px of his Torts stayed the plain background while the board below carried the unit tint) */
+  var sl=document.getElementById('glass-slab'); if(sl && typeof MutationObserver==='function') new MutationObserver(c0).observe(sl, {attributes:true, attributeFilter:['style']});"""
 
 
 def block(sheet: bool = True, hl_key: str = "alto-hl-local") -> str:
