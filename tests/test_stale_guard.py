@@ -184,8 +184,15 @@ def test_version_order_is_numeric_not_textual():
     assert not E.is_older("junk", "1.9.1")
 
 
+def _newer_than_running():
+    """A version one patch ahead of the Alto running: the page online was built by a NEWER Alto, whatever version this one is (it was once a hard-coded 1.9.300)."""
+    from alto import mcp_server
+    major, minor, patch = mcp_server.__version__.split(".")[:3]
+    return f"{major}.{minor}.{int(patch) + 1}"
+
+
 @pytest.mark.parametrize("existing, new, ok", [
-    ("1.9.300", "1.9.211", False),      # existing built by a newer Alto: refuse
+    (_newer_than_running(), "1.9.211", False),      # existing built by a newer Alto than the one running: refuse
     ("1.9.211", "1.9.211", True),       # equal
     ("1.9.200", "1.9.211", True),       # older
     (None, "1.9.211", True),            # no stamp: predates stamps
