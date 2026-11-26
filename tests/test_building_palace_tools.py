@@ -183,7 +183,12 @@ def test_unplaced_nodes_are_reported_not_hidden(local_store):
     tiny["tour"] = None
     del tiny["tour"]
     tiny["rm"][0]["c"] = 2
-    r = srv.set_up_building(tid, tiny)
+    srv._curated_plan_hashes()                                   # a drawn plan is refused (test_plan_guard.py); here it stands in for a curated one
+    srv._CURATED_PLAN_HASHES.add(bs.plan_hash(tiny))
+    try:
+        r = srv.set_up_building(tid, tiny)
+    finally:
+        srv._CURATED_PLAN_HASHES.discard(bs.plan_hash(tiny))
     assert r["ok"] and r["unplaced"] == ["c", "d"] and any("found no place" in w for w in r["warnings"])
 
 
