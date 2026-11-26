@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.316"
+__version__ = "1.9.317"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -337,6 +337,63 @@ mcp = FastMCP(
         "takes `account` — pass it on every call that follows, there is no "
         "current account kept between calls."),
 )
+
+
+# ── a page saved by a NEWER Alto ───────────────────────────────────────────────
+# A page whose brief or nodes carry keys this version does not know (a newer Alto added a feature) can be read and shown, but never written from here: saving it
+# would silently drop those keys and the setting each carries, and the failure used to surface as "invalid_nodes ... unexpected keyword argument" (Luke's connector,
+# 1.9.284, a page with `extend`). The write tools refuse with the real reason, and change nothing.
+def _newer_refusal(timeline_id):
+    try:
+        from .build.brief import unknown_keys
+        doc, err = _timeline_or_error(timeline_id)
+        if err or not doc:
+            return None                                   # (the tool reports a missing page itself)
+        nodes = doc.get("nodes")
+        if nodes is None:
+            try:
+                nodes = get_store().list_nodes(uid(), doc.get("timeline_id") or timeline_id)
+            except Exception:
+                nodes = []
+        bad = unknown_keys({"brief": doc.get("brief"), "nodes": nodes})
+    except Exception:
+        return None                                       # (a guard never gets between a person and their work by failing itself)
+    names = bad["brief"] + ["node field " + k for k in bad["node"]]
+    if not names:
+        return None
+    from .build.engine_stamp import UPDATE_HOW
+    return {"error": "page_saved_by_newer_alto",
+            "message": (f"This page was saved by a newer Alto: it uses {', '.join(names)}, which this Alto (v{__version__}) does not know. "
+                        "Changing it from here would erase those settings, so nothing was changed. Update Alto, then try again: "
+                        f"{UPDATE_HOW}. You can still read the page."),
+            "unknown": bad,
+            "hint": "update the Alto extension, restart Claude, and repeat the request"}
+
+
+_NEWER_EXEMPT = {"delete_timeline", "delete_project"}      # (removing a page drops nothing silently)
+_mcp_tool = mcp.tool
+
+
+def _guarded_tool(*a, **kw):
+    deco = _mcp_tool(*a, **kw)
+    if kw.get("annotations") is RO:
+        return deco
+
+    def wrap(fn):
+        if fn.__name__ in _NEWER_EXEMPT or "timeline_id" not in inspect.signature(fn).parameters:
+            return deco(fn)
+        sig = inspect.signature(fn)
+
+        @functools.wraps(fn)
+        def guarded(*args, **kwargs):
+            tid = sig.bind_partial(*args, **kwargs).arguments.get("timeline_id")
+            err = _newer_refusal(tid) if isinstance(tid, str) and tid else None
+            return err if err else fn(*args, **kwargs)
+        return deco(guarded)
+    return wrap
+
+
+mcp.tool = _guarded_tool
 
 # FastMCP takes no version kwarg, so without this the server reports the MCP
 # SDK's version as its own (create_initialization_options falls back to

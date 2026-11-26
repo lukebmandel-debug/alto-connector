@@ -1481,3 +1481,14 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     if b.mode == "outline":
         warnings += _authority_warnings(b, nodes)
     return _collapse(warnings)
+
+
+def unknown_keys(doc: dict) -> dict:
+    """Keys a stored page carries that this Alto does not know ({"brief": [...], "node": [...]}), i.e. what a NEWER Alto saved. Saving the page from this one would
+    drop them (and the setting each carries), so the write tools refuse instead (mcp_server._newer_refusal). Keys starting with "_" are Alto's own bookkeeping."""
+    import dataclasses
+    kb = {f.name for f in dataclasses.fields(Brief)}
+    kn = {f.name for f in dataclasses.fields(Node)}
+    bad_b = sorted(k for k in ((doc or {}).get("brief") or {}) if k not in kb and not str(k).startswith("_"))
+    bad_n = sorted({k for n in ((doc or {}).get("nodes") or []) if isinstance(n, dict) for k in n if k not in kn and not str(k).startswith("_")})
+    return {"brief": bad_b, "node": bad_n}
