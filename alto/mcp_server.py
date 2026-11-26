@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.303"
+__version__ = "1.9.304"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -3013,6 +3013,8 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     window scrolls sideways on its own instead of cramming or stacking downward,
     and readers get a switch beside Search to fit it back in the window. The
     owner can also turn it on in editing (the bar's Extend switch).
+    On a horizontal timeline (mode 'lanes') `extend` alone is taken: the board
+    keeps its full spacing and grows up and down instead of fitting the window.
 
     The reply lays the result out and says what is wrong: `placement.overlaps`
     (pairs of cards on top of each other: move one with x/dx/dy, or float it),
@@ -3029,6 +3031,16 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     if err:
         return err
     brief = dict(doc["brief"])
+    if brief.get("mode") == "lanes" and extend is not None and not (placements or clear or reset or outcomes):
+        # a horizontal timeline's Extend (lanes.py lanes_ext_js): the board grows up and down instead of fitting the window
+        if extend:
+            brief["extend"] = True
+        else:
+            brief.pop("extend", None)
+        doc["brief"] = brief
+        get_store().put_timeline(uid(), timeline_id, doc)
+        return {"ok": True, "extend": bool(extend),
+                "next": "build_timeline, then publish_timeline, to show it."}
     if brief.get("mode") != "outline":
         return {"error": "needs_outline",
                 "message": "Placement positions the cards of an outline's tree; "

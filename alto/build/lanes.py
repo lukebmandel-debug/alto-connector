@@ -2130,3 +2130,147 @@ LANES_JS += NAV_JS
 # the page's name on a Retro horizontal timeline: options round (lanes_title.py)
 LANES_CSS += LT_CSS
 LANES_JS += LT_JS
+
+
+# ── Extend on a horizontal timeline (Luke 2026-11-25: "i'll accept your recs", the mock X5bdNtnEKbRMgjoBmCUtSU) ──
+# Only on a page whose owner turned Extend on (brief.extend): such a page carries this variant of LANES_JS, and
+# every other page keeps LANES_JS byte for byte. On (the reader's default): the board skips the fit to the window
+# (no eased gaps, no title-only cards, no smaller cards, no fitStage scale), keeps one row of cards a side and
+# grows up and down instead; the view travels up and down as on a board that never fitted (lanes_nav: a trackpad,
+# a drag, the cues). Children stay stacked beyond their parent and the Compact | Expanded switch stays its own.
+# Off (the reader's switch beside Search, or a phone held upright): today's board, the fit and all.
+_EXT_SWAPS = (
+    ("var A=room ? room.b-room.top-FLR : Infinity, mode=null;",
+     "var A0=room ? room.b-room.top-FLR : Infinity, A=window._altoLanesExtOn() ? 1e7 : A0, mode=null;"),
+    ("R=Math.min(3, 1+Math.floor((A-n1)/per));",
+     "R=window._altoLanesExtOn() ? 1 : Math.min(3, 1+Math.floor((A-n1)/per));"),
+    ("Math.max(0, A-(y1-y0))/2", "Math.max(0, A0-(y1-y0))/2"),
+    ("if(room && y1-y0<=A) H=", "if(room && y1-y0<=A0) H="),
+    ("var foot=Math.ceil((room && y1-y0<=A) ?", "var foot=Math.ceil((room && y1-y0<=A0) ?"),     # the frosted slab runs to the board's foot
+    ("if(!on || de.classList.contains('printing') || PRINTX) return;",
+     "if(window._altoLanesCueLook){ window._altoLanesCueLook(1); setTimeout(function(){ window._altoLanesCueLook(1); }, 450); }\n"
+     "  if(!on || window._altoLanesExtOn() || de.classList.contains('printing') || PRINTX) return;"),
+    # the camera: the main line rests where it does, but with Extend on a card that would stand beyond the bars (a board
+    # taller than the window: a phone held sideways) brings the view up or down just enough to show it whole
+    ("  var tt=mainAt(id)+P+off.y-lineHome(c,B);      // the main line stays where it rests, whatever this event's card or line does\n",
+     "  var tt=mainAt(id)+P+off.y-lineHome(c,B);      // the main line stays where it rests, whatever this event's card or line does\n"
+     "  if(window._altoLanesExtOn() && G.y && G.y[id]!=null){ var eh=(G.h&&G.h[id])||120, et=G.y[id]-eh/2+P+off.y, X=window._altoLanesExtRoom(), cr=c.getBoundingClientRect(), zz=zk(c),\n"
+     "      xt=Math.max(B.t,(X.t+52-cr.top)/zz), xb=Math.min(B.b,(X.b-52-cr.top)/zz);      // (clear of the fade before the bars)\n"
+     "    if(et-tt<xt) tt=et-xt; else if(et+eh-tt>xb) tt=Math.min(et-xt, et+eh-xb); }\n"),
+    # the cues' way up and down: a height the hand chose, as a trackpad's up and down sets it
+    ("window._altoLanesCurrent=function(){ return current(); };",
+     "window._altoLanesCurrent=function(){ return current(); };\n"
+     "window._altoLanesVy=function(d){ var c=cv(); if(!c) return; var mt=c.scrollHeight-c.clientHeight; if(mt<1) return;\n"
+     "  M.vy=Math.max(0,Math.min(mt,(M.vy!=null ? M.vy : c.scrollTop)+d)); if(!M.pth) resync(); M.input=performance.now(); wake(); };"),
+)
+
+LANES_EXT_HEAD = r"""
+window._altoLanesExtOn=function(){
+  var c=document.documentElement.classList;
+  if(!window._ALTO_EXTEND_PAGE || c.contains('alto-ext-off') || c.contains('printing')) return false;
+  if(c.contains('phone-whole')) return window.innerWidth>window.innerHeight;     /* phones: held sideways only (upright, the board has its height) */
+  return !c.contains('mobile');
+};
+/* the room between the bars, in screen px: the top bar's foot and the rail's (or the phone's bottom row's) head */
+window._altoLanesExtRoom=function(){
+  var ph=document.documentElement.classList.contains('phone-whole'), t=ph ? 44 : 104, b=window.innerHeight-(ph ? 68 : 62), q;
+  var nav=document.getElementById('lanes-nav'); if(nav && (q=nav.getBoundingClientRect()).height && q.top<window.innerHeight) b=Math.min(b, q.top-8);
+  return {t:t, b:b};
+};
+"""
+
+# the quiet cue: a small round arrow 20 px in from the left, on the side that has more, 44 px to touch on a phone;
+# the board fades out over 48 px before the bars instead of running under them.
+LANES_EXT_TAIL = r"""
+(function(){
+  var R=document.documentElement, cues={}, raf=0;
+  var SV={'-1':'M6 15l6-6 6 6','1':'M6 9l6 6 6-6'};
+  function cv(){ return document.getElementById('canvas'); }
+  function make(){
+    if(cues['1'] || !document.body) return;
+    var st=document.createElement('style');
+    st.textContent='.ln-ext-cue{position:fixed;left:20px;z-index:8000;width:34px;height:34px;padding:0;margin:0;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;'
+      +'box-sizing:border-box;border:1px solid var(--card-glass-border,var(--border));background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--text);'
+      +'-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(0,0,0,.14);opacity:.82;transition:opacity .25s}'
+      +'.ln-ext-cue:hover{opacity:1}.ln-ext-cue[hidden]{display:none}.ln-ext-cue:focus-visible{outline:2px solid var(--accent);outline-offset:2px}'
+      +'html.phone-whole .ln-ext-cue::after{content:"";position:absolute;inset:-5px}'
+      +'html.alto-retro .ln-ext-cue,html.alto-holo .ln-ext-cue{border-radius:0}'
+      +'html.alto-editing .ln-ext-cue,html.detail-open .ln-ext-cue,html.printing .ln-ext-cue{display:none !important}'
+      +'@media print{.ln-ext-cue{display:none !important}}';
+    document.head.appendChild(st);
+    ['-1','1'].forEach(function(d){
+      var b=document.createElement('button'); b.type='button'; b.className='ln-ext-cue'; b.hidden=true;
+      b.setAttribute('aria-label', d==='-1' ? 'Scroll up' : 'Scroll down');
+      b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+SV[d]+'"/></svg>';
+      b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(); if(!c || !window._altoLanesVy) return;
+        var k=(c.offsetHeight && c.getBoundingClientRect().height/c.offsetHeight)||1; window._altoLanesVy(+d*.7*(bounds().b-bounds().t)/k); });
+      document.body.appendChild(b); cues[d]=b;
+    });
+  }
+  function bounds(){ return window._altoLanesExtRoom(); }
+  function look(){
+    raf=0; var c=cv(); if(!c || !cues['1']) return;
+    var on=window._altoLanesExtOn && window._altoLanesExtOn(), mt=c.scrollHeight-c.clientHeight, y=c.scrollTop;
+    var a=on && mt>2 && y>2, z=on && mt>2 && y<mt-2, B=bounds();
+    cues['-1'].hidden=!a; cues['1'].hidden=!z;
+    var k=(c.offsetWidth && c.getBoundingClientRect().width/c.offsetWidth)||1;      // (the page's zoom: a fixed box's px are the zoomed page's)
+    ['-1','1'].forEach(function(d){ var e=cues[d]; e.style.left=(20/k).toFixed(2)+'px'; e.style.width=e.style.height=(34/k).toFixed(2)+'px'; });
+    cues['-1'].style.top=((B.t+12)/k).toFixed(2)+'px'; cues['1'].style.top=((B.b-46)/k).toFixed(2)+'px';
+    fade(c, a ? B.t : -1, z ? B.b : -1);
+  }
+  /* the board fades out over 48 px before the bars (never text over the bars' text): each of the board's own pieces that
+     reaches a fade carries a mask in its own px; the frosted slab, the board's backdrop, never does. Only redone when
+     the view has moved up or down, or the board was laid out again */
+  var FADED=[], FK='';
+  function fade(c, t, b){
+    var w=document.getElementById('world'); if(!w) return;
+    var wr=w.getBoundingClientRect(), k=(w.offsetWidth && wr.width/w.offsetWidth)||1, key=[t,b,Math.round(wr.top),Math.round(k*1000),w.childElementCount,c.scrollTop].join();
+    if(key===FK) return; FK=key;
+    FADED.forEach(function(e){ e.style.webkitMaskImage=e.style.maskImage=''; }); FADED=[];
+    if(t<0 && b<0) return;
+    [].forEach.call(w.children, function(e){
+      if(e.id==='glass-slab') return; var r=e.getBoundingClientRect(); if(!r.height) return;
+      var up=t>=0 && r.top<t+48, dn=b>=0 && r.bottom>b-48; if(!up && !dn) return;
+      var ek=(e.offsetHeight && r.height/e.offsetHeight)||k, y=function(v){ return ((v-r.top)/ek).toFixed(1)+'px'; };
+      var m='linear-gradient(to bottom,'+(up ? 'transparent '+y(t)+',#000 '+y(t+48) : '#000 0px')+','+(dn ? '#000 '+y(b-48)+',transparent '+y(b) : '#000 100%')+')';
+      e.style.webkitMaskImage=e.style.maskImage=m; FADED.push(e);
+    });
+  }
+  function soon(){ if(!raf) raf=requestAnimationFrame(look); }
+  function hook(){ make(); var c=cv(); if(c && !c._lnExtCue){ c._lnExtCue=1; c.addEventListener('scroll', soon, {passive:true}); } soon(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',hook); else hook();
+  window.addEventListener('load',function(){ hook(); [400,1500,3500].forEach(function(t){ setTimeout(soon,t); }); });
+  window.addEventListener('resize',function(){ setTimeout(soon,80); });
+  if(window.MutationObserver) new MutationObserver(function(){ setTimeout(soon,60); }).observe(R,{attributes:true,attributeFilter:['class']});
+  window._altoLanesCueLook=function(f){ if(f) FK=''; soon(); };
+})();
+"""
+
+
+def lanes_ext_js(tid: str) -> str:
+    """The script of a horizontal timeline whose owner turned Extend on (brief.extend): LANES_JS with the fit
+    skipped while Extend is on, the reader's switch (detail_extras.EXT_VIEW_GLUE, its glyph up and down here)
+    and the cues. A page without Extend carries LANES_JS untouched."""
+    from .detail_extras import EXT_VIEW_GLUE
+    js = LANES_JS
+    for a, b in _EXT_SWAPS:
+        assert js.count(a) == 1, a
+        js = js.replace(a, b)
+    sw = EXT_VIEW_GLUE
+    for a, b in (
+        ("R.classList.toggle('alto-ext-off',off); window._ALTO_TREE_PLAN=off?window._ALTO_TREE_PLAN_OFF:window._ALTO_TREE_PLAN_ON;\n"
+         "    window._altoOpenLeft=(!off && window._ALTO_TREE_PLAN_ON.wide)?1:0; }",
+         "R.classList.toggle('alto-ext-off',off); }"),
+        ("'Extend is off: each unit fits the window. Click to let wide units scroll sideways.':'Extend is on: wide units scroll sideways. Click to fit each unit in the window.'",
+         "'Extend is off: the board fits the window. Click to let it grow up and down.':'Extend is on: the board grows up and down. Click to fit it in the window.'"),
+        ('<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+         '<path d="M8 4v16M8 4l-3 3M8 4l3 3M16 20V4M16 20l-3-3M16 20l3-3"/>'),
+        ("if(window._ALTO_EXTEND_PAGE && R.classList.contains('phone-whole')) r.style",
+         "if(window._ALTO_EXTEND_PAGE && R.classList.contains('phone-whole') && window.innerWidth>window.innerHeight) r.style"),
+        ("if(window._altoUnitRefresh) setTimeout(window._altoUnitRefresh,60);",
+         "if(window._altoLanesCueLook) setTimeout(window._altoLanesCueLook,80);"),
+    ):
+        assert sw.count(a) == 1, a
+        sw = sw.replace(a, b)
+    return ("\nwindow._ALTO_EXTEND_PAGE=1;window._ALTO_EXT_KEY=" + js_json("alto-extview-" + tid) + ";"
+            + LANES_EXT_HEAD + js + sw + LANES_EXT_TAIL)

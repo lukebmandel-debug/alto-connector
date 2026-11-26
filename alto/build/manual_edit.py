@@ -293,7 +293,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-exit .ee-mv button{border-radius:14px;padding:0 11px;background:transparent;font-size:12.5px;opacity:.8;}
   #alto-edit-exit .ee-mv button.on{background:#f4f6fc;color:#12151f;font-weight:600;opacity:1;}
   #alto-edit-exit .ee-ext{display:none;padding:0 12px;font-size:12.5px;white-space:nowrap;}
-  html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-ext{display:inline-block;}
+  html.alto-editing.alto-drag-ok:not(.mobile) #alto-edit-exit .ee-ext,html.alto-editing.alto-lanes:not(.mobile) #alto-edit-exit .ee-ext{display:inline-block;}
   #alto-edit-exit .ee-ext.on{background:#f4f6fc;color:#12151f;font-weight:600;}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node.aed-sel > .node-card{outline:2px solid var(--accent,#a78bfa);outline-offset:3px;}
   /* a System circle dragged onto another to go under it (MANUAL_JS solar drag) */
@@ -1503,7 +1503,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(kind === 'pg' && id === 'extend' && p.length === 2){
       return {kind:'card', get:function(){ return EXT ? 1 : 0; },
         set:function(v){ EXT = !!v; window._ALTO_EXTEND_PAGE = EXT ? 1 : 0; extSync(); if(window._altoExtLook) window._altoExtLook();
-          if(window._ALTO_TREE_PLAN_ON && window._altoExtView) window._altoExtView(EXT, true); }};
+          if((window._ALTO_TREE_PLAN_ON || window._altoLanesExtOn) && window._altoExtView) window._altoExtView(EXT, true); }};
     }
     if(kind === 'sz' && p.length === 2){
       if(!srcNode(id)) return null;
@@ -4147,11 +4147,14 @@ MANUAL_JS = r"""<script id="alto-manual">
   var EXT = !!window._ALTO_EXTEND_PAGE;
   function UNITS(){ return !!(window._altoUnitMode && window._altoUnitMode()); }   // (each unit scrolls sideways on its own: EDGE_GLUE)
   function extSync(){
-    document.querySelectorAll('#alto-edit-exit .ee-ext').forEach(function(b){ b.classList.toggle('on', EXT); b.setAttribute('aria-pressed', EXT ? 'true' : 'false'); });
+    document.querySelectorAll('#alto-edit-exit .ee-ext').forEach(function(b){ b.classList.toggle('on', EXT); b.setAttribute('aria-pressed', EXT ? 'true' : 'false');
+      if(root.classList.contains('alto-lanes')) b.title = 'Extend: the board keeps its full spacing and grows up and down when it is taller than the window, instead of shrinking to fit. Readers get a switch beside Search to fit it back in the window.'; });
   }
   function setExtend(v){
     if(!change('pg|extend', v ? 1 : 0)) return;
-    if(!window._ALTO_TREE_PLAN_ON && v) toast('Extend is on for this page. It takes effect the next time Claude builds it.');
+    var LX = !!window._altoLanesExtOn;      // (a horizontal timeline built with Extend: lanes.py lanes_ext_js)
+    if(!window._ALTO_TREE_PLAN_ON && !LX && v) toast('Extend is on for this page. It takes effect the next time Claude builds it.');
+    else if(root.classList.contains('alto-lanes')) toast(v ? 'Extend on: the board grows up and down. ⌘Z puts it back.' : 'Extend off: the board fits the window. ⌘Z puts it back.');
     else toast(v ? 'Extend on: wide units scroll sideways. ⌘Z puts it back.' : 'Extend off: each unit fits the window. ⌘Z puts it back.');
   }
   function subtree(id){ var K = (window._ALTO_OUTLINE || {}).kids || {}, out = [id];

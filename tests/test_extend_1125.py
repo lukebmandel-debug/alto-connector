@@ -73,7 +73,7 @@ def test_the_owners_switch_folds_into_the_brief():
     brief = {"mode": "outline"}
     holder, f, kind = _target("pg|extend", brief, {}, [])
     assert (f, kind) == ("extend", "pgflag") and holder is brief
-    assert _target("pg|extend", {"mode": "lanes"}, {}, []) is None
+    assert _target("pg|extend", {"mode": "palace"}, {}, []) is None      # (a horizontal timeline takes it too: test_lanes_extend_1125)
 
 
 def test_place_nodes_turns_extend_on_and_off(tmp_path):
