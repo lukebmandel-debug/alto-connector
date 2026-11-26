@@ -509,3 +509,90 @@ def test_the_chip_and_the_pressed_switch_read_and_are_square_in_retro_and_holo(b
         ctx.close()
     finally:
         srv.shutdown()
+
+
+# ── a nested branch set out as an outline (the second tag) ───────────────────
+
+def _fam_geo(pg, root):
+    return pg.evaluate("""(root)=>{ var G=window._altoLanesGeo, K=G.kids, ids=G.fams[root]||[], w=document.getElementById('world');
+      var rn=document.getElementById('node-'+root).querySelector('.node-card').getBoundingClientRect();
+      return {ids:ids, W:w.offsetWidth, kids:ids.map(function(i){ return Object.assign({id:i}, K[i]); }),
+        tags:[].slice.call(document.querySelectorAll('.ln-chip,.ln-otag')).map(function(c){ var r=c.getBoundingClientRect(); return {cls:c.className, root:c.getAttribute('data-root'), t:c.textContent, h:r.height, pr:c.getAttribute('aria-pressed')}; })}; }""", root)
+
+
+def _rects(pg):
+    return pg.evaluate("""()=>[].slice.call(document.querySelectorAll('#world .node')).filter(function(n){ return getComputedStyle(n).display!=='none' && n.querySelector('.node-card'); }).map(function(n){
+      var r=n.querySelector('.node-card').getBoundingClientRect(); return {id:n.id.slice(5), x0:r.left, x1:r.right, y0:r.top, y1:r.bottom}; })""")
+
+
+def _overlaps(rs, tol=1):
+    bad = []
+    for i, a in enumerate(rs):
+        for b in rs[i + 1:]:
+            if a["x0"] < b["x1"] - tol and b["x0"] < a["x1"] - tol and a["y0"] < b["y1"] - tol and b["y0"] < a["y1"] - tol:
+                bad.append((a["id"], b["id"]))
+    return bad
+
+
+def test_the_outline_tag_is_only_on_an_open_branch_and_the_outline_follows_its_plan(browser, tmp_path):
+    pg, errs = _open(browser, _d(), tmp_path)
+    shut = _fam_geo(pg, "warning")
+    assert not [t for t in shut["tags"] if "ln-otag" in t["cls"]]          # shut: the hide/show tag only, no outline tag
+    pg.evaluate("window._altoLanesKids.open('warning', true)")
+    pg.wait_for_timeout(700)
+    g = _fam_geo(pg, "warning")
+    otags = [t for t in g["tags"] if "ln-otag" in t["cls"]]
+    assert [t["root"] for t in otags] == ["warning"] and otags[0]["pr"] == "false" and "outline" in otags[0]["t"]
+    pg.evaluate("window._altoLanesKids.outline('warning', true)")
+    pg.wait_for_timeout(900)
+    g = _fam_geo(pg, "warning")
+    assert [t["t"] for t in g["tags"] if "ln-otag" in t["cls"]] == ["☰ list"]
+    plan = pg.evaluate("()=>window._ALTO_LANES.out.warning")
+    k = {q["id"]: q for q in g["kids"]}
+    ref = "warn-terms"
+    for i, (dx, dy, w, par) in plan.items():
+        assert abs((k[i]["x"] - k[ref]["x"]) - (dx - plan[ref][0])) < 1.5, i        # the plan's own places (up to one shift of the whole fan)
+        assert abs((k[i]["y"] - k[ref]["y"]) - (dy - plan[ref][1])) < 1.5, i
+        assert k[i]["w"] == w
+    assert k["warn-lamp"]["x"] < k["warn-terms"]["x"] < k["warn-rock"]["x"]      # the sections side by side
+    assert not _overlaps(_rects(pg))
+    assert min(q["x"] - q["w"] / 2 for q in g["kids"]) >= 20 and max(q["x"] + q["w"] / 2 for q in g["kids"]) <= g["W"] - 20
+    assert not errs
+
+
+def test_an_outline_never_runs_under_another_open_family_of_its_row(browser, tmp_path):
+    pg, errs = _open(browser, _d(), tmp_path)
+    pg.evaluate("()=>{ var K=window._altoLanesKids; ['warning','council','logbooks'].forEach(function(r){ K.open(r,true); K.outline(r,true); }); }")
+    pg.wait_for_timeout(1000)
+    assert not _overlaps(_rects(pg))
+    assert not errs
+
+
+def test_a_branch_moved_by_hand_falls_back_to_the_column(browser, tmp_path):
+    pg, errs = _open(browser, _d(), tmp_path)
+    pg.evaluate("()=>{ var K=window._altoLanesKids; K.open('warning', true); K.outline('warning', true); }")
+    pg.wait_for_timeout(800)
+    assert any("ln-otag" in t["cls"] for t in _fam_geo(pg, "warning")["tags"])
+    pg.evaluate("()=>{ window._ALTO_LANES.ev['warn-rock'].p='warning'; window._altoLanesKids.open('warning', true); }")   # a card moved under another parent
+    pg.wait_for_timeout(800)
+    g = _fam_geo(pg, "warning")
+    assert not [t for t in g["tags"] if "ln-otag" in t["cls"]]
+    assert len({round(q["x"] - q["w"] / 2) for q in g["kids"] if q["parent"] == "warning"}) == 1      # one column again
+    assert not _overlaps(_rects(pg), 3)      # (the column's rows close up to 58px under a tight fit: the old rule, 2px under the 60px cards)
+
+
+def test_the_outline_collapses_cleanly_with_its_branch(browser, tmp_path):
+    pg, errs = _open(browser, _d(), tmp_path)
+    before = _rects(pg)
+    pg.evaluate("()=>{ var K=window._altoLanesKids; K.open('warning', true); K.outline('warning', true); }")
+    pg.wait_for_timeout(800)
+    pg.evaluate("()=>window._altoLanesKids.open('warning', false)")
+    pg.wait_for_timeout(800)
+    g = _fam_geo(pg, "warning")
+    assert not [t for t in g["tags"] if "ln-otag" in t["cls"]] and not [q for q in g["kids"] if "x" in q]
+    assert pg.evaluate("()=>window._altoLanesKids.outline('warning')") is False              # the choice is forgotten with the branch
+    assert pg.evaluate("()=>document.querySelectorAll('.node.ln-kid:not(.ln-kid-shut)').length") == 0
+    pg.evaluate("window._altoLanesKids.open('warning', true)")
+    pg.wait_for_timeout(700)
+    assert not [t for t in _fam_geo(pg, "warning")["tags"] if "ln-otag" in t["cls"] and t["pr"] == "true"]     # reopened as the column
+    assert not errs
