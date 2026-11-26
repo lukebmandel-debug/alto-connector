@@ -628,6 +628,41 @@ def _nest_of(n, by) -> str:
     return n.nest
 
 
+def _nest_outlines(nodes, by) -> dict:
+    """Each family's outline (the second way to open a nested branch): the shared outline tree layout (layout.outline_plan)
+    run over the family alone — its root on top, its children by level, sections side by side — at the child cards' fixed
+    size, so no browser measuring is needed. {root id: {member id: [dx, dy, w]}}: the card's centre across from the root's
+    centre, its centre's distance beyond the root card's far edge, its width."""
+    import copy
+    from .layout import outline_plan, run_plan
+    kid, fam = {}, {}
+    for n in nodes:
+        if _nest_of(n, by):
+            kid[n.id] = n.nest
+    for i in kid:
+        r, g = i, 0
+        while r in kid and g < 60:
+            r, g = kid[r], g + 1
+        fam.setdefault(r, []).append(i)
+    out = {}
+    for r, ids in fam.items():
+        try:
+            ns = []
+            for i in [r] + ids:
+                c = copy.copy(by[i])
+                c.parent = kid.get(i)
+                ns.append(c)
+            plan = outline_plan(ns, 1)
+            y, x, _ = run_plan(plan, ns, {c.id: 60 for c in ns})
+            if any(i not in x or i not in y for i in [r] + ids):
+                continue
+            lift = 70 - min(y[i] - y[r] - 60 for i in ids)     # (the first level always clears the hanging tag: 40px between the cards)
+            out[r] = {i: [round(x[i] - x[r]), round(y[i] - y[r] - 60 + lift), min(220, int(plan["w"].get(i, 220)))] for i in ids}
+        except Exception:                       # (a family the tree cannot lay out keeps its column: no second state)
+            continue
+    return out
+
+
 def lanes_payload(b, nodes) -> dict:
     """The page's data (docs/lanes-v2-contract.md), as a dict."""
     lines, of = chip_lines(b, nodes)
@@ -649,6 +684,9 @@ def lanes_payload(b, nodes) -> dict:
          "flashbacks": [{"id": fb["id"], "label": fb.get("label") or ""} for fb in b.flashbacks or []],
          "tf": [norm_flag(f) for f in b.time_flags or []],
          "bt": [norm_box(t) for t in b.box_tags or []]}
+    outl = _nest_outlines(nodes, by) if any("p" in e for e in ev.values()) else {}
+    if outl:
+        L["out"] = outl                     # (only a timeline with nested events carries it)
     return derive(L)
 
 
@@ -825,7 +863,7 @@ LANES_CSS = KEY_CSS + """
   /* child nodes (node.nest): tucked behind the parent in the Compact view, outline-style beyond it in the Expanded */
   html.alto-lanes:not(.mobile) #world .node.ln-kid-shut{display:none !important;}
   html.alto-lanes:not(.mobile) #world .node.ln-kid{z-index:7;}
-  html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused){width:220px !important;min-width:0 !important;max-width:220px !important;height:60px !important;
+  html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused){width:var(--kw,220px) !important;min-width:0 !important;max-width:var(--kw,220px) !important;height:60px !important;
     box-sizing:border-box;padding:8px 12px !important;overflow:hidden;}
   html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) :is(.node-desc,.node-footer,.node-summary,.lanes-when,.lanes-fchips){display:none !important;}
   html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) .node-tag{font-size:10px;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -833,16 +871,20 @@ LANES_CSS = KEY_CSS + """
   #lanes-svg .ln-kidline{stroke:color-mix(in srgb,var(--accent) 78%,var(--text));stroke-width:2;fill:none;stroke-opacity:.9;stroke-linecap:round;}
   #lanes-svg .ln-kiddot{fill:var(--accent);fill-opacity:.9;}
   /* the hide/show-inside control hangs off the card's far edge (under it, or over it on the upper side of the line): a tab outside the
-     card's text box, 20px tall, its hit area 44px (Luke, 2026-11-26: "should not be covering text in a node ... a hanging tag") */
-  .node-card .ln-chip{position:absolute;left:14px;z-index:3;font:700 10.5px/1 inherit;font-family:inherit;letter-spacing:.02em;padding:0 10px;height:20px;box-sizing:border-box;
+     card's text box, 20px tall, its hit area 44px (Luke, 2026-11-26: "should not be covering text in a node ... a hanging tag").
+     The second tag (.ln-otag) beside it sets an opened branch out as an outline. */
+  .node-card .ln-chip,.node-card .ln-otag{position:absolute;z-index:3;font:700 10.5px/1 inherit;font-family:inherit;letter-spacing:.02em;padding:0 10px;height:20px;box-sizing:border-box;
     display:flex;align-items:center;border:0;background:var(--accent);color:var(--surface,#fff);cursor:pointer;pointer-events:auto;white-space:nowrap;}
-  .node-card .ln-chip::before{content:'';position:absolute;left:-4px;right:-4px;top:-12px;bottom:-12px;}
-  .node.ln-sd1 .node-card .ln-chip{top:100%;margin-top:-1px;border-radius:0 0 9px 9px;}
-  .node.ln-sd-1 .node-card .ln-chip{bottom:100%;margin-bottom:-1px;border-radius:9px 9px 0 0;}
-  .node.focused .node-card .ln-chip{display:none;}
-  #canvas.ln-dimline .node[data-ln]:not(.ln-on) .ln-chip{opacity:.16;}
-  .node-card .ln-chip:hover{filter:brightness(1.12);}
-  .node-card .ln-chip:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
+  .node-card .ln-chip::before,.node-card .ln-otag::before{content:'';position:absolute;left:-4px;right:-4px;top:-12px;bottom:-12px;}
+  .node.ln-sd1 .node-card :is(.ln-chip,.ln-otag){top:100%;margin-top:-1px;border-radius:0 0 9px 9px;}
+  .node.ln-sd-1 .node-card :is(.ln-chip,.ln-otag){bottom:100%;margin-bottom:-1px;border-radius:9px 9px 0 0;}
+  .node-card .ln-chip{left:14px;}
+  .node-card .ln-otag{left:var(--ln-ox,110px);}
+  .node-card .ln-otag[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--surface,#fff);}
+  .node.focused .node-card :is(.ln-chip,.ln-otag){display:none;}
+  #canvas.ln-dimline .node[data-ln]:not(.ln-on) :is(.ln-chip,.ln-otag){opacity:.16;}
+  .node-card :is(.ln-chip,.ln-otag):hover{filter:brightness(1.12);}
+  .node-card :is(.ln-chip,.ln-otag):focus-visible{outline:2px solid var(--text);outline-offset:2px;}
   html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open){isolation:isolate;}
   html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open):not(.focused)::before,
   html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open):not(.focused)::after{content:'';position:absolute;z-index:-1;height:12px;background:var(--surface);
@@ -879,14 +921,14 @@ LANES_CSS = KEY_CSS + """
   @media print{#ln-offer{display:none !important;}}
   #ln-view[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
   /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
-  html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,#ln-view[aria-pressed=true]){color:#14122b;}
-  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,#ln-view){border-radius:0 !important;}
+  html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,.node-card .ln-otag,#ln-view[aria-pressed=true]){color:#14122b;}
+  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,.node-card .ln-otag,#ln-view){border-radius:0 !important;}
   /* the unpressed glyph carries the card rim in Retro (gold) and Holographic (cyan), 1px, same box (Art, 2026-11-05); pressed keeps its fill, which is the same colour */
   html.alto-retro #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #d9ae55;}
   html.alto-holo #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #4ff0e0;}
   #ln-view:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   html.mobile #ln-view,html.phone-whole #ln-view,html.detail-open #ln-view,html.printing #ln-view{display:none !important;}
-  @media print{#ln-view,.node-card .ln-chip{display:none !important;}}
+  @media print{#ln-view,.node-card .ln-chip,.node-card .ln-otag{display:none !important;}}
   /* the switch is a tab of the right rail, straight under Scene (Luke 2026-11-26): always in view, a rail tab's size and shape (Scene's, backgrounds.py);
      Retro keeps its square with the 1px rim, Holographic its rail's glass lens (holo.py S1, #tab-rail>button), pressed lit as before */
   #tab-rail > #ln-view{position:static;opacity:1;width:34px;height:34px;box-sizing:border-box;padding:0;margin:0;-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);box-shadow:0 10px 26px var(--node-rest-shadow);}
@@ -936,7 +978,7 @@ window._altoLanesGeo=null;
    its parent ("▾ n inside"; the chip, or Down, opens it); in the Expanded view it is always shown, outline-style from the
    parent on the far side of the line. It is never an event of the line (no dot, no stem, no step of the ← → path). ── */
 var KIDW=220, KIDH=60, KIDLY=70, KIDGAP=28, KIDIND=26;
-var OPEN={}, EXPD=false, PRINTX=false, KG=null, KC='', KSHOW=false;
+var OPEN={}, OUTL={}, EXPD=false, PRINTX=false, KG=null, KC='', KSHOW=false;
 var VK='alto-lanes-view-'+String(window._ALTO_LANES_PICK||'').replace(/^alto-lanes-pick-/,'');
 try{ EXPD=localStorage.getItem(VK)==='expanded'; }catch(e){}
 function kidsOn(){ return !de.classList.contains('mobile') && !de.classList.contains('phone-whole'); }
@@ -947,6 +989,19 @@ function expandedNow(){ return EXPD || PRINTX; }
 function openNow(root){ return expandedNow() || !!OPEN[root] || de.classList.contains('alto-editing'); }
 function kidShut(id){ return isKid(id) && !openNow(rootOf(id)); }
 function kidMap(ids){ var m={}; ids.forEach(function(id){ var p=nestOf(id); if(p && p!==id) (m[p]=m[p]||[]).push(id); }); return m; }
+/* a family opened as an outline (lanes.py _nest_outlines: the outline tree's layout over the family at the child cards' size);
+   only while its plan covers exactly the family's members now (a card moved by hand falls back to the column) */
+function outPlan(root, fam){ var o=(L.out||{})[root]; if(!o || !fam || Object.keys(o).length!==fam.length) return null; for(var i=0;i<fam.length;i++) if(!o[fam[i].id]) return null; return o; }
+function outOn(root, fam){ return !!OUTL[root] && !expandedNow() && !de.classList.contains('alto-editing') && !!outPlan(root, fam); }
+function outFan(o, ids){ var a=1e9, z=-1e9, d=0; ids.forEach(function(i){ var q=o[i]; if(!q) return; a=Math.min(a, q[0]-q[2]/2); z=Math.max(z, q[0]+q[2]/2); d=Math.max(d, q[1]+KIDH/2); }); return {l:a, r:z, d:d}; }
+/* where each family of a row starts, beyond the card's far edge: 0, but where an outline fills the row the families stand one under the next, left to right */
+function famOffs(order, kidH, kidO, X, sideOf, rowOf){
+  var vo={}, rows={}; order.forEach(function(id){ if(!kidH[id]) return; var k=sideOf[id]+'|'+rowOf[id]; (rows[k]=rows[k]||[]).push(id); });
+  Object.keys(rows).forEach(function(k){ var ids=rows[k]; if(!ids.some(function(i){ return kidO[i]; })) return;
+    ids.sort(function(a,b){ return X[a]-X[b]; }); var acc=0; ids.forEach(function(i){ vo[i]=acc; acc+=kidH[i]; }); });
+  return vo;
+}
+function fanShift(x, fa){ return Math.max(0, 24-(x+fa.l)); }      /* the fan keeps 24px clear of the board's left edge; to the right the board grows */
 function famOf(m, id, d, out){ (m[id]||[]).forEach(function(k){ out.push({id:k, d:d}); famOf(m, k, d+1, out); }); return out; }
 function med(a){ if(!a.length) return 0; a=a.slice().sort(function(x,y){ return x-y; }); var m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
 /* every event's time: dated as dated; undated spread evenly between the dated
@@ -1055,8 +1110,9 @@ function layoutLanes(h){
   var allIds=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id); });
   NODES.forEach(function(n){ if(allIds.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id)) allIds.push(n.id); });
   var kidIds=allIds.filter(function(id){ return isKid(id) && !hidEv(id); }), kids=kidMap(kidIds);
-  var kidH={}, anyKids=false;
-  order.forEach(function(id){ if(!openNow(id)) return; var f=famOf(kids, id, 1, []); if(f.length){ kidH[id]=KIDGAP+KIDLY*f.length-(KIDLY-KIDH); anyKids=true; } });
+  var kidH={}, kidO={}, anyKids=false;
+  order.forEach(function(id){ if(!openNow(id)) return; var f=famOf(kids, id, 1, []); if(f.length){ var o=outOn(id, f) ? outPlan(id, f) : null;
+    kidH[id]=o ? outFan(o, f.map(function(q){ return q.id; })).d+14 : KIDGAP+KIDLY*f.length-(KIDLY-KIDH); kidO[id]=!!o; anyKids=true; } });
   var idx={}; order.forEach(function(id,i){ idx[id]=i; });
   var w={}; order.forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card'); w[id]=c?c.offsetWidth:270; });
   var main={id:'main', label:L.main, color:'', side:'both'}, LB={main:main};
@@ -1230,8 +1286,10 @@ function layoutLanes(h){
   /* the Expanded view: a row's cards that have children make room beyond them, so the next row of cards starts clear of the
      deepest outline above it (a row with none keeps its pitch). The cap on the height is on the LINES, so this changes nothing there. */
   if(anyKids){
-    var mxk={'-1':[], '1':[]};
-    order.forEach(function(id){ if(kidH[id]){ var T=mxk[String(sideOf[id])], r=rowOf[id]; T[r]=Math.max(T[r]||0, kidH[id]); } });
+    var mxk={'-1':[], '1':[]}, rowO={'-1':[], '1':[]};
+    order.forEach(function(id){ if(kidH[id] && kidO[id]) rowO[String(sideOf[id])][rowOf[id]]=1; });
+    /* (a family set out as an outline is wide: the families of its row stack, one under the next, so none runs under another) */
+    order.forEach(function(id){ if(kidH[id]){ var sk=String(sideOf[id]), T=mxk[sk], r=rowOf[id]; T[r]=rowO[sk][r] ? (T[r]||0)+kidH[id] : Math.max(T[r]||0, kidH[id]); } });
     order.forEach(function(id){ var T=mxk[String(sideOf[id])], ex=0; for(var r=0;r<rowOf[id];r++) ex+=T[r]||0; offOf[id]+=ex; });
   }
   /* anything placed by x (a detour, the time axis, a squeezed stretch) moves as the events
@@ -1267,12 +1325,12 @@ function layoutLanes(h){
       x:xf, t:function(x){ var a=lo0-8*rg, b=hi0+8*rg; for(var k=0;k<48;k++){ var m=(a+b)/2; if(xf(m)<x) a=m; else b=m; } return (a+b)/2; }};
   })();
   boxRows(world, BTG, X, w, shiftAll, S, main);
-  var cy={};
+  var cy={}, VO=famOffs(order, kidH, kidO, X, sideOf, rowOf);
   order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||HR)/2); });
   var ys=[-16*mode.cz, 16*mode.cz, hasPast?pastY+30:0];
   L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-TH/2, l.y+TH/2); });
   order.forEach(function(id){ ys.push(cy[id]-(h[id]||HR)/2, cy[id]+(h[id]||HR)/2);
-    if(kidH[id]) ys.push(cy[id]+sideOf[id]*((h[id]||HR)/2+kidH[id])); });             // the Expanded view's outline, beyond the card
+    if(kidH[id]) ys.push(cy[id]+sideOf[id]*((h[id]||HR)/2+(VO[id]||0)+kidH[id])); });             // the Expanded view's outline, beyond the card
   /* the flags' lane: pennants in rows above everything (a flag that would overlap the one before it goes up a row) */
   var frows=flagRows(world, FLG), flTop=Math.min.apply(null,ys)-6;
   if(frows) ys.push(flTop-frows*FL_ROW);
@@ -1283,7 +1341,7 @@ function layoutLanes(h){
   /* the board's top where the room starts (the slack shared above and below); the page no taller than the canvas */
   var HXL=window._altoHXL||0, dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2+HXL : TOP+HXL-y0;   /* (HXL: a unit header that wrapped taller than its room, phone.py chips(): the board starts lower) */
   var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
-  order.forEach(function(id){ xe.push(X[id]+w[id]/2); });
+  order.forEach(function(id){ xe.push(X[id]+w[id]/2); if(kidO[id]){ var f=famOf(kids, id, 1, []), o=outPlan(id, f), fa=o && outFan(o, f.map(function(q){ return q.id; })); if(fa) xe.push(X[id]+fanShift(X[id], fa)+fa.r); } });
   var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl||hasBA)?AX+BOTTOM-56:24);
   if(room && y1-y0<=A) H=Math.max(y1-AX+dy+8, Math.min(H, room.ch-room.pt-WORLD_PAD_TOP));
   lines.forEach(function(l){ l.y+=dy; }); pastY+=dy; FLG.forEach(function(f){ f.y+=dy; });
@@ -1308,7 +1366,7 @@ function layoutLanes(h){
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
                        pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG, w:w, boxes:BTG, boxOff:Math.max(14, Math.min(28, fv('b0',u)/2.4))*mode.cz});
   units(world, order, X, w, H, W, main);
-  KG={order:order, X:X, pos:pos, w:w, h:h, sideOf:sideOf, kids:kids, kidIds:kidIds, P:WORLD_PAD_TOP};
+  KG={order:order, X:X, pos:pos, w:w, h:h, sideOf:sideOf, rowOf:rowOf, kidH:kidH, kidO:kidO, VO:VO, kids:kids, kidIds:kidIds, P:WORLD_PAD_TOP};
   placeKids();
   /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
      canvas less its top padding (the engine's place() would lay the page out again every 250ms) — its height corrected by
@@ -1383,7 +1441,7 @@ function layoutLanes(h){
 function placeKids(){
   var world=document.getElementById('world'), G=KG; if(!world) return;
   var svg=document.getElementById('lanes-svg'), old=svg && svg.querySelector('.ln-kids'); if(old) old.remove();
-  world.querySelectorAll('.ln-chip').forEach(function(c){ c.remove(); });
+  world.querySelectorAll('.ln-chip,.ln-otag').forEach(function(c){ c.remove(); });
   world.querySelectorAll('.node.ln-kid,.node.ln-has-kids').forEach(function(n){ n.classList.remove('ln-kid','ln-kid-shut','ln-has-kids','ln-open','ln-sd-1','ln-sd1'); });
   var geoK={}, fams={};
   if(G && kidsOn()){
@@ -1393,27 +1451,48 @@ function placeKids(){
       var rn=document.getElementById('node-'+root), rc=rn && rn.querySelector('.node-card'); if(!rn || !rc) return;
       fams[root]=fam.map(function(f){ return f.id; });
       var sd=G.sideOf[root], open=openNow(root), left0=G.X[root]-G.w[root]/2, far=G.pos[root]+P+sd*(G.h[root]||120)/2, r=0;
+      var op=open ? outPlan(root, fam) : null, ol=op && outOn(root, fam), fa=ol ? outFan(op, fam.map(function(q){ return q.id; })) : null, fs=fa ? fanShift(G.X[root], fa) : 0, vo=(G.VO||{})[root]||0, tops={};
       rn.classList.add('ln-has-kids', 'ln-sd'+sd); if(open) rn.classList.add('ln-open');
       if(!ex && !de.classList.contains('alto-editing')){
         var b=document.createElement('button'); b.type='button'; b.className='ln-chip'; b.setAttribute('data-root', root);
         b.textContent=(open ? '▴ hide' : '▾ '+fam.length+' inside');
         b.title=open ? 'Tuck the '+(fam.length===1 ? 'entry' : fam.length+' entries')+' back behind this card' : 'Open the '+(fam.length===1 ? 'entry' : fam.length+' entries')+' inside this card (or press Down)';
         b.setAttribute('aria-expanded', open ? 'true' : 'false'); rc.appendChild(b);
+        if(open && op){
+          var ob=document.createElement('button'); ob.type='button'; ob.className='ln-otag'; ob.setAttribute('data-root', root);
+          ob.textContent=ol ? '☰ list' : '⑂ outline'; ob.setAttribute('aria-pressed', ol ? 'true' : 'false');
+          ob.title=ol ? 'Stack the entries in one column again' : 'Set the entries out as an outline: each level fanned out under its parent, sections side by side';
+          rc.appendChild(ob); ob.style.setProperty('--ln-ox', (b.offsetWidth+14+8)+'px');
+        }
       }
       fam.forEach(function(f){
         var kn=document.getElementById('node-'+f.id), kc=kn && kn.querySelector('.node-card'); if(!kn || !kc) return;
         kn.classList.add('ln-kid'); kn.setAttribute('data-ln', (L.ev[f.id]||{}).l||'main');
         var lp=rn.getAttribute('data-lp'); if(lp) kn.setAttribute('data-lp', lp); else kn.removeAttribute('data-lp');
         if(!open){ kn.classList.add('ln-kid-shut'); return; }
-        var kl=left0+KIDIND*f.d, kx=kl+KIDW/2, kcy=far+sd*(KIDGAP+KIDH/2+r*KIDLY); r++;
-        kn.style.left=kx+'px'; kn.style.top=kcy+'px';
+        var q=ol ? op[f.id] : null, kw=q ? q[2] : KIDW;
+        var kl=q ? G.X[root]+fs+q[0]-kw/2 : left0+KIDIND*f.d, kx=kl+kw/2, kcy=q ? far+sd*(vo+q[1]) : far+sd*(KIDGAP+KIDH/2+r*KIDLY); r++;
+        kn.style.left=kx+'px'; kn.style.top=kcy+'px'; if(q) kn.style.setProperty('--kw', kw+'px'); else kn.style.removeProperty('--kw');
         var pid=nestOf(f.id), pl, pb;
-        if(pid===root){ pl=left0; pb=far; } else { var pg=geoK[pid]; pl=pg ? pg.x-KIDW/2 : left0; pb=pg ? pg.y+P+sd*KIDH/2 : far; }
-        geoK[f.id]={x:kx, y:kcy-P, w:KIDW, h:KIDH, root:root, parent:pid, d:f.d};
+        if(pid===root){ pl=left0; pb=far; } else { var pg=geoK[pid]; pl=pg ? pg.x-pg.w/2 : left0; pb=pg ? pg.y+P+sd*KIDH/2 : far; }
+        geoK[f.id]={x:kx, y:kcy-P, w:kw, h:KIDH, root:root, parent:pid, d:f.d};
+        if(q){ if(g){ var px=pid===root ? G.X[root] : (geoK[pid] ? geoK[pid].x : G.X[root]), pm=sd*(kcy-pb), ct=kcy-sd*KIDH/2;
+            (tops[pid]=tops[pid]||[]).push({id:f.id, x:kx, cy:kcy, ct:ct, px:px, pb:pb}); }
+          var nd0=NODES.filter(function(q2){ return q2.id===f.id; })[0]; if(nd0){ nd0.displayX=kx; nd0.y=kcy-P; } return; }
         var nd=NODES.filter(function(q){ return q.id===f.id; })[0]; if(nd){ nd.displayX=kx; nd.y=kcy-P; }
         if(g){ var rx=pl+12, rr=8;
           el('path',{'class':'ln-kidline', d:'M'+rx+' '+pb+' V'+(kcy-sd*rr)+' Q'+rx+' '+kcy+' '+(rx+rr)+' '+kcy+' H'+kl}, g);
           el('circle',{'class':'ln-kiddot', cx:kl, cy:kcy, r:3}, g); }
+      });
+      /* an outline's connectors: a card under its parent hangs from a bus halfway down the gap (a card on the parent's own row, a flank, from its side) */
+      if(ol && g) Object.keys(tops).forEach(function(pid){
+        var L0=tops[pid], pg=pid===root ? null : geoK[pid], pw=pg ? pg.w : G.w[root], below=L0.filter(function(t){ return sd*(t.ct-t.pb)>=0; }),
+            mid=below.length ? Math.min.apply(null, below.map(function(t){ return sd*(t.ct-t.pb); })) : 0, by=L0[0].pb+sd*mid/2;
+        L0.forEach(function(t){
+          if(sd*(t.ct-t.pb)<0){ var fx=t.x<t.px ? t.px-pw/2 : t.px+pw/2, tx=t.x<t.px ? t.x+(geoK[t.id].w/2) : t.x-(geoK[t.id].w/2);
+            el('path',{'class':'ln-kidline', d:'M'+fx+' '+(t.pb-sd*KIDH/2)+' H'+tx}, g); return; }
+          el('path',{'class':'ln-kidline', d:'M'+t.px+' '+t.pb+' V'+by+' H'+t.x+' V'+t.ct}, g);
+          el('circle',{'class':'ln-kiddot', cx:t.x, cy:t.ct, r:3}, g); });
       });
     });
   }
@@ -1511,7 +1590,15 @@ function setView(x){
   if(window._altoLanesRestV) window._altoLanesRestV();
   if(window._altoLanesCueLook) window._altoLanesCueLook();      // (Extend: the view stays on the main line as the board grows or shrinks)
 }
+function setOutline(root, on){        /* an opened branch as a list (one column) or as an outline */
+  var cv=document.getElementById('canvas'), n=document.getElementById('node-'+root), t0=n ? n.getBoundingClientRect().top : 0;
+  if(on) OUTL[root]=1; else delete OUTL[root];
+  relayoutNow();
+  if(cv && n){ var d=n.getBoundingClientRect().top-t0; if(Math.abs(d)>1) cv.scrollTop+=d; }
+  if(window._altoLanesCueLook) window._altoLanesCueLook();
+}
 function openFam(root, on){
+  if(!on) delete OUTL[root];
   if(!on && KC && rootOf(KC)===root) clearKC();
   var cv=document.getElementById('canvas'), n=document.getElementById('node-'+root), t0=n ? n.getBoundingClientRect().top : 0;
   if(on) OPEN[root]=1; else delete OPEN[root];
@@ -1521,7 +1608,7 @@ function openFam(root, on){
     if(k) try{ k.scrollIntoView({block:'nearest', inline:'nearest'}); }catch(e){} }
   if(window._altoLanesCueLook) window._altoLanesCueLook();
 }
-window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
+window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, outline:function(id, on){ var r=rootOf(id); if(arguments.length>1) setOutline(r, on!==false); return !!OUTL[r]; }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
   cursor:function(){ return KC; }, shut:kidShut, nest:nestOf,
   grown:function(){ return EXPD || Object.keys(OPEN).length>0; }};      /* (Extend's on while the board holds more than its main line: lanes_ext_js) */
 function clearKC(){ if(!KC) return; var n=document.getElementById('node-'+KC); if(n) n.classList.remove('ln-kc'); KC=''; }
@@ -2159,10 +2246,12 @@ function key(){
 window.addEventListener('load', function(){ setTimeout(key, 300); setTimeout(keyPick, 320); });
 /* ── child nodes: the chip, the keys, search, filters and print ────────────── */
 document.addEventListener('click', function(e){
+  var ob=e.target.closest && e.target.closest('.ln-otag');
+  if(ob && !de.classList.contains('alto-editing')){ e.stopPropagation(); e.preventDefault(); var rr=ob.getAttribute('data-root'); setOutline(rr, !OUTL[rr]); return; }
   var b=e.target.closest && e.target.closest('.ln-chip'); if(!b || de.classList.contains('alto-editing')) return;
   e.stopPropagation(); e.preventDefault(); var r=b.getAttribute('data-root'); openFam(r, !OPEN[r]);
 }, true);
-['pointerdown','mousedown'].forEach(function(t){ document.addEventListener(t, function(e){ if(e.target.closest && e.target.closest('.ln-chip')) e.stopPropagation(); }, true); });
+['pointerdown','mousedown'].forEach(function(t){ document.addEventListener(t, function(e){ if(e.target.closest && e.target.closest('.ln-chip,.ln-otag')) e.stopPropagation(); }, true); });
 /* Down opens the children of the event the path is on and lands on the first (then on the next, one at a time, in outline order);
    Up goes back out, to the parent; ← → carry on along the line from the parent; Enter opens the card; Esc tucks them away */
 document.addEventListener('keydown', function(e){
