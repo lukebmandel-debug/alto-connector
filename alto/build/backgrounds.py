@@ -655,7 +655,7 @@ UI_JS = r"""(function(){
     var rail=document.getElementById('tab-rail');
     if(RAIL && !mobile() && rail){
       rail.appendChild(tab);
-      new MutationObserver(function(){ if(rail.lastElementChild!==tab) rail.appendChild(tab); }).observe(rail,{childList:true});
+      new MutationObserver(function(){ var l=rail.lastElementChild; if(l && l.id==='ln-view') l=l.previousElementSibling; if(l!==tab) rail.appendChild(tab); }).observe(rail,{childList:true});   /* (a horizontal timeline's Compact | Expanded tab rides under it: lanes.py) */
     } else document.body.appendChild(tab);
     tab.addEventListener('click', function(e){ e.stopPropagation(); open(!panel.classList.contains('open')); });
     cls.addEventListener('click', function(){ open(false); });

@@ -501,8 +501,10 @@ def test_the_chip_and_the_pressed_switch_read_and_are_square_in_retro_and_holo(b
         sw = pg.evaluate(_INK, "#ln-view")                     # pressed: Expanded
         for name, r in (("chip", chip), ("switch", sw)):
             assert r["cr"] >= 4.5, (name, r)
-            if style in ("retro", "holo"):
+            if style == "retro" or (style == "holo" and name == "chip"):
                 assert r["radius"] == "0px", (name, r)
+            if style == "holo" and name == "switch":
+                assert r["radius"] == "999px", (name, r)                       # a rail tab: Holographic's glass lens (holo.py S1, #tab-rail>button)
         assert chip["radius"] != "0px" if style == "classic" else True
         ctx.close()
     finally:
