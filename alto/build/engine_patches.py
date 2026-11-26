@@ -2069,7 +2069,12 @@ html.mobile.rw #nav-drawer-header:not(#_){ padding-top:98px !important; height:a
 html.mobile.rw #detail-page:not(#_){ bottom:-140px !important; padding-bottom:240px !important; }
 html:is(.mobile,.phone-whole,.pmin) #summary-wrap:not(.open):not(#_):not(#__):not(#___){ border-color:transparent !important; box-shadow:none !important;
   background-clip:content-box !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
+html #summary-wrap:not(.open):not(#_):not(#__) #summary-inner{ visibility:hidden; transition:visibility 0s linear .45s; }
+html #summary-wrap.open:not(#_):not(#__){ background-image:linear-gradient(var(--panel-glass-bg,var(--nav-bg)),var(--panel-glass-bg,var(--nav-bg))),linear-gradient(var(--panel-glass-bg,var(--nav-bg)),var(--panel-glass-bg,var(--nav-bg))) !important; }
 </style>"""
+# (the shut Overview's words are hidden too: since 1.9.316 every page has an Overview, and its text, clipped but laid out under the bars, counted as card text
+# lit through a 72% layer, B-1126-OVERVIEW-SEETHRU; they show at once on opening and go 0.45 s after the close). The open panel's own layer is laid three times
+# (72% over 72% over 72%, ~98%) so the cards under it are a tint, never a second line of text; Retro and Holo's are already 97%.
 
 _RW_ANCHOR = '<script id="layout-settle">'
 _RW_NEW = runway_script() + _RW_ANCHOR
