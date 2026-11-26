@@ -13,7 +13,9 @@ sys.path.insert(0, str(ROOT))
 
 from tests.test_blueprint_enlarge import CARD, DESKTOP, _open, browser, site  # noqa: E402,F401
 
-STATE = r"""()=>{const s=document.querySelector('#bldg-root svg.bl-svg'), v=s.getAttribute('viewBox').split(' ').map(Number), r=s.getBoundingClientRect();
+# the view once the gesture has settled: during one the plan moves by a CSS transform and the viewBox is committed after (B-1126-BLUEPRINT)
+STATE = r"""async()=>{const s=document.querySelector('#bldg-root svg.bl-svg'); for(let i=0;i<60&&s.style.transform;i++) await new Promise(f=>setTimeout(f,20));
+ const v=s.getAttribute('viewBox').split(' ').map(Number), r=s.getBoundingClientRect();
  return {vb:v, r:{l:r.left,t:r.top,w:r.width,h:r.height}, sy:scrollY, sx:scrollX, k:v[2]/r.width};}"""
 
 # the plan point under (x, y), from a viewBox state (preserveAspectRatio meet: the root keeps the viewBox's aspect)
