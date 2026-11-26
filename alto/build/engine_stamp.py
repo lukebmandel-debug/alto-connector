@@ -23,8 +23,9 @@ META_ENGINE = "alto-engine"
 
 _TAG = re.compile(r'<meta name="%s" content="(\d+(?:\.\d+){0,3})"' % META_ENGINE)
 
-UPDATE_HOW = ("download the newest Alto from https://alto-get.web.app, open the "
-              "downloaded file to install it over this one, then restart Claude")
+UPDATE_HOW = ("ask Claude to run the update_alto tool (it downloads the newest Alto, checks it and opens it so Claude shows an Install button), "
+              "or download the newest file for your computer from https://github.com/lukebmandel-debug/alto-connector/releases/latest, "
+              "open it to install it over this one, then restart Claude")
 
 
 class StaleEngineError(Exception):
