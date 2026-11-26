@@ -793,6 +793,8 @@ LANES_CSS = KEY_CSS + """
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
     background:color-mix(in srgb,var(--surface) 80%,transparent);border:1.5px solid color-mix(in srgb,var(--unit-color) 45%,transparent);}
   .lanes-unit .lu-chip b{font-weight:800;margin-right:7px;}
+  html.alto-lanes:not(.mobile) #world .lanes-unit.lu-pinned{z-index:60;border-left-color:transparent;}
+  .lanes-unit .lu-chip.lu-pin{background:color-mix(in srgb,var(--surface) 96%,transparent);box-shadow:0 4px 14px rgba(0,0,0,.12);}   /* riding an edge (unitPin): nothing shows through */
   html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
   /* the most compact boards (the fit in LANES_JS): a card shows its title only, the labels are smaller, and at
@@ -1885,6 +1887,35 @@ function units(world, order, X, w, H, W){
   slab._ln={W:W, stops:stops}; slabX(slab);
   window._headerTint={slabTop:0, slabH:H, stops:[{p:0,c:PHASE_META[0].colorRaw},{p:100,c:PHASE_META[0].colorRaw}]};
   if(window.updateHeaderTint) try{ window.updateHeaderTint(); }catch(e){}
+  unitPinSoon();
+}
+/* the unit labels stay in view (Luke 2026-11-25: "unit labels in expanded horizontal timeline need to be visible at all
+   times"): a unit's label rides the top of the board when the view is scrolled down past it, and its left edge while the
+   unit runs on past that edge, until the next unit's label takes over (it never leaves its own unit). Below the bars at
+   the top and 20 px in from the left (clear of the key's toggle); its natural place whenever that is in view. */
+var UPIN=0;
+function unitPinSoon(){ if(!UPIN) UPIN=requestAnimationFrame(unitPin); }
+function unitPin(){
+  UPIN=0;
+  var world=document.getElementById('world'), c=document.getElementById('canvas'); if(!world || !c || de.classList.contains('mobile')) return;
+  var us=world.querySelectorAll('.lanes-unit'); if(!us.length) return;
+  if(!c._lnPin){ c._lnPin=1; c.addEventListener('scroll', unitPinSoon, {passive:true}); window.addEventListener('resize', unitPinSoon); }
+  var wr=world.getBoundingClientRect(), k=(world.offsetWidth && wr.width/world.offsetWidth)||1;
+  var kt=document.getElementById('key-toggle'), q=kt && kt.getBoundingClientRect(), ktOn=q && q.width && q.height && q.top<window.innerHeight/2 && getComputedStyle(kt).display!=='none';
+  var T=Math.max(ktOn ? q.bottom+10 : 0, (de.classList.contains('phone-whole') ? 44 : 104)+6);      /* (the foot of the bars at the top) */
+  [].forEach.call(us, function(u){
+    var ch=u.querySelector('.lu-chip'); if(!ch) return;
+    if(ch._l0==null){ ch._l0=parseFloat(ch.style.left)||14; ch._t0=22; }
+    var r=u.getBoundingClientRect(), cw=ch.offsetWidth, chh=ch.offsetHeight, uw=u.offsetWidth, uh=u.offsetHeight;
+    var y=Math.max(ch._t0, Math.min(uh-chh-22, (T-r.top)/k));
+    var L=ktOn && q.bottom>r.top+y*k-4 && q.top<r.top+(y+chh)*k+4 ? q.right+12 : 20;
+    if(window._altoLanesExtOn && window._altoLanesExtOn()) L=Math.max(L, 66);     // (clear of the quiet cue, 20 px in)
+    var x=Math.max(ch._l0, Math.min(uw-cw-14, (L-r.left)/k));
+    var xs=x.toFixed(1)+'px', ys=y.toFixed(1)+'px';
+    if(ch.style.left!==xs) ch.style.left=xs; if(ch.style.top!==ys) ch.style.top=ys;
+    var pin=y>ch._t0+1 || x>ch._l0+1; if(ch.classList.contains('lu-pin')!==pin) ch.classList.toggle('lu-pin', pin);
+    if(u.classList.contains('lu-pinned')!==pin) u.classList.toggle('lu-pinned', pin);      // (above the cards, like the bars: they pass behind it)
+  });
 }
 /* arrow keys: along a line ←/→ in time; ↑/↓ to the nearest event on the next line over */
 window._altoLanesNav=function(id, dir){
@@ -2155,7 +2186,7 @@ _EXT_SWAPS = (
     ("  var tt=mainAt(id)+P+off.y-lineHome(c,B);      // the main line stays where it rests, whatever this event's card or line does\n",
      "  var tt=mainAt(id)+P+off.y-lineHome(c,B);      // the main line stays where it rests, whatever this event's card or line does\n"
      "  if(window._altoLanesExtOn() && G.y && G.y[id]!=null){ var eh=(G.h&&G.h[id])||120, et=G.y[id]-eh/2+P+off.y, X=window._altoLanesExtRoom(), cr=c.getBoundingClientRect(), zz=zk(c),\n"
-     "      xt=Math.max(B.t,(X.t+52-cr.top)/zz), xb=Math.min(B.b,(X.b-52-cr.top)/zz);      // (clear of the fade before the bars)\n"
+     "      xt=Math.max(B.t,(X.t+8-cr.top)/zz), xb=Math.min(B.b,(X.b-8-cr.top)/zz);      // (clear of the bars)\n"
      "    if(et-tt<xt) tt=et-xt; else if(et+eh-tt>xb) tt=Math.min(et-xt, et+eh-xb); }\n"),
     # the cues' way up and down: a height the hand chose, as a trackpad's up and down sets it
     ("window._altoLanesCurrent=function(){ return current(); };",
@@ -2180,7 +2211,7 @@ window._altoLanesExtRoom=function(){
 """
 
 # the quiet cue: a small round arrow 20 px in from the left, on the side that has more, 44 px to touch on a phone;
-# the board fades out over 48 px before the bars instead of running under them.
+# the board runs to the top and bottom of the window, behind the bars and buttons as anywhere else (Luke 2026-11-25: no fade).
 LANES_EXT_TAIL = r"""
 (function(){
   var R=document.documentElement, cues={}, raf=0;
@@ -2216,25 +2247,6 @@ LANES_EXT_TAIL = r"""
     var k=(c.offsetWidth && c.getBoundingClientRect().width/c.offsetWidth)||1;      // (the page's zoom: a fixed box's px are the zoomed page's)
     ['-1','1'].forEach(function(d){ var e=cues[d]; e.style.left=(20/k).toFixed(2)+'px'; e.style.width=e.style.height=(34/k).toFixed(2)+'px'; });
     cues['-1'].style.top=((B.t+12)/k).toFixed(2)+'px'; cues['1'].style.top=((B.b-46)/k).toFixed(2)+'px';
-    fade(c, a ? B.t : -1, z ? B.b : -1);
-  }
-  /* the board fades out over 48 px before the bars (never text over the bars' text): each of the board's own pieces that
-     reaches a fade carries a mask in its own px; the frosted slab, the board's backdrop, never does. Only redone when
-     the view has moved up or down, or the board was laid out again */
-  var FADED=[], FK='';
-  function fade(c, t, b){
-    var w=document.getElementById('world'); if(!w) return;
-    var wr=w.getBoundingClientRect(), k=(w.offsetWidth && wr.width/w.offsetWidth)||1, key=[t,b,Math.round(wr.top),Math.round(k*1000),w.childElementCount,c.scrollTop].join();
-    if(key===FK) return; FK=key;
-    FADED.forEach(function(e){ e.style.webkitMaskImage=e.style.maskImage=''; }); FADED=[];
-    if(t<0 && b<0) return;
-    [].forEach.call(w.children, function(e){
-      if(e.id==='glass-slab') return; var r=e.getBoundingClientRect(); if(!r.height) return;
-      var up=t>=0 && r.top<t+48, dn=b>=0 && r.bottom>b-48; if(!up && !dn) return;
-      var ek=(e.offsetHeight && r.height/e.offsetHeight)||k, y=function(v){ return ((v-r.top)/ek).toFixed(1)+'px'; };
-      var m='linear-gradient(to bottom,'+(up ? 'transparent '+y(t)+',#000 '+y(t+48) : '#000 0px')+','+(dn ? '#000 '+y(b-48)+',transparent '+y(b) : '#000 100%')+')';
-      e.style.webkitMaskImage=e.style.maskImage=m; FADED.push(e);
-    });
   }
   function soon(){ if(!raf) raf=requestAnimationFrame(look); }
   function hook(){ make(); var c=cv(); if(c && !c._lnExtCue){ c._lnExtCue=1; c.addEventListener('scroll', soon, {passive:true}); } soon(); }
@@ -2242,7 +2254,7 @@ LANES_EXT_TAIL = r"""
   window.addEventListener('load',function(){ hook(); [400,1500,3500].forEach(function(t){ setTimeout(soon,t); }); });
   window.addEventListener('resize',function(){ setTimeout(soon,80); });
   if(window.MutationObserver) new MutationObserver(function(){ setTimeout(soon,60); }).observe(R,{attributes:true,attributeFilter:['class']});
-  window._altoLanesCueLook=function(f){ if(f) FK=''; soon(); };
+  window._altoLanesCueLook=function(){ soon(); };
 })();
 """
 

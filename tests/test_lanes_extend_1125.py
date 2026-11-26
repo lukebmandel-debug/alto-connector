@@ -2,7 +2,7 @@
 
 A page whose owner turned Extend on (brief.extend) skips the fit to the window: no eased gaps, no title-only cards,
 no smaller cards, no fitStage scale. One row of cards a side; the board grows up and down instead, the view travels
-there (a trackpad, a drag, the quiet cue 20 px in from the left), and the board fades out before the bars. Nested
+there (a trackpad, a drag, the quiet cue 20 px in from the left), and the board runs behind the bars to the window's edge. Nested
 children stay stacked beyond their parent; Compact | Expanded stays its own switch. The reader's switch beside Search
 (glyph up and down) folds it back to today's board, kept per page in this browser. Phones: upright unchanged,
 sideways (Whole view) gets it. A page without Extend carries LANES_JS byte for byte."""
@@ -163,7 +163,7 @@ def test_on_the_board_keeps_its_full_spacing_and_grows_up_and_down(site):
     t = pg.evaluate(ST)
     assert t["top"] > 150, t                                                         # it went down
     masked = pg.evaluate("() => [...document.querySelectorAll('#world > *')].filter(e => e.style.maskImage || e.style.webkitMaskImage).map(e => e.id)")
-    assert masked and "glass-slab" not in masked                                     # the board fades before the bars; its backdrop never does
+    assert not masked, masked                                                        # no fade: the board runs behind the bars to the window's edge (Luke 2026-11-25)
     assert not pg._errs, pg._errs
     ctx.close()
 
@@ -217,5 +217,35 @@ def test_phones_upright_unchanged_sideways_extended(site):
         assert s["on"] and not s["cz"] and not s["compact"], s                       # sideways: whole cards, full size
         row = pg.evaluate("() => { const r = document.getElementById('ext-drawer-row'); return r ? getComputedStyle(r).display : null; }")
         assert row is None or row != "none"
+    assert not pg._errs, pg._errs
+    ctx.close()
+
+
+# ── the unit labels stay in view (Luke 2026-11-25: "unit labels in expanded horizontal timeline need to be visible at all times") ──
+
+UNIT = """() => { const W = innerWidth, H = innerHeight;
+  return [...document.querySelectorAll('#world .lanes-unit')].map(u => { const r = u.getBoundingClientRect(), c = u.querySelector('.lu-chip').getBoundingClientRect();
+    return {ul: r.left, ur: r.right, l: c.left, r: c.right, t: c.top, b: c.bottom, pin: u.querySelector('.lu-chip').classList.contains('lu-pin')}; })
+    .filter(u => u.ur > 0 && u.ul < W); }"""
+
+
+@pytest.mark.parametrize("page", ["on", "plain"])
+def test_the_units_label_stays_in_view_down_and_along_the_board(site, page):
+    ctx, pg = _open(site, page, expanded=True)
+    pg.evaluate("() => { const o = document.getElementById('ln-offer'); if (o) o.remove(); }")
+    for _ in range(3):                                                   # along the line, into the middle of a unit
+        pg.keyboard.press("ArrowRight")
+        pg.wait_for_timeout(700)
+    pg.wait_for_timeout(1000)
+    if page == "on":
+        pg.evaluate("() => window._altoLanesVy(5000)")                    # and all the way down
+        pg.wait_for_timeout(1800)
+    us = pg.evaluate(UNIT)
+    lead = min(us, key=lambda u: u["ul"])                                 # the unit at the left edge
+    assert lead["t"] >= 104 and lead["b"] <= 900 - 62, lead              # below the bars at the top, in the window
+    assert lead["l"] >= 20 and lead["r"] <= 1440, lead                    # 20 px in from the left at least
+    assert lead["l"] >= lead["ul"] - 1 and lead["r"] <= lead["ur"] + 1, lead   # never out of its own unit
+    if page == "on":
+        assert lead["pin"] and lead["l"] >= 66 - 1, lead                  # riding the top, clear of the quiet cue
     assert not pg._errs, pg._errs
     ctx.close()
