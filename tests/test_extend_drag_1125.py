@@ -34,7 +34,8 @@ LEFT = "(i) => parseFloat(document.getElementById('node-' + i).style.left)"
 RIGHTMOST = """() => { let best = null, bx = -1; document.querySelectorAll('#world .node').forEach(n => { const c = n.querySelector('.node-card'); if (!c) return;
   const r = c.getBoundingClientRect(); if (r.top > 150 && r.bottom < 820 && r.right < 1400 && r.left > 0 && r.right > bx) { bx = r.right; best = n.id.slice(5); } }); return best; }"""
 SEEN = """(i) => { const r = document.querySelector('#node-' + i + ' .node-card').getBoundingClientRect();
-  return {l: r.left, r: r.right, xwide: document.documentElement.classList.contains('alto-xwide'), units: (window._altoUnits || []).length}; }"""
+  const t = document.getElementById('tab-rail'), q = t && t.getBoundingClientRect();
+  return {rail: q && q.width && q.left < innerWidth ? q.left : innerWidth, l: r.left, r: r.right, xwide: document.documentElement.classList.contains('alto-xwide'), units: (window._altoUnits || []).length}; }"""
 
 
 def _drag_past_right_edge(pg, card):
@@ -75,7 +76,7 @@ def test_a_card_dragged_past_the_edge_stays_out_there_and_survives_a_reload(exte
             l1 = pg.evaluate(LEFT, card)
             assert l1 - l0 > 500, (card, l0, l1)                                  # well past where the window's edge was
             seen = pg.evaluate(SEEN, card)
-            assert 0 <= seen["l"] and seen["r"] <= 1420, seen                     # and shown after the drop, not left under the rail
+            assert seen["l"] >= 20 and seen["r"] <= seen["rail"] - 20, seen  # shown after the drop, 20 px clear of the window's edge and the side rail
             if extend:
                 assert seen["units"] and not seen["xwide"], seen                 # its unit row reaches it; the board stays the window's width
             else:

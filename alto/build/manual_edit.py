@@ -4498,9 +4498,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     var LD = cancel === true || !f ? null : d.S ? landing(d) : {at: [d.wx, d.wy]}, L = LD && !LD.no && !LD.home && LD.at;
     if(L && UNITS()) window._altoShowId = d.id;                              // (the unit row is scrolled to show where it landed)
     var ok = L && commitMove(d.id, hk, f, L[0], L[1], false, LD.push);
-    if(ok && !UNITS()) setTimeout(function(){                                   // (dropped at the window's edge on a board that opened: scrolled into view, 60 px clear)
+    if(ok && !UNITS()) setTimeout(function(){                                   // (dropped at the window's edge on a board that opened: scrolled into view)
       var c = document.querySelector('#node-' + d.id + ' .node-card'), sc = d.sc || document.getElementById('canvas'); if(!c || !sc) return;
-      var r = c.getBoundingClientRect(), W = window.innerWidth, v = r.right > W - 60 ? r.right - (W - 60) : r.left < 60 ? r.left - 60 : 0;
+      var rl = document.getElementById('tab-rail'), rr = rl && rl.getBoundingClientRect(), W = rr && rr.width && rr.left < window.innerWidth ? rr.left : window.innerWidth;
+      var r = c.getBoundingClientRect(), v = r.right > W - 20 ? Math.ceil(r.right - (W - 24)) : r.left < 20 ? Math.floor(r.left - 24) : 0;   // (20 px clear of the side rail and the window's edges)
       if(v) sc.scrollBy({left: v, behavior: 'smooth'}); }, 650);
     clearPreview(); selCard(d.id);
     if(!ok && window._altoTreeGeo) window._altoSides(window._altoTreeGeo, window._altoTreeGeo.h);     // (room opened for a move not made closes again)

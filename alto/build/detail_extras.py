@@ -149,14 +149,14 @@ EDGE_GLUE = r"""
     });
     U=bands.filter(function(u){ return u.lo!=null; });
     U.forEach(function(u){
-      u.rail=rail; var a=u.lo-30, b=u.hi+rail;                                   // the unit's own extent: margin left, the side rail's room right
+      u.rail=rail; var a=u.lo-30, b=u.hi+rail+8;                                   // the unit's own extent: margin left, the side rail's room right
       if(b-a<=Vw){ u.min=u.max=u.ox=Math.round(((u.lo+u.hi)/2)-Vw/2); }                    // fits: centred, no scroll
       else { u.min=Math.round(a); u.max=Math.round(b-Vw); var h=u.hub!=null?u.hub:(u.lo+u.hi)/2;
         u.ox=Math.min(u.max,Math.max(u.min,Math.round(h-(Vw-rail)/2))); }                  // opens on the hub, clamped at the ends
       if(keep[u.top]!=null && u.max>u.min) u.ox=Math.min(u.max,Math.max(u.min,keep[u.top]));   // a rebuild (a card moved, the window resized) keeps the pan
       var sh=window._altoShowId&&document.getElementById('node-'+window._altoShowId);           // a card just dropped: scrolled into view, 20 px clear
       if(sh&&u.els.indexOf(sh)>=0&&u.max>u.min){ var sr=sh.getBoundingClientRect(), sl=(sr.left-W.left)/kk, sx=(sr.right-W.left)/kk;
-        if(sx-u.ox>Vw-rail-20) u.ox=sx-(Vw-rail-20); if(sl-u.ox<20) u.ox=sl-20; u.ox=Math.round(Math.min(u.max,Math.max(u.min,u.ox))); }
+        if(sx-u.ox>Vw-rail-8) u.ox=sx-(Vw-rail-8); if(sl-u.ox<20) u.ox=sl-20; u.ox=Math.round(Math.min(u.max,Math.max(u.min,u.ox))); }
       u.L=cue(u,'l'); u.R=cue(u,'r'); u.T=cue(u,'t'); apply(u);
     });
     window._altoUnits=U; if(window._altoShowId && !document.documentElement.classList.contains('alto-dragging')) setTimeout(function(){ window._altoShowId=null; },1500);
@@ -401,7 +401,9 @@ window._altoSides = function(R, h, lo, hi, least){
   if(lo!=null) mn=Math.min(mn,lo); if(hi!=null) mx=Math.max(mx,hi);
   var spare=Math.max(0,w.offsetLeft-S[0]);                      // (a window wider than the board has room beside it already)
   var M=window._altoSideMin||[0,0];                             // (Extend mode, manual_edit.py: open board standing each side)
-  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), ex=M[0]||M[1], X=Math.max(M[1],T.wide&&ex?T.wide:0,T.wide&&!ex?0:(mx>1700?Math.ceil(mx+40-1700):0));
+  var L=Math.max(least||0,M[0],mn<0?Math.ceil(40-mn-spare):0), ex=M[0]||M[1], wr=w.getBoundingClientRect(), kw=(w.offsetWidth&&wr.width/w.offsetWidth)||1, tr=document.getElementById('tab-rail'), rq=tr&&tr.getBoundingClientRect(),
+      rw=rq&&rq.width&&rq.left<innerWidth?(innerWidth-rq.left)/kw:0,                // (the side rail's width: the right-hand room keeps a card 20+ px clear of it)
+      X=Math.max(M[1],T.wide&&ex?T.wide:0,T.wide&&!ex?0:(mx+rw>1700?Math.ceil(mx+48+rw-1700):0));
   if(L<S[0]) L=Math.max(L,S[0]-Math.ceil(cv.scrollLeft)-2);    // (2: a zoomed page reports its scroll a px or so short)      // room closes only as far as the view can follow: nothing in view jumps
   if(window._altoUnitMode && window._altoUnitMode()){ L=0; X=0; }   // (Extend on: each unit scrolls sideways on its own, EDGE_GLUE; off: the board opens to reach a card dragged past its edge, Luke 2026-11-25)
   if(L===S[0] && X===S[1]) return S;
