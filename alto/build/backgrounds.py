@@ -680,7 +680,11 @@ UI_JS = r"""(function(){
 # class (their phone layout is a media query), so the tab sits on the right edge
 # there and the picker narrows to the screen on a phone.
 HOME_CSS = """
-html:not(.mobile) body > #bg-toggle{ position:fixed; right:0; top:calc(50% - 17px); z-index:300; }
+/* the Scene button stands in the corner row with the page's other controls (Luke, 2026-11-26: "problem with scene toggle freefloating"; it sat alone on the
+   right edge, halfway down): the same round tile, one step left of Search, its place read from Search and Info by HOME_JS (this is the place before it runs) */
+html:not(.mobile) body > #bg-toggle{ position:fixed; right:166.5px; bottom:24px; top:auto; width:35px; height:35px; border:1px solid var(--card-glass-border, var(--border));
+  border-radius:50%; z-index:300; box-shadow:none; }
+@media (min-width:641px){ html:not(.mobile) #search-btn.expanded ~ #bg-toggle{ opacity:0; pointer-events:none; } }
 /* the open Info guide (20px in from the edge, clear of every button) takes the Scene button's place on a computer: the button, 20px in as well, stands aside while it is open (as it does for an open Search pill) */
 @media (min-width:641px){ html:not(.mobile):has(#info-btn.expanded) body > #bg-toggle{ opacity:0; pointer-events:none; } }
 @media (max-width:640px){
@@ -709,10 +713,24 @@ html:not(.mobile) body > #bg-toggle{ position:fixed; right:0; top:calc(50% - 17p
 """
 
 
+HOME_JS = r"""(function(){
+  var de=document.documentElement;
+  function put(){ var s=document.getElementById('search-btn'), i=document.getElementById('info-btn'), b=document.getElementById('bg-toggle');
+    if(!s||!i||!b||de.classList.contains('mobile')||s.classList.contains('expanded')||i.classList.contains('expanded')||innerWidth<641) return;
+    var a=s.getBoundingClientRect(), c=i.getBoundingClientRect(), zb=b.offsetWidth?b.getBoundingClientRect().width/b.offsetWidth:1; if(!a.width||!zb||!(c.left>a.left)) return;   /* (the neighbours carry the page's zoom, this button may not: screen px to its own css px) */
+    var w=a.width/zb, st=b.style; st.setProperty('width',w+'px','important'); st.setProperty('height',w+'px','important'); st.setProperty('top','auto','important');
+    st.setProperty('right',((innerWidth-(a.left-(c.left-a.left)+a.width))/zb)+'px','important'); st.setProperty('bottom',((innerHeight-a.bottom)/zb)+'px','important'); }
+  var t=0; function soon(){ clearTimeout(t); t=setTimeout(put,60); }
+  addEventListener('resize',soon); addEventListener('load',soon); setTimeout(put,300); setTimeout(put,1200);
+  if(typeof MutationObserver==='function') new MutationObserver(soon).observe(de,{attributes:true,attributeFilter:['class']});
+})();"""
+
+
 def ui_block(label: str, rail: bool) -> str:
     """The Background tab and picker: <style> + <script>, for the end of <body>.
     `label` says whose background this is; `rail` puts the tab in the timeline's
     right-edge rail (the homepage has none)."""
     js = UI_JS.replace("__LABEL__", json.dumps(label)).replace("__RAIL__", "true" if rail else "false")
     return ('<style id="alto-bg-css">' + _lean(CSS + UI_CSS + ("" if rail else HOME_CSS), css=True) + "</style>\n"
-            '<script id="alto-bg-ui">' + _lean(js) + "</script>")
+            '<script id="alto-bg-ui">' + _lean(js) + "</script>"
+            + ("" if rail else '<script id="alto-bg-home">' + _lean(HOME_JS) + "</script>"))
