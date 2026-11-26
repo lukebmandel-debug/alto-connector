@@ -832,8 +832,15 @@ LANES_CSS = KEY_CSS + """
   html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) .node-title{font-size:13px;line-height:1.2;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;}
   #lanes-svg .ln-kidline{stroke:color-mix(in srgb,var(--accent) 78%,var(--text));stroke-width:2;fill:none;stroke-opacity:.9;stroke-linecap:round;}
   #lanes-svg .ln-kiddot{fill:var(--accent);fill-opacity:.9;}
-  .node-card .ln-chip{position:absolute;right:8px;bottom:8px;z-index:3;font:700 10.5px/1 inherit;font-family:inherit;letter-spacing:.02em;padding:4px 9px;border-radius:999px;border:0;
-    background:var(--accent);color:var(--surface,#fff);cursor:pointer;pointer-events:auto;white-space:nowrap;}
+  /* the hide/show-inside control hangs off the card's far edge (under it, or over it on the upper side of the line): a tab outside the
+     card's text box, 20px tall, its hit area 44px (Luke, 2026-11-26: "should not be covering text in a node ... a hanging tag") */
+  .node-card .ln-chip{position:absolute;left:14px;z-index:3;font:700 10.5px/1 inherit;font-family:inherit;letter-spacing:.02em;padding:0 10px;height:20px;box-sizing:border-box;
+    display:flex;align-items:center;border:0;background:var(--accent);color:var(--surface,#fff);cursor:pointer;pointer-events:auto;white-space:nowrap;}
+  .node-card .ln-chip::before{content:'';position:absolute;left:-4px;right:-4px;top:-12px;bottom:-12px;}
+  .node.ln-sd1 .node-card .ln-chip{top:100%;margin-top:-1px;border-radius:0 0 9px 9px;}
+  .node.ln-sd-1 .node-card .ln-chip{bottom:100%;margin-bottom:-1px;border-radius:9px 9px 0 0;}
+  .node.focused .node-card .ln-chip{display:none;}
+  #canvas.ln-dimline .node[data-ln]:not(.ln-on) .ln-chip{opacity:.16;}
   .node-card .ln-chip:hover{filter:brightness(1.12);}
   .node-card .ln-chip:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
   html.alto-lanes:not(.mobile) #world .node.ln-has-kids:not(.ln-open){isolation:isolate;}
@@ -873,7 +880,7 @@ LANES_CSS = KEY_CSS + """
   #ln-view[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
   /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
   html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,#ln-view[aria-pressed=true]){color:#14122b;}
-  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,#ln-view){border-radius:0;}
+  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,#ln-view){border-radius:0 !important;}
   /* the unpressed glyph carries the card rim in Retro (gold) and Holographic (cyan), 1px, same box (Art, 2026-11-05); pressed keeps its fill, which is the same colour */
   html.alto-retro #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #d9ae55;}
   html.alto-holo #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #4ff0e0;}
@@ -928,7 +935,7 @@ window._altoLanesGeo=null;
 /* ── child nodes (node.nest, lanes.py): an event nested under another of its line. In the Compact view it is tucked behind
    its parent ("▾ n inside"; the chip, or Down, opens it); in the Expanded view it is always shown, outline-style from the
    parent on the far side of the line. It is never an event of the line (no dot, no stem, no step of the ← → path). ── */
-var KIDW=220, KIDH=60, KIDLY=70, KIDGAP=14, KIDIND=26;
+var KIDW=220, KIDH=60, KIDLY=70, KIDGAP=28, KIDIND=26;
 var OPEN={}, EXPD=false, PRINTX=false, KG=null, KC='', KSHOW=false;
 var VK='alto-lanes-view-'+String(window._ALTO_LANES_PICK||'').replace(/^alto-lanes-pick-/,'');
 try{ EXPD=localStorage.getItem(VK)==='expanded'; }catch(e){}
