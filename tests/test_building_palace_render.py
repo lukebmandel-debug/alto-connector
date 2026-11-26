@@ -74,7 +74,7 @@ def test_the_blueprint_draws_the_plan_with_its_tabs_rooms_and_pills(browser, htm
         assert page.evaluate("AltoBuilding.ready.then(p => p.id)") == "test-pavilion"
         tabs = page.eval_on_selector_all("#bldg-root .bl-tab", "els => els.map(e => e.textContent)")
         assert sorted(tabs) == ["1"] + (["All"] if BLUEPRINT_ALL_FLOORS else []) + ["G", "Outside"]
-        assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').textContent") == "Outside"
+        assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').textContent") == ("All" if BLUEPRINT_ALL_FLOORS else "Outside")   # B-1126: opens on All floors
         page.click("#bldg-root .bl-tab[data-level=g]")
         assert page.locator("#bldg-root .bl-room").count() == 2
         assert sorted(page.eval_on_selector_all("#bldg-root .bl-pill b", "els => els.map(e => e.textContent)")) == ["1.1", "1.1-1", "1.2"]

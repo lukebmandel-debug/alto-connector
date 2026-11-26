@@ -244,13 +244,16 @@ def test_on_a_phone_the_plan_is_never_under_the_dock(browser, w, h, preview):
     try:
         page.evaluate("document.documentElement.classList.add('mobile'%s); dispatchEvent(new Event('resize'))" % (", 'bl-dock-phone'" if preview else ""))
         page.wait_for_timeout(400)
+        # one floor, then another (since B-1126 the blueprint opens on All floors, whose phone grid is fitted to the width and pans down past any bar by design;
+        # the html.bl-dock-phone dock is a preview class no page sets)
+        page.evaluate("AltoBuilding.selectLevel((AltoBuilding.plan.sp||{}).l||document.querySelector('#bldg-root .bl-tab:not([data-level=outside]):not([data-level=all])').dataset.level)")
         for _ in range(2):
             _fit(page)
             page.wait_for_timeout(300)
             g = page.evaluate(PHONE)
             assert g["shown"] == preview and g["nctl"] >= 1 and g["nrooms"] > 5, g
             assert g["under"] == 0 and g["docW"] <= g["W"] + 1, g
-            page.evaluate("AltoBuilding.selectLevel([...document.querySelectorAll('#bldg-root .bl-tab:not(.on)')].pop().dataset.level)")   # and on another floor
+            page.evaluate("AltoBuilding.selectLevel([...document.querySelectorAll('#bldg-root .bl-tab:not(.on):not([data-level=all])')].pop().dataset.level)")   # and on another floor
         assert errors == []
     finally:
         page.close()

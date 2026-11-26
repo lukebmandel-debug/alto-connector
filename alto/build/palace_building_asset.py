@@ -58,7 +58,7 @@ BUILDING_CSS = r"""
   color:var(--bl-text);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;}
 html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);--bl-glass:rgba(255,255,255,.07);--bl-glass-edge:rgba(255,255,255,.2);}
 #bldg-root[hidden]{display:none;}
-#bldg-root svg.bl-svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+#bldg-root svg.bl-svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;transform-origin:0 0;overflow:visible;}   /* (a gesture moves the drawn plan as one picture, see applyVB; #bldg-root clips it; its px are css px, under the page's zoom) */
 #bldg-root svg.bl-svg.bl-drag{cursor:grabbing;}
 #bldg-root .bl-grid{stroke:var(--bl-ink);stroke-opacity:.06;stroke-width:1;vector-effect:non-scaling-stroke;}
 #bldg-root .bl-tube,#bldg-root .bl-sheen{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
@@ -571,7 +571,7 @@ function labWrap(name,maxW,px){ // the name in up to three lines no wider than m
 function labels(){
   var sets=S.labelSets; if(!sets||!sets.length||!S.vb||!S.svg) return;
   sets.forEach(function(q){ while(q.g.firstChild) q.g.removeChild(q.g.firstChild); });
-  var rw=S.svg.getBoundingClientRect().width||S.root.clientWidth||1, k=rw/S.vb[2], px=LAB_PX; if(px<LAB_MIN) return;
+  var rw=svgBox().width||S.root.clientWidth||1, k=rw/S.vb[2], px=LAB_PX; if(px<LAB_MIN) return;
   labStyle(sets[0].g,k);
   var items=[], sc0=scr();
   sets.forEach(function(q){ q.rooms.forEach(function(r){
@@ -766,8 +766,9 @@ function layoutPills(glide){ // once a gesture settles: the places of the number
     if(!!p._dot!==!!o.dot){ p._dot=!!o.dot; p.classList.toggle('bl-dot',p._dot); if(!p._dot) p.classList.remove('bl-peek'); } if(p._dot) on=false;
     if((p._bd||0)!==(o.badge||0)){ p._bd=o.badge||0; p.classList.toggle('bl-badge',!!p._bd); p.firstChild.textContent=p._bd?String(p._bd):String(p._n.n); p.setAttribute('title',p._bd?(p._bd+' cards in this room'):(p._n.n+'  '+dec(p._n.t))); }
     p._tOn=on; if(on) box[i][2]=wT; p._o1=[o.dx,o.dy]; p._w1=on?wT:wF; p._o0=p._o; p._w0=p._w||p._w1; p.classList.toggle('bl-t', on); });
-  labelsSoon();   // the labels keep clear of where the chips have settled
+  if(!all||!glide) labelsSoon();   // the labels keep clear of where the chips have settled (All floors, gliding: once the glide ends, below; there the names take ~100 ms, and begun in the glide's first frame they made every chip jump)
   if(!glide){ step(1); return; }
+  if(all){ cancelAnimationFrame(S.lpR); S.lpR=requestAnimationFrame(function(){ S.lpR=0; AltoMarkers.glide(S.mk, step); }); return; }   // (All floors: the glide's clock starts after the frame that draws this placing, ~30 ms of it, or its first step is a jump)
   AltoMarkers.glide(S.mk, step);
   function step(k){ // where each chip is k of the way from where it stood to its new place (and width); its anchor read afresh each frame
     S.chips.forEach(function(p){ var w=p._w0+(p._w1-p._w0)*k; p._o=[p._o0[0]+(p._o1[0]-p._o0[0])*k, p._o0[1]+(p._o1[1]-p._o0[1])*k];
@@ -825,16 +826,23 @@ function clampPan(){ // the drawing can be pushed off by a drag, never out of re
   var fa=S.level==='all'&&S.fitAll;   // (All floors: where the fit put the grid, between the bars, is always within reach)
   [[0,2],[1,3]].forEach(function(a){ var i=a[0], j=a[1], m=v[j]*.4, lo=h[i]-m, hi=h[i]+h[j]-v[j]+m; if(fa){ lo=Math.min(lo,fa[i]); hi=Math.max(hi,fa[i]); } v[i]=hi<lo?(lo+hi)/2:Math.max(lo,Math.min(hi,v[i])); });
 }
-function applyVB(){ // keep the drawing's aspect equal to the viewport's
+/* Luke B-1126-BLUEPRINT ("moving around on all levels to be glitchy"): every frame of a pan or zoom used to set the svg's viewBox, so WebKit laid out the
+   whole plan again (All floors: ~3,000 shapes, 20 ms of layout forced by the chips' next read) and the room names were rebuilt (up to 50 ms in landscape).
+   Now a gesture (live) only moves the drawn plan as one picture by a CSS transform from the last committed viewBox; the viewBox, and the names, are
+   committed once the gesture settles (or at once for any call that is not a gesture). The chips follow S.vb every frame as before. */
+function commitVB(noLab){ if(!S.vb||!S.svg) return; S.svg.style.transform=''; S.svg.style.willChange=''; S.svg.setAttribute('viewBox',S.vb.map(function(v){ return Math.round(v*1e4)/1e4; }).join(' ')); S.vbC=S.vb.slice(); var q=svgBox(); S.vbW=Math.max(1,q.width)+'x'+Math.max(1,q.height); S.vbZ=pageZ(); if(!noLab) labelsSoon(); }
+function svgBox(){ return S.root.getBoundingClientRect(); }   // the svg fills #bldg-root: its box without a gesture's transform
+function applyVB(live){ // keep the drawing's aspect equal to the viewport's
   if(!S.vb||!S.svg) return;
   var r=S.root.getBoundingClientRect(), W=Math.max(1,r.width), H=Math.max(1,r.height), vb=S.vb, asp=W/H;
   var w=vb[2], hh=vb[3];
   if(w/hh<asp){ var nw=hh*asp; vb[0]-=(nw-w)/2; vb[2]=nw; } else { var nh=w/asp; vb[1]-=(nh-hh)/2; vb[3]=nh; }
   clampPan();
   headSlide();
-  S.svg.setAttribute('viewBox',vb.map(function(v){ return Math.round(v*1e4)/1e4; }).join(' '));
-  if(S.mkSet){ AltoMarkers.stop(S.mk); S.mkSet.poke(); movePills(); } else layoutPills(false);
-  labelsSoon();
+  var c=S.vbC;
+  if(live&&c&&S.mkSet&&S.vbW===W+'x'+H){ var k=c[2]/vb[2]; S.svg.style.willChange='transform'; S.svg.style.transform='translate('+((c[0]-vb[0])*W/vb[2]/S.vbZ).toFixed(2)+'px,'+((c[1]-vb[1])*H/vb[3]/S.vbZ).toFixed(2)+'px) scale('+k.toFixed(5)+')'; }
+  else commitVB();
+  if(S.mkSet){ AltoMarkers.stop(S.mk); if(S.lpR){ cancelAnimationFrame(S.lpR); S.lpR=0; } S.mkSet.poke(); movePills(); } else layoutPills(false);
   enlPlace();
 }
 
@@ -1179,6 +1187,7 @@ function build(){
   var en=(plan.en||[]).filter(function(e){ return e.k==='main'; })[0]||(plan.en||[])[0];
   if(en&&lv.some(function(l){ return l.id===en.l; })&&!(plan.ex&&(plan.ex.sh||[]).length)) S.level=en.l;
   if(plan.sp&&levelOf(plan.sp.l)) S.level=plan.sp.l;                                  /* open where the walk starts, not on an empty outline */
+  if(ALLF_ON&&lv.length>1) S.level='all';                                             /* a blueprint opens on All floors (Luke B-1126-BLUEPRINT: "start off showing all levels") */
   while(S.head.firstChild) S.head.removeChild(S.head.firstChild);
   var nm=dec(plan.name||A.data.name||'Building'), bar=h('div',{'class':'bl-hbar'},S.head), gr=S.grip=h('button',{'class':'bl-hb bl-grip',type:'button','aria-label':'Move the blueprint label (drag, or arrow keys)',title:'Move'},bar);
   gr.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
@@ -1252,7 +1261,7 @@ function keys(){ // +/- zoom, 0 fit, 1-9 floors, O outside, C cards, K key, W wa
   document.addEventListener('keydown',function(e){
     if(!S.root||S.root.hidden||e.metaKey||e.ctrlKey||e.altKey||document.documentElement.classList.contains('detail-open')) return;
     var t=e.target, tn=t&&t.tagName; if(tn==='INPUT'||tn==='TEXTAREA'||tn==='SELECT'||(t&&t.isContentEditable)) return;
-    var k=e.key, r=S.svg.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, ok=true, lvb;
+    var k=e.key, r=svgBox(), cx=r.left+r.width/2, cy=r.top+r.height/2, ok=true, lvb;
     if(k==='+'||k==='=') zoomGlide(.7,cx,cy); else if(k==='-'||k==='_'||k==='\u2212') zoomGlide(1.4,cx,cy);
     else if(k==='0'){ cancelAnimationFrame(S.zg); fit(); applyVB(); }
     else if(/^[1-9]$/.test(k)){ lvb=S.tabs.querySelectorAll('.bl-tab:not([data-level="outside"]):not([data-level="all"])')[+k-1]; if(lvb) lvb.click(); else ok=false; }
@@ -1266,12 +1275,12 @@ function keys(){ // +/- zoom, 0 fit, 1-9 floors, O outside, C cards, K key, W wa
   });
 }
 function zoom(f,cx,cy){ // cx,cy in client px
-  var r=S.svg.getBoundingClientRect(), vb=S.vb; if(!vb) return;
+  var r=svgBox(), vb=S.vb; if(!vb) return;
   var px=vb[0]+(cx-r.left)/r.width*vb[2], py=vb[1]+(cy-r.top)/r.height*vb[3];
   var nw=Math.max(4,Math.min(S.home[2]*4,vb[2]*f)), k=nw/vb[2];
-  vb[0]=px-(px-vb[0])*k; vb[1]=py-(py-vb[1])*k; vb[2]*=k; vb[3]*=k; applyVB();
+  vb[0]=px-(px-vb[0])*k; vb[1]=py-(py-vb[1])*k; vb[2]*=k; vb[3]*=k; applyVB(true);
 }
-function pan(dx,dy){ var r=S.svg.getBoundingClientRect(), vb=S.vb; if(!vb||!r.width) return; vb[0]+=dx/r.width*vb[2]; vb[1]+=dy/r.height*vb[3]; applyVB(); }   // screen px
+function pan(dx,dy){ var r=svgBox(), vb=S.vb; if(!vb||!r.width) return; vb[0]+=dx/r.width*vb[2]; vb[1]+=dy/r.height*vb[3]; applyVB(true); }   // screen px
 function zoomGlide(f,cx,cy){ // the + and - buttons: the same zoom, eased over a moment instead of one jump
   cancelAnimationFrame(S.zg); var t0=performance.now(), done=0, ms=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches?1:240;
   (function step(t){ var u=Math.min(1,(t-t0)/ms), e=1-Math.pow(1-u,3); zoom(Math.exp(Math.log(f)*(e-done)),cx,cy); done=e; if(u<1) S.zg=requestAnimationFrame(step); })(t0);
@@ -1295,13 +1304,13 @@ function wire(){
   });             // (the pointer is captured only once a drag starts: capturing at once would send the click to the svg, not to the room or pill)
   both('pointermove',function(e){
     if(!pts[e.pointerId]) return; pts[e.pointerId]={x:e.clientX,y:e.clientY};
-    var ids=Object.keys(pts), r=svg.getBoundingClientRect();
+    var ids=Object.keys(pts), r=svgBox();
     if(ids.length>=2){ var d=pinch(); S.zt=performance.now(); if(S.drag&&S.drag.d&&d){ zoom(S.drag.d/d,mid().x,mid().y); S.drag.d=d; S.moved=true; } return; }
     var dx=e.clientX-S.drag.x, dy=e.clientY-S.drag.y;
     if(!S.moved && Math.hypot(dx,dy)<5) return;
     if(!S.moved){ try{ svg.setPointerCapture(e.pointerId); }catch(x){} }
     S.moved=true; svg.classList.add('bl-drag');
-    var vb=S.drag.vb; S.vb[0]=vb[0]-dx/r.width*vb[2]; S.vb[1]=vb[1]-dy/r.height*vb[3]; S.vb[2]=vb[2]; S.vb[3]=vb[3]; applyVB();
+    var vb=S.drag.vb; S.vb[0]=vb[0]-dx/r.width*vb[2]; S.vb[1]=vb[1]-dy/r.height*vb[3]; S.vb[2]=vb[2]; S.vb[3]=vb[3]; applyVB(true);
   });
   function up(e){ delete pts[e.pointerId]; svg.classList.remove('bl-drag'); if(!Object.keys(pts).length) setTimeout(function(){ S.moved=false; },0); if(S.drag) S.drag.d=0; }
   both('pointerup',up); both('pointercancel',up);
@@ -1327,7 +1336,7 @@ A.mount=function(data){
     var best=null, bd=22*22+1; (S.chips||[]).forEach(function(p){ if(!p._dot||p.classList.contains('bl-off')) return; var b=p.getBoundingClientRect(); if(!b.width) return;
       var dx=e.clientX-(b.left+b.right)/2, dy=e.clientY-(b.top+b.bottom)/2, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=p; } });
     if(!best) return; e.stopPropagation(); e.preventDefault(); S.hitBusy=true; try{ best.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})); }finally{ S.hitBusy=false; } },true);
-  S.svg.setAttribute('data-not-chrome',''); S.mk=h('div',{'class':'bl-mk','data-not-chrome':''},root); S.chips=[]; S.mkSet=AltoMarkers.settle(function(){ layoutPills(true); },170);   // (the plan and its chips are not chrome to an enlarged card's safe box)
+  S.svg.setAttribute('data-not-chrome',''); S.mk=h('div',{'class':'bl-mk','data-not-chrome':''},root); S.chips=[]; S.mkSet=AltoMarkers.settle(function(){ var all=S.level==='all'; commitVB(all); cancelAnimationFrame(S.lpR); S.lpR=requestAnimationFrame(function(){ S.lpR=requestAnimationFrame(function(){ S.lpR=0; layoutPills(true); }); }); },170);   // (the chips' glide starts once the committed plan is drawn: begun in that one heavy frame, its first step was a jump; All floors: the names are redrawn once the glide ends)   // (the plan and its chips are not chrome to an enlarged card's safe box)
   AltoMarkers.reg('bldg',function(){ if(!S.vb||S.root.hidden) return []; var r=S.root.getBoundingClientRect(), z=r.width/(S.root.clientWidth||1), t=scr();   // tests: chips and anchors in client px
     return S.chips.map(function(p){ var b=p.getBoundingClientRect(), cs=getComputedStyle(p);
       return {id:p._n.id, x:b.left+b.width/2, y:b.top+b.height/2, w:b.width, h:b.height, ax:r.left+(p._a[0]*t.s+t.x)*z, ay:r.top+(p._a[1]*t.s+t.y)*z, op:cs.visibility==='hidden'?0:+cs.opacity}; }); });
