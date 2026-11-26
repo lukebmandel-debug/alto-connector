@@ -384,3 +384,29 @@ def test_the_open_overview_is_dense_enough_that_cards_under_it_are_a_tint(site, 
       const l = 1 - Math.pow(1 - al, 1 + (s.backgroundImage.match(/linear-gradient/g) || []).length); return {open: w.classList.contains('open'), vis: getComputedStyle(document.getElementById('summary-inner')).visibility, eff: l}; }""")
     assert d["open"] and d["vis"] == "visible" and d["eff"] >= 0.9, d
     ctx.close()
+
+
+def test_unit_labels_keep_their_size_and_glide_without_overlapping(site):
+    """Luke 2026-11-26: "i don't like that they get squeezed, try to keep them as static elements as they move, and maybe make the
+    movement more smooth going with the scroll instead of jumping": each label sticks in its own strip, one size, pushed off by the next."""
+    ctx, pg = _open(site, "plain", w=900, h=700)
+    R = """() => [...document.querySelectorAll('#lanes-ulabels .lu-chip')].map(e => { const r = e.getBoundingClientRect();
+      return [r.left, r.right, r.width, r.height, getComputedStyle(e).position, e.classList.contains('lu-pin')]; })"""
+    first = pg.evaluate(R)
+    mx = pg.evaluate("() => { const c = document.getElementById('canvas'); return c.scrollWidth - c.clientWidth; }")
+    rode = False
+    for i in range(13):
+        pg.evaluate(f"() => {{ document.getElementById('canvas').scrollLeft = {mx * i / 12}; }}")
+        pg.wait_for_timeout(120)
+        now = pg.evaluate(R)
+        for a, b in zip(first, now):
+            assert b[4] == "sticky" and abs(a[2] - b[2]) < .5 and abs(a[3] - b[3]) < .5, (i, a, b)     # never squeezed or re-wrapped
+        for a, b in zip(now, now[1:]):
+            assert a[1] <= b[0] + .5, (i, a, b)                                                    # pushed off, never on the next
+        for c in now:
+            if c[5]:
+                rode = True
+                assert abs(c[0] - 20) < 1.5 or c[1] <= now[now.index(c) + 1][0] - 4, c              # riding 20 px in, or being pushed off
+    assert rode
+    assert not pg._errs, pg._errs
+    ctx.close()

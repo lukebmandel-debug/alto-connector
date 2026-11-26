@@ -796,6 +796,11 @@ LANES_CSS = KEY_CSS + """
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:5px 12px;border-radius:14px;box-sizing:border-box;overflow:hidden;
     background:var(--surface,#fff);border:1.5px solid color-mix(in srgb,var(--unit-color) 55%,transparent);}
   #lanes-ulabels .lu-chip b{font-weight:800;margin-right:7px;}
+  /* each label glides in its own strip along the line, from where it rests to just short of the next unit's label (Luke 2026-11-26,
+     "try to keep them as static elements as they move, and maybe make the movement more smooth going with the scroll instead of
+     jumping"): sticky, so the browser moves it with the scroll frame by frame; its size is set once and never changes */
+  #lanes-ulabels .lu-strip{position:absolute;pointer-events:none;}
+  #lanes-ulabels .lu-strip > .lu-chip{position:sticky;left:var(--lu-l,20px);top:auto;display:block;max-width:none;will-change:transform;}
   html.mobile #lanes-ulabels{display:none !important;}
   html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
@@ -1917,8 +1922,18 @@ function units(world, order, X, w, H, W, main){
     box.appendChild(ch);
     var g=gapAt(cuts[a]), nat=ch.offsetWidth, cw=Math.min(nat, g[1]-g[0]);
     var x=Math.max(g[0], Math.min(g[1]-cw, cuts[a]-cw/2));
+    cw=Math.min(nat, Math.max(cw, 110));                    // (never squeezed below a readable width: the old ride's least)
     UL.chips.push({el:ch, a:a, nat:nat, l:cuts[a], r:cuts[a+1], x:x, w:cw});
     stops.push([pm.colorRaw+'b3', (cuts[a]+cuts[a+1])/2]);
+  });
+  /* measured once: the label's width is locked (its wrap and padding with it), and its strip runs from its rest to 8 px short of the next label */
+  UL.chips.forEach(function(c, i){
+    var e=c.el, nx=UL.chips[i+1];
+    e.style.width=Math.round(c.w)+'px'; e.style.left=''; e.style.top='';
+    var st=document.createElement('div'); st.className='lu-strip'; box.appendChild(st); st.appendChild(e);
+    var h=e.offsetHeight, end=nx ? nx.x-8 : Math.max(c.x+c.w, UL.x1), y0=lineYAt(c.x+c.w/2)-h/2;
+    st.style.left=c.x.toFixed(1)+'px'; st.style.width=Math.max(c.w, end-c.x).toFixed(1)+'px'; st.style.top=y0.toFixed(1)+'px'; st.style.height=h+'px';
+    c.h=h; c.y0=y0; c.st=st; c.dy=0;
   });
   var slab=document.getElementById('glass-slab');
   if(!slab){ slab=document.createElement('div'); slab.id='glass-slab'; world.insertBefore(slab, world.firstChild); }
@@ -1941,12 +1956,6 @@ function lineYAt(xw){
   if(sx<=X(0)) { X(0); } else if(sx>=X(L)) { X(L); } else { for(var i=0;i<28;i++){ var t=(lo+hi)/2; if(X(t)<sx) lo=t; else hi=t; } X((lo+hi)/2); }
   return ((m.b*q.x+m.d*q.y+m.f)-wr.top)/k;
 }
-function putChip(c, x, cw){
-  var e=c.el, ws=Math.round(cw)+'px';
-  if(e.style.maxWidth!==ws) e.style.maxWidth=ws;
-  var xs=x.toFixed(1)+'px', ys=(lineYAt(x+e.offsetWidth/2)-e.offsetHeight/2).toFixed(1)+'px';
-  if(e.style.left!==xs) e.style.left=xs; if(e.style.top!==ys) e.style.top=ys;
-}
 /* the unit labels stay in view (Luke 2026-11-25: "unit labels in expanded horizontal timeline need to be visible at all
    times"): along the main line. While a unit runs on past the window's left edge its label rides the line 20 px in (clear of
    the key's toggle and the quiet cue), in the first stretch between dots it fits, until the next unit's label meets it and
@@ -1955,25 +1964,21 @@ var UPIN=0;
 function unitPinSoon(){ if(!UPIN) UPIN=requestAnimationFrame(unitPin); }
 function unitPin(){
   UPIN=0;
-  var world=document.getElementById('world'), c=document.getElementById('canvas'); if(!world || !c || !UL || !UL.chips.length || de.classList.contains('mobile')) return;
+  var world=document.getElementById('world'), c=document.getElementById('canvas'), box=document.getElementById('lanes-ulabels'); if(!world || !c || !box || !UL || !UL.chips.length || de.classList.contains('mobile')) return;
   if(!c._lnPin){ c._lnPin=1; c.addEventListener('scroll', unitPinSoon, {passive:true}); window.addEventListener('resize', unitPinSoon); }
-  var wr=world.getBoundingClientRect(), k=(world.offsetWidth && wr.width/world.offsetWidth)||1, sy=wr.top+UL.y*k, L=20;
+  var wr=world.getBoundingClientRect(), k=(world.offsetWidth && wr.width/world.offsetWidth)||1, cr=c.getBoundingClientRect(), sy=wr.top+UL.y*k, L=20;
   [].slice.call(document.querySelectorAll('#key-toggle,[data-ln-edge]')).forEach(function(e){      // (the key's toggle, Extend's quiet cues)
     if(!e || e.hidden || getComputedStyle(e).display==='none') return; var q=e.getBoundingClientRect();
     if(q.width && q.height && q.left<160 && q.top<sy+24 && q.bottom>sy-24) L=Math.max(L, q.right+12); });
-  var Lw=(L-wr.left)/k, C=UL.chips, nextX=Infinity;
-  for(var i=C.length-1;i>=0;i--){
-    var ch=C[i], x=ch.x, cw=ch.w, ride=false;
-    if(x<Lw && ch.r>Lw){                                   // its unit runs on past the left edge: ride the line
-      var g=gapAt(Lw), gx=Math.max(Lw, g[0]);
-      while(g[1]-gx<Math.min(ch.nat, 110) && g[1]<UL.x1-1){ g=gapAt(g[1]+2*UL.rr+1); gx=g[0]; }
-      x=gx; cw=Math.min(ch.nat, g[1]-gx); ride=true;
-      if(x+cw>nextX-8) x=Math.max(ch.x, nextX-8-cw);         // (the next unit's label takes over)
-    }
-    putChip(ch, x, cw);
-    if(ch.el.classList.contains('lu-pin')!==ride) ch.el.classList.toggle('lu-pin', ride);
-    nextX=x;
-  }
+  var lv=((L-cr.left)/k).toFixed(1)+'px';                  // (sticky's inset, in the board's own px: the canvas's edge, then L in)
+  if(box.style.getPropertyValue('--lu-l')!==lv) box.style.setProperty('--lu-l', lv);
+  /* the browser slides each label (sticky); here only its height follows the line where the line dips, as a transform */
+  UL.chips.forEach(function(ch){
+    var e=ch.el, r=e.getBoundingClientRect(), sr=ch.st.getBoundingClientRect(), ride=r.left>sr.left+.5+Math.abs(ch.dy)*0;
+    var xw=(r.left-wr.left)/k+ch.w/2, dy=ride ? lineYAt(xw)-ch.h/2-ch.y0 : 0;
+    if(Math.abs(dy-ch.dy)>.4){ ch.dy=dy; e.style.transform=dy ? 'translateY('+dy.toFixed(1)+'px)' : ''; }
+    if(e.classList.contains('lu-pin')!==ride) e.classList.toggle('lu-pin', ride);
+  });
 }
 /* arrow keys: along a line ←/→ in time; ↑/↓ to the nearest event on the next line over */
 window._altoLanesNav=function(id, dir){
