@@ -748,7 +748,16 @@ function ffHide(){ if(!S.ffC) return; S.ffC=null; if(S.ffG) S.ffG.classList.remo
 function ffSync(){ if(!S.root||!S.gf) return; ffBand(); var want=ffWant();
   if(S.ffC&&S.ffC!==want) ffHide();
   if(!want||S.ffC===want||S.anim||S.plane){ if(S.ffT&&(!want||S.ffC===want)){ clearTimeout(S.ffT); S.ffT=0; } return; }
-  if(!S.ffT) S.ffT=setTimeout(function(){ S.ffT=0; if(ffWant()===want&&!S.anim&&!S.plane&&S.ffC!==want) ffShow(want); },160); }
+  if(!S.ffT) ffArm(want,0); }
+// the fill waits for the camera to rest ~160 ms; if it is moving again when the wait ends (a card fitting itself, a hop) it waits again, never gives up (Luke 2026-11-26:
+// "flag didn't load in france, recurring"): it used to drop the step and wait for a settle that might not come
+function ffArm(want,n){ S.ffT=setTimeout(function(){ S.ffT=0; if(ffWant()!==want||S.ffC===want) return;
+  if(S.anim||S.plane){ if(n<120) ffArm(want,n+1); return; } ffShow(want); },n?250:160); }
+// a flag is fetched and its edge strips read as soon as a card of its country is chosen, and for the next Tour stops: the fill never waits on the network
+// (a first visit, a cleared cache), and the banner's flag is the same file
+function flagPre(cid){ var u=cid&&(GEO.flag||{})[cid]; if(!u) return; var P=S.fpre||(S.fpre={}); if(P[u]) return; var i=P[u]=new Image(); i.src=u; ffEdge(u,function(){}); }
+function flagPreFor(id){ try{ var p=placeOf(id), n=p&&N(p); flagPre(n&&n.c); }catch(x){} }
+function flagPreNext(){ try{ var q=seq(), i=q.indexOf(S.sel); if(i<0) return; for(var j=1;j<=3;j++) flagPreFor(q[(i+j)%q.length]); }catch(x){} }
 // the ghost drifts with the card flag's turn: its animation is given the card flag's own start time (the card's flag is made after the fill may be)
 function ffPhase(){ if(!S.ffC||!S.ffG||!S.ffG.getAnimations) return; var sp=S.root.querySelector('.wp-enl .fl-spin'), g=S.ffG.querySelector('.ff-g'); if(!sp||!g) return;
   var f=function(e,n){ return e.getAnimations().filter(function(a){ return a.animationName===n; })[0]; }, a=f(sp,'wp-flag-spin'), b=f(g,'wp-ff-drift');
@@ -790,12 +799,12 @@ function placeView(id){
 A.select=function(id,opts){
   if(hubUnit(id)>=0) return A.unit(hubUnit(id),opts);
   var pl=placed(id)?id:placeOf(id); if(!pl) return; opts=opts||{};
-  S.cur=id; S.ua=null; rels(id);
+  S.cur=id; S.ua=null; rels(id); flagPreFor(pl);
   if(S.cl&&S.cl.id===pl&&!S.anim){ swapEnl(id); tourBar(); place(); emit('select',id); return; }      // a card of the cluster that is open
   var from=S.sel&&placed(S.sel)?S.sel:null; planeStop();
   S.sel=pl; var n=N(pl); closeCluster(true);
   focus(n.a,n.c,pl); tourBar();
-  var v=placeView(pl);
+  var v=placeView(pl); setTimeout(flagPreNext,0);
   var land=function(){ if(S.sel===pl&&S.cur===id&&!(S.cl&&S.cl.id===pl)) openCluster(pl,null,id); };
   if(opts.leg&&S.tour&&from&&from!==pl&&!opts.instant&&!reduced()&&planeHop(from,pl,v,land)){ emit('select',id); return; }
   if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=v.k; apply(); settle(); land(); } else fly(v.cx,v.cy,v.k,land,land);
@@ -993,10 +1002,16 @@ function layoutCluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C), I=inset();
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, gap=phone()?22:30;
   // the place's own card goes on the side of its pin that hides the fewest other pins (above, then beside, then below)
-  var sc=shortC(), cost=function(sd){ var b=mainBox(P,sd,mw,mh), c=(sc?b[0]<I.l-2||b[2]>S.vw-I.r+2||b[1]<I.t-2||b[3]>S.vh-I.b+2:b[0]<8||b[2]>S.vw-8||b[1]<8||b[3]>S.vh-I.b+40)?1000:0;
-    for(var k in S.pins){ var Q=S.pins[k]; if(k!==C.id&&Q.x>b[0]-14&&Q.x<b[2]+14&&Q.y>b[1]-14&&Q.y<b[3]+14) c++; } return c; };
-  C.side=['up','right','left','down'].reduce(function(best,sd){ return cost(sd)<cost(best)?sd:best; },'up');
-  var mb=mainBox(P,C.side,mw,mh);
+  // (Luke 2026-11-26, "try to not have nodes block the countries generally": it also keeps off its own country: the side, and how far out, that cover the least of the land,
+  // sampled on a grid against the country's real outline; the page's 20 px edge margin on a computer)
+  var sc=shortC(), E=phone()?8:20, cid=N(C.id)&&N(C.id).c, cp=cid&&!S.globe&&S.paths[cid], land=function(b){ if(!cp||!cp.isPointInFill) return 0; var hit=0, tot=0;
+      for(var i=0;i<5;i++) for(var j=0;j<4;j++){ tot++; try{ if(cp.isPointInFill(new DOMPoint((b[0]+(b[2]-b[0])*(i+.5)/5-S.vw/2)/S.k+S.cx,(b[1]+(b[3]-b[1])*(j+.5)/4-S.vh/2)/S.k+S.cy))) hit++; }catch(x){ return 0; } }
+      return hit/tot; },
+    cost=function(sd,gx){ var b=mainBox(P,sd,mw,mh,gx), c=(sc?b[0]<I.l-2||b[2]>S.vw-I.r+2||b[1]<I.t-2||b[3]>S.vh-I.b+2:b[0]<E||b[2]>S.vw-E||b[1]<E||b[3]>S.vh-I.b+40)?1000:0;
+    for(var k in S.pins){ var Q=S.pins[k]; if(k!==C.id&&Q.x>b[0]-14&&Q.x<b[2]+14&&Q.y>b[1]-14&&Q.y<b[3]+14) c++; } return c+land(b)*6+gx/70*.8; };
+  var bc=1e9; C.side='up'; C.gx=0;
+  ['up','right','left','down'].forEach(function(sd){ (cp&&!sc?[0,70,140]:[0]).forEach(function(gx){ var c=cost(sd,gx); if(c<bc-1e-9){ bc=c; C.side=sd; C.gx=gx; } }); });
+  var mb=mainBox(P,C.side,mw,mh,C.gx);
   var n=C.cards.length, rx=Math.min(S.vw*(phone()?.3:.36),430), ry=Math.min(S.vh*.3,250), boxes=[mb,[P.x-20,P.y-20,P.x+20,P.y+20]];
   C.cards.forEach(function(K,i){
     var w=K.el.offsetWidth, hh=K.el.offsetHeight, a=(n===1?35:-160+i*(320/(n-1)))*Math.PI/180, r=1, b;
@@ -1010,14 +1025,14 @@ function layoutCluster(){
   });
   C.boxes=boxes; C.main.classList.remove('s-down','s-left','s-right'); if(C.side!=='up') C.main.classList.add('s-'+C.side);
 }
-function mainBox(P,sd,mw,mh){ var g=phone()?22:30, x=sd==='left'?P.x-g-mw:sd==='right'?P.x+g:P.x-mw/2, y=sd==='up'?P.y-g-mh:sd==='down'?P.y+g:P.y-mh/2;
+function mainBox(P,sd,mw,mh,gx){ var g=(phone()?22:30)+(gx||0), x=sd==='left'?P.x-g-mw:sd==='right'?P.x+g:P.x-mw/2, y=sd==='up'?P.y-g-mh:sd==='down'?P.y+g:P.y-mh/2;
   return [x,y,x+mw,y+mh]; }
 function cluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C);
   if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim){ closeCluster(); if(!S.tour) setTimeout(function(){ if(!S.cl&&!S.anim) unfocus(); },0); } return; }
   var I=inset(), links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
-  var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh);
-  var sc=shortC(), mx=sc?clamp(mb[0],I.l,Math.max(I.l,S.vw-I.r-mw)):clamp(mb[0],8,Math.max(8,S.vw-8-mw)), my=sc?clamp(mb[1],I.t,Math.max(I.t,S.vh-I.b-mh)):clamp(mb[1],8,Math.max(8,S.vh-8-mh));     // the place's own card beside its pin (a phone on its side: never over the Tour block, whose arrows it covered, e4)
+  var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh,C.gx);
+  var sc=shortC(), E=phone()?8:20, mx=sc?clamp(mb[0],I.l,Math.max(I.l,S.vw-I.r-mw)):clamp(mb[0],E,Math.max(E,S.vw-E-mw)), my=sc?clamp(mb[1],I.t,Math.max(I.t,S.vh-I.b-mh)):clamp(mb[1],E,Math.max(E,S.vh-E-mh));     // the place's own card beside its pin (a phone on its side: never over the Tour block, whose arrows it covered, e4)
   C.main.style.transform='translate('+mx.toFixed(1)+'px,'+my.toFixed(1)+'px)'; C.main._x=mx; C.main._y=my; var org=P.x.toFixed(1)+'px '+P.y.toFixed(1)+'px'; C.main.style.transformOrigin=org;
   C.boxes=[[mx,my,mx+mw,my+mh]];
   C.cards.forEach(function(K){ var w=K.el.offsetWidth, hh=K.el.offsetHeight, x=P.x+K.c[0]-w/2, y=P.y+K.c[1]-hh/2;
