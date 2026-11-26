@@ -73,3 +73,11 @@ def test_the_homes_scene_button_stands_in_the_corner_row_not_alone_on_the_edge()
     assert "#search-btn.expanded ~ #bg-toggle" in home
     assert 'id="alto-bg-home"' not in backgrounds.ui_block("Timeline", rail=True)
     assert ".alto-home,.alto-rep):not(.mobile) body > #bg-toggle" not in retro.css()
+
+
+def test_the_sheets_reach_is_re_read_whenever_the_engine_writes_the_sheet():
+    """Luke 2026-11-26 (his Torts, Safari): a long timeline lays itself out after the page has loaded, so the unit colour for the sheet's reach above the window
+    was read too early and the top ~110 px stayed the plain background while the board below carried the tint. The reach is read again whenever #glass-slab's style is written."""
+    js = clear_top.block()
+    assert "newMutationObserver(c0).observe(sl,{attributes:true,attributeFilter:['style']})" in js.replace(" ", "")
+    assert "getElementById('glass-slab')" in js
