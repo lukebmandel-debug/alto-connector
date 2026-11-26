@@ -11,6 +11,8 @@ Keys are format_symbols.key_of(brief): timeline, lanes, outline, system, palace,
 """
 from __future__ import annotations
 
+from .palace_directions import DIRECTIONS_ON
+
 from . import bass_ui as _bass_ui          # Bass (bass_ui.py): its Info lines, only in a build made with ALTO_BASS_UI=1
 
 # What each format is called in plain words (the "New" copy rule: name the format where it is known).
@@ -34,8 +36,8 @@ _BODY_D = {
               "The pill beside shows where you are, with Back and Next; 1&#8211;9 fly to a neighbour, Esc climbs a "
               "level, ? lists the keys.",
     "palace": "click a building to open its card ({sec}); drag to move round and use the zoom buttons at bottom left. "
-              "The target button shows the whole city, <em>Directions</em> plans a route between two buildings and "
-              "the key button explains the lines.",
+              + ("The target button shows the whole city, <em>Directions</em> plans a route between two buildings and "
+              "the key button explains the lines." if DIRECTIONS_ON else "The target button shows the whole city and the key button explains the lines."),
     "building": "click a room to open its card ({sec}). The dock at the bottom zooms (+ / &#8722;), fits the plan to "
                 "the screen (0), lists the cards in order (C) and shows the key and credits (K).",
     "world": "click a pin to open its card ({sec}); Esc puts it back. The bottom bar switches <em>Flat map</em> | "
@@ -112,8 +114,8 @@ _BODY_M = {
              "shows the whole timeline. Tap a card to open its page ({sec}); tap the back arrow (top-left) to return.",
     "system": "Drag to look round and pinch to zoom. Tap a body to fly to it and open its card ({sec}); tap the back "
               "arrow (top-left) to return.",
-    "palace": "Drag to move round and pinch to zoom. Tap a building to open its card ({sec}). <strong>Directions</strong> "
-              "plans a route between two buildings. Tap the back arrow (top-left) to return.",
+    "palace": "Drag to move round and pinch to zoom. Tap a building to open its card ({sec}). "
+              + ("<strong>Directions</strong> plans a route between two buildings. " if DIRECTIONS_ON else "") + "Tap the back arrow (top-left) to return.",
     "building": "Drag to move round and pinch to zoom. Tap a room to open its card ({sec}); tap the back arrow "
                 "(top-left) to return.",
     "world": "Drag to move round and pinch to zoom. Tap a pin to open its card ({sec}). The pill at the top sets the "
