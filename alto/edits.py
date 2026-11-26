@@ -406,8 +406,8 @@ def _target(key, brief, by_id, conns):
         if p[1] in by_id:
             return by_id[p[1]], CHIP_ATTR[p[2]], "list"
         return (None, None, "pending") if NEW_CARD.match(p[1]) else None
-    # the owner's Extend switch for an outline (manual_edit `pg|extend`, 1 or 0): brief.extend
-    if kind == "pg" and len(p) == 2 and p[1] == "extend" and brief.get("mode") == "outline":
+    # the owner's Extend switch for an outline or a horizontal timeline (manual_edit `pg|extend`, 1 or 0): brief.extend
+    if kind == "pg" and len(p) == 2 and p[1] == "extend" and brief.get("mode") in ("outline", "lanes"):
         return brief, "extend", "pgflag"
     if kind == "ln" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]) and p[1] != "main":
         return brief, p[1], "lane"

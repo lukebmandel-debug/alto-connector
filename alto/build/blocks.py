@@ -21,7 +21,7 @@ from urllib.parse import quote as url_q
 from . import format_symbols, info_help
 from .brief import Brief, Node, Section, COL_SETS, roman, building_view, world_view
 from .numbering import NUM_JS, outline_numbers
-from .lanes import LANES_CSS, LANES_JS, lanes_data
+from .lanes import LANES_CSS, LANES_JS, lanes_data, lanes_ext_js
 from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .solar_stars import STARS_CSS, STARS_JS
 from .solar_craft import CRAFT_CSS, CRAFT_JS
@@ -1563,8 +1563,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                       else dx.HUBS_ABOVE_GLUE))
     if b.mode == "lanes":
         # The horizontal timeline (lanes.py): lines, times, and the layout
-        # the engine's initLayout hands over to on desktop.
-        orders += lanes_data(b, nodes) + LANES_JS
+        # the engine's initLayout hands over to on desktop. With Extend (brief.extend)
+        # it grows up and down instead of fitting the window.
+        orders += lanes_data(b, nodes) + (lanes_ext_js(b.timeline_id) if b.extend else LANES_JS)
     if b.mode == "palace" and building_view(b):
         # A Memory Blueprint (building_schema.py): no city — the floors' numbers
         # (3.4-2) and the hosted blueprint over the cards (palace_building_asset.py).
