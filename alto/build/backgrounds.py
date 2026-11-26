@@ -174,9 +174,14 @@ HEAD_JS = r"""(function(){
   function retroNow(){ if(r.classList.contains('alto-retro') || r.classList.contains('sk-retro')) return true;
     try{ return LST.indexOf('retro')>0 && localStorage.getItem(SK)==='retro'; }catch(e){ return false; } }
   function paged(){ return r.classList.contains('detail-open') || r.classList.contains('summary-open'); }
-  function only(){ return retroNow() || (AUTO && !paged()); }
+  // Luke, 2026-11-20: Retro's own backgrounds (retro_backgrounds.py: group 'Retro', added to the catalog by the hosted Retro script while a
+  // timeline, a horizontal timeline or an outline is in Retro, never on a page that makes its own background) are the one exception to "plain black":
+  // while one is in the catalog the picker is the full one, and a chosen one of them is what is drawn.
+  function retroOwn(){ if(AUTO) return false; for(var k in C) if(C[k] && C[k].g==='Retro') return true; return false; }
+  function only(){ return (retroNow() && !retroOwn()) || (AUTO && !paged()); }
   var ov; // an id asked for by name (apply(id)); else what was chosen
-  function want(){ return retroNow() ? '' : AUTO && !paged() ? DEF : ov===undefined ? read() : ov; }
+  function ownRetro(w){ return !!(C[w] && C[w].g==='Retro'); }
+  function want(){ if(retroNow()){ var w=ov===undefined ? read() : ov; return retroOwn() && ownRetro(w) ? w : ''; } return AUTO && !paged() ? DEF : ov===undefined ? read() : ov; }
   var lw=null;
   function retarget(){ var w=want(); if(w===lw) return; lw=w; cur=get(w) ? w : ''; sig=''; }
   // the opaque key in a private or shared page's address: what a gate knows about this page before it has it
@@ -574,12 +579,14 @@ UI_JS = r"""(function(){
     else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
     // Holographic's own backgrounds (holo_backgrounds.py), in the catalog only while that style is on: next, ahead of the rest
     if(by['Holographic']) body.appendChild(sec('Holographic', by['Holographic']));
+    // Retro's own (retro_backgrounds.py), in the catalog only while that style is on (never on a System)
+    if(by['Retro']) body.appendChild(sec('Retro', by['Retro']));
     // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
     if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
       B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
-    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic') body.appendChild(sec(g, by[g])); });
+    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic' && g!=='Retro') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
   // A page that makes its own background, and Retro, hold the style picker and nothing else; the System's own style switch is mirrored here (its row is drawn in this file, not by the hosted library)
