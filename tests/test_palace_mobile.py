@@ -15,6 +15,9 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from alto.build import palace, palace_directions, palace_mobile  # noqa: E402
 from alto.build.builder import build_timeline, load_brief  # noqa: E402
+
+# Directions is switched off (palace_directions.DIRECTIONS_ON = False; Luke 2026-11-26): the tests that use its buttons and panel wait for the flag, none is deleted.
+needs_dir = pytest.mark.skipif(not palace_directions.DIRECTIONS_ON, reason="Directions is off (palace_directions.DIRECTIONS_ON = False)")
 import test_palace_transit as tt  # noqa: E402
 
 PHONE_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) "
@@ -244,6 +247,7 @@ def _stepsets(phone):
     return phone.pg.evaluate("[...document.querySelectorAll('#pal-mmap .dr-st li')].map(e => e.textContent)")
 
 
+@needs_dir
 def test_directions_plan_a_route_between_two_buildings_and_draw_it(phone):
     phone.tap("#pal-mmap .pm-btn[data-a=dir]")
     st = phone.pg.evaluate("(() => { const s = window._palDir.state(); return [s.on, s.focus]; })()")
@@ -292,6 +296,7 @@ def test_directions_plan_a_route_between_two_buildings_and_draw_it(phone):
     assert phone.pg.evaluate("document.querySelectorAll('#palace-svg-m .pl-dir .dr-walk, #palace-svg-m .pl-dir .dr-ride').length") == 0
 
 
+@needs_dir
 def test_the_planner_offers_the_real_line_with_boarding_riding_and_getting_off_steps(phone):
     r = phone.pg.evaluate("""() => { const D = window._palDir, all = D.index(), w = all.filter(p => p.k === 's' && p.name === 'West')[0],
         e = all.filter(p => p.k === 's' && p.name === 'East')[0], plans = D.plan(w, e);
@@ -350,6 +355,7 @@ def _node_centre(pg, id_):
       return [r.x + r.width / 2, r.y + r.height / 2]; }""", id_)
 
 
+@needs_dir
 def test_desktop_has_a_round_directions_button_beside_the_zoom_controls(desk):
     b = desk.evaluate("""() => { const e = document.querySelector('#pal-ctl .pc-dirb'); if (!e) return null; const r = e.getBoundingClientRect(), p = document.querySelector('#pal-ctl .pc-pill').getBoundingClientRect();
       return {w: r.width, h: r.height, sameRow: Math.abs((r.top + r.bottom) / 2 - (p.top + p.bottom) / 2) < 3, radius: getComputedStyle(e).borderRadius}; }""")
@@ -360,6 +366,7 @@ def test_desktop_has_a_round_directions_button_beside_the_zoom_controls(desk):
     assert "Choose start" in desk.evaluate("document.getElementById('pal-dr-banner').textContent")
 
 
+@needs_dir
 def test_desktop_directions_pick_by_search_and_by_click_and_never_enlarge_while_choosing(desk):
     desk.click("#pal-ctl .pc-dirb")
     desk.fill("#pal-dir .dr-f.from input", "west")
