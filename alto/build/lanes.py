@@ -2207,7 +2207,8 @@ window.addEventListener('afterprint', function(){ printX(false); });
 
 # going round the timeline: step event to event (lanes_nav.py)
 LANES_CSS += NAV_CSS
-LANES_JS += NAV_JS
+from .minimap_home import MM_HOME_JS  # noqa: E402
+LANES_JS += MM_HOME_JS + NAV_JS
 
 # the page's name on a Retro horizontal timeline: options round (lanes_title.py)
 LANES_CSS += LT_CSS

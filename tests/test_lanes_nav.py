@@ -541,7 +541,7 @@ def test_travel_and_settle_are_as_smooth_as_a_step(browser, v2_file):
 def test_the_whole_timeline_and_back_down(browser, page_file):
     pg, errs = _desk(browser, page_file)
     S = pg.evaluate(STOPS)
-    pg.click("#lanes-nav .lnv-ov")
+    pg.evaluate("() => window._altoLanesZoom.whole()")
     pg.wait_for_timeout(900)
     assert "scale(" in pg.evaluate("document.getElementById('world').style.transform")
     box = pg.evaluate("""() => { const r=document.getElementById('world').getBoundingClientRect(); return [r.left, r.right, innerWidth]; }""")
@@ -559,9 +559,9 @@ def test_the_whole_timeline_and_back_down(browser, page_file):
     pg.wait_for_timeout(1300)
     ahead = pg.evaluate(CUR)
     assert S.index(ahead) > S.index(tgt)                                       # it went on ahead (how many events 120px is depends on the spacing)
-    pg.click("#lanes-nav .lnv-ov")
+    pg.evaluate("() => window._altoLanesZoom.whole()")
     pg.wait_for_timeout(900)
-    pg.click("#lanes-nav .lnv-ov")                                             # the toggle again: back where the camera was
+    pg.evaluate("() => window._altoLanesZoom.whole()")                                             # the toggle again: back where the camera was
     pg.wait_for_timeout(1000)
     assert pg.evaluate(CUR) == ahead
     assert not errs
@@ -577,13 +577,13 @@ def test_zoomed_out_a_backdrop_fills_the_window_and_leaves_with_the_zoom(browser
     pg, errs = _desk(browser, page_file)
     before = pg.evaluate(SKY)
     assert not before["sky"]
-    pg.click("#lanes-nav .lnv-ov")
+    pg.evaluate("() => window._altoLanesZoom.whole()")
     pg.wait_for_timeout(1100)
     z = pg.evaluate(SKY)
     assert z["sky"] and z["t"] <= z["ct"] + 1 and z["b"] >= z["cb"] - 1 and z["l"] <= 1 and z["r"] >= 1500   # no bare page around the board
     assert float(z["op"]) > 0.5 and float(z["slabOp"]) == 0                                               # the slab hands over to it
     assert z["slab"] == before["slab"] and z["world"] == before["world"]                                    # nothing is resized (the page's height follows the slab)
-    pg.click("#lanes-nav .lnv-ov")
+    pg.evaluate("() => window._altoLanesZoom.whole()")
     pg.wait_for_timeout(1100)
     after = pg.evaluate(SKY)
     assert not after["sky"] and float(after["slabOp"]) == float(before["slabOp"]) and after["slab"] == before["slab"]
