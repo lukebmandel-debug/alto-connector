@@ -1357,6 +1357,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     nav = "".join(nav)
 
     overview_html = b.overview_html
+    if overview_html and not re.sub(r"<[^>]+>|&nbsp;|\s+", "", overview_html):
+        overview_html = ""                                       # (markup with no words in it is as empty as none)
     if not overview_html:
         # A page with no authored Overview composes one from what it has (Luke, 2026-11-26: his lanes timeline's Overview opened a dimmed, empty panel):
         # each section's summary (or the hub's description and the names of what it branches into) and links to its events / hubs, as an outline's
@@ -1375,8 +1377,6 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         elif b.mode not in ("outline", "palace"):
             _warn0.append("no overview authored — the Overview (\u2605) is composed from the sections and their events; "
                           "set_overview to write a real one")
-    if overview_html and not re.sub(r"<[^>]+>|&nbsp;|\s+", "", overview_html):
-        overview_html = ""                                       # (markup with no words in it is as empty as none)
     # an Overview with nothing in it is never offered: no button, no panel, no dimmed layer
     overview = (f'<div id="summary-inner">\n{overview_html}\n    </div>'
                 if overview_html else

@@ -33,13 +33,13 @@ def test_a_page_with_no_overview_composes_one_from_its_sections_and_events(name)
     assert 'id="alto-no-ov"' not in html                              # (the button stays)
 
 
-def test_a_page_with_nothing_to_show_has_no_overview_button_or_panel():
-    def empty(d):
-        d["nodes"] = []
-        for a in d["brief"].get("acts", []):
-            a["summary"] = ""
-    try:
-        html = _page("lanes_brief", empty)
-    except Exception as e:                                             # (a page with no events may not build at all: then there is nothing to open)
-        pytest.skip(f"no events: {e}")
-    assert 'id="alto-no-ov"' in html and "#overview-toggle,html #summary-wrap{display:none !important}" in html
+def test_an_authored_overview_with_no_words_is_replaced_by_a_composed_one():
+    def blank(d):
+        d["brief"]["overview_html"] = "<p>&nbsp;</p>\n<div> </div>"
+    html = _page("contracts_brief", blank)
+    assert "showDetail('node'" in _inner(html) and 'id="alto-no-ov"' not in html
+
+
+def test_the_button_and_panel_are_dropped_when_there_is_truly_nothing_to_show():
+    from alto.build import blocks
+    assert 'id="alto-no-ov"' in open(blocks.__file__, encoding="utf-8").read()                      # (defensive: unreachable by a built page, which always has events)
