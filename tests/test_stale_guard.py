@@ -74,7 +74,7 @@ def check(monkeypatch):
 def test_an_older_extension_gets_the_warning(check):
     note = update_check.update_note()
     assert note.startswith("This Alto extension is 1.9.187, the latest is 1.9.211. Update it before editing pages: ")
-    assert "alto-get.web.app" in note
+    assert "releases/latest" in note and "update_alto" in note        # one source that is always the newest, and the tool that installs it
 
 
 def test_the_warning_leads_a_build_or_publish_result(check):

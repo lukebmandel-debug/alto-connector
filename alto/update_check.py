@@ -104,12 +104,13 @@ def update_note() -> str:
 
 
 def with_update_note(result):
-    """Put the out-of-date warning first in a build or publish result."""
+    """Put the out-of-date warning first in a tool result (every tool that changes a user's Alto, and the two that start a session)."""
     note = update_note()
     if note and isinstance(result, dict):
         return {"update_alto": note,
-                "update_alto_instruction": ("Tell the user this, in these words, before anything else, "
-                                            "and again if they go on editing pages."),
+                "update_alto_instruction": ("Tell the user this, in these words, before anything else, and offer to update it for them now: "
+                                            "if they say yes, call the update_alto tool once (it downloads and verifies the newest Alto "
+                                            "and opens it; they only click Install). Ask again if they go on editing pages."),
                 **result}
     return result
 

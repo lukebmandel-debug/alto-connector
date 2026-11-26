@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.317"
+__version__ = "1.9.318"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -635,7 +635,34 @@ def update_noted(fn):
         from .update_check import start, with_update_note
         start()
         return with_update_note(fn(*args, **kwargs))
+    wrapper._update_noted = True
     return wrapper
+
+
+# Luke, 2026-11-26: every tool that changes a user's Alto (and the two that start an editing session) leads with the out-of-date note when this
+# extension is behind the latest release. One small hook at registration, kept apart from the tools themselves: a tool already wrapped by
+# update_noted is left alone, a read-only tool is left alone unless it is one of the two named here, and a sign-in or the update tool itself never is.
+_UPDATE_LEADS = {"get_interview_guide", "get_timeline"}
+_UPDATE_SKIPS = {"update_alto", "sign_in", "connect_account", "set_up_site"}
+
+
+def _lead_with_update_note(server):
+    orig = server.tool
+
+    def tool(*a, **k):
+        reg = orig(*a, **k)
+        ann = k.get("annotations")
+
+        def deco(fn):
+            writes = ann is not None and not getattr(ann, "readOnlyHint", False)
+            if (writes or fn.__name__ in _UPDATE_LEADS) and fn.__name__ not in _UPDATE_SKIPS and not getattr(fn, "_update_noted", False):
+                fn = update_noted(fn)
+            return reg(fn)
+        return deco
+    server.tool = tool
+
+
+_lead_with_update_note(mcp)
 
 
 def _consent_ok(doc) -> bool:
@@ -4072,6 +4099,16 @@ def delete_project(project_id: str, delete_timelines: bool = False,
         redeploy |= _remove_timeline(st, t["timeline_id"], t)
     st.delete_project(uid(), pid)
     return {"deleted": will, **(_redeploy_without() if redeploy else {})}
+
+
+@mcp.tool(title="Update Alto", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def update_alto() -> dict:
+    """Update this Alto extension to the newest release. Call it ONLY after the user agreed (an earlier result led with update_alto saying
+    the extension is out of date). It downloads the newest Alto for this computer from GitHub, checks its SHA-256 against the one GitHub
+    states, and opens the file so Claude shows an Install pop-up; the user only clicks Install, then restarts Claude. It never installs
+    anything by itself, and stops with a clear message if the checksum does not match or GitHub cannot be reached."""
+    from .update_install import update_alto as _update
+    return _update()
 
 
 @mcp.prompt(title="Alto interview")
