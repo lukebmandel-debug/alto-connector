@@ -631,7 +631,7 @@ def _nest_of(n, by) -> str:
 def _nest_outlines(nodes, by) -> dict:
     """Each family's outline (the second way to open a nested branch): the shared outline tree layout (layout.outline_plan)
     run over the family alone — its root on top, its children by level, sections side by side — at the child cards' fixed
-    size, so no browser measuring is needed. {root id: {member id: [dx, dy, w]}}: the card's centre across from the root's
+    size, so no browser measuring is needed. {root id: {member id: [dx, dy, w, parent id]}}: the card's centre across from the root's
     centre, its centre's distance beyond the root card's far edge, its width."""
     import copy
     from .layout import outline_plan, run_plan
@@ -657,7 +657,7 @@ def _nest_outlines(nodes, by) -> dict:
             if any(i not in x or i not in y for i in [r] + ids):
                 continue
             lift = 70 - min(y[i] - y[r] - 60 for i in ids)     # (the first level always clears the hanging tag: 40px between the cards)
-            out[r] = {i: [round(x[i] - x[r]), round(y[i] - y[r] - 60 + lift), min(220, int(plan["w"].get(i, 220)))] for i in ids}
+            out[r] = {i: [round(x[i] - x[r]), round(y[i] - y[r] - 60 + lift), min(220, int(plan["w"].get(i, 220))), kid[i]] for i in ids}
         except Exception:                       # (a family the tree cannot lay out keeps its column: no second state)
             continue
     return out
@@ -991,7 +991,7 @@ function kidShut(id){ return isKid(id) && !openNow(rootOf(id)); }
 function kidMap(ids){ var m={}; ids.forEach(function(id){ var p=nestOf(id); if(p && p!==id) (m[p]=m[p]||[]).push(id); }); return m; }
 /* a family opened as an outline (lanes.py _nest_outlines: the outline tree's layout over the family at the child cards' size);
    only while its plan covers exactly the family's members now (a card moved by hand falls back to the column) */
-function outPlan(root, fam){ var o=(L.out||{})[root]; if(!o || !fam || Object.keys(o).length!==fam.length) return null; for(var i=0;i<fam.length;i++) if(!o[fam[i].id]) return null; return o; }
+function outPlan(root, fam){ var o=(L.out||{})[root]; if(!o || !fam || Object.keys(o).length!==fam.length) return null; for(var i=0;i<fam.length;i++){ var q=o[fam[i].id]; if(!q || q[3]!==nestOf(fam[i].id)) return null; } return o; }      /* (a card moved under another since the build: the plan no longer fits) */
 function outOn(root, fam){ return !!OUTL[root] && !expandedNow() && !de.classList.contains('alto-editing') && !!outPlan(root, fam); }
 function outFan(o, ids){ var a=1e9, z=-1e9, d=0; ids.forEach(function(i){ var q=o[i]; if(!q) return; a=Math.min(a, q[0]-q[2]/2); z=Math.max(z, q[0]+q[2]/2); d=Math.max(d, q[1]+KIDH/2); }); return {l:a, r:z, d:d}; }
 /* where each family of a row starts, beyond the card's far edge: 0, but where an outline fills the row the families stand one under the next, left to right */
