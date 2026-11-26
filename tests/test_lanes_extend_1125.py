@@ -49,6 +49,18 @@ def _nested(extend):
     return d
 
 
+def _tall():
+    """The nested sample with Extend on and two long stacks of children (like a big event holding a whole unit)."""
+    d = _nested(True)
+    mains = [n for n in d["nodes"] if not n.get("nest")][:2]
+    for m in mains:
+        for k in range(24):
+            n = {kk: v for kk, v in m.items() if kk not in ("id", "nest", "title", "desc", "present", "flash")}
+            n.update(id=f"{m['id']}-k{k}", nest=m["id"], title=f"Entry {k + 1} under {m['title']}", desc="A child entry.")
+            d["nodes"].append(n)
+    return d
+
+
 def _page(d):
     return build_timeline(*load_brief(copy.deepcopy(d)))[0]
 
@@ -121,7 +133,7 @@ UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.
 def site():
     if pw is None:
         pytest.skip("no Playwright")
-    s = pm.serve({"on": _page(_nested(True)), "plain": _page(_nested(False))}, {}, {})
+    s = pm.serve({"on": _page(_nested(True)), "plain": _page(_nested(False)), "tall": _page(_tall())}, {}, {})
     with pw.sync_playwright() as p:
         try:
             b = p.webkit.launch()
@@ -307,6 +319,36 @@ def test_nothing_over_the_board_lets_card_text_show_through(site, style, w, h, p
         assert not d["bare"] and not d["weak"], (dy, d["bare"], d["weak"])
         seen += d["n"]
     assert seen > 0                                                       # (the board did run under them)
+    if not phone:                                                         # the brand marks in the top corners keep a backing too
+        marks = pg.evaluate("""() => document.documentElement.classList.contains('ln-under') ? [...document.querySelectorAll('#title-bar > svg.brand-mark, #title-bar > svg.brand-word')]
+          .map(e => { const s = getComputedStyle(e); return [s.backgroundColor, s.backdropFilter || s.webkitBackdropFilter || 'none']; }) : null""")
+        assert marks, marks
+        assert all(bg not in ("rgba(0, 0, 0, 0)", "transparent") for bg, _ in marks), marks
     masked = pg.evaluate("() => [...document.querySelectorAll('#world > *')].filter(e => e.style.maskImage || e.style.webkitMaskImage).length")
     assert masked == 0                                                    # and no fade
+    ctx.close()
+
+
+ROOM = """() => { const t = 104 + 8, b = innerHeight - 62 - 8; let n = 0;
+  document.querySelectorAll('#world .node .node-card').forEach(c => { const r = c.getBoundingClientRect(), id = c.closest('.node').id.slice(5);
+    if (!window._altoLanesKids.nest(id) && r.height && r.bottom > t && r.top < b && r.right > 0 && r.left < innerWidth) n++; });     // (the main line's own cards)
+  const c = document.getElementById('canvas'); return {n, mt: c.scrollHeight - c.clientHeight, top: c.scrollTop}; }"""
+
+
+def test_a_tall_board_opens_expanded_on_its_main_line_not_its_top_edge(site):
+    """Luke's civ-pro events board (2026-11-26): an event holding a whole unit made the Expanded board taller than the window,
+    and it opened on its empty top edge. It now opens (and turns Expanded) resting on the main line."""
+    ctx, pg = _open(site, "tall", expanded=True)
+    r = pg.evaluate(ROOM)
+    assert r["mt"] > 1800, r                                              # (a board well taller than the window)
+    assert r["n"] >= 2, r                                                 # turned Expanded: the main line's cards in the room, not the top edge
+    pg.reload(wait_until="load")
+    pg.wait_for_timeout(3500)
+    assert pg.evaluate("() => window._altoLanesKids.view()") == "expanded"
+    r = pg.evaluate(ROOM)
+    assert r["n"] >= 2, r                                                 # opened Expanded: the same
+    pg.evaluate("(d) => window._altoLanesVy(d)", -5000)                  # a height the hand chose stays the hand's
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate(ROOM)["top"] < 5, r
+    assert not pg._errs, pg._errs
     ctx.close()

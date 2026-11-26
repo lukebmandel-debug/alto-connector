@@ -1484,6 +1484,7 @@ function relayoutNow(){ if(window._altoLanesGeo && window._altoLanesH) window._a
 function setView(x){
   EXPD=!!x; try{ if(EXPD) localStorage.setItem(VK, 'expanded'); else localStorage.removeItem(VK); }catch(e){}
   OPEN={}; clearKC(); relayoutNow();
+  if(window._altoLanesRestV) window._altoLanesRestV();      // (Extend: the view stays on the main line as the board grows or shrinks)
 }
 function openFam(root, on){
   if(!on && KC && rootOf(KC)===root) clearKC();
@@ -2179,7 +2180,7 @@ _EXT_SWAPS = (
     ("if(room && y1-y0<=A) H=", "if(room && y1-y0<=A0) H="),
     ("var foot=Math.ceil((room && y1-y0<=A) ?", "var foot=Math.ceil((room && y1-y0<=A0) ?"),     # the frosted slab runs to the board's foot
     ("if(!on || de.classList.contains('printing') || PRINTX) return;",
-     "if(window._altoLanesCueLook){ window._altoLanesCueLook(1); setTimeout(function(){ window._altoLanesCueLook(1); }, 450); }\n"
+     "if(window._altoLanesCueLook){ window._altoLanesCueLook(1); setTimeout(function(){ window._altoLanesCueLook(1); if(!window._lnRested && window._altoLanesRestV){ window._lnRested=1; window._altoLanesRestV(); } }, 450); }\n"
      "  if(!on || window._altoLanesExtOn() || de.classList.contains('printing') || PRINTX) return;"),
     # the camera: the main line rests where it does, but with Extend on a card that would stand beyond the bars (a board
     # taller than the window: a phone held sideways) brings the view up or down just enough to show it whole
@@ -2192,7 +2193,13 @@ _EXT_SWAPS = (
     ("window._altoLanesCurrent=function(){ return current(); };",
      "window._altoLanesCurrent=function(){ return current(); };\n"
      "window._altoLanesVy=function(d){ var c=cv(); if(!c) return; var mt=c.scrollHeight-c.clientHeight; if(mt<1) return;\n"
-     "  M.vy=Math.max(0,Math.min(mt,(M.vy!=null ? M.vy : c.scrollTop)+d)); if(!M.pth) resync(); M.input=performance.now(); wake(); };"),
+     "  M.vy=Math.max(0,Math.min(mt,(M.vy!=null ? M.vy : c.scrollTop)+d)); if(!M.pth) resync(); M.input=performance.now(); wake(); };\n"
+     # a board that opens (or turns Expanded) taller than the window rests on its main line, not on its top edge: when the
+     # line at this event stands outside the room between the bars, the view comes to the event's resting height at once
+     "window._altoLanesRestV=function(){ var c=cv(); if(!c || !geo() || !window._altoLanesExtOn() || M.raf) return; var id=current()||stops().ids[0]; if(!id) return;\n"
+     "  var zz=zk(c), cr=c.getBoundingClientRect(), X=window._altoLanesExtRoom(), y=(mainAt(id)+PAD()+worldOff(c).y-c.scrollTop)*zz+cr.top;\n"
+     "  if(y>X.t+40 && y<X.b-40) return;\n"
+     "  M.vy=null; c.scrollTop=camFor(id).t; M.pth=null; };"),
 )
 
 LANES_EXT_HEAD = r"""
@@ -2229,6 +2236,9 @@ LANES_EXT_TAIL = r"""
       +'html.alto-editing .ln-ext-cue,html.detail-open .ln-ext-cue,html.printing .ln-ext-cue{display:none !important}'
       /* a phone held sideways: the top row's name and marks stand on the board itself, so while the board runs under them they take
          the desktop name tab's frosted backing (the board goes behind them, never shows through) */
+      /* the brand marks in the top corners: the same backing while the board runs under them (Classic and Holo frosted, Retro black) */
+      +'html.ln-under:not(.phone-whole):not(.alto-retro) #title-bar>svg:is(.brand-mark,.brand-word){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
+      +'html.ln-under.alto-retro:not(.phone-whole) #title-bar>svg:is(.brand-mark,.brand-word){background:#000;box-shadow:0 0 0 4px #000}'
       +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
       +'@media print{.ln-ext-cue{display:none !important}}';
     document.head.appendChild(st);
