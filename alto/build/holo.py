@@ -462,7 +462,7 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
           # the timeline's and detail page's right rail sits in the same 20px margin (a computer; beside the docked notes panel when it is open)
           "@media (min-width:641px){X:not(.mobile):not(.pmin) #tab-rail" + _S1_NOT + "{right:calc(var(--np-dock,0px) + 20px / var(--alto-zoom,.8)) !important;}}\n"
           # the home's right-edge Background button sits in the page's 20px margin, not on the edge (a computer; the phone's own row is unchanged)
-          "@media (min-width:641px){X:is(.alto-home,.alto-rep):not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
+          "@media (min-width:641px){X.alto-rep:not(.mobile) body > #bg-toggle" + _S1_NOT + "{right:20px !important;}}\n")
 
 # v1.9.273 (Luke L-1116-110714 "the glass bubbles in holo brought to subchips and all bottom page controls"; L-1118-001345 / B-1118-GLASSCHROME "the elements in the screenshot excluding alto glyph and logo
 # should also adopt the glass bubble style"): the SAME S1 glass (the declarations S1_CSS above writes, held equal by tests/test_holo_glass_273.py) on the top bar's group labels, chips and the x, the

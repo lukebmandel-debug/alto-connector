@@ -62,3 +62,14 @@ def test_retro_and_the_theme_follow_one_rule_everywhere():
     assert "@media print{#sk-frame,#sk-mark{display:none !important;}}" in hosted     # a Retro page prints black on white
     for part in ("#detail-page .char-chip", "#desk-back", ".ast-btn.pri"):
         assert part in retro.CHROME_CSS and part not in retro.BOARD_CSS
+
+
+def test_the_homes_scene_button_stands_in_the_corner_row_not_alone_on_the_edge():
+    """Luke 2026-11-26 ("scene toggle freefloating", Home in Retro): it sat alone at the right edge, mid-page. On a computer it now takes the
+    place one step left of Search (its place read from Search and Info by a small script); a timeline's rail keeps it as before."""
+    from alto.build import backgrounds
+    home = backgrounds.ui_block("Home", rail=False)
+    assert "bottom:24px" in home and "top:calc(50% - 17px)" not in home and 'id="alto-bg-home"' in home
+    assert "#search-btn.expanded ~ #bg-toggle" in home
+    assert 'id="alto-bg-home"' not in backgrounds.ui_block("Timeline", rail=True)
+    assert ".alto-home,.alto-rep):not(.mobile) body > #bg-toggle" not in retro.css()
