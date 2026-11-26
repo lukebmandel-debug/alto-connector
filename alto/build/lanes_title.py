@@ -3,8 +3,7 @@
 Retro puts the name at the foot of a page (the cartouche, #sk-mark) and hides the top-row name (retro.py), but the horizontal
 timeline's step bar has the bottom middle, so a Retro lanes page showed no title at all: only the crown's gold hairline. The name is
 now set into that hairline, the rule breaking round the words. One line; an ellipsis when long, the full name on hover and as the
-accessible name; 20px clear of the logo and wordmark; desktop-width lanes only (a phone has no .alto-lanes class and keeps its own
-bar). Classic and Holographic keep the engine's name tab and are untouched."""
+accessible name; 20px clear of the logo and wordmark; desktop-width lanes only (a phone keeps its own bar: phone-whole hides this one, 1.9.308). Classic and Holographic keep the engine's name tab and are untouched."""
 
 LT_CSS = r"""
   /* the page's name set into the Retro crown on a horizontal timeline (lanes_title.py) */
@@ -19,6 +18,10 @@ LT_CSS = r"""
     html.alto-retro.alto-lanes #lt-t::before,html.alto-retro.alto-lanes #lt-t::after{flex:1 1 10px;}
     html.alto-retro.alto-lanes #lt-t .lt-w{letter-spacing:.2em;font-size:13px;} }
   html.alto-retro.alto-lanes #lt-t .lt-w{background:#000;padding:0 10px;}   /* black behind the words, like Retro's chips: a card passing under the crown never shows through them */
+  /* a phone (phone-whole: the desktop page on a phone, either way up) keeps its own top-row name, as Retro phones do everywhere:
+     one title only, on black so a card passing under it never shows through */
+  html.alto-retro.alto-lanes.phone-whole #lt-t{display:none !important;}
+  html.alto-retro.alto-lanes.phone-whole #nav>.title{background:#000;padding:0 10px;}
   @media print{ #lt-t{display:none !important;} }
 """
 

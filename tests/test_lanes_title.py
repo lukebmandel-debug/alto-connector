@@ -138,3 +138,27 @@ def test_phone_width_short_title_is_centred_between_the_logo_and_the_wordmark(br
         assert abs(m["c"] - m["free"]) <= 4, str(m)
     finally:
         ctx.close()
+
+
+PHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+
+
+@pytest.mark.parametrize("size", [(844, 390), (390, 844)], ids=["l844", "p390"])
+def test_a_phone_in_retro_shows_one_title_on_black(browser, site, size):
+    """Board 1.9.308: a phone (phone-whole, either way up) showed the crown's name over its own top-row name."""
+    ctx = browser.new_context(viewport={"width": size[0], "height": size[1]}, is_mobile=True, has_touch=True, user_agent=PHONE_UA, device_scale_factor=2)
+    ctx.add_init_script("try{localStorage.setItem('alto-bg-v1-style','retro')}catch(e){}")
+    pg = ctx.new_page()
+    try:
+        pg.goto(f"{site}/short.html?view=whole", wait_until="load")
+        pg.wait_for_timeout(2500)
+        pg.evaluate("s=>window._altoStyle&&window._altoStyle.set(s)", "retro")
+        pg.wait_for_timeout(1500)
+        m = pg.evaluate("""()=>{ const de=document.documentElement, vis=e=>{ if(!e) return false; const r=e.getBoundingClientRect(), s=getComputedStyle(e); return !!(r.width&&r.height&&s.display!=='none'&&s.visibility!=='hidden'&&parseFloat(s.opacity)>0.05); };
+          const t=document.querySelector('#nav>.title');
+          return {pw:de.classList.contains('phone-whole'), retro:de.classList.contains('alto-retro'), crown:vis(document.querySelector('#lt-t .lt-w')), own:vis(t), bg:t&&getComputedStyle(t).backgroundColor}; }""")
+        assert m["pw"] and m["retro"], m
+        assert m["own"] and not m["crown"], m                             # one title: the phone's own
+        assert m["bg"] == "rgb(0, 0, 0)", m                               # on black: nothing shows through it
+    finally:
+        ctx.close()
