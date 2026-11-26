@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.318"
+__version__ = "1.9.319"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -381,6 +381,9 @@ def _guarded_tool(*a, **kw):
 
     def wrap(fn):
         if fn.__name__ in _NEWER_EXEMPT or "timeline_id" not in inspect.signature(fn).parameters:
+            return deco(fn)
+        if getattr(fn, "_accounted", False):         # (@accounted runs the check itself, inside the call's account: the page is read from the account the call names)
+            fn._newer_guard = True
             return deco(fn)
         sig = inspect.signature(fn)
 
@@ -604,7 +607,12 @@ def accounted(fn):
                         tok = _prefetched.set(hit)
                         args, kwargs = ba.args, ba.kwargs
                 try:
-                    out = fn(*args, **kwargs)
+                    out = None
+                    if getattr(wrapper, "_newer_guard", False):      # (a page saved by a newer Alto: read in THIS account's scope, after the page's address is resolved)
+                        tid = sig.bind_partial(*args, **kwargs).arguments.get("timeline_id")
+                        out = _newer_refusal(tid) if isinstance(tid, str) and tid else None
+                    if out is None:
+                        out = fn(*args, **kwargs)
                 finally:
                     if tok is not None:
                         _prefetched.reset(tok)
@@ -624,6 +632,7 @@ def accounted(fn):
         return out
 
     wrapper.__signature__ = sig.replace(parameters=params)
+    wrapper._accounted = True
     return wrapper
 
 
