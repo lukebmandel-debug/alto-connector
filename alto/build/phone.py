@@ -334,7 +334,7 @@ function chips(){ if(!on()) return; var cv=document.getElementById('canvas'); if
   var lc=[].filter.call(document.querySelectorAll('#world .lu-chip'),function(e){ return e.getBoundingClientRect().height>0; });
   if(lc.length && window._altoLanes && window._altoLanesH){   // lanes: the chips wrap (CSS); the board starts under the tallest, lower when it needs the room
     var cb=0, tp=1e9, k=z, wr=document.getElementById('world').getBoundingClientRect().top, hl=window._altoHXL||0;
-    lc.forEach(function(e){ cb=Math.max(cb,(e.getBoundingClientRect().bottom-wr)/k); });
+    lc.forEach(function(e){ var u=e.parentElement; cb=Math.max(cb, u ? (u.getBoundingClientRect().top-wr)/k+22+e.offsetHeight : (e.getBoundingClientRect().bottom-wr)/k); });   // (where it stands, not where it rides: lanes unitPin)
     [].forEach.call(document.querySelectorAll('#world .node-card, #world .lanes-flag'),function(e){ var r=e.getBoundingClientRect(); if(r.height>0) tp=Math.min(tp,(r.top-wr)/k); });
     var sl=tp-cb-12, nh=Math.max(0,hl-sl); if(sl<0||hl>0&&sl>1){ nh=Math.ceil(nh); if(Math.abs(nh-hl)>1){ window._altoHXL=nh; try{ window._altoLanes(window._altoLanesH); }catch(x){} } } }
   // the first unit's header sits under the header rule (the rule is the top bar's foot: #summary-wrap), 8 px clear of it; measured with the board at its top

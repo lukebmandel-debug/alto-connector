@@ -2,7 +2,7 @@
 
 A page whose owner turned Extend on (brief.extend) skips the fit to the window: no eased gaps, no title-only cards,
 no smaller cards, no fitStage scale. One row of cards a side; the board grows up and down instead, the view travels
-there (a trackpad, a drag, the quiet cue 20 px in from the left), and the board fades out before the bars. Nested
+there (a trackpad, a drag, the quiet cue 20 px in from the left), and the board runs behind the bars to the window's edge. Nested
 children stay stacked beyond their parent; Compact | Expanded stays its own switch. The reader's switch beside Search
 (glyph up and down) folds it back to today's board, kept per page in this browser. Phones: upright unchanged,
 sideways (Whole view) gets it. A page without Extend carries LANES_JS byte for byte."""
@@ -163,7 +163,7 @@ def test_on_the_board_keeps_its_full_spacing_and_grows_up_and_down(site):
     t = pg.evaluate(ST)
     assert t["top"] > 150, t                                                         # it went down
     masked = pg.evaluate("() => [...document.querySelectorAll('#world > *')].filter(e => e.style.maskImage || e.style.webkitMaskImage).map(e => e.id)")
-    assert masked and "glass-slab" not in masked                                     # the board fades before the bars; its backdrop never does
+    assert not masked, masked                                                        # no fade: the board runs behind the bars to the window's edge (Luke 2026-11-25)
     assert not pg._errs, pg._errs
     ctx.close()
 
@@ -218,4 +218,95 @@ def test_phones_upright_unchanged_sideways_extended(site):
         row = pg.evaluate("() => { const r = document.getElementById('ext-drawer-row'); return r ? getComputedStyle(r).display : null; }")
         assert row is None or row != "none"
     assert not pg._errs, pg._errs
+    ctx.close()
+
+
+# ── the unit labels stay in view (Luke 2026-11-25: "unit labels in expanded horizontal timeline need to be visible at all times") ──
+
+UNIT = """() => { const W = innerWidth, H = innerHeight;
+  return [...document.querySelectorAll('#world .lanes-unit')].map(u => { const r = u.getBoundingClientRect(), c = u.querySelector('.lu-chip').getBoundingClientRect();
+    return {ul: r.left, ur: r.right, l: c.left, r: c.right, t: c.top, b: c.bottom, pin: u.querySelector('.lu-chip').classList.contains('lu-pin')}; })
+    .filter(u => u.ur > 0 && u.ul < W); }"""
+
+
+@pytest.mark.parametrize("page", ["on", "plain"])
+def test_the_units_label_stays_in_view_down_and_along_the_board(site, page):
+    ctx, pg = _open(site, page, expanded=True)
+    pg.evaluate("() => { const o = document.getElementById('ln-offer'); if (o) o.remove(); }")
+    for _ in range(3):                                                   # along the line, into the middle of a unit
+        pg.keyboard.press("ArrowRight")
+        pg.wait_for_timeout(700)
+    pg.wait_for_timeout(1000)
+    if page == "on":
+        pg.evaluate("() => window._altoLanesVy(5000)")                    # and all the way down
+        pg.wait_for_timeout(1800)
+    us = pg.evaluate(UNIT)
+    lead = min(us, key=lambda u: u["ul"])                                 # the unit at the left edge
+    assert lead["t"] >= 104 and lead["b"] <= 900 - 62, lead              # below the bars at the top, in the window
+    assert lead["l"] >= 20 and lead["r"] <= 1440, lead                    # 20 px in from the left at least
+    assert lead["l"] >= lead["ul"] - 1 and lead["r"] <= lead["ur"] + 1, lead   # never out of its own unit
+    if page == "on":
+        assert lead["pin"] and lead["l"] >= 66 - 1, lead                  # riding the top, clear of the quiet cue
+    assert not pg._errs, pg._errs
+    ctx.close()
+
+
+
+# ── going behind the bars "like normal" (Luke 2026-11-25; Board B-1125-UNITPIN-HOLD): no fade, and no card text ever shows
+#    through the title, a chip or a button — each one the board passes under has its own solid or frosted backing ──
+
+CHROME = r"""() => {
+  const de = document.documentElement, W = innerWidth, H = innerHeight;
+  // card text lines at rest: every text-bearing element inside a visible card
+  const txt = [];
+  document.querySelectorAll('#world .node-card').forEach(c => { if (getComputedStyle(c.closest('.node')).display === 'none') return;
+    c.querySelectorAll('.node-title,.node-desc,.node-tag,.lanes-when,.node-footer,.ref-chip,[class*=chip]').forEach(e => { const r = e.getBoundingClientRect(); if (r.width && r.height && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W) txt.push(r); }); });
+  // the page's fixed chrome: everything position:fixed (or inside it) that is not the board
+  const cv = document.getElementById('canvas'), out = [];
+  const all = [...document.body.querySelectorAll('*')].filter(e => !cv.contains(e) || e.classList.contains('lu-pin'));
+  all.forEach(e => {
+    const c = getComputedStyle(e); if (c.display === 'none' || c.visibility === 'hidden' || parseFloat(c.opacity) < .05) return;
+    const r = e.getBoundingClientRect(); if (!r.width || !r.height || r.width > W * .9 && r.height > H * .5) return;   // (full-window layers: the backdrop, panels)
+    if (r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) return;
+    // does this element paint something (text or a box) of its own?
+    const ownText = [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()), box = e.tagName === 'BUTTON' || e.tagName === 'svg' || ownText;
+    if (!box) return;
+    const hit = txt.some(t => t.left < r.right && r.left < t.right && t.top < r.bottom && r.top < t.bottom); if (!hit) return;
+    // its backing: the first ancestor-or-self with a background or backdrop
+    let x = e, bg = null;
+    while (x && x !== document.body) { const s = getComputedStyle(x), a = (s.backgroundColor.match(/[\d.]+/g) || []).map(Number), al = s.backgroundColor === 'transparent' ? 0 : a.length > 3 ? a[3] : (a.length ? 1 : 0), bf = (s.backdropFilter && s.backdropFilter !== 'none' ? s.backdropFilter : s.webkitBackdropFilter) || 'none';
+      if (al > 0.05 || bf !== 'none' || s.backgroundImage !== 'none') { bg = {el: (x.id || x.className.toString()).slice(0, 30), alpha: al, blur: bf, img: s.backgroundImage !== 'none'}; break; } x = x.parentElement; }
+    out.push({el: (e.id || e.className.toString() || e.tagName).slice(0, 30), text: (e.textContent || '').trim().slice(0, 24), r: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], bg});
+  });
+  return {style: de.className.match(/alto-(retro|holo)/) ? de.className.match(/alto-(retro|holo)/)[0] : 'classic', n: out.length, bare: out.filter(o => !o.bg), weak: out.filter(o => o.bg && !(o.bg.alpha >= .9 || o.bg.img || (o.bg.blur !== 'none' && o.bg.alpha >= .3))), all: out.slice(0, 12)};
+}"""
+
+
+@pytest.mark.parametrize("style,w,h,phone", [("classic", 1440, 900, False), ("retro", 1440, 900, False), ("holo", 1440, 900, False),
+                                              ("classic", 844, 390, True), ("retro", 844, 390, True)],
+                         ids=["d1440-classic", "d1440-retro", "d1440-holo", "l844-classic", "l844-retro"])
+def test_nothing_over_the_board_lets_card_text_show_through(site, style, w, h, phone):
+    b, base = site
+    kw = dict(viewport={"width": w, "height": h})
+    if phone:
+        kw.update(is_mobile=True, has_touch=True, user_agent=UA, device_scale_factor=2)
+    ctx = b.new_context(**kw)
+    if style != "classic":
+        ctx.add_init_script("localStorage.setItem('alto-hl-lanes-children-style', '%s')" % style)
+    pg = ctx.new_page()
+    pg.goto(f"{base}/on.html" + ("?view=whole" if phone else ""), wait_until="load")
+    pg.wait_for_timeout(3500)
+    pg.evaluate("() => { window._altoLanesKids.view('expanded'); const o = document.getElementById('ln-offer'); if (o) o.remove(); }")
+    pg.wait_for_timeout(1500)
+    seen = 0
+    for dy in (260, 260, 300, 400):                                       # the board run up under the bars step by step, each time at rest
+        pg.evaluate("(d) => window._altoLanesVy(d)", dy)
+        pg.wait_for_timeout(1600)
+        d = pg.evaluate(CHROME)
+        assert d["style"] == ("classic" if style == "classic" else "alto-" + style), d["style"]
+        assert not d["bare"] and not d["weak"], (dy, d["bare"], d["weak"])
+        seen += d["n"]
+    assert seen > 0                                                       # (the board did run under them)
+    masked = pg.evaluate("() => [...document.querySelectorAll('#world > *')].filter(e => e.style.maskImage || e.style.webkitMaskImage).length")
+    assert masked == 0                                                    # and no fade
     ctx.close()
