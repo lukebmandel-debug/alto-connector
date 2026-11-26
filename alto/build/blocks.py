@@ -1004,14 +1004,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     tid = b.timeline_id
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
-    tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes, b.extend) if tree else None
-    # Extend (brief.extend, the owner's choice): the page carries the plan without it too, for the
-    # reader's switch (detail_extras.EXT_VIEW_GLUE). A page Extend changes nothing on has no switch.
+    # Extend (brief.extend) never lays an outline out again (Luke 2026-11-26: "that doesn't mean reformat everything ... it should
+    # look largely the same as normal, just able to continue off on either side when necessary"; "make it the whole outline"): the
+    # tree is the normal one, and the board grows past its edges as one surface where cards stand beyond them (detail_extras._altoSides),
+    # never a unit scrolled on its own. So there is one plan and no reader's switch.
+    tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes, False) if tree else None
     tree_off = None
-    if tree and b.extend:
-        tree_off = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes, False)
-        if plan_js(tree_off) == plan_js(tree_plan):
-            tree_off = None
     # A System (solar.py): its plan goes to the page whole, as
     # window._ALTO_SOLAR (solar_draw reads it), and its circles' centres as a
     # tree plan the page's _altoTree runs like any other.

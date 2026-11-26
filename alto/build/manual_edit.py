@@ -1838,7 +1838,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     b = document.createElement('div'); b.id = 'alto-edit-exit';
     b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎<span class="ee-w"> Editing</span></span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
-      + '<span class="ee-mv" role="group" aria-label="What dragging a card moves"><i aria-hidden="true">Drag moves</i><button type="button" data-mv="tree" title="Dragging a card, or the arrow keys, moves it with every card under it. Hold Option to move the one card.">Branch</button><button type="button" data-mv="card" title="Dragging a card, or the arrow keys, moves that card only: the cards under it stay. Hold Option to move the branch.">Card</button></span><button type="button" class="ee-ext" aria-pressed="false" title="Extend: each unit keeps its rows at full width and scrolls sideways when it is wider than the window, instead of cramming cards in or stacking them downward. Readers get a switch beside Search to fit it back in the window.">Extend</button>'
+      + '<span class="ee-mv" role="group" aria-label="What dragging a card moves"><i aria-hidden="true">Drag moves</i><button type="button" data-mv="tree" title="Dragging a card, or the arrow keys, moves it with every card under it. Hold Option to move the one card.">Branch</button><button type="button" data-mv="card" title="Dragging a card, or the arrow keys, moves that card only: the cards under it stay. Hold Option to move the branch.">Card</button></span><button type="button" class="ee-ext" aria-pressed="false" title="Extend: the outline keeps its layout, and the whole board grows past the window\u2019s edges where cards stand beyond them.">Extend</button>'
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + (window.AltoWorld && window.AltoWorld.pickCountry ? '<button type="button" class="ee-h ee-country" aria-label="Add a country" title="Add a country: a new card that stands on it">+ Country</button>' : '')
@@ -4140,9 +4140,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   try{ if(localStorage.getItem('alto-drag-moves') === 'card') MOVE = 'card'; }catch(e){}
   /* Extend (Luke 2026-11-25, ORG/notes-ceo/extend-interview-1125.md): the owner's choice for this page, the
      editing bar's switch (or Claude, place_nodes extend). Saved like any edit (`pg|extend`, folded into
-     brief.extend). On, each unit's rows keep their cards' width and a unit wider than the window scrolls sideways
-     on its own; readers get a switch beside Search to fold it back. A page built with it shows the change at once;
-     one built without it takes it on when Claude builds the page next. Cards are dragged on the board as it is
+     brief.extend). An outline keeps its layout either way (Luke 2026-11-26): its whole board grows past the window's
+     edges where cards stand beyond them, one surface (no unit scrolls on its own). A horizontal timeline grows up and down. Cards are dragged on the board as it is
      (no open board beyond it: the old Extend's side room is gone). */
   var EXT = !!window._ALTO_EXTEND_PAGE;
   function UNITS(){ return !!(window._altoUnitMode && window._altoUnitMode()); }   // (each unit scrolls sideways on its own: EDGE_GLUE)
@@ -4153,9 +4152,9 @@ MANUAL_JS = r"""<script id="alto-manual">
   function setExtend(v){
     if(!change('pg|extend', v ? 1 : 0)) return;
     var LX = !!window._altoLanesExtOn;      // (a horizontal timeline built with Extend: lanes.py lanes_ext_js)
-    if(!window._ALTO_TREE_PLAN_ON && !LX && v) toast('Extend is on for this page. It takes effect the next time Claude builds it.');
+    if(!root.classList.contains('alto-lanes')) toast(v ? 'Extend on: the outline keeps its layout; the board grows past its edges where cards stand beyond them. ⌘Z puts it back.' : 'Extend off. ⌘Z puts it back.');
+    else if(!LX && v) toast('Extend is on for this page. It takes effect the next time Claude builds it.');
     else if(root.classList.contains('alto-lanes')) toast(v ? 'Extend on: the board grows up and down. ⌘Z puts it back.' : 'Extend off: the board fits the window. ⌘Z puts it back.');
-    else toast(v ? 'Extend on: wide units scroll sideways. ⌘Z puts it back.' : 'Extend off: each unit fits the window. ⌘Z puts it back.');
   }
   function subtree(id){ var K = (window._ALTO_OUTLINE || {}).kids || {}, out = [id];
     for(var i = 0; i < out.length; i++) (K[out[i]] || []).forEach(function(c){ out.push(c); }); return out; }
