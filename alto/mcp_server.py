@@ -275,7 +275,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.305"
+__version__ = "1.9.309"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -2421,6 +2421,35 @@ def invent_city(timeline_id: str, spec: dict | None = None, template: str = "", 
             "apply a failing check's fix (invent_city(…, spec, fix=<check id>)) or change the spec, then call again"}
 
 
+_CURATED_PLAN_HASHES = None
+
+
+def _curated_plan_hashes() -> set:
+    """Hashes of the plans Alto itself ships (alto/buildings CURATED, incl. the invented test pavilion). The ONLY plans that may be hosted publicly:
+    the repo's own set, never a name a user could copy."""
+    global _CURATED_PLAN_HASHES
+    if _CURATED_PLAN_HASHES is None:
+        from . import buildings
+        from .build import building_schema as bs
+        _CURATED_PLAN_HASHES = {bs.plan_hash(v["load"]()) for v in buildings.CURATED.values()}
+    return _CURATED_PLAN_HASHES
+
+
+_USER_PLAN_MSG = ("a building you drew would be public to anyone with the link: Alto hosts a Memory Blueprint's plan as an ordinary file on the "
+                  "site, so only the plans Alto ships (building='pma', or demo=true) can be used for now. Plans that stay private to the owner "
+                  "(a gated store, loaded after sign-in) are coming; until then use a curated building, or leave the plan out.")
+
+
+def _user_plan_refusal(brief: dict) -> dict | None:
+    """An error dict when this brief carries a USER-DRAWN Blueprint plan (any plan whose hash is not in the curated set), else None."""
+    if (brief or {}).get("palace_view") != "building":
+        return None
+    bd = (brief or {}).get("building") or {}
+    if bd.get("plan_z") and bd.get("plan_h") not in _curated_plan_hashes():
+        return {"error": "user_plan_not_allowed", "message": _USER_PLAN_MSG}
+    return None
+
+
 @mcp.tool(title="Set up a Memory Blueprint", annotations=RW)
 @accounted
 def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
@@ -2518,6 +2547,8 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
         return {"error": "invalid_plan", "message": str(e), "problems": e.problems}
     except Exception as e:                              # noqa: BLE001 — not JSON-shaped
         return {"error": "invalid_plan", "message": f"the plan could not be read: {e}"}
+    if plan_h not in _curated_plan_hashes():
+        return {"error": "user_plan_not_allowed", "message": _USER_PLAN_MSG}
     assign = dict(old.get("assign") or {}) if assignments is None else dict(assignments)
     bd = {"name": name or old.get("name") or "", "plan_z": plan_z, "plan_h": plan_h, "mode": mode or old.get("mode") or "room",
           "assign": assign, "made": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")}
@@ -3434,6 +3465,9 @@ def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                             "owner creates a share link from their homepage.")}
     if visibility not in ("private", "private-web"):
         return {"error": "bad_visibility", "message": "private|private-web"}
+    err = _user_plan_refusal(doc.get("brief"))
+    if err:
+        return err
     err = _refuse_downgrade_early(timeline_id, doc, visibility)
     if err:
         return err
