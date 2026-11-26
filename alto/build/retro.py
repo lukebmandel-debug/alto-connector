@@ -23,6 +23,8 @@ import hashlib as _hashlib
 import json as _json
 import re as _re
 
+from . import retro_backgrounds as _rb
+
 FOLDER = "retro"
 
 # the palette and the lettering (the Star chart's Retro uses the same)
@@ -199,6 +201,11 @@ BOARD_CSS = r"""
   X body,X #app,X #canvas{background:#000 !important;}
   X #page-bg:not(#_),X.alto-bg #page-bg:not(#_),X.alto-bg.mobile.rw #page-bg:not(#_){background:#000 !important;filter:none !important;}   /* (a saved background's own `html.alto-bg #page-bg` rule has the same weight: with .alto-bg here Retro wins whatever loads last) */
   X #page-bg::before,X #page-bg::after{display:none !important;}
+  /* one of the style's own backgrounds chosen (retro_backgrounds.py): the background layer paints it again, the board lets it through; the rest of the sheet is unchanged */
+  X.alto-bg-h #page-bg:not(#_):not(#__){background:var(--alto-top) !important;}
+  X.alto-bg-h #page-bg:not(#_):not(#__)::before{display:block !important;}
+  X.alto-bg-h :is(body,#app,#canvas):not(#_):not(#__){background:transparent !important;}
+  X.alto-bg-h #bldg-root:not(#_):not(#__){background:transparent !important;}   /* (the Museum's plan sits on the scene: its black floor would hide it) */
   X #glass-slab{background:none !important;box-shadow:none !important;border-color:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* the units: no glass bars; a fine gold rule, the unit's name in spaced capitals, its numeral in thin gold */
   X:not(.alto-lanes) #world .phase-band:not(#_){background:none !important;border:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
@@ -636,7 +643,7 @@ window._altoRetroHome={on:function(){ if(!document.documentElement.classList.con
 
 JS = r"""(function(){
 if(window._altoRetro) return;
-var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null;
+var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, BGS=__BGS__, st=null;
 function desk(){ return !r.classList.contains('mobile'); }
 function plain(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
 // the frame and the wordmark are the Star chart's (#sk-frame, #sk-mark): drawn on a desktop page
@@ -652,15 +659,31 @@ function art(){
 HOMEB
 __DARK__
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); if(typeof window.redrawConnections==='function') window.redrawConnections(); window.dispatchEvent(new Event('resize')); }catch(e){} }   // (the lines break at a divider by the style: vSegWithGaps)
+// the style's own backgrounds (retro_backgrounds.py): in the picker's catalog only while Retro is on and the page is not a System; a page
+// set to one of them paints it when the style comes on and goes back to no background when it goes off (the choice itself is kept)
+function sys(){ return r.classList.contains('alto-stars') || !!document.getElementById('solar-svg'); }
+function sec(){ var U=(window._altoBg||{}).ui; if(!U||!U.body) return null; return [].filter.call(U.body.querySelectorAll('.bg-sec'), function(s){ var h=s.querySelector('.bg-h'); return h && h.textContent==='Retro'; })[0]||null; }
+function bgs(on){
+  var B=window._altoBg; if(!B||!B.C) return; on=on && !sys(); var cur=B.read();
+  Object.keys(BGS).forEach(function(id){ if(on) B.C[id]=BGS[id]; else delete B.C[id]; });
+  if(cur in BGS) B.apply(cur);
+  var U=B.ui, s=sec();
+  if(!on){ if(s) s.parentNode.removeChild(s); return; }
+  if(!U||!U.body||s) return;
+  s=U.mk('div','bg-sec'); s.appendChild(U.mk('div','bg-h','Retro')); var g=U.mk('div','bg-grid');
+  Object.keys(BGS).forEach(function(id){ g.appendChild(U.tile(id, BGS[id])); }); s.appendChild(g);
+  var at=document.getElementById('bg-yours'); if(!at){ var all=U.body.querySelectorAll('.bg-sec'); at=all[all.length>1 ? 2 : 0]||null; }
+  U.body.insertBefore(s, at); if(U.mark) U.mark();
+}
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-retro-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);
-  r.classList.add('alto-retro'); window._altoRetroDark(1); art(); redraw(); if(window._altoRetroHome) window._altoRetroHome.on();
+  r.classList.add('alto-retro'); window._altoRetroDark(1); art(); bgs(true); redraw(); if(window._altoRetroHome) window._altoRetroHome.on();
 }
 function off(){
   if(!r.classList.contains('alto-retro')) return;
   if(window._altoRetroHome) window._altoRetroHome.off();
-  r.classList.remove('alto-retro'); window._altoRetroDark(0); art(); redraw();
+  r.classList.remove('alto-retro'); window._altoRetroDark(0); art(); bgs(false); redraw();
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', art);
 window.addEventListener('load', art);
@@ -706,10 +729,10 @@ def css() -> str:
     """Every format's Retro rules, as the hosted script adds them."""
     body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS + HOME_CSS + enlarged_cards("#bldg-root .bl-enl")
     return ("@media screen{\n" + _slim(scoped(body, "html.alto-retro")) + "\n}\n"     # (printing: the engine's black on white)
-            "@media print{#sk-frame,#sk-mark{display:none !important;}}")
+            "@media print{#sk-frame,#sk-mark{display:none !important;}}\n" + _rb.css_vars())
 
 
-ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)))
+ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)).replace("__BGS__", _json.dumps(_rb.client_entries(), separators=(",", ":"))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-retro-{V}.js"
 GUARD = "_altoRetro"

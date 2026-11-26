@@ -574,12 +574,14 @@ UI_JS = r"""(function(){
     else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
     // Holographic's own backgrounds (holo_backgrounds.py), in the catalog only while that style is on: next, ahead of the rest
     if(by['Holographic']) body.appendChild(sec('Holographic', by['Holographic']));
+    // Retro's own (retro_backgrounds.py), in the catalog only while that style is on (never on a System)
+    if(by['Retro']) body.appendChild(sec('Retro', by['Retro']));
     // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
     if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
       B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
-    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic') body.appendChild(sec(g, by[g])); });
+    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic' && g!=='Retro') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
   // A page that makes its own background, and Retro, hold the style picker and nothing else; the System's own style switch is mirrored here (its row is drawn in this file, not by the hosted library)
