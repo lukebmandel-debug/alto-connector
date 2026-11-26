@@ -119,11 +119,13 @@ ST = """() => { const c = document.getElementById('canvas'), w = document.getEle
   cards.forEach(n => R.push(n.querySelector('.node-card').getBoundingClientRect()));
   let ov = 0; for (let i = 0; i < R.length; i++) for (let j = i + 1; j < R.length; j++) { const a = R[i], b = R[j];
     if (a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2) ov++; }
-  const sw = document.getElementById('ext-view-btn'), cue = [...document.querySelectorAll('.ln-ext-cue')].filter(b => !b.hidden).map(b => b.getBoundingClientRect());
+  const sw = document.getElementById('ln-view'), cue = [...document.querySelectorAll('.ln-ext-cue')].filter(b => !b.hidden).map(b => b.getBoundingClientRect());
   return {on: !!(window._altoLanesExtOn && window._altoLanesExtOn()), k: w.getBoundingClientRect().width / w.offsetWidth, scale: w.style.scale,
     compact: de.classList.contains('ln-compact'), cz: de.classList.contains('ln-cz'), R: f.mode && f.mode.R, u: f.mode && f.mode.u, need: f.need, A: f.A,
     mt: c.scrollHeight - c.clientHeight, top: c.scrollTop, overlaps: ov, n: cards.length,
-    sw: sw ? {shown: sw.style.display !== 'none', pressed: sw.getAttribute('aria-pressed'), halo: getComputedStyle(sw).boxShadow} : null,
+    sw: sw ? {shown: getComputedStyle(sw).display !== 'none' && +getComputedStyle(sw).opacity > .9, pressed: sw.getAttribute('aria-pressed'), halo: getComputedStyle(sw).boxShadow,
+      underScene: sw.parentNode.id === 'tab-rail' && sw.previousElementSibling && sw.previousElementSibling.id === 'bg-toggle'} : null,
+    beside: !!document.getElementById('ext-view-btn'),
     cues: cue.map(r => [Math.round(r.left), Math.round(r.top), Math.round(r.width)]), off: de.classList.contains('alto-ext-off')}; }"""
 UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) "
       "Version/18.0 Mobile/15E148 Safari/604.1")
@@ -168,7 +170,7 @@ def test_on_the_board_keeps_its_full_spacing_and_grows_up_and_down(site):
     assert s["on"] and not s["scale"] and not s["compact"] and not s["cz"], s        # no fitStage scale, whole cards, full size
     assert s["R"] == 1 and s["u"] == 1, s                                            # one row a side, the gaps at their roomiest
     assert s["mt"] > 200 and s["overlaps"] == 0, s                                   # taller than the window: it scrolls; nothing on top of anything
-    assert s["sw"]["shown"] and s["sw"]["pressed"] == "true", s                      # the switch, lit
+    assert s["sw"]["shown"] and s["sw"]["pressed"] == "true" and s["sw"]["underScene"], s   # the one switch, lit, in the right rail under Scene
     assert s["cues"] and s["cues"][0][0] == 20, s                                    # the quiet cue, 20 px in, on the side with more
     pg.click(".ln-ext-cue:not([hidden])")
     pg.wait_for_timeout(1500)
@@ -180,24 +182,33 @@ def test_on_the_board_keeps_its_full_spacing_and_grows_up_and_down(site):
     ctx.close()
 
 
-def test_off_is_todays_board_and_the_readers_choice_survives_a_reload(site):
-    ctx0, pg0 = _open(site, "plain", expanded=True)
+def test_one_switch_compact_is_todays_board_and_expanding_turns_extend_on(site):
+    """Luke 2026-11-26: "move the expanded view square toggle to the right sidebar below scene, and eliminate the other extend toggle
+    ... If a user exapands a nested branch or hits the expand all toggle we are moving, then extend mode automatically activates." """
+    ctx0, pg0 = _open(site, "plain")
     today = pg0.evaluate(ST)
     ctx0.close()
-    ctx, pg = _open(site, "on", expanded=True)
-    pg.click("#ext-view-btn")
-    pg.wait_for_timeout(1500)
+    ctx, pg = _open(site, "on")
     s = pg.evaluate(ST)
-    assert s["off"] and not s["on"] and s["sw"]["pressed"] == "false", s
+    assert not s["on"] and not s["beside"] and s["sw"]["underScene"] and s["sw"]["shown"] and s["sw"]["pressed"] == "false", s
     for k in ("scale", "compact", "cz", "R", "need", "A", "n"):
-        assert s[k] == today[k], (k, s[k], today[k])                                 # the fit, as a page without Extend has it
+        assert s[k] == today[k], (k, s[k], today[k])                                 # Compact: the fit, as a page without Extend has it
     assert abs(s["k"] - today["k"]) < .002
-    pg.reload(wait_until="load")
-    pg.wait_for_timeout(3000)
-    assert pg.evaluate(ST)["off"]                                                    # kept for this page in this browser
-    pg.click("#ext-view-btn")
+    pg.click("#ln-view")                                                             # Expanded (expand all): Extend comes on
+    pg.wait_for_timeout(1500)
+    t = pg.evaluate(ST)
+    assert t["on"] and t["sw"]["pressed"] == "true" and t["mt"] > 200 and not t["scale"], t
+    pg.click("#ln-view")
+    pg.wait_for_timeout(1500)
+    assert not pg.evaluate(ST)["on"]
+    pg.evaluate("() => window._altoLanesKids.open('warning', true)")                # one branch opened: Extend comes on
     pg.wait_for_timeout(1200)
     assert pg.evaluate(ST)["on"]
+    pg.evaluate("() => window._altoLanesKids.open('warning', false)")               # and goes off when it closes
+    pg.wait_for_timeout(1200)
+    u = pg.evaluate(ST)
+    assert not u["on"] and u["scale"] == today["scale"], u
+    assert not pg._errs, pg._errs
     ctx.close()
 
 

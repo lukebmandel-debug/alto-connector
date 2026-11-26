@@ -880,6 +880,12 @@ LANES_CSS = KEY_CSS + """
   #ln-view:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   html.mobile #ln-view,html.phone-whole #ln-view,html.detail-open #ln-view,html.printing #ln-view{display:none !important;}
   @media print{#ln-view,.node-card .ln-chip{display:none !important;}}
+  /* the switch is a tab of the right rail, straight under Scene (Luke 2026-11-26): always in view, a rail tab's size and shape (Scene's, backgrounds.py);
+     Retro keeps its square with the 1px rim, Holographic its rail's glass lens (holo.py S1, #tab-rail>button), pressed lit as before */
+  #tab-rail > #ln-view{position:static;opacity:1;width:34px;height:34px;box-sizing:border-box;padding:0;margin:0;-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);box-shadow:0 10px 26px var(--node-rest-shadow);}
+  html:not(.alto-retro):not(.alto-holo) #tab-rail > #ln-view{border-right:none;border-radius:6px 0 0 6px;}
+  #tab-rail > #ln-view svg{width:18px;height:18px;}
+  html.alto-retro #tab-rail>#ln-view[aria-pressed=true]:not(#_):not(#__){background:#d9ae55 !important;color:#000 !important;}   /* (Retro's rail paints every tab black: pressed, the gold fill its open tabs wear) */
   /* lines picked to show only them (LANES_JS setPick): the rest leave the board */
   html.alto-lanes:not(.mobile) #world .node.ln-hid{display:none !important;}
   #lanes-key .lk-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px;padding:0 4px;font-size:11px;color:var(--muted);}
@@ -1435,7 +1441,8 @@ function kidsDim(){
     if(kc && kc.classList.contains('ln-kid-dim')!==dim) kc.classList.toggle('ln-kid-dim', dim);
   });
 }
-/* the Compact | Expanded switch (bottom right), only on a timeline that has something nested */
+/* the Compact | Expanded switch, only on a timeline that has something nested: a tab of the right rail, straight under Scene
+   (Luke 2026-11-26, "move the expanded view square toggle to the right sidebar below scene"); a page with no rail keeps it bottom right */
 function viewSwitch(has){
   var b=document.getElementById('ln-view');
   if(!has || !kidsOn() || document.getElementById('canvas')===null){ if(b) b.remove(); return; }
@@ -1450,12 +1457,20 @@ function viewSwitch(has){
     });
     offerSoon();
   }
+  seatView(b);
   var icon=EXPD
     ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="15" height="5" rx="1.5"/><path d="M6 8v9h4"/><rect x="10" y="14" width="11" height="6" rx="1.5"/></svg>'
     : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="15" height="11" rx="2"/><path d="M6 18h12M9 21h6"/></svg>';
   var tip=EXPD ? 'Expanded view: entries inside another are shown beneath it. Click for the Compact view.' : 'Compact view: entries inside another are tucked behind it. Click for the Expanded view.';
   if(b.getAttribute('data-v')!==(EXPD ? 'x' : 'c')){ b.setAttribute('data-v', EXPD ? 'x' : 'c'); b.innerHTML=icon; }
   b.title=tip; b.setAttribute('aria-label', tip); b.setAttribute('aria-pressed', EXPD ? 'true' : 'false');
+}
+function seatView(b){
+  var r=document.getElementById('tab-rail'), s=document.getElementById('bg-toggle');
+  if(!r){ if(b.parentNode!==document.body) document.body.appendChild(b); return; }
+  if(s && s.parentNode===r){ if(s.nextElementSibling!==b) r.insertBefore(b, s.nextSibling); }
+  else if(r.lastElementChild!==b) r.appendChild(b);
+  if(!r._lnSeat && window.MutationObserver){ r._lnSeat=1; new MutationObserver(function(){ var v=document.getElementById('ln-view'); if(v) seatView(v); }).observe(r, {childList:true}); }
 }
 /* Alto's one-time offer (once a board has entries tucked inside others: the Compact page shows less than it holds): says where the
    switch is and what it does; either answer ends it for good, and the glyph stays as the vanishing toggle after it */
@@ -1470,7 +1485,7 @@ function offerSoon(){
     try{ localStorage.setItem(OFFK, '1'); }catch(e){}
     var o=document.createElement('div'); o.id='ln-offer'; o.setAttribute('role','status');
     o.innerHTML='<p></p><div class="ln-offer-b"><button type="button" data-a="x">Show Expanded</button><button type="button" data-a="c">Keep Compact</button></div>';
-    o.querySelector('p').textContent=(n===1 ? '1 entry is tucked inside another card.' : n+' entries are tucked inside other cards.')+' Expanded lays them out beneath their parent. The switch is the glyph at the bottom right; it appears when you point at the board.';
+    o.querySelector('p').textContent=(n===1 ? '1 entry is tucked inside another card.' : n+' entries are tucked inside other cards.')+' Expanded lays them out beneath their parent. The switch is on the right, under Scene.';
     o.addEventListener('click', function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; closeOffer(); if(a==='x') setView(true); });
     document.body.appendChild(o); b.classList.add('ln-show');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ o.classList.add('ln-on'); }); });
@@ -1486,7 +1501,8 @@ function relayoutNow(){ if(window._altoLanesGeo && window._altoLanesH) window._a
 function setView(x){
   EXPD=!!x; try{ if(EXPD) localStorage.setItem(VK, 'expanded'); else localStorage.removeItem(VK); }catch(e){}
   OPEN={}; clearKC(); relayoutNow();
-  if(window._altoLanesRestV) window._altoLanesRestV();      // (Extend: the view stays on the main line as the board grows or shrinks)
+  if(window._altoLanesRestV) window._altoLanesRestV();
+  if(window._altoLanesCueLook) window._altoLanesCueLook();      // (Extend: the view stays on the main line as the board grows or shrinks)
 }
 function openFam(root, on){
   if(!on && KC && rootOf(KC)===root) clearKC();
@@ -1496,9 +1512,11 @@ function openFam(root, on){
   if(cv && n){ var d=n.getBoundingClientRect().top-t0; if(Math.abs(d)>1) cv.scrollTop+=d; }      // the parent stays where it was on the screen
   if(on){ var f=((window._altoLanesGeo||{}).fams||{})[root]||[], k=f.length && document.getElementById('node-'+f[f.length-1]);
     if(k) try{ k.scrollIntoView({block:'nearest', inline:'nearest'}); }catch(e){} }
+  if(window._altoLanesCueLook) window._altoLanesCueLook();
 }
 window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
-  cursor:function(){ return KC; }, shut:kidShut, nest:nestOf};
+  cursor:function(){ return KC; }, shut:kidShut, nest:nestOf,
+  grown:function(){ return EXPD || Object.keys(OPEN).length>0; }};      /* (Extend's on while the board holds more than its main line: lanes_ext_js) */
 function clearKC(){ if(!KC) return; var n=document.getElementById('node-'+KC); if(n) n.classList.remove('ln-kc'); KC=''; }
 function setKC(id){
   clearKC(); var n=document.getElementById('node-'+id); if(!n) return;
@@ -2237,9 +2255,12 @@ _EXT_SWAPS = (
 LANES_EXT_HEAD = r"""
 window._altoLanesExtOn=function(){
   var c=document.documentElement.classList;
-  if(!window._ALTO_EXTEND_PAGE || c.contains('alto-ext-off') || c.contains('printing')) return false;
-  if(c.contains('phone-whole')) return window.innerWidth>window.innerHeight;     /* phones: held sideways only (upright, the board has its height) */
-  return !c.contains('mobile');
+  if(!window._ALTO_EXTEND_PAGE || c.contains('printing')) return false;
+  if(c.contains('phone-whole')) return !c.contains('alto-ext-off') && window.innerWidth>window.innerHeight;     /* phones: held sideways only (upright, the board has its height); MENU's Extend row */
+  if(c.contains('mobile') || (c.contains('alto-editing') && c.contains('alto-ext-off'))) return false;          /* (the owner's own switch, while editing) */
+  /* the desktop has one switch (Luke 2026-11-26, "If a user exapands a nested branch or hits the expand all toggle ... then extend mode
+     automatically activates"): Extend is on while the board is Expanded or a branch is open, and the board fits the window otherwise */
+  var k=window._altoLanesKids; return !!(k && k.grown && k.grown());
 };
 /* the room between the bars, in screen px: the top bar's foot and the rail's (or the phone's bottom row's) head */
 window._altoLanesExtRoom=function(){
@@ -2327,6 +2348,9 @@ def lanes_ext_js(tid: str) -> str:
          "if(window._ALTO_EXTEND_PAGE && R.classList.contains('phone-whole') && window.innerWidth>window.innerHeight) r.style"),
         ("if(window._altoUnitRefresh) setTimeout(window._altoUnitRefresh,60);",
          "if(window._altoLanesCueLook) setTimeout(window._altoLanesCueLook,80);"),
+        # the desktop's switch beside Search is not made: Expanded (under Scene) and an opened branch turn Extend on (Luke 2026-11-26)
+        ("    if(b || !document.body) return;\n    b=document.createElement('button'); b.type='button'; b.id='ext-view-btn';",
+         "    return;\n    b=document.createElement('button'); b.type='button'; b.id='ext-view-btn';"),
     ):
         assert sw.count(a) == 1, a
         sw = sw.replace(a, b)

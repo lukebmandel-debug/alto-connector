@@ -1,7 +1,8 @@
 """The Compact | Expanded glyph (lanes.py, #ln-view), item 8 of Luke's 2026-11-05 picks: one glyph, bottom right, only on a board
 that has something nested; a vanishing toggle (invisible until the pointer is over its corner or the board, fades in, fades out
 again after the pointer leaves, always reachable by keyboard); Alto's one-time offer when entries are tucked inside others, after
-which the glyph stays. No settings switch; a phone is unchanged. Browser tests only (WebKit and Chromium; skipped without Playwright)."""
+which the glyph stays. No settings switch; a phone is unchanged. Since 2026-11-26 (Luke: "move the expanded view square toggle to the
+right sidebar below scene") it is a tab of the right rail, straight under Scene, always in view (rail tabs do not vanish). Browser tests only (WebKit and Chromium; skipped without Playwright)."""
 import pytest
 
 from alto.build.lanes import LANES_CSS, LANES_JS
@@ -32,25 +33,17 @@ def test_the_static_page_carries_no_switch_and_the_toggle_is_css():
     assert "alto-compact-offer" in LANES_JS and "settings" not in LANES_JS.split("function offerSoon", 1)[1].split("function closeOffer", 1)[0].lower()
 
 
-def test_the_glyph_is_invisible_at_rest_fades_in_on_the_board_and_out_after_leaving(browser, tmp_path):
+def test_the_glyph_is_a_rail_tab_under_scene_in_view_at_rest(browser, tmp_path):
     pg, errs = _quiet(browser, tmp_path)
-    assert pg.evaluate("!!document.getElementById('ln-view')") and pg.evaluate(OPACITY) == 0
-    cx, cy = pg.evaluate("()=>{ const c=document.getElementById('canvas').getBoundingClientRect(); return [c.left+c.width/2, c.top+c.height/3]; }")
-    pg.mouse.move(cx, cy)
-    pg.mouse.move(cx + 6, cy + 4)
-    pg.wait_for_timeout(500)
-    assert pg.evaluate(OPACITY) == 1                                             # the pointer is on the board: it fades in
     x, y = _away(pg)
     pg.mouse.move(x, y)
-    pg.wait_for_timeout(500)
-    assert pg.evaluate(OPACITY) > 0                                              # not at once: it lingers a moment
-    pg.wait_for_timeout(1300)
-    assert pg.evaluate(OPACITY) == 0                                             # then it fades out again
+    pg.wait_for_timeout(1600)
+    g = pg.evaluate("""()=>{ const b=document.getElementById('ln-view'), s=document.getElementById('bg-toggle'), r=b.getBoundingClientRect(), q=s.getBoundingClientRect();
+      return {rail: b.parentNode.id, prev: b.previousElementSibling && b.previousElementSibling.id, op: +getComputedStyle(b).opacity, w: r.width, sw: q.width, dx: r.left-q.left, dy: r.top-q.bottom}; }""")
+    assert g["rail"] == "tab-rail" and g["prev"] == "bg-toggle" and g["op"] == 1, g          # under Scene, in view with the pointer away
+    assert abs(g["w"] - g["sw"]) < 1 and abs(g["dx"]) < 1 and 0 <= g["dy"] < 16, g            # Scene's size, in its column, just below it
     box = pg.evaluate("()=>{ const r=document.getElementById('ln-view').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
-    pg.mouse.move(*box)                                                          # its own corner brings it back
-    pg.wait_for_timeout(500)
-    assert pg.evaluate(OPACITY) == 1
-    pg.mouse.click(*box)                                                         # and it works as it is: Expanded
+    pg.mouse.click(*box)                                                         # and it works: Expanded
     pg.wait_for_timeout(500)
     assert pg.evaluate("document.getElementById('ln-view').getAttribute('aria-pressed')") == "true"
     assert not errs, errs
@@ -61,14 +54,13 @@ def test_the_keyboard_reaches_it_and_sees_it(browser, tmp_path):
     x, y = _away(pg)
     pg.mouse.move(x, y)
     pg.wait_for_timeout(1600)
-    assert pg.evaluate(OPACITY) == 0
     for _ in range(120):
         pg.keyboard.press("Tab")
         if pg.evaluate("document.activeElement && document.activeElement.id") == "ln-view":
             break
     assert pg.evaluate("document.activeElement.id") == "ln-view", "Tab never reached the glyph"
     pg.wait_for_timeout(500)
-    assert pg.evaluate(OPACITY) == 1                                             # focus-visible shows it, the pointer far away
+    assert pg.evaluate(OPACITY) == 1                                             # in view, the pointer far away
     pg.keyboard.press("Enter")
     pg.wait_for_timeout(500)
     assert pg.evaluate("document.getElementById('ln-view').getAttribute('aria-pressed')") == "true"
@@ -111,7 +103,7 @@ def test_a_phone_is_unchanged_no_glyph_no_offer(browser, tmp_path):
 # ── Retro and Holographic: the unpressed glyph wears the card rim, 1px, same box (Art, 2026-11-05) ──
 
 RIM = """()=>{ const e=document.getElementById('ln-view'), c=getComputedStyle(e), r=e.getBoundingClientRect();
-  return {w:r.width, h:r.height, l:r.left, t:r.top, bw:c.borderTopWidth, bs:c.borderTopStyle, bc:c.borderTopColor, bg:c.backgroundColor, op:c.opacity, box:c.boxSizing, pr:e.getAttribute('aria-pressed')}; }"""
+  return {w:r.width, h:r.height, l:r.left, t:r.top, bw:c.borderTopWidth, bs:c.borderTopStyle, bc:c.borderTopColor, bg:c.backgroundColor, op:c.opacity, box:c.boxSizing, sh:c.boxShadow, pr:e.getAttribute('aria-pressed')}; }"""
 
 
 def _styled(browser, tmp_path, style):
@@ -156,8 +148,9 @@ def _styled(browser, tmp_path, style):
     return pg, errs
 
 
-@pytest.mark.parametrize("style,rim", [("retro", "rgb(217, 174, 85)"), ("holo", "rgb(79, 240, 224)")])
-def test_the_unpressed_glyph_wears_a_one_pixel_rim_in_retro_and_holo_and_keeps_its_size(browser, tmp_path, style, rim):
+@pytest.mark.parametrize("style,rim", [("retro", "rgb(217, 174, 85)")])
+def test_in_retro_it_wears_the_rails_rim_and_lights_gold_pressed_and_keeps_its_size(browser, tmp_path, style, rim):
+    """(Holographic: the rail's glass lens, holo.py S1, as every rail tab; held by test_lanes_children's pressed-switch check)"""
     pg, errs = _styled(browser, tmp_path, style)
     assert pg.evaluate("document.documentElement.classList.contains('alto-%s')" % style)
     cx, cy = pg.evaluate("()=>{ const c=document.getElementById('canvas').getBoundingClientRect(); return [c.left+c.width/2, c.top+c.height/3]; }")
@@ -165,16 +158,12 @@ def test_the_unpressed_glyph_wears_a_one_pixel_rim_in_retro_and_holo_and_keeps_i
     pg.mouse.move(cx + 6, cy + 4)
     pg.wait_for_timeout(500)
     a = pg.evaluate(RIM)
-    assert a["pr"] == "false" and a["op"] == "1" and (a["bs"], a["bc"], a["box"]) == ("solid", rim, "border-box") and 0.9 <= float(a["bw"][:-2]) <= 1.2, a   # 1px (the page's own zoom may scale it a hair)
-    x, y = _away(pg)
-    pg.mouse.move(x, y)
-    pg.wait_for_timeout(1900)
-    assert pg.evaluate(RIM)["op"] == "0"                                         # the rim fades with the glyph: it is the element's own opacity
+    assert a["pr"] == "false" and a["op"] == "1" and a["bg"] == "rgb(0, 0, 0)" and "217, 174, 85" in a["sh"], a   # a Retro rail tab: black, the gold 1px rim (retro.py)
     box = pg.evaluate("()=>{ const r=document.getElementById('ln-view').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
     pg.mouse.click(*box)
     pg.mouse.move(box[0] - 3, box[1] - 3)
     pg.wait_for_timeout(500)
     b = pg.evaluate(RIM)
-    assert b["pr"] == "true" and b["bc"] == b["bg"], b                           # pressed: the rim is its fill, as before
+    assert b["pr"] == "true" and b["bg"] == rim, b                               # pressed: the gold fill
     assert (b["w"], b["h"], b["l"], b["t"]) == (a["w"], a["h"], a["l"], a["t"]), (a, b)   # same size and place in both states
     assert not errs, errs
