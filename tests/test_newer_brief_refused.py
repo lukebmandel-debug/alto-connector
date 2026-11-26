@@ -48,7 +48,7 @@ def test_a_write_to_a_page_saved_by_a_newer_alto_is_refused_and_changes_nothing(
     for call in (lambda: srv.add_nodes(tid, new), lambda: srv.delete_nodes(tid, ["a"]), lambda: srv.set_overview(tid, "<p>x</p>")):
         r = call()
         assert r["error"] == "page_saved_by_newer_alto", r
-        assert "newer Alto" in r["message"] and "nothing was changed" in r["message"].lower() and "Update Alto" in r["message"] and "alto-get" in r["message"]
+        assert "newer Alto" in r["message"] and "nothing was changed" in r["message"].lower() and "Update Alto" in r["message"] and "update_alto" in r["message"] and "releases/latest" in r["message"]
         assert "glowfuture" in r["message"] or "glow" in r["message"]
     assert json.dumps(store.get_timeline(srv.uid(), tid), sort_keys=True) == doc0       # (the unknown key is still there, nothing else moved)
     assert json.dumps(store.list_nodes(srv.uid(), tid), sort_keys=True) == nodes0

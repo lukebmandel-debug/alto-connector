@@ -174,3 +174,22 @@ def test_the_file_and_the_open_command_are_chosen_per_os_and_chip():
     assert ui.open_command("C:\\t\\a.mcpb", "win32") == ["cmd", "/c", "start", "", "C:\\t\\a.mcpb"]
     with pytest.raises(ui.UpdateError):
         ui.open_command("/t/a", "linux")
+
+
+def test_it_stacks_with_the_newer_page_refusal_which_leads_when_it_fires(behind, monkeypatch):
+    """Both hooks wrap mcp.tool (the newer-page guard inside, the update note outside): the refusal leads when a page is newer, else the update note does."""
+    base = _Reg()
+    monkeypatch.setattr(srv, "_mcp_tool", base.tool)
+    stack = _Reg()
+    stack.tool = srv._guarded_tool
+    srv._lead_with_update_note(stack)
+
+    @stack.tool(annotations=srv.RW)
+    def add_nodes(timeline_id: str):
+        return {"ok": timeline_id}
+    fn = base.tools["add_nodes"]
+    monkeypatch.setattr(srv, "_newer_refusal", lambda tid: None)
+    out = fn("t1")
+    assert list(out)[0] == "update_alto" and out["ok"] == "t1"
+    monkeypatch.setattr(srv, "_newer_refusal", lambda tid: {"error": "page_saved_by_newer_alto"})
+    assert fn("t1") == {"error": "page_saved_by_newer_alto"}
