@@ -235,30 +235,36 @@ def test_phones_upright_unchanged_sideways_extended(site):
 
 # ── the unit labels stay in view (Luke 2026-11-25: "unit labels in expanded horizontal timeline need to be visible at all times") ──
 
-UNIT = """() => { const W = innerWidth, H = innerHeight;
-  return [...document.querySelectorAll('#world .lanes-unit')].map(u => { const r = u.getBoundingClientRect(), c = u.querySelector('.lu-chip').getBoundingClientRect();
-    return {ul: r.left, ur: r.right, l: c.left, r: c.right, t: c.top, b: c.bottom, pin: u.querySelector('.lu-chip').classList.contains('lu-pin')}; })
-    .filter(u => u.ur > 0 && u.ul < W); }"""
+UNIT = """() => { const W = innerWidth, ml = document.querySelector('#lanes-svg path.ln-main, #lanes-svg .ln-main');
+  const lineAt = sx => { const m = ml.getScreenCTM(), L = ml.getTotalLength(); let best = null, bd = 1e9;      // the main line's height on the screen at sx
+    for (let i = 0; i <= 400; i++) { const p = ml.getPointAtLength(L * i / 400), x = m.a * p.x + m.c * p.y + m.e; if (Math.abs(x - sx) < bd) { bd = Math.abs(x - sx); best = m.b * p.x + m.d * p.y + m.f; } } return best; };
+  const dots = [...document.querySelectorAll('#lanes-svg .ln-dot, #lanes-svg .ln-ring')].map(d => d.getBoundingClientRect()).filter(r => r.width);
+  const cards = [...document.querySelectorAll('#world .node-card')].map(c => c.getBoundingClientRect()).filter(r => r.width);
+  return [...document.querySelectorAll('#lanes-ulabels .lu-chip')].map(e => { const r = e.getBoundingClientRect(), hit = q => q.left < r.right && r.left < q.right && q.top < r.bottom && r.top < q.bottom;
+    return {l: r.left, r: r.right, t: r.top, b: r.bottom, line: lineAt((r.left + r.right) / 2), cy: (r.top + r.bottom) / 2, pin: e.classList.contains('lu-pin'), dots: dots.filter(hit).length, cards: cards.filter(hit).length,
+      z: getComputedStyle(e.parentElement).zIndex,
+      btn: [...document.querySelectorAll('#key-toggle, .ln-ext-cue')].filter(q => !q.hidden && getComputedStyle(q).display !== 'none').map(q => q.getBoundingClientRect()).filter(q => q.width && hit(q)).length}; })
+    .filter(u => u.r > 0 && u.l < W); }"""
 
 
 @pytest.mark.parametrize("page", ["on", "plain"])
-def test_the_units_label_stays_in_view_down_and_along_the_board(site, page):
+def test_the_units_label_sits_on_the_main_line_and_stays_in_view_along_it(site, page):
+    """Luke 2026-11-26: "i want unit labels embedded in the main timeline, not free floating" (and 2026-11-25: visible at all times)."""
     ctx, pg = _open(site, page, expanded=True)
     pg.evaluate("() => { const o = document.getElementById('ln-offer'); if (o) o.remove(); }")
+    us = pg.evaluate(UNIT)
+    assert us, us
+    for u in us:                                                          # set into the line: centred on it, never over a dot or a card
+        assert abs(u["cy"] - u["line"]) <= 2 and not u["dots"] and not u["cards"], u
     for _ in range(3):                                                   # along the line, into the middle of a unit
         pg.keyboard.press("ArrowRight")
         pg.wait_for_timeout(700)
     pg.wait_for_timeout(1000)
-    if page == "on":
-        pg.evaluate("() => window._altoLanesVy(5000)")                    # and all the way down
-        pg.wait_for_timeout(1800)
     us = pg.evaluate(UNIT)
-    lead = min(us, key=lambda u: u["ul"])                                 # the unit at the left edge
-    assert lead["t"] >= 104 and lead["b"] <= 900 - 62, lead              # below the bars at the top, in the window
-    assert lead["l"] >= 20 and lead["r"] <= 1440, lead                    # 20 px in from the left at least
-    assert lead["l"] >= lead["ul"] - 1 and lead["r"] <= lead["ur"] + 1, lead   # never out of its own unit
-    if page == "on":
-        assert lead["pin"] and lead["l"] >= 66 - 1, lead                  # riding the top, clear of the quiet cue
+    lead = min(us, key=lambda u: u["l"])                                  # the label at the left edge
+    assert abs(lead["cy"] - lead["line"]) <= 2, lead                     # still on the line
+    assert lead["l"] >= 20 - 0.5 and lead["r"] <= 1440, lead              # 20 px in from the left at least: in view
+    assert not lead["dots"] and not lead["cards"] and not lead["btn"], lead   # (clear of the key's toggle and the quiet cues)
     assert not pg._errs, pg._errs
     ctx.close()
 
