@@ -77,11 +77,8 @@ def test_a_card_dragged_past_the_edge_stays_out_there_and_survives_a_reload(exte
             assert l1 - l0 > 500, (card, l0, l1)                                  # well past where the window's edge was
             seen = pg.evaluate(SEEN, card)
             assert seen["l"] >= 20 and seen["r"] <= seen["rail"] - 20, seen  # shown after the drop, 20 px clear of the window's edge and the side rail
-            if extend:
-                assert seen["units"] and not seen["xwide"], seen                 # its unit row reaches it; the board stays the window's width
-            else:
-                assert seen["xwide"], seen                                       # the board opened that way
-                assert l1 + 145 > 1700                                           # past the page's own 1,700 px
+            assert seen["xwide"], seen                                           # the whole board opened that way, Extend on or off (Luke 2026-11-26: one surface)
+            assert l1 + 145 > 1700                                               # past the page's own 1,700 px
             pg.reload(wait_until="load")
             pg.wait_for_timeout(3500)
             assert abs(pg.evaluate(LEFT, card) - l1) <= 2                         # the drop was saved

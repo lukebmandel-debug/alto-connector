@@ -234,45 +234,6 @@ def _browser(pages, steps):
 
 
 @needs_pw
-def test_wheel_pans_only_the_unit_under_the_pointer_and_the_cue_shows_only_where_there_is_more():
-    async def steps(pg):
-        info = "() => (window._altoUnits || []).map(u => ({min: u.min, max: u.max, ox: u.ox, l: u.L.classList.contains('on'), r: u.R.classList.contains('on')}))"
-        out = {"open": await pg.evaluate(info), "pagescroll": await pg.evaluate("() => document.getElementById('canvas').scrollLeft")}
-        y = await pg.evaluate("() => { const u = window._altoUnits[0], w = document.getElementById('world').getBoundingClientRect(); return w.top + (u.top + 400) * (w.height / document.getElementById('world').offsetHeight); }")
-        await pg.mouse.move(700, y)
-        await pg.keyboard.down("Shift")
-        await pg.mouse.wheel(0, 300)
-        await pg.keyboard.up("Shift")
-        await pg.wait_for_timeout(400)
-        out["shift"] = await pg.evaluate(info)
-        await pg.mouse.wheel(-9000, 0)                         # the trackpad's side swipe
-        await pg.wait_for_timeout(400)
-        out["start"] = await pg.evaluate(info)
-        await pg.mouse.wheel(9000, 0)
-        await pg.wait_for_timeout(400)
-        out["end"] = await pg.evaluate(info)
-        out["rail"] = await pg.evaluate("""() => { const rail = document.getElementById('tab-rail').getBoundingClientRect().left, u = window._altoUnits[0];
-            const w = document.getElementById('world').getBoundingClientRect(), k = w.width / document.getElementById('world').offsetWidth;
-            const r = [...document.querySelectorAll('#world .node[id^=node-]')].map(e => e.getBoundingClientRect()).filter(b => (b.top + b.height / 2 - w.top) / k < u.bot && (b.top + b.height / 2 - w.top) / k >= u.top);
-            return {rail: rail, right: Math.max(...r.map(b => b.right))}; }""")
-        await pg.mouse.wheel(-9000, 0)
-        await pg.wait_for_timeout(400)
-        out["left"] = await pg.evaluate("() => Math.min(...[...document.querySelectorAll('#world .node[id^=node-]')].map(e => e.getBoundingClientRect()).filter(b => b.top < 1300).map(b => b.left))")
-        return out
-    res = _browser({"wide": tf.page(data=tf.negligence_brief())}, steps)["wide"]
-    o = res["open"]
-    assert o[0]["max"] > o[0]["min"] and o[0]["l"] and o[0]["r"], o       # unit one opens mid-way, room both ways
-    assert o[1]["max"] == o[1]["min"] and not o[1]["l"] and not o[1]["r"], o   # unit two fits: centred, no cue
-    assert res["shift"][0]["ox"] > o[0]["ox"] and res["shift"][1]["ox"] == o[1]["ox"], res["shift"]   # shift+wheel pans THAT unit only
-    s0, e0 = res["start"][0], res["end"][0]
-    assert s0["ox"] == s0["min"] and s0["r"] and not s0["l"], s0
-    assert e0["ox"] == e0["max"] and e0["l"] and not e0["r"], e0
-    assert res["rail"]["right"] <= res["rail"]["rail"], res["rail"]          # panned to the end, no card under the right rail
-    assert res["left"] >= 0, res["left"]
-    assert res["pagescroll"] == 0                                           # the page does not scroll sideways
-
-
-@needs_pw
 def test_the_unit_bar_frames_its_unit_and_no_card_goes_under_the_rail_at_either_end():
     # (the geometry is checked through the real wheel in the previous test; here the framing)
     async def frame(pg):
@@ -306,58 +267,6 @@ def test_the_page_opens_with_each_wide_units_hub_centred_and_a_branch_in_view():
         assert abs((r["hub"][0] + r["hub"][1]) / 2 - r["rail"] / 2) <= 60, (vw, r["hub"])  # and about centred
         assert any(b[0] >= 0 and b[1] <= vw for b in r["branches"]), (vw, r["branches"])
         assert all(b[0] >= 0 and b[1] <= r["rail"] for b in r["strict"]), (vw, r["strict"])   # unit two fits whole, clear of the rail
-
-
-@needs_pw
-def test_the_board_fills_the_window_with_no_cap_and_no_seam_and_the_cue_sits_below_the_bar():
-    async def steps(pg):
-        res = {}
-        for vw in (1920, 2560):
-            await pg.set_viewport_size({"width": vw, "height": 900})
-            await pg.reload(wait_until="load")
-            await pg.wait_for_timeout(3500)
-            res[vw] = await pg.evaluate("""() => { const w = document.getElementById('world'), c = document.getElementById('canvas'), s = document.getElementById('glass-slab'),
-                bar = document.querySelector('.unit-bar').getBoundingClientRect(), W = w.getBoundingClientRect(), S = s.getBoundingClientRect(),
-                cues = [...document.querySelectorAll('.alto-edge-c,.alto-edge-t')].map(e => e.getBoundingClientRect());
-                return {world: w.offsetWidth, canvas: c.clientWidth, wl: W.left, wr: W.right, sl: S.left, sr: S.right, vw: innerWidth, barTop: bar.top, barBottom: bar.bottom,
-                        cueTops: cues.map(r => r.top), units: window._altoUnits.map(u => [u.min, u.max])}; }""")
-        return res
-    res = _browser({"wide": tf.page(data=tf.negligence_brief())}, steps)["wide"]
-    for vw, r in res.items():
-        assert r["world"] == r["canvas"] >= vw - 20, (vw, r)                                # no 1,700 cap: the board is as wide as the window
-        assert r["sl"] <= 1 and r["sr"] >= vw - 1 and r["wl"] <= 1, (vw, r)                  # the glass reaches both window edges: no seam
-        assert all(t >= r["barBottom"] for t in r["cueTops"]), (vw, r)                       # the fade never reaches the pill or numeral
-    assert res[2560]["units"][0][1] - res[2560]["units"][0][0] < res[1920]["units"][0][1] - res[1920]["units"][0][0]   # wider window, less to scroll
-
-
-@needs_pw
-def test_retro_unit_bar_ends_at_its_numeral():
-    async def steps(pg):
-        return await pg.evaluate("""() => [...document.querySelectorAll('.unit-bar')].map(b => { const bt = b.getBoundingClientRect(), y = bt.top + bt.height / 2;
-            const n = [...document.querySelectorAll('.phase-numeral')].filter(e => { const r = e.getBoundingClientRect(); return r.top < y && r.bottom > y; })[0].getBoundingClientRect();
-            return [bt.right, n.right]; })""")
-    import asyncio
-    import phone_matrix as pm
-    s = pm.serve({"w": tf.page(data=tf.negligence_brief())}, {}, {})
-
-    async def go():
-        async with pm._playwright().async_playwright() as p:
-            b = await p.webkit.launch()
-            pg = await (await b.new_context(viewport={"width": 1920, "height": 900}, color_scheme="dark")).new_page()
-            await pg.goto(f"http://127.0.0.1:{s.server_address[1]}/w.html?style=retro", wait_until="load", timeout=45000)
-            await pg.wait_for_timeout(3500)
-            out = await steps(pg)
-            await b.close()
-            return out
-    try:
-        out = asyncio.run(go())
-    except Exception as e:
-        if "Executable doesn't exist" in str(e):
-            pytest.skip(f"no WebKit: {e}")
-        raise
-    finally:
-        s.shutdown()
-    assert out and all(abs(a - b) <= 6 for a, b in out), out
 
 
 @needs_pw

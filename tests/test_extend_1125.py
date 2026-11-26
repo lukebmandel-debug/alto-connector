@@ -1,12 +1,13 @@
-"""Extend, done properly (Luke 2026-11-25; interview ORG/notes-ceo/extend-interview-1125.md).
+"""Extend on an outline (Luke 2026-11-25; changed 2026-11-26).
 
 - The owner turns Extend on per page (brief.extend: place_nodes(extend=…) or the editing bar's switch, the edit
-  `pg|extend`). Off, the page is laid out exactly as it was before Extend.
-- On, each unit's rows keep their cards' width and a unit wider than the window scrolls sideways on its own
-  (row-subtrees); the page also carries the plan without Extend, for the reader's switch.
-- The reader's switch sits in the bottom row just left of Search, in the look of its neighbours, and only on a page
-  whose owner turned Extend on; it never takes an editing button's place. Phones: a MENU row in the Whole view.
-- Without Extend, a card placed past the page's edge comes back inside it."""
+  `pg|extend`): one setting for the whole outline.
+- 2026-11-26 (Luke: "that doesn't mean reformat everything, to look this crazy, it should look largely the same as normal,
+  just able to continue off on either side when necessary"; "extend mode should not be unit-specific, it messes with lines
+  that span units, make it the whole outline"): Extend never lays the outline out again. The page is the normal tree, and its
+  whole board grows past the window's edges where cards stand beyond them, as one surface: no unit scrolls on its own,
+  no reader's switch (on and off would look the same), and lines between units are drawn as on any page.
+- outline_plan(extend=True) (the row-subtrees layout) stays in the engine; no page uses it."""
 import copy
 import json
 import sys
@@ -59,13 +60,24 @@ def test_extend_must_be_true_or_false():
         validate_brief(b)
 
 
-def test_the_page_carries_both_plans_and_the_switch_only_when_the_owner_turned_extend_on():
-    on = tf.page(data=tf.negligence_brief())
-    off = tf.page(data=tf.negligence_brief(extend=False))
-    assert "_ALTO_TREE_PLAN_OFF=" in on and "_ALTO_EXTEND_PAGE=1" in on and "alto-extview-" in on
-    assert "_ALTO_TREE_PLAN_OFF=" not in off and "_ALTO_EXTEND_PAGE=1" not in off
-    assert "html:not(.mobile).alto-ext-off #node-" in on           # each plan's card widths hold in its own view
-    assert ".alto-ext-off" not in off.split("<style", 1)[0]
+def _cross(ext, shift=None):
+    d = tf.negligence_brief(extend=ext)
+    d["brief"]["relations"] = [{"key": "compare", "label": "Compare with"}]
+    d["connections"] = [["duty", "strict-animals", "compare"]]              # a line from unit one into unit two
+    if shift:
+        d["brief"]["placement"]["damages"] = {"shift": shift}
+    return tf.page(data=d)
+
+
+def _plan_of(h):
+    return h.split("window._ALTO_TREE_PLAN=", 1)[1].split(";", 1)[0]
+
+
+def test_extend_keeps_the_normal_plan_and_carries_no_second_plan_or_readers_switch():
+    on, off = _cross(True), _cross(False)
+    assert _plan_of(on) == _plan_of(off)                                    # the same tree, card for card
+    assert "_ALTO_EXTEND_PAGE=1" in on and "_ALTO_EXTEND_PAGE=1" not in off
+    assert "_ALTO_TREE_PLAN_OFF=" not in on and "alto-extview-" not in on and "window._altoUnits=" not in on
 
 
 def test_the_owners_switch_folds_into_the_brief():
@@ -105,13 +117,11 @@ except Exception:                                   # CI has no Playwright
     _pw = None
 needs_pw = pytest.mark.skipif(_pw is None, reason="no Playwright")
 
-SWITCH = """() => { const b = document.getElementById('ext-view-btn'), s = document.getElementById('search-btn'),
-    i = document.getElementById('info-btn');
-  if(!b) return null; const r = b.getBoundingClientRect(), q = s.getBoundingClientRect(), n = i.getBoundingClientRect();
-  const hits = [...document.querySelectorAll('#search-btn,#info-btn,#mode-toggle,#alto-edit-pill,#account-btn,#tab-rail')]
-    .map(e => e.getBoundingClientRect()).filter(o => o.width && r.left < o.right && o.left < r.right && r.top < o.bottom && o.top < r.bottom).length;
-  return {shown: getComputedStyle(b).display !== 'none', l: r.left, r: r.right, t: r.top, w: r.width, h: r.height,
-          sl: q.left, st: q.top, sw: q.width, gap: q.left - r.right, gap2: n.left - q.right, hits: hits, edge: innerWidth - r.right}; }"""
+GEO = """() => { const q = i => { const r = document.querySelector('#node-' + i + ' .node-card').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; };
+  const e = document.querySelector('#river-svg [data-edge="duty|strict-animals"]');
+  return {cards: ['negligence', 'duty', 'breach', 'damages', 'strict', 'strict-animals'].map(q), line: e && e.getAttribute('d'), units: (window._altoUnits || []).length,
+    wide: document.documentElement.classList.contains('alto-xwide'), sw: document.getElementById('canvas').scrollWidth, cw: document.getElementById('canvas').clientWidth,
+    sw2: !!document.getElementById('ext-view-btn') && getComputedStyle(document.getElementById('ext-view-btn')).display !== 'none'}; }"""
 
 
 def _run(pages, steps, vp=(1440, 900), query="", mobile=False):
@@ -146,87 +156,30 @@ def _run(pages, steps, vp=(1440, 900), query="", mobile=False):
 
 
 @needs_pw
-@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
-def test_the_readers_switch_sits_left_of_search_as_one_of_the_row(style):
+def test_on_the_page_extend_looks_like_normal_and_a_line_between_units_is_the_same():
     async def steps(pg):
-        return await pg.evaluate(SWITCH)
-    res = _run({"on": tf.page(data=tf.negligence_brief()), "off": tf.page(data=tf.negligence_brief(extend=False))},
-               steps, query=f"?style={style}")
-    assert res["off"] is None                                                 # not on a page without Extend
-    r = res["on"]
-    assert r["shown"] and r["hits"] == 0, r                                   # takes no button's place
-    assert abs(r["w"] - r["sw"]) < 1 and abs(r["t"] - r["st"]) < 1, r        # the row's size and line
-    assert abs(r["gap"] - r["gap2"]) < 1.5, r                                # the row's own spacing
+        return await pg.evaluate(GEO)
+    r = _run({"on": _cross(True), "off": _cross(False)}, steps, query="?style=classic")
+    assert r["on"]["cards"] == r["off"]["cards"], r                           # every card where the normal tree has it
+    assert r["on"]["line"] and r["on"]["line"] == r["off"]["line"], r         # the line from unit one into unit two, unchanged
+    assert r["on"]["units"] == 0 and not r["on"]["sw2"], r["on"]              # no unit scrolls on its own; no reader's switch
 
 
 @needs_pw
-def test_switching_off_folds_each_unit_into_the_window_and_is_remembered():
-    async def steps(pg):
-        out = {"u0": await pg.evaluate("() => (window._altoUnits||[]).length")}
-        await pg.click("#ext-view-btn")
-        await pg.wait_for_timeout(1500)
-        out["off"] = await pg.evaluate("""() => ({u: (window._altoUnits||[]).length, cls: document.documentElement.classList.contains('alto-ext-off'),
-            right: Math.max(...[...document.querySelectorAll('#world .node[id^=node-]')].map(e => e.getBoundingClientRect().right)), vw: innerWidth,
-            sw: document.getElementById('canvas').scrollWidth - document.getElementById('canvas').clientWidth,
-            pressed: document.getElementById('ext-view-btn').getAttribute('aria-pressed')})""")
-        await pg.reload(wait_until="load")
-        await pg.wait_for_timeout(3500)
-        out["again"] = await pg.evaluate("() => [document.documentElement.classList.contains('alto-ext-off'), (window._altoUnits||[]).length]")
-        return out
-    r = _run({"on": tf.page(data=tf.negligence_brief())}, steps, query="?style=classic")["on"]
-    assert r["u0"] == 2
-    o = r["off"]
-    assert o["u"] == 0 and o["cls"] and o["pressed"] == "false", o
-    assert o["right"] <= o["vw"] and o["sw"] <= 2, o                          # everything on the page, no sideways scroll
-    assert r["again"] == [True, 0]
-
-
-@needs_pw
-def test_a_card_past_the_edge_stays_there_with_extend_on_or_off():
+def test_a_card_past_the_edge_opens_the_whole_board_with_extend_on_or_off():
     # (reverses interview question 4: Luke 2026-11-25, Torts, "I could not drag a node beyond the canvass with extend mode on or off")
-    d = tf.negligence_brief(extend=False)
-    d["brief"]["placement"]["damages"] = {"shift": [1600, 0]}
-    d2 = tf.negligence_brief()
-    d2["brief"]["placement"]["damages"] = {"shift": [1600, 0]}
-
     async def steps(pg):
-        return await pg.evaluate("""() => { const w = document.getElementById('world'), k = w.getBoundingClientRect().width / w.offsetWidth;
-            const e = document.getElementById('node-damages'); return [parseFloat(e.style.left), (window._altoUnits||[]).map(u => u.max), document.documentElement.classList.contains('alto-xwide')]; }""")
-    r = _run({"off": tf.page(data=d), "on": tf.page(data=d2)}, steps, query="?style=classic")
-    assert r["off"][0] > 1700 and r["off"][2], r["off"]                         # without Extend: it stays out there and the board opens to it
-    assert r["on"][0] > 1700 and r["on"][1][0] > 0 and not r["on"][2], r["on"]  # with Extend: its row reaches it (no board-wide room)
+        return await pg.evaluate(GEO)
+    r = _run({"on": _cross(True, [1600, 0]), "off": _cross(False, [1600, 0])}, steps, query="?style=classic")
+    for k in ("on", "off"):
+        assert r[k]["wide"] and r[k]["sw"] > r[k]["cw"] and r[k]["units"] == 0, (k, r[k])   # one board, wider than the window, out to the card
+    assert r["on"]["cards"] == r["off"]["cards"] and r["on"]["line"] == r["off"]["line"]
 
 
 @needs_pw
-def test_phones_whole_view_has_the_switch_in_the_menu_and_card_view_has_none():
+@pytest.mark.parametrize("vp", [(390, 844), (844, 390)])
+def test_phones_whole_view_is_the_normal_tree_and_has_no_extend_row(vp):
     async def steps(pg):
-        await pg.evaluate("() => window.openNavDrawer && openNavDrawer()")
-        await pg.wait_for_timeout(700)
-        return await pg.evaluate("""() => { const r = document.getElementById('ext-drawer-row'), b = document.getElementById('ext-view-btn');
-            return {row: r ? [getComputedStyle(r).display, r.getBoundingClientRect().height, r.textContent] : null,
-                    btn: b ? getComputedStyle(b).display : null, sw: document.documentElement.scrollWidth, iw: innerWidth}; }""")
-    page = tf.page(data=tf.negligence_brief())
-    whole = _run({"w": page}, steps, vp=(390, 844), query="?style=classic&view=whole", mobile=True)["w"]
-    assert whole["row"][0] != "none" and whole["row"][1] >= 44 and "Extend" in whole["row"][2], whole
-    assert whole["sw"] == whole["iw"]
-    card = _run({"c": page}, steps, vp=(390, 844), query="?style=classic", mobile=True)["c"]
-    assert card["btn"] in (None, "none") and (card["row"] is None or card["row"][0] == "none"), card
-    assert card["sw"] == card["iw"]
-
-
-@needs_pw
-@pytest.mark.parametrize("style", ["classic", "retro", "holo"])
-def test_no_halo_a_quiet_cue_and_the_row_end_fades_before_the_rail(style):
-    # Luke 2026-11-25: "i don't think we need the halo effect, find another way to indicate extend mode is on"
-    async def steps(pg):
-        return await pg.evaluate("""() => { const u = window._altoUnits[0], rail = document.getElementById('tab-rail').getBoundingClientRect().left;
-          const glow = [...document.querySelectorAll('#world *')].filter(e => { const s = getComputedStyle(e), r = e.getBoundingClientRect();
-            return r.height > 300 && r.width < 120 && (s.backdropFilter || s.webkitBackdropFilter || 'none') !== 'none' && !e.closest('.node'); }).length;
-          const R = u.R.getBoundingClientRect(), masks = [...document.querySelectorAll('#world .node-card')].filter(c => (c.style.maskImage || c.style.webkitMaskImage)).length;
-          const cut = [...document.querySelectorAll('#world .node-card')].filter(c => c.style.clipPath).length;
-          const lit = getComputedStyle(document.getElementById('ext-view-btn')).boxShadow.indexOf('inset') >= 0;
-          return {glow, right: [R.left, R.right, getComputedStyle(u.R).opacity], rail, masks, cut, lit, old: document.querySelectorAll('.alto-edge').length}; }""")
-    r = _run({"on": tf.page(data=tf.negligence_brief())}, steps, query=f"?style={style}")["on"]
-    assert r["glow"] == 0 and r["old"] == 0, r                                # no glowing panel
-    assert float(r["right"][2]) > 0.5 and r["right"][1] <= r["rail"] - 20, r  # the arrow says there is more, clear of the rail
-    assert r["masks"] >= 1 and r["masks"] >= r["cut"] and r["lit"], r       # a card at the end fades out before any clip; the switch is lit
+        return await pg.evaluate("() => [!!document.getElementById('ext-drawer-row'), (window._altoUnits || []).length]")
+    r = _run({"on": _cross(True), "off": _cross(False)}, steps, vp=vp, query="?view=whole", mobile=True)
+    assert r["on"] == r["off"] == [False, 0], r
