@@ -91,6 +91,8 @@ html.phone-whole:not(.detail-open) #detail-back-fixed:not(#_){display:none !impo
 html.phone-whole :is(#nav-prev-label,#nav-next-label) .wrap-pill:not(#_){display:inline-block;box-sizing:border-box;max-width:calc(100% - 12px);margin-top:3px;margin-bottom:3px;padding:5px 10px;white-space:normal;}
 html.phone-whole #nav-prev-label .wrap-pill:not(#_){margin-left:8px;}
 html.phone-whole #nav-next-label .wrap-pill:not(#_){margin-right:8px;}
+html.phone-whole :is(#nav-prev-label,#nav-next-label) .wrap-pill:not(#_){background:none !important;color:inherit !important;box-shadow:none !important;border-radius:0;padding:0;}   /* like the other half, with a small turn-back cue (F2) */
+html.phone-whole :is(#nav-prev-label,#nav-next-label) .wrap-pill:not(#_)::before{content:"\21BA\00a0";font-size:.9em;opacity:.7;}
 /* a detail page's Back, whole view: the same chevron-only round button beside the clef as the phone design's (item 12; the desktop's #desk-back is off here) */
 html.phone-whole.detail-open #detail-back-fixed:not(#_):not(#__){display:flex !important;position:fixed !important;top:calc((51px + env(safe-area-inset-top,0px)) / 2 - 17px);bottom:auto;left:48px;width:34px;height:34px;padding:0;align-items:center;justify-content:center;
   background:var(--card-glass-bg);border:1px solid var(--card-glass-border);border-radius:17px;color:var(--muted);font-size:0;gap:0;z-index:296;}

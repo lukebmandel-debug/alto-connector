@@ -224,6 +224,9 @@ BTO@@{position:fixed !important;top:calc(58px + env(safe-area-inset-top,0px)) !i
   font:14px var(--bo-f) !important;letter-spacing:normal !important;text-transform:none !important;text-align:center !important;white-space:nowrap !important;box-shadow:var(--bo-sh) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;
   overflow:visible !important;-webkit-tap-highlight-color:transparent;}
 BTO@@::after{content:'' !important;position:absolute !important;inset:-5px -8px !important;background:none !important;}
+/* the name that wraps round (first card's previous = the last) is set like the other half, with a small turn-back cue: no dark filled pill (F2) */
+LAB .wrap-pill@@{background:none !important;color:inherit !important;box-shadow:none !important;border-radius:0 !important;padding:0 !important;font-size:inherit !important;}
+LAB .wrap-pill@@::before{content:"\21BA\00a0";font-size:.9em;opacity:.7;}
 """
 
 NB_PORT = r"""
