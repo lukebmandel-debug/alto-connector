@@ -686,4 +686,81 @@ def test_an_enlarged_card_in_an_outline_moves_within_its_branch(browser, tmp_pat
         pg.keyboard.press(k)
         pg.wait_for_timeout(700)
         assert pg.evaluate("window._focusedNodeId") in fam, k
+
+
+def test_in_the_expanded_view_one_switch_sets_every_branch_out_as_an_outline_and_each_tag_still_flips_its_own(browser, tmp_path):
+    """Luke 2026-11-27: "please add the ability when extend mode is on for all in horizontal timeline, to also turn all the nested branches into outline format"."""
+    pg, errs = _open(browser, _d(), tmp_path)
+    assert not pg.evaluate("!!document.getElementById('ln-olall')")                  # Compact: no switch
+    pg.click("#ln-view")
+    pg.wait_for_timeout(900)
+    sw = "()=>{ var a=document.getElementById('ln-olall'), v=document.getElementById('ln-view'); return a && {pr:a.getAttribute('aria-pressed'), after:v.nextElementSibling===a, w:a.getBoundingClientRect().width}; }"
+    a = pg.evaluate(sw)
+    assert a and a["pr"] == "false" and a["after"] and a["w"] >= 30, a                # beside the view switch, the rail's size
+    # the rail settles (Scene's own seat-keeper in backgrounds.py and the view's in lanes.py once chased each other for ever: the page hung)
+    rail = pg.evaluate("()=>{ var r=document.getElementById('tab-rail'); return r && [].map.call(r.children, function(e){ return e.id; }); }")
+    if rail and "ln-view" in rail:
+        assert rail.index("ln-olall") == rail.index("ln-view") + 1, rail
+        assert "bg-toggle" not in rail or rail.index("bg-toggle") == rail.index("ln-view") - 1, rail
+    roots = pg.evaluate("()=>Object.keys(window._ALTO_LANES.out||{})")
+    assert len(roots) >= 2
+    pg.click("#ln-olall")
+    pg.wait_for_timeout(1000)
+    st = "(rs)=>rs.map(function(r){ return window._altoLanesKids.outline(r); })"
+    assert pg.evaluate(st, roots) == [True] * len(roots) and pg.evaluate(sw)["pr"] == "true"
+    assert not _overlaps(_rects(pg))
+    tags = pg.evaluate("()=>[].slice.call(document.querySelectorAll('.ln-otag')).map(function(t){ return [t.getAttribute('data-root'), t.textContent]; })")
+    assert sorted(t[0] for t in tags) == sorted(roots) and all(t[1] == "☰ list" for t in tags)
+    pg.click(f".ln-otag[data-root={roots[0]}]")                                        # one branch back to its column
+    pg.wait_for_timeout(900)
+    assert pg.evaluate(st, roots) == [False] + [True] * (len(roots) - 1)
+    assert not _overlaps(_rects(pg), 3)
+    pg.reload()                                                                        # remembered like the view
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate(sw)["pr"] == "true" and all(pg.evaluate(st, roots))
+    pg.click("#ln-olall")                                                              # every one a column again
+    pg.wait_for_timeout(900)
+    assert not any(pg.evaluate(st, roots)) and pg.evaluate(sw)["pr"] == "false"
+    pg.click("#ln-view")                                                               # back to Compact: the switch goes
+    pg.wait_for_timeout(900)
+    assert not pg.evaluate("!!document.getElementById('ln-olall')")
+    assert not errs
+
+
+def _civ():
+    """Civ-pro-litigation-like: every event on the line holds a branch two levels deep (Luke's board: an event per stage, his cards nested)."""
+    d = _d()
+    mains = [n for n in d["nodes"] if not n.get("nest")]
+    for m in mains:
+        base = {k: v for k, v in m.items() if k not in ("id", "nest", "title", "desc", "present", "flash")}
+        for a in range(2):
+            i = f"{m['id']}-s{a}"
+            d["nodes"].append(dict(base, id=i, nest=m["id"], title=f"Section {a + 1} of {m['title']}", desc="A section."))
+            for b in range(2):
+                d["nodes"].append(dict(base, id=f"{i}-{b}", nest=i, title=f"Point {b + 1} under section {a + 1}", desc="A point."))
+    return d
+
+
+def test_every_branch_as_an_outline_at_once_runs_into_nothing(browser, tmp_path):
+    """Luke 2026-11-27: "make sure that when multiple nested branches are open in outline mode, they don't run into each other and still
+    look relatively normal": with every branch an outline, no card on another, none across the main line or on a unit's label, and a branch
+    with clear room beside it stays right under its own card (no staircase)."""
+    pg, errs = _open(browser, _civ(), tmp_path)
+    pg.evaluate("() => { window._altoLanesKids.view('expanded'); }")
+    pg.wait_for_timeout(900)
+    pg.evaluate("() => window._altoLanesKids.outlineAll(true)")
+    pg.wait_for_timeout(1200)
+    roots = pg.evaluate("() => Object.keys(window._altoLanesGeo.fams || {})")
+    assert len(roots) >= 8 and all(pg.evaluate("(rs) => rs.map(r => window._altoLanesKids.outline(r))", roots))
+    rs = _rects(pg)
+    assert len(rs) >= 60 and not _overlaps(rs), _overlaps(rs)[:6]
+    g = pg.evaluate("""() => { const p = document.querySelector('#lanes-svg path.ln-main').getBoundingClientRect(),
+        kids = [...document.querySelectorAll('#world .node.ln-kid:not(.ln-kid-shut) .node-card')].map(c => c.getBoundingClientRect()),
+        chips = [...document.querySelectorAll('#lanes-ulabels .lu-chip')].map(c => c.getBoundingClientRect());
+      const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      return {line: kids.filter(k => k.top < p.top + p.height / 2 && k.bottom > p.top + p.height / 2).length,
+              chips: kids.filter(k => chips.some(c => hit(k, c))).length,
+              vo: Object.values(window._altoLanesGeo.VO || {}).filter(v => v === 0).length}; }""")
+    assert g["line"] == 0 and g["chips"] == 0, g
+    assert g["vo"] >= 2, g                                                            # families with room stay right under their card
     assert not errs

@@ -908,14 +908,14 @@ LANES_CSS = KEY_CSS + """
   .node-card.ln-kid-dim{background:var(--surface) !important;border-top-color:var(--border) !important;}
   .node-card.ln-kid-dim > *{opacity:0.15;}
   html.alto-lanes:not(.mobile) #world .node.ln-kc:not(.focused) .node-card{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 70%,transparent), 0 10px 26px var(--node-rest-shadow) !important;}
-  #ln-view{position:fixed;right:16px;bottom:102px;z-index:8100;width:38px;height:38px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  :is(#ln-view,#ln-olall){position:fixed;right:16px;bottom:102px;z-index:8100;width:38px;height:38px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;
     background:var(--card-glass-bg, var(--surface));border:1px solid var(--card-glass-border, var(--border));color:var(--text);cursor:pointer;
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
   /* a vanishing toggle (Luke, 2026-11-05): invisible until the pointer is over its corner or the board, fades in, and fades out again
      a moment after the pointer leaves; always there for the keyboard (Tab brings it into view) and while Alto's one-time offer is up */
-  #ln-view{opacity:0;transition:opacity .28s ease;}
-  #ln-view.ln-show,#ln-view:hover,#ln-view:focus-visible{opacity:1;}
-  #ln-view:hover{border-color:var(--accent);color:var(--accent);}
+  :is(#ln-view,#ln-olall){opacity:0;transition:opacity .28s ease;}
+  :is(#ln-view,#ln-olall).ln-show,:is(#ln-view,#ln-olall):hover,:is(#ln-view,#ln-olall):focus-visible{opacity:1;}
+  :is(#ln-view,#ln-olall):hover{border-color:var(--accent);color:var(--accent);}
   #ln-offer{position:fixed;right:16px;bottom:150px;z-index:8100;box-sizing:border-box;width:min(300px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;
     background:var(--surface,#fff);border:1px solid var(--card-glass-border, var(--border));color:var(--text);font-size:13px;line-height:1.4;
     box-shadow:0 10px 26px var(--node-rest-shadow, rgba(0,0,0,.25));opacity:0;transition:opacity .28s ease;}
@@ -928,25 +928,26 @@ LANES_CSS = KEY_CSS + """
   #ln-offer button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   html:not(.dark):not(.alto-retro):not(.alto-holo) #ln-offer button:first-child{color:#14122b;}
   html:is(.alto-retro,.alto-holo) #ln-offer,html:is(.alto-retro,.alto-holo) #ln-offer button{border-radius:0;}
-  @media (prefers-reduced-motion:reduce){#ln-view,#ln-offer{transition:none;}}
+  @media (prefers-reduced-motion:reduce){:is(#ln-view,#ln-olall),#ln-offer{transition:none;}}
   html.mobile #ln-offer,html.phone-whole #ln-offer,html.detail-open #ln-offer,html.printing #ln-offer{display:none !important;}
   @media print{#ln-offer{display:none !important;}}
-  #ln-view[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
+  :is(#ln-view,#ln-olall)[aria-pressed=true]{background:var(--accent);color:var(--surface,#fff);}
   /* Classic light: the surface is white on a pale accent (2.72:1); dark ink there (Classic dark, Retro and Holographic keep theirs: 6.9-12:1) */
-  html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,.node-card .ln-otag,#ln-view[aria-pressed=true]){color:#14122b;}
-  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,.node-card .ln-otag,#ln-view){border-radius:0 !important;}
+  html:not(.dark):not(.alto-retro):not(.alto-holo) :is(.node-card .ln-chip,.node-card .ln-otag,:is(#ln-view,#ln-olall)[aria-pressed=true]){color:#14122b;}
+  html:is(.alto-retro,.alto-holo) :is(.node-card .ln-chip,.node-card .ln-otag,:is(#ln-view,#ln-olall)){border-radius:0 !important;}
   /* the unpressed glyph carries the card rim in Retro (gold) and Holographic (cyan), 1px, same box (Art, 2026-11-05); pressed keeps its fill, which is the same colour */
-  html.alto-retro #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #d9ae55;}
-  html.alto-holo #ln-view:not([aria-pressed=true]){box-sizing:border-box;border:1px solid #4ff0e0;}
-  #ln-view:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  html.mobile #ln-view,html.phone-whole #ln-view,html.detail-open #ln-view,html.printing #ln-view{display:none !important;}
-  @media print{#ln-view,.node-card .ln-chip,.node-card .ln-otag{display:none !important;}}
+  html.alto-retro :is(#ln-view,#ln-olall):not([aria-pressed=true]){box-sizing:border-box;border:1px solid #d9ae55;}
+  html.alto-holo :is(#ln-view,#ln-olall):not([aria-pressed=true]){box-sizing:border-box;border:1px solid #4ff0e0;}
+  :is(#ln-view,#ln-olall):focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  html.mobile :is(#ln-view,#ln-olall),html.phone-whole :is(#ln-view,#ln-olall),html.detail-open :is(#ln-view,#ln-olall),html.printing :is(#ln-view,#ln-olall){display:none !important;}
+  body > #ln-olall{bottom:148px;}   /* (no rail: it stands over the view switch) */
+  @media print{:is(#ln-view,#ln-olall),.node-card .ln-chip,.node-card .ln-otag{display:none !important;}}
   /* the switch is a tab of the right rail, straight under Scene (Luke 2026-11-26): always in view, a rail tab's size and shape (Scene's, backgrounds.py);
      Retro keeps its square with the 1px rim, Holographic its rail's glass lens (holo.py S1, #tab-rail>button), pressed lit as before */
-  #tab-rail > #ln-view{position:static;opacity:1;width:34px;height:34px;box-sizing:border-box;padding:0;margin:0;-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);box-shadow:0 10px 26px var(--node-rest-shadow);}
-  html:not(.alto-retro):not(.alto-holo) #tab-rail > #ln-view{border-right:none;border-radius:6px 0 0 6px;}
-  #tab-rail > #ln-view svg{width:18px;height:18px;}
-  html.alto-retro #tab-rail>#ln-view[aria-pressed=true]:not(#_):not(#__){background:#d9ae55 !important;color:#000 !important;}   /* (Retro's rail paints every tab black: pressed, the gold fill its open tabs wear) */
+  #tab-rail > :is(#ln-view,#ln-olall){position:static;opacity:1;width:34px;height:34px;box-sizing:border-box;padding:0;margin:0;-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);box-shadow:0 10px 26px var(--node-rest-shadow);}
+  html:not(.alto-retro):not(.alto-holo) #tab-rail > :is(#ln-view,#ln-olall){border-right:none;border-radius:6px 0 0 6px;}
+  #tab-rail > :is(#ln-view,#ln-olall) svg{width:18px;height:18px;}
+  html.alto-retro #tab-rail>:is(#ln-view,#ln-olall)[aria-pressed=true]:not(#_):not(#__){background:#d9ae55 !important;color:#000 !important;}   /* (Retro's rail paints every tab black: pressed, the gold fill its open tabs wear) */
   /* lines picked to show only them (LANES_JS setPick): the rest leave the board */
   html.alto-lanes:not(.mobile) #world .node.ln-hid{display:none !important;}
   #lanes-key .lk-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px;padding:0 4px;font-size:11px;color:var(--muted);}
@@ -993,6 +994,12 @@ var KIDW=220, KIDH=60, KIDLY=70, KIDGAP=28, KIDIND=26;
 var OPEN={}, OUTL={}, EXPD=false, PRINTX=false, KG=null, KC='', KSHOW=false;
 var VK='alto-lanes-view-'+String(window._ALTO_LANES_PICK||'').replace(/^alto-lanes-pick-/,'');
 try{ EXPD=localStorage.getItem(VK)==='expanded'; }catch(e){}
+/* Luke 2026-11-27: "please add the ability when extend mode is on for all in horizontal timeline, to also turn all the nested branches into outline
+   format". In the Expanded view one switch (#ln-olall, under the view switch) sets every branch out as an outline (OUTALL, remembered like the view);
+   each branch's own tag still flips that one (OUTE: its exception to the switch, cleared when the switch is used). */
+var OK_=VK+'-outline', OUTALL=false, OUTE={};
+try{ OUTALL=localStorage.getItem(OK_)==='1'; }catch(e){}
+function outWant(root){ return expandedNow() ? (root in OUTE ? !!OUTE[root] : OUTALL) : !!OUTL[root]; }
 function kidsOn(){ return !de.classList.contains('mobile') && !de.classList.contains('phone-whole'); }
 function nestOf(id){ var e=L.ev[id], p=e && e.p, q=p && L.ev[p]; return (kidsOn() && q && (q.l||'main')===(e.l||'main') && p!==id) ? p : ''; }
 function rootOf(id){ var g=0; while(nestOf(id) && g++<40) id=nestOf(id); return id; }
@@ -1004,15 +1011,23 @@ function kidMap(ids){ var m={}; ids.forEach(function(id){ var p=nestOf(id); if(p
 /* a family opened as an outline (lanes.py _nest_outlines: the outline tree's layout over the family at the child cards' size);
    only while its plan covers exactly the family's members now (a card moved by hand falls back to the column) */
 function outPlan(root, fam){ var o=(L.out||{})[root]; if(!o || !fam || Object.keys(o).length!==fam.length) return null; for(var i=0;i<fam.length;i++){ var q=o[fam[i].id]; if(!q || q[3]!==nestOf(fam[i].id)) return null; } return o; }      /* (a card moved under another since the build: the plan no longer fits) */
-function outOn(root, fam){ return !!OUTL[root] && !expandedNow() && !de.classList.contains('alto-editing') && !!outPlan(root, fam); }
+function outOn(root, fam){ return outWant(root) && !de.classList.contains('alto-editing') && !!outPlan(root, fam); }
 function outFan(o, ids){ var a=1e9, z=-1e9, d=0; ids.forEach(function(i){ var q=o[i]; if(!q) return; a=Math.min(a, q[0]-q[2]/2); z=Math.max(z, q[0]+q[2]/2); d=Math.max(d, q[1]+KIDH/2); }); return {l:a, r:z, d:d}; }
 /* where each family of a row starts, beyond the card's far edge: 0, but where an outline fills the row the families stand one under the next, left to right */
-function famOffs(order, kidH, kidO, X, sideOf, rowOf){
-  var vo={}, rows={}; order.forEach(function(id){ if(!kidH[id]) return; var k=sideOf[id]+'|'+rowOf[id]; (rows[k]=rows[k]||[]).push(id); });
-  Object.keys(rows).forEach(function(k){ var ids=rows[k]; if(!ids.some(function(i){ return kidO[i]; })) return;
-    ids.sort(function(a,b){ return X[a]-X[b]; }); var acc=0; ids.forEach(function(i){ vo[i]=acc; acc+=kidH[i]; }); });
-  return vo;
+/* where each family of a row starts, beyond the card's far edge. Families are packed: one that would run into a family already placed
+   beside it (their spans across the board overlap, with a 24px gutter) goes beyond that one; one with clear room stays right under its
+   card (Luke 2026-11-27: "make sure that when multiple nested branches are open in outline mode, they don't run into each other and still
+   look relatively normal" — before, any row holding an outline stacked ALL its families one under the next, a staircase). kidE: each
+   family's span [left, right]. Returns {vo: id -> offset, mx: 'side|row' -> the deepest a family of that row reaches}. */
+function famPack(order, kidH, kidE, sideOf, rowOf){
+  var vo={}, mx={}, rows={}; order.forEach(function(id){ if(!kidH[id] || !kidE[id]) return; var k=sideOf[id]+'|'+rowOf[id]; (rows[k]=rows[k]||[]).push(id); });
+  Object.keys(rows).forEach(function(k){ var ids=rows[k], put=[]; ids.sort(function(a,b){ return kidE[a][0]-kidE[b][0]; });
+    ids.forEach(function(i){ var e=kidE[i], v=0, moved=true;
+      while(moved){ moved=false; put.forEach(function(p){ if(e[0]<p.r && p.l<e[1] && v<p.v+p.h && p.v<v+kidH[i]){ v=p.v+p.h; moved=true; } }); }
+      vo[i]=v; put.push({l:e[0], r:e[1], v:v, h:kidH[i]}); mx[k]=Math.max(mx[k]||0, v+kidH[i]); }); });
+  return {vo:vo, mx:mx};
 }
+function famOffs(order, kidH, kidE, sideOf, rowOf){ return famPack(order, kidH, kidE, sideOf, rowOf).vo; }
 function fanShift(x, fa){ return Math.max(0, 24-(x+fa.l)); }      /* the fan keeps 24px clear of the board's left edge; to the right the board grows */
 function famOf(m, id, d, out){ (m[id]||[]).forEach(function(k){ out.push({id:k, d:d}); famOf(m, k, d+1, out); }); return out; }
 function med(a){ if(!a.length) return 0; a=a.slice().sort(function(x,y){ return x-y; }); var m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
@@ -1297,11 +1312,14 @@ function layoutLanes(h){
   });
   /* the Expanded view: a row's cards that have children make room beyond them, so the next row of cards starts clear of the
      deepest outline above it (a row with none keeps its pitch). The cap on the height is on the LINES, so this changes nothing there. */
+  var kidE={};
   if(anyKids){
-    var mxk={'-1':[], '1':[]}, rowO={'-1':[], '1':[]};
-    order.forEach(function(id){ if(kidH[id] && kidO[id]) rowO[String(sideOf[id])][rowOf[id]]=1; });
-    /* (a family set out as an outline is wide: the families of its row stack, one under the next, so none runs under another) */
-    order.forEach(function(id){ if(kidH[id]){ var sk=String(sideOf[id]), T=mxk[sk], r=rowOf[id]; T[r]=rowO[sk][r] ? (T[r]||0)+kidH[id] : Math.max(T[r]||0, kidH[id]); } });
+    /* each family's span across the board: an outline's fan (as kids() will set it), a column's indented stack; 12px of gutter a side */
+    order.forEach(function(id){ if(!kidH[id]) return; var f=famOf(kids, id, 1, []), x=X[id];
+      if(kidO[id]){ var o=outPlan(id, f), fa=o && outFan(o, f.map(function(q){ return q.id; })); if(fa){ var fs=fanShift(x, fa); kidE[id]=[x+fs+fa.l-12, x+fs+fa.r+12]; return; } }
+      var md=1; f.forEach(function(q){ md=Math.max(md, q.d); }); var l0=x-(w[id]||270)/2; kidE[id]=[l0-12, l0+KIDIND*md+KIDW+12]; });
+    var mxk={'-1':[], '1':[]}, FP=famPack(order, kidH, kidE, sideOf, rowOf);
+    Object.keys(FP.mx).forEach(function(k){ var p=k.split('|'); mxk[p[0]][+p[1]]=FP.mx[k]; });
     order.forEach(function(id){ var T=mxk[String(sideOf[id])], ex=0; for(var r=0;r<rowOf[id];r++) ex+=T[r]||0; offOf[id]+=ex; });
   }
   /* anything placed by x (a detour, the time axis, a squeezed stretch) moves as the events
@@ -1337,7 +1355,7 @@ function layoutLanes(h){
       x:xf, t:function(x){ var a=lo0-8*rg, b=hi0+8*rg; for(var k=0;k<48;k++){ var m=(a+b)/2; if(xf(m)<x) a=m; else b=m; } return (a+b)/2; }};
   })();
   boxRows(world, BTG, X, w, shiftAll, S, main);
-  var cy={}, VO=famOffs(order, kidH, kidO, X, sideOf, rowOf);
+  var cy={}, VO=famOffs(order, kidH, kidE, sideOf, rowOf);
   order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||HR)/2); });
   var ys=[-16*mode.cz, 16*mode.cz, hasPast?pastY+30:0];
   L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-TH/2, l.y+TH/2); });
@@ -1419,7 +1437,7 @@ function layoutLanes(h){
   window._altoLanesGeo={boxes:BTG.map(function(t){ return {id:t.id, label:t.label, on:t.on, x:t.x, y:t.y}; }), flags:FLG.map(function(f){ return {id:f.id, label:f.label, x:f.x, x2:f.x2, row:f.row, y:f.y}; }), x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
     detours:runs.map(function(r){ return {id:r.id, label:r.label, range:r.range, nodes:r.nodes.slice(), x0:r.x0, x1:r.x1,
       d0:r.d0, d1:r.d1, f0:r.f0, f1:r.f1, y:r.y, prev:r.prev, next:r.next}; })};
-  if(KG){ window._altoLanesGeo.kids=KG.geoK||{}; window._altoLanesGeo.fams=KG.fams||{}; }
+  if(KG){ window._altoLanesGeo.kids=KG.geoK||{}; window._altoLanesGeo.fams=KG.fams||{}; window._altoLanesGeo.VO=KG.VO||{}; }
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:H}; });
   /* the bars and the rail arrive after the first layout: lay out again if the room they leave changed */
   window._altoLanesH=hIn;
@@ -1470,13 +1488,8 @@ function placeKids(){
         b.textContent=(open ? '▴ hide' : '▾ '+fam.length+' inside');
         b.title=open ? 'Tuck the '+(fam.length===1 ? 'entry' : fam.length+' entries')+' back behind this card' : 'Open the '+(fam.length===1 ? 'entry' : fam.length+' entries')+' inside this card (or press Down)';
         b.setAttribute('aria-expanded', open ? 'true' : 'false'); rc.appendChild(b);
-        if(open && op){
-          var ob=document.createElement('button'); ob.type='button'; ob.className='ln-otag'; ob.setAttribute('data-root', root);
-          ob.textContent=ol ? '☰ list' : '⑂ outline'; ob.setAttribute('aria-pressed', ol ? 'true' : 'false');
-          ob.title=ol ? 'Stack the entries in one column again' : 'Set the entries out as an outline: each level fanned out under its parent, sections side by side';
-          rc.appendChild(ob); ob.style.setProperty('--ln-ox', (b.offsetWidth+14+8)+'px');
-        }
-      }
+        if(open && op){ otag(root, ol, rc, b.offsetWidth+14+8); }
+      } else if(ex && op && !de.classList.contains('alto-editing') && !de.classList.contains('printing')){ otag(root, ol, rc, 14); }
       fam.forEach(function(f){
         var kn=document.getElementById('node-'+f.id), kc=kn && kn.querySelector('.node-card'); if(!kn || !kc) return;
         kn.classList.add('ln-kid'); kn.setAttribute('data-ln', (L.ev[f.id]||{}).l||'main');
@@ -1543,7 +1556,7 @@ function kidsDim(){
    (Luke 2026-11-26, "move the expanded view square toggle to the right sidebar below scene"); a page with no rail keeps it bottom right */
 function viewSwitch(has){
   var b=document.getElementById('ln-view');
-  if(!has || !kidsOn() || document.getElementById('canvas')===null){ if(b) b.remove(); return; }
+  if(!has || !kidsOn() || document.getElementById('canvas')===null){ if(b) b.remove(); var a0=document.getElementById('ln-olall'); if(a0) a0.remove(); return; }
   if(!b){
     b=document.createElement('button'); b.type='button'; b.id='ln-view'; b.tabIndex=0;
     b.addEventListener('click', function(){ closeOffer(); setView(!EXPD); });
@@ -1562,12 +1575,29 @@ function viewSwitch(has){
   var tip=EXPD ? 'Expanded view: entries inside another are shown beneath it. Click for the Compact view.' : 'Compact view: entries inside another are tucked behind it. Click for the Expanded view.';
   if(b.getAttribute('data-v')!==(EXPD ? 'x' : 'c')){ b.setAttribute('data-v', EXPD ? 'x' : 'c'); b.innerHTML=icon; }
   b.title=tip; b.setAttribute('aria-label', tip); b.setAttribute('aria-pressed', EXPD ? 'true' : 'false');
+  allSwitch(b);
+}
+/* the one switch for every branch as an outline: only in the Expanded view, and only where a branch can be one */
+function allSwitch(v){
+  var a=document.getElementById('ln-olall'), can=EXPD && Object.keys(L.out||{}).length>0;
+  if(!can){ if(a) a.remove(); return; }
+  if(!a){
+    a=document.createElement('button'); a.type='button'; a.id='ln-olall'; a.tabIndex=0;
+    a.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="2.5" width="7" height="4" rx="1"/><path d="M12 6.5v3M5 9.5h14M5 9.5v3M12 9.5v3M19 9.5v3"/><rect x="2.5" y="12.5" width="5" height="3.5" rx="1"/><rect x="9.5" y="12.5" width="5" height="3.5" rx="1"/><rect x="16.5" y="12.5" width="5" height="3.5" rx="1"/><path d="M5 16v3h3"/><rect x="8" y="17.5" width="4" height="3" rx="1"/></svg>';
+    a.addEventListener('click', function(){ setOutAll(!OUTALL); });
+    [a].forEach(function(t){ t.addEventListener('pointerenter', function(){ v.classList.add('ln-show'); a.classList.add('ln-show'); }); });
+  }
+  var tip=OUTALL ? 'Every branch is set out as an outline. Click to stack each one in a column again.' : 'Set every branch out as an outline: each level fanned out under its parent';
+  a.title=tip; a.setAttribute('aria-label', tip); a.setAttribute('aria-pressed', OUTALL ? 'true' : 'false');
+  if(v.classList.contains('ln-show')) a.classList.add('ln-show'); else a.classList.remove('ln-show');
+  if(v.nextElementSibling!==a) v.parentNode.insertBefore(a, v.nextSibling);
 }
 function seatView(b){
   var r=document.getElementById('tab-rail'), s=document.getElementById('bg-toggle');
   if(!r){ if(b.parentNode!==document.body) document.body.appendChild(b); return; }
   if(s && s.parentNode===r){ if(s.nextElementSibling!==b) r.insertBefore(b, s.nextSibling); }
-  else if(r.lastElementChild!==b) r.appendChild(b);
+  else if(r.lastElementChild!==b && !(b.nextElementSibling && b.nextElementSibling.id==='ln-olall' && r.lastElementChild===b.nextElementSibling)) r.appendChild(b);
+  var a=document.getElementById('ln-olall'); if(a && b.nextElementSibling!==a) r.insertBefore(a, b.nextSibling);
   if(!r._lnSeat && window.MutationObserver){ r._lnSeat=1; new MutationObserver(function(){ var v=document.getElementById('ln-view'); if(v) seatView(v); }).observe(r, {childList:true}); }
 }
 /* Alto's one-time offer (once a board has entries tucked inside others: the Compact page shows less than it holds): says where the
@@ -1595,7 +1625,19 @@ function closeOffer(){
   o.classList.remove('ln-on'); setTimeout(function(){ o.remove(); }, 300);
   var b=document.getElementById('ln-view'); if(b && !b._over) b.classList.remove('ln-show');
 }
+function otag(root, ol, rc, ox){
+  var ob=document.createElement('button'); ob.type='button'; ob.className='ln-otag'; ob.setAttribute('data-root', root);
+  ob.textContent=ol ? '☰ list' : '⑂ outline'; ob.setAttribute('aria-pressed', ol ? 'true' : 'false');
+  ob.title=ol ? 'Stack the entries in one column again' : 'Set the entries out as an outline: each level fanned out under its parent, sections side by side';
+  rc.appendChild(ob); ob.style.setProperty('--ln-ox', ox+'px');
+}
 function relayoutNow(){ if(window._altoLanesGeo && window._altoLanesH) window._altoLanes(window._altoLanesH); }
+function setOutAll(on){        /* every branch of the Expanded view as an outline, or every one a column */
+  OUTALL=!!on; OUTE={}; try{ if(OUTALL) localStorage.setItem(OK_, '1'); else localStorage.removeItem(OK_); }catch(e){}
+  relayoutNow(); var v=document.getElementById('ln-view'); if(v) allSwitch(v);
+  if(window._altoLanesRestV) window._altoLanesRestV();
+  if(window._altoLanesCueLook) window._altoLanesCueLook();
+}
 function setView(x){
   EXPD=!!x; try{ if(EXPD) localStorage.setItem(VK, 'expanded'); else localStorage.removeItem(VK); }catch(e){}
   OPEN={}; clearKC(); relayoutNow();
@@ -1604,7 +1646,8 @@ function setView(x){
 }
 function setOutline(root, on){        /* an opened branch as a list (one column) or as an outline */
   var cv=document.getElementById('canvas'), n=document.getElementById('node-'+root), t0=n ? n.getBoundingClientRect().top : 0;
-  if(on) OUTL[root]=1; else delete OUTL[root];
+  if(expandedNow()){ if(!!on===OUTALL) delete OUTE[root]; else OUTE[root]=!!on; }
+  else if(on) OUTL[root]=1; else delete OUTL[root];
   relayoutNow();
   if(cv && n){ var d=n.getBoundingClientRect().top-t0; if(Math.abs(d)>1) cv.scrollTop+=d; }
   if(window._altoLanesCueLook) window._altoLanesCueLook();
@@ -1620,7 +1663,7 @@ function openFam(root, on){
     if(k) try{ k.scrollIntoView({block:'nearest', inline:'nearest'}); }catch(e){} }
   if(window._altoLanesCueLook) window._altoLanesCueLook();
 }
-window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, outline:function(id, on){ var r=rootOf(id); if(arguments.length>1) setOutline(r, on!==false); return !!OUTL[r]; }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
+window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, outline:function(id, on){ var r=rootOf(id); if(arguments.length>1) setOutline(r, on!==false); return outWant(r); }, outlineAll:function(on){ if(arguments.length) setOutAll(on!==false); return OUTALL; }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
   cursor:function(){ return KC; }, shut:kidShut, nest:nestOf, step:function(d){ return kidStep(d); }, nav:function(id, d){ return kidNav(id, d); }, home:function(){ return kidHome(); },
   grown:function(){ return EXPD || Object.keys(OPEN).length>0; }};      /* (Extend's on while the board holds more than its main line: lanes_ext_js) */
 function clearKC(){ if(!KC) return; var n=document.getElementById('node-'+KC); if(n) n.classList.remove('ln-kc'); KC=''; }
@@ -2259,7 +2302,7 @@ window.addEventListener('load', function(){ setTimeout(key, 300); setTimeout(key
 /* ── child nodes: the chip, the keys, search, filters and print ────────────── */
 document.addEventListener('click', function(e){
   var ob=e.target.closest && e.target.closest('.ln-otag');
-  if(ob && !de.classList.contains('alto-editing')){ e.stopPropagation(); e.preventDefault(); var rr=ob.getAttribute('data-root'); setOutline(rr, !OUTL[rr]); return; }
+  if(ob && !de.classList.contains('alto-editing')){ e.stopPropagation(); e.preventDefault(); var rr=ob.getAttribute('data-root'); setOutline(rr, !outWant(rr)); return; }
   var b=e.target.closest && e.target.closest('.ln-chip'); if(!b || de.classList.contains('alto-editing')) return;
   e.stopPropagation(); e.preventDefault(); var r=b.getAttribute('data-root'); openFam(r, !OPEN[r]);
 }, true);
