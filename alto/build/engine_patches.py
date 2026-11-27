@@ -132,8 +132,11 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
      FALLBACK, not the value: --node-glass-bg is Blink-only and already opaque
      enough there (0.90, set so the card occludes the connector lines Chrome's
      dead backdrop-filter can't hide). Only Safari, where it is undefined and
-     the card falls back to --card-glass-bg at 0.54, needs the floor lifted. */
-  background:var(--node-glass-bg, var(--panel-glass-bg));
+     the card falls back to --card-glass-bg at 0.54, needs the floor lifted.
+     Then solid outright (Board 2026-11-27: an enlarged card's 72-90% glass still let the cards behind it read through it: no text
+     under text): the page's own surface, no frost. Retro and Holographic paint their enlarged card with their own solid rules. */
+  background:var(--surface, #fff) !important;      /* (Classic dark, Safari: html.dark:not(.mobile):not(.is-blink) .node-card ties it and comes later) */
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
 }
 html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
 /* An outline with cards past the page's left or right edge (window._altoSideX = [left, right] px, set by the tree's

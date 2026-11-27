@@ -78,11 +78,12 @@ def test_exit_clears_the_inline_zoom_rather_than_pinning_it_to_1(html):
     assert "card.style.zoom = (k>1.0005) ? String(k) : '';" in html
 
 
-def test_only_safaris_fallback_background_is_raised(html):
-    """--node-glass-bg is Blink-only and already at 0.90 so the card occludes the
-    connector lines Chrome's dead backdrop-filter cannot hide. Raising the value
-    would *lower* it there; raising the fallback touches Safari only."""
-    assert "background:var(--node-glass-bg, var(--panel-glass-bg));" in _focus_rule(html)
+def test_the_enlarged_card_is_solid_in_every_browser(html):
+    """Once only Safari's fallback was raised (Blink's --node-glass-bg was 0.90). Board 2026-11-27: at 72-90% glass the cards behind an
+    enlarged card still read through it (no text under text): it is the page's own surface, solid, no frost, in Safari and Blink alike."""
+    r = _focus_rule(html)
+    assert "background:var(--surface, #fff) !important;" in r and "glass-bg" not in r.split("background:", 1)[1].split(";", 1)[0]
+    assert "backdrop-filter:none !important" in r
 
 
 def test_the_mobile_path_is_untouched(html):
