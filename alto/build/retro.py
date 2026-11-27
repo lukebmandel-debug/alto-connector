@@ -131,7 +131,7 @@ opacity as toggles"; was a solid gold plate with cut feet, 2026-11-05 "1, B"), t
   /* (Luke, 2026-10-28: "don't try to squeeze in the title there underneath it. It kind of mushes it together": the crown stands alone, at every width and on the horizontal timeline too) */
   X:not(.detail-open):not(.mobile) #title-bar #title-text:not(#_){visibility:hidden !important;}
   /* the rest of a detail page (Luke, 2026-10-22: "detail pages are the worst"): its back button, the page's chips, the study blocks' buttons */
-  X:not(.mobile) #desk-back:not(#_){translate:0 7.6px;}   /* (Luke: "always centered with the alto glyph": the clef drops 8px in Retro, so Back drops with it) */
+  X:not(.mobile) #desk-back:not(#_){translate:none;}   /* (Luke 2026-11-26: "the back button is not centered with everything else in that row": the clef no longer drops in Retro, so the 7.6px Back used to drop with it left Back ~7px low; it stands on the clef's centre line like Classic and Holographic) */
   X:is(.mobile,.phone-whole) #detail-back-fixed:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #desk-back:not(#_){font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.14em;font-size:12px;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
