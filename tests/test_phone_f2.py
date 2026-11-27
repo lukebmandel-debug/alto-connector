@@ -42,3 +42,12 @@ def test_the_wrap_round_name_is_not_a_dark_pill_and_carries_a_turn_back_cue(pg_o
     assert m, "no wrap-round name on the first card"
     assert m["bg"] in ("rgba(0, 0, 0, 0)", "transparent") and m["sh"] == "none", m        # not a filled pill
     assert "\u21ba" in m["cue"].lower(), m                                                 # the small cue
+
+
+def test_the_wrap_round_name_wraps_to_two_lines_like_the_other_half(pg_of):
+    pg = pg_of("timeline")
+    m = pg.evaluate("""() => { const e = document.querySelector('#tlb-prev .wrap-pill, #tlb-next .wrap-pill, #nav-prev-label .wrap-pill, #nav-next-label .wrap-pill'),
+      o = document.querySelector('#tlb-next .nb-t, #tlb-prev .nb-t'), c = getComputedStyle(e), lh = parseFloat(c.lineHeight) || parseFloat(c.fontSize) * 1.2;
+      return {clamp: c.webkitLineClamp, ws: c.whiteSpace, lines: Math.round(e.getBoundingClientRect().height / lh), other: o && getComputedStyle(o).webkitLineClamp}; }""")
+    assert m["clamp"] == "2" and m["clamp"] == m["other"] and m["ws"] != "nowrap", m       # one rule for both halves
+    assert m["lines"] >= 2, m                                                                # and the long name really takes the second line

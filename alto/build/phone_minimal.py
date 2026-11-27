@@ -232,7 +232,8 @@ BTO@@{position:fixed !important;top:calc(58px + env(safe-area-inset-top,0px)) !i
 BTO@@::after{content:'' !important;position:absolute !important;inset:-5px -8px !important;background:none !important;}
 /* the name that wraps round (first card's previous = the last) is set like the other half, with a small turn-back cue: no dark filled pill (F2) */
 LAB .wrap-pill@@{background:none !important;color:inherit !important;box-shadow:none !important;border-radius:0 !important;padding:0 !important;font-size:inherit !important;}
-LAB .wrap-pill@@::before{content:"\21BA\00a0";font-size:.9em;opacity:.7;}
+LAB .wrap-pill@@{position:relative !important;padding-left:1.15em !important;}
+LAB .wrap-pill@@::before{content:"\21BA";position:absolute;left:0;top:0;font-size:.9em;opacity:.7;}
 """
 
 NB_PORT = r"""
@@ -247,6 +248,8 @@ PREV@@{justify-content:flex-start !important;text-align:left !important;padding-
 NEXT@@{justify-content:flex-end !important;text-align:right !important;padding-right:10px !important;}
 LAB .nb-t@@{display:-webkit-box !important;-webkit-box-orient:vertical !important;-webkit-line-clamp:2 !important;overflow:hidden !important;word-break:break-word !important;white-space:normal !important;}
 LAB .wrap-pill@@{flex:0 1 auto !important;min-width:0 !important;margin:0 !important;}
+/* both halves follow one rule: up to two lines, then an ellipsis (the wrap-round name was cut to one) */
+LAB .wrap-pill@@{display:-webkit-box !important;-webkit-box-orient:vertical !important;-webkit-line-clamp:2 !important;overflow:hidden !important;word-break:break-word !important;white-space:normal !important;text-overflow:ellipsis !important;}
 TALL BAR@@{height:52px !important;}
 /* on a detail page the text passes under the pill: its ground is solid there (Retro, Holo), the page's own ground with the blur in Classic; the card view keeps the glass */
 html.pmin.mobile:not(.phone-whole).detail-open #node-nav-bar@@{background:var(--nb-gd) !important;}
