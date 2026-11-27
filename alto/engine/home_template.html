@@ -466,6 +466,11 @@
     #account-btn:not(.expanded), #info-btn:not(.expanded){ width:var(--cz); height:var(--cz); max-height:var(--cz); }
     #search-btn:not(.expanded){ width:var(--cz); height:var(--cz); }
     #search-btn:not(.expanded) #search-glyph{ flex:0 0 var(--cz); width:var(--cz); height:var(--cz); }
+    /* the moon and the download-everything button are the same 44 pt as their neighbours, on the same baseline, and every corner tile is opaque (phone audit B15) */
+    #mode-toggle{ --cz:calc(44px / var(--alto-zoom, 0.8)); width:var(--cz); height:var(--cz); }
+    #download-all:not(#_){ width:44px; height:44px; bottom:calc(24px * var(--alto-zoom, 0.8)); left:calc(24px * var(--alto-zoom, 0.8) + 52px); }
+    html:not(.alto-retro):not(.alto-holo) :is(#account-btn:not(.expanded), #info-btn:not(.expanded), #search-btn:not(.expanded), #mode-toggle, #download-all):not(#_){ background:rgb(252,252,255); }
+    html.dark:not(.alto-retro):not(.alto-holo) :is(#account-btn:not(.expanded), #info-btn:not(.expanded), #search-btn:not(.expanded), #mode-toggle, #download-all):not(#_){ background:rgb(18,20,30); }
   }
 
   /* "Opening the Claude app…" toast — desktop deep-link handoff feedback + manual web fallback. */
@@ -2780,7 +2785,7 @@ function alignSearch(){
   // A phone on its side (the coarse, short rule in the CSS): info and search are 44 pt on the screen, i.e. 44 / zoom here, with a 10px gap.
   let GAP = 12.5, W = 35, INSET = 24, BW = 35;
   try{ if(matchMedia('(min-width:641px) and (max-height:500px) and (pointer:coarse)').matches){
-    GAP = 10; BW = 44 / (parseFloat(document.documentElement.style.getPropertyValue('--alto-zoom')) || 0.8); } }catch(e){}
+    GAP = 10; BW = 44 / (parseFloat(document.documentElement.style.getPropertyValue('--alto-zoom')) || 0.8); W = BW; } }catch(e){}
   let right = INSET;
   mt.style.right = right + 'px'; mt.style.bottom = INSET + 'px';
   right += W + GAP;
