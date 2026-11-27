@@ -156,7 +156,7 @@ def test_green_light_is_offered_only_in_retro_kept_per_timeline_and_never_on_a_s
     assert pg.evaluate(heads).count("Retro") == 1                         # Retro: its own section
     shown = "[...document.querySelectorAll('#bg-panel .bg-tile')].filter(t => t.offsetParent).map(t => t.dataset.bg)"
     assert not {"Colors", "Patterns"} & set(pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].filter(h => h.offsetParent).map(h => h.textContent)"))
-    assert pg.evaluate(shown) == ["r-green-light"]                        # Luke 2026-11-26: and nothing of the normal picker is drawn
+    assert pg.evaluate(shown) == ["r-green-light", "r:off"]               # Luke 2026-11-26: nothing of the normal picker is drawn (2026-11-27: but Plain is)
     pg.click('.bg-tile[data-bg="r-green-light"]')
     pg.wait_for_timeout(400)
     assert pg.evaluate(cls + ".contains('alto-bg-h')")
@@ -180,5 +180,47 @@ def test_green_light_is_offered_only_in_retro_kept_per_timeline_and_never_on_a_s
     pg.evaluate("window._altoStyle.set('retro')")
     pg.wait_for_timeout(500)
     assert "Retro" not in pg.evaluate(heads) and not pg.evaluate(cls + ".contains('alto-bg-h')")
+    assert not errors, errors
+    ctx.close()
+
+
+def test_retro_has_a_plain_choice_that_turns_its_ground_off_and_gives_classic_its_choice_back(browser, site):
+    """Luke 2026-11-27: "you also forgot to make a way to turn off the one background in retro"."""
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear()")
+    cls = "document.documentElement.classList"
+    act = "[...document.querySelectorAll('#bg-panel .bg-tile.active')].filter(t => t.offsetParent).map(t => t.dataset.bg)"
+    col = pg.evaluate("Object.keys(window._altoBg.C).find(k => window._altoBg.C[k].g === 'Colors')")
+    pg.evaluate("(id) => window._altoBg.choose(id)", col)                # a normal choice in Classic
+    pg.wait_for_timeout(300)
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(600)
+    pg.click("#bg-toggle")
+    pg.wait_for_timeout(400)
+    assert pg.evaluate(act) == ["r:off"] and not pg.evaluate(cls + ".contains('alto-bg-h')")   # Retro draws it as Plain
+    pg.click('.bg-tile[data-bg="r-green-light"]')
+    pg.wait_for_timeout(400)
+    assert pg.evaluate(cls + ".contains('alto-bg-h')") and pg.evaluate(act) == ["r-green-light"]
+    pg.click('.bg-tile[data-bg="r:off"]')                                  # the way back
+    pg.wait_for_timeout(400)
+    assert not pg.evaluate(cls + ".contains('alto-bg-h')") and not pg.evaluate(cls + ".contains('alto-bg')")
+    assert pg.evaluate(act) == ["r:off"]
+    pg.reload()                                                            # kept per timeline
+    pg.wait_for_timeout(1200)
+    assert not pg.evaluate(cls + ".contains('alto-bg-h')")
+    pg.evaluate("window._altoStyle.set('classic')")
+    pg.wait_for_timeout(400)
+    assert pg.evaluate("window._altoBgId") == col                          # Classic's own choice is back
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(400)
+    pg.evaluate("window._altoBg.choose('r-green-light')")
+    pg.evaluate("window._altoStyle.set('classic')")                       # a Retro ground chosen: Classic still draws its own
+    pg.wait_for_timeout(400)
+    assert pg.evaluate("window._altoBgId") == col
     assert not errors, errors
     ctx.close()
