@@ -105,7 +105,8 @@ NAV_CSS = """
   /* the overview (ovMarks): titles only at a reading size, or cards as blocks; lines at their drawn width; unit labels at reading size */
   html.alto-lanes #canvas.ln-ovmk #world .node-card > *{ opacity:0; transition:opacity .2s ease; }
   html.alto-lanes #canvas.ln-ovtt #world .node-card > .node-title{ opacity:1; position:absolute; left:7%; right:7%; top:10%; bottom:10%; margin:0 !important; font-size:var(--ovtf,16px) !important;
-    line-height:1.15 !important; white-space:normal !important; overflow:hidden; display:block; text-overflow:clip; }
+    line-height:1.15 !important; white-space:normal !important; overflow:hidden; display:-webkit-box !important; -webkit-box-orient:vertical; -webkit-line-clamp:var(--ovtl,2); bottom:auto; text-overflow:ellipsis; }
+  /* (Board 2026-11-27: titles were cut mid-line at the block's foot: as many whole lines as the block holds, the last one ending in an ellipsis) */
   html.alto-lanes #canvas.ln-ovmk #world .node-card{ border-width:calc(2px * var(--ovk,1)) !important; }
   html.alto-lanes #canvas.ln-ovmk #world :is(.lanes-tag,.ln-chip,.ln-otag,.lanes-past){ visibility:hidden; }
   html.alto-lanes #canvas.ln-ovmk #lanes-svg :is(path,line,polyline){ vector-effect:non-scaling-stroke; }
@@ -916,13 +917,17 @@ function ovSet(o){
 var OV_TW=56;
 function ovMarks(o){
   var c=cv(), w=document.getElementById('world'); if(!c || !w) return;
-  var k=o && o.s<1 ? o.s*zk(c) : 1, tt=w.querySelector('.node:not(.ln-kid) .node-card .node-title'), fs=tt ? parseFloat(getComputedStyle(tt).fontSize)||16 : 16;
+  var k=o && o.s<1 ? o.s*zk(c) : 1, tt=w.querySelector('.node:not(.ln-kid) .node-card .node-title'), fs=(c.classList.contains('ln-ovtt') && w._lnFs) || (tt ? parseFloat(getComputedStyle(tt).fontSize)||16 : 16);
+  if(!c.classList.contains('ln-ovtt')) w._lnFs=fs;      /* (the card's own title size: while the overview shows titles they wear its size, not theirs) */
   var cw=(w.querySelector('.node:not(.ln-kid) .node-card')||{}).offsetWidth||260;
   var mk=!!o && o.s<1 && fs*k<9, tl=mk && cw*k>=OV_TW;
   c.classList.toggle('ln-ovmk', mk); c.classList.toggle('ln-ovtt', tl);
-  if(!mk){ w.style.removeProperty('--ovk'); w.style.removeProperty('--ovtf'); return; }
+  if(!mk){ w.style.removeProperty('--ovk'); w.style.removeProperty('--ovtf'); w.querySelectorAll('.node .node-card').forEach(function(cd){ cd._lnH=null; }); return; }      /* (measured afresh next time: the board may have changed) */
   w.style.setProperty('--ovk', (1/o.s).toFixed(5));
-  if(tl) w.style.setProperty('--ovtf', (9.5/k).toFixed(2)+'px');
+  if(tl){ var fw=9.5/k; w.style.setProperty('--ovtf', fw.toFixed(2)+'px');
+    /* whole lines only: as many as 80% of each block's height holds at that size */
+    w.querySelectorAll('.node .node-card').forEach(function(cd){ if(cd._lnH==null) cd._lnH=cd.offsetHeight; var n=Math.max(1, Math.floor(cd._lnH*0.8/(fw*1.15)));
+      if(cd._lnTl!==n){ cd._lnTl=n; cd.style.setProperty('--ovtl', n); } }); }
   var put=[[],[],[]], gap=6;
   w.querySelectorAll('#lanes-ulabels .lu-strip').forEach(function(st){
     var ch=st.firstElementChild; if(!ch) return;
