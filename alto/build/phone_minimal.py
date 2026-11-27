@@ -104,7 +104,8 @@ P #nav-drawer-body .drawer-btn>* X{border:0 !important;margin:0 !important;paddi
 P #nav-drawer-body .drawer-btn .drawer-icon X{width:auto !important;height:24px !important;display:flex !important;align-items:center;justify-content:center;font-size:20px;}
 html.pmin:not(.has-filter-tab) #pmin-filter-toggle{display:none !important;}
 P #nav-drawer-body #drawer-timeline-btn .drawer-icon X{font-size:13px !important;letter-spacing:.04em;}
-P #nav-drawer-body .drawer-btn.pmin-word X{aspect-ratio:auto;height:44px !important;}
+/* a word tile (no icon) is at least 44 pt and fills its grid row, so a row mixing word and icon tiles is one height (B16) */
+P #nav-drawer-body .drawer-btn.pmin-word X{aspect-ratio:auto;height:auto !important;min-height:44px !important;align-self:stretch;}
 P #nav-drawer-body .drawer-btn.pmin-word .drawer-icon X{display:none !important;}
 P #nav-drawer-body .drawer-btn .drawer-label X{font-size:11.5px !important;line-height:1.2 !important;letter-spacing:.02em;text-align:center !important;white-space:normal !important;}
 /* the System at rest is the chart */

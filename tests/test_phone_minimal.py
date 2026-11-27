@@ -268,3 +268,16 @@ def test_the_memory_map_keeps_its_page_without_the_zoom_pill(pg, site):
     assert pg.evaluate("document.documentElement.classList.contains('pm-open') && document.getElementById('pal-mmap').classList.contains('on')")
     assert pg.evaluate("[...document.querySelectorAll('#pal-mmap .pm-zoom')].every(e => getComputedStyle(e).display === 'none')")
     assert pg.evaluate("getComputedStyle(document.querySelector('#pal-mmap .pm-sheet')).display") != "none"
+
+
+def test_menu_tiles_in_one_row_are_one_height(pg, site):
+    """B16 (phone audit 2026-11-26): word tiles ("System", "Star chart") were 44 pt beside 96 pt icon tiles."""
+    _go(pg, site + "/system.html")
+    pg.evaluate("window.openNavDrawer()")
+    pg.wait_for_timeout(500)
+    rows = pg.evaluate("""(() => { const m = {}; [...document.querySelectorAll('#nav-drawer-body .drawer-btn')].forEach(b => { const r = b.getBoundingClientRect();
+      if(r.width > 0) (m[Math.round(r.top)] = m[Math.round(r.top)] || []).push(Math.round(r.height)); }); return Object.values(m); })()""")
+    assert any(len(r) > 1 for r in rows), rows
+    for r in rows:
+        assert max(r) - min(r) <= 1, rows
+    assert pg.evaluate("[...document.querySelectorAll('#nav-drawer-body .pmin-word')].every(b => b.getBoundingClientRect().height >= 44)")
