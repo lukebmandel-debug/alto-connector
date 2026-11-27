@@ -325,7 +325,7 @@ function drawAll(g){ var G=S.grid=gridOf(); S.labelSets=[]; var cells=el('g',{},
   G.lv.forEach(function(l){ var o=G.off[l.id]; var lg=el('g',{transform:'translate('+f2(o[0])+','+f2(o[1])+')'+(S.rot?' rotate('+f2(S.rot)+')':''),'data-fade':l.id},g); drawLevel(lg,l.id,o); });
   tops=el('g',{},g);
   G.lv.forEach(function(l){ var o=G.off[l.id], c=el('g',{'class':'bl-cell','data-level':l.id},tops), tx=G.b0[0]+o[0], ty=G.b0[1]-G.th*.36+o[1];
-    var t=el('text',{x:f2(tx),y:f2(ty),'class':'bl-celltitle'},c); t.style.fontSize=f2(G.th*.55)+'px'; t.textContent='LEVEL '+dec(l.lb||l.n); t.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); A.selectLevel(l.id); });
+    var t=el('text',{x:f2(tx),y:f2(ty),'class':'bl-celltitle'},c); t.style.fontSize=f2(G.th*.55)+'px'; t.textContent='LEVEL '+dec(l.lb||l.n); t.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); lvPick(l.id); });
     var pw=G.th*2.7, ph=G.th*.62, lx=G.b0[2]+o[0]-pw, ly=G.b0[1]-G.th*.9+o[1], lit=el('g',{'class':'bl-lit'},c);
     el('rect',{x:f2(lx),y:f2(ly),width:f2(pw),height:f2(ph),rx:f2(ph/2)},lit); var lt=el('text',{x:f2(lx+pw/2),y:f2(ly+ph*.7),'class':'bl-litt'},lit); lt.style.fontSize=f2(G.th*.34)+'px'; });
   labels(); }
@@ -1064,6 +1064,10 @@ function setTop(){ // under the page's title bar and nav, which settle (slide in
 }
 /* The floating name card (Luke, 2026-11-12): drag it by its grip, or collapse it to a pill. Position and state are kept per timeline in this browser only
    (never synced); it stays inside the safe area and clear of the page's fixed chrome, re-clamped on drop, rotation and resize. */
+/* The floor a reader picks (a tab, the A key or a floor's title) is kept per timeline in this browser only and reopens next time; tours and code moves are not kept */
+function lvKey(){ return 'alto-bl-level:'+location.pathname+'|'+((A.data&&A.data.name)||''); }
+function lvLoad(){ try{ return localStorage.getItem(lvKey()); }catch(e){ return null; } }
+function lvPick(id){ A.selectLevel(id); if(S.level===id){ try{ localStorage.setItem(lvKey(),id); }catch(e){} } }
 function hKey(){ return 'alto-bl-head:'+location.pathname+'|'+((A.data&&A.data.name)||''); }
 function hLoad(){ try{ var v=JSON.parse(localStorage.getItem(hKey())||'null'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; } }
 function hSave(){ try{ localStorage.setItem(hKey(),JSON.stringify({x:S.hp&&!S.auto?S.hp.x:null,y:S.hp&&!S.auto?S.hp.y:null,c:S.hc?1:0})); }catch(e){} }
@@ -1179,7 +1183,7 @@ function build(){
   if(S.msg){ S.msg.remove(); S.msg=null; }
   while(S.tabs.firstChild) S.tabs.removeChild(S.tabs.firstChild);
   var lv=(plan.lv||[]).slice().sort(function(a,b){ return a.e-b.e; });
-  var mk=function(id,label,tip){ var b=h('button',{'class':'bl-tab',type:'button','data-level':id,'aria-label':tip||('Level '+label),title:tip||('Level '+label)},S.tabs,label); b.addEventListener('click',function(){ A.selectLevel(id); }); return b; };
+  var mk=function(id,label,tip){ var b=h('button',{'class':'bl-tab',type:'button','data-level':id,'aria-label':tip||('Level '+label),title:tip||('Level '+label)},S.tabs,label); b.addEventListener('click',function(){ lvPick(id); }); return b; };
   if((plan.ex&&((plan.ex.sh||[]).length||(plan.ex.tr||[]).length))){ var ob=mk('outside','Outside','Outside (O)'); if(isDesk()){ ob.innerHTML=IC.out+'<span class="bl-vh">Outside</span>'; ob.setAttribute('aria-label','Outside'); } }
   if(ALLF_ON&&lv.length>1){ var ab=mk('all','All','All floors (A)'); ab.classList.add('bl-all'); }
   lv.forEach(function(l){ mk(l.id,dec(l.lb||l.n)); });
@@ -1188,6 +1192,7 @@ function build(){
   if(en&&lv.some(function(l){ return l.id===en.l; })&&!(plan.ex&&(plan.ex.sh||[]).length)) S.level=en.l;
   if(plan.sp&&levelOf(plan.sp.l)) S.level=plan.sp.l;                                  /* open where the walk starts, not on an empty outline */
   if(ALLF_ON&&lv.length>1) S.level='all';                                             /* a blueprint opens on All floors (Luke B-1126-BLUEPRINT: "start off showing all levels") */
+  var lvS=lvLoad(); if(lvS&&(lvS==='all'?ALLF_ON&&lv.length>1:(lvS==='outside'||levelOf(lvS)))) S.level=lvS;   /* the floor this reader last picked here wins over the default */
   while(S.head.firstChild) S.head.removeChild(S.head.firstChild);
   var nm=dec(plan.name||A.data.name||'Building'), bar=h('div',{'class':'bl-hbar'},S.head), gr=S.grip=h('button',{'class':'bl-hb bl-grip',type:'button','aria-label':'Move the blueprint label (drag, or arrow keys)',title:'Move'},bar);
   gr.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';

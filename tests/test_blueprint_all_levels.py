@@ -50,3 +50,18 @@ def test_a_gesture_on_all_floors_moves_one_picture_and_lands_without_a_jump(brow
         assert not errors
     finally:
         ctx.close()
+
+
+def test_a_floor_the_reader_picked_reopens_next_time(browser, site):
+    ctx, pg, errors = _open(browser, site, ctx_kw={"viewport": DESKTOP["d1440"]})
+    try:
+        lv = pg.evaluate("[...document.querySelectorAll('#bldg-root .bl-tab:not([data-level=outside]):not([data-level=all])')][0].dataset.level")
+        pg.click(f"#bldg-root .bl-tab[data-level='{lv}']")
+        pg.reload(); pg.wait_for_selector("#bldg-root .bl-tab.on")
+        assert pg.evaluate(ON) == lv   # the reader's own choice wins over the All-floors default
+        pg.click("#bldg-root .bl-tab[data-level='all']")
+        pg.reload(); pg.wait_for_selector("#bldg-root .bl-tab.on")
+        assert pg.evaluate(ON) == "all"
+        assert not errors
+    finally:
+        ctx.close()
