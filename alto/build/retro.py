@@ -697,7 +697,7 @@ function bgs(on){
   if(!on){ if(s) s.parentNode.removeChild(s); return; }
   if(!U||!U.body||s) return;
   s=U.mk('div','bg-sec'); s.appendChild(U.mk('div','bg-h','Retro')); var g=U.mk('div','bg-grid');
-  Object.keys(BGS).forEach(function(id){ g.appendChild(U.tile(id, BGS[id])); }); s.appendChild(g);
+  Object.keys(BGS).forEach(function(id){ g.appendChild(U.tile(id, BGS[id])); }); if(U.plain) g.appendChild(U.plain()); s.appendChild(g);   // (Plain: Retro's own black, the way off a ground)
   var at=document.getElementById('bg-yours'); if(!at){ var all=U.body.querySelectorAll('.bg-sec'); at=all[all.length>1 ? 2 : 0]||null; }
   U.body.insertBefore(s, at); if(U.mark) U.mark();
 }
