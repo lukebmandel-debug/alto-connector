@@ -2071,7 +2071,11 @@ html:is(.mobile,.phone-whole,.pmin) #summary-wrap:not(.open):not(#_):not(#__):no
   background-clip:content-box !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 html #summary-wrap:not(.open):not(#_):not(#__) #summary-inner{ visibility:hidden; transition:visibility 0s linear .45s; }
 html #summary-wrap.open:not(#_):not(#__){ background-image:linear-gradient(var(--panel-glass-bg,var(--nav-bg)),var(--panel-glass-bg,var(--nav-bg))),linear-gradient(var(--panel-glass-bg,var(--nav-bg)),var(--panel-glass-bg,var(--nav-bg))) !important; }
+html:not(.alto-retro):not(.alto-holo):not(.mobile) :is(#search-btn,#key-toggle,#info-btn:not(.expanded),#mode-toggle,#alto-edit-pill,#sx-toggle):not(#_):not(#__){ background-image:linear-gradient(var(--panel-glass-bg),var(--panel-glass-bg)),linear-gradient(var(--panel-glass-bg),var(--panel-glass-bg)),linear-gradient(var(--panel-glass-bg),var(--panel-glass-bg)) !important; }
+html:not(.alto-retro):not(.alto-holo) #lanes-nav:not(#_):not(#__){ background-image:linear-gradient(var(--panel-glass-bg),var(--panel-glass-bg)),linear-gradient(var(--panel-glass-bg),var(--panel-glass-bg)),linear-gradient(var(--panel-glass-bg),var(--panel-glass-bg)) !important; }
 </style>"""
+# (Classic's bottom-right row and the lanes step bar were glass over the cards: card text read through them, B-1126-CLASSIC-CHROME-OPAQUE. Their own glass is laid under three
+# layers of the panel colour (~95-98%): the same fill, sizes and blur, no text behind. Retro and Holographic have their own solid plate / fills.)
 # (the shut Overview's words are hidden too: since 1.9.316 every page has an Overview, and its text, clipped but laid out under the bars, counted as card text
 # lit through a 72% layer, B-1126-OVERVIEW-SEETHRU; they show at once on opening and go 0.45 s after the close). The open panel's own layer is laid three times
 # (72% over 72% over 72%, ~98%) so the cards under it are a tint, never a second line of text; Retro and Holo's are already 97%.
