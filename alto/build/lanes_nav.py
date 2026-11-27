@@ -116,6 +116,14 @@ NAV_CSS = """
   #ln-mm .mm-c{ fill:var(--muted); fill-opacity:.38; }
   #ln-mm .mm-c.k{ fill-opacity:.2; }
   #ln-mm .mm-c.h{ fill:var(--accent); fill-opacity:1; }
+  /* the units (Luke 2026-11-26, "Add some unit label distinction on minimap"): each unit's own colour as a faint band, a divider where it
+     begins, and its numeral at the top of the band (HTML over the drawing, so the stretched drawing never distorts it) */
+  #ln-mm .mm-ub{ fill:var(--uc); fill-opacity:.16; }
+  #ln-mm .mm-ud{ stroke:var(--uc); stroke-opacity:.85; stroke-width:1.5px; vector-effect:non-scaling-stroke; }
+  #ln-mm .mm-un{ position:absolute; top:3px; margin-left:3px; font:800 9px/1 system-ui, -apple-system, sans-serif; letter-spacing:.06em; color:var(--uc);
+    pointer-events:none; white-space:nowrap; text-shadow:0 0 2px var(--surface, #fff), 0 0 2px var(--surface, #fff); }
+  html.alto-retro #ln-mm .mm-un, html.alto-holo #ln-mm .mm-un{ text-shadow:0 0 2px #000, 0 0 2px #000; }
+  html.alto-retro #ln-mm .mm-ub, html.alto-holo #ln-mm .mm-ub{ fill-opacity:.22; }
   #ln-mm .mm-v{ fill:var(--accent); fill-opacity:.12; stroke:var(--accent); stroke-width:1.5px; vector-effect:non-scaling-stroke; }
   #ln-mm:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
   html.alto-retro #ln-mm{ border-radius:0; background:#000; border-color:#d9ae55; }
@@ -1199,12 +1207,16 @@ function mmGeo(){
     lm={d:ln.getAttribute('d'), m:[M.a/k, M.b/k, M.c/k, M.d/k, (M.e-wr.left)/k, (M.f-wr.top)/k]};
     var x0=(q.left-wr.left)/k, x1=(q.right-wr.left)/k, y0=(q.top-wr.top)/k, y1=(q.bottom-wr.top)/k; b=[Math.min(b[0], x0), Math.min(b[1], y0), Math.max(b[2], x1), Math.max(b[3], y1)]; } }
   if(!cards.length) return null;
-  return {k:k, wr:wr, cards:cards, lm:lm, b:b}; }
+  var us=[]; document.querySelectorAll('#world .lanes-unit').forEach(function(u){ var x=parseFloat(u.style.left), ww=parseFloat(u.style.width); if(isNaN(x) || isNaN(ww)) return;
+    us.push([x, x+ww, u.style.getPropertyValue('--unit-color')]); });
+  us.sort(function(p, q){ return p[0]-q[0]; });
+  return {k:k, wr:wr, cards:cards, lm:lm, b:b, us:us}; }
 function mmView(){ var c=cv(), w=document.getElementById('world'); if(!c || !w || !w.offsetWidth) return null; var wr=w.getBoundingClientRect(), k=wr.width/w.offsetWidth || 1, cr=c.getBoundingClientRect();
   return [(cr.left-wr.left)/k, (cr.top-wr.top)/k, cr.width/k, cr.height/k]; }
 function mmAt(cx){ if(!_mmG || !MM) return null; var sv=MM.querySelector('svg'), M=sv && sv.getScreenCTM && sv.getScreenCTM(); if(!M) return null;
   var p=sv.createSVGPoint(); p.x=cx; p.y=0; var x=p.matrixTransform(M.inverse()).x, S=stops().ids, best=null, bd=Infinity;
   _mmG.cards.forEach(function(q){ if(S.indexOf(q[5])<0) return; var d=Math.abs(q[0]+q[2]/2-x); if(d<bd){ bd=d; best=q[5]; } }); return best; }
+function mmEsc(v){ return String(v).replace(/[&<>"']/g, function(c){ return '&#'+c.charCodeAt(0)+';'; }); }
 function mmDraw(){
   var m=mmMake(), G=mmGeo(), row=mmRow(); _mmG=G;
   if(!G || !row || !on() || _ov || phone()){ m.classList.remove('on'); if(R && !_ov) R.el.classList.toggle('lnv-nomm', !row && !phone()); return; }
@@ -1213,10 +1225,14 @@ function mmDraw(){
   var cw=rw-14, ch=Math.max(30, Math.min(96, cw*H/W)), pd=W/cw*3;
   m.style.width=rw+'px'; m.style.height=(ch+10)+'px'; m.style.left=row[0]+'px'; m.style.top=(row[1]-(window._altoMmGap||12)-ch-10)+'px';
   var s='<svg viewBox="'+[x0-pd, y0-pd, W+2*pd, H+2*pd].map(function(v){ return v.toFixed(0); }).join(' ')+'" preserveAspectRatio="none" aria-hidden="true">';      /* (the whole length across its width; a tall Expanded board is drawn shallower) */
-  var cur=current();
+  var cur=current(), un='', VX=x0-pd, VW=W+2*pd;
+  (G.us||[]).forEach(function(u, i){ var a=Math.max(u[0], VX), z=Math.min(u[1], VX+VW); if(z<=a) return; var c=' style="--uc:'+mmEsc(u[2])+'"';
+    s+='<rect class="mm-ub"'+c+' x="'+a.toFixed(0)+'" y="'+(y0-pd).toFixed(0)+'" width="'+(z-a).toFixed(0)+'" height="'+(H+2*pd).toFixed(0)+'"/>';
+    if(i) s+='<line class="mm-ud"'+c+' x1="'+a.toFixed(0)+'" x2="'+a.toFixed(0)+'" y1="'+(y0-pd).toFixed(0)+'" y2="'+(y0+H+pd).toFixed(0)+'"/>';
+    un+='<span class="mm-un" style="--uc:'+mmEsc(u[2])+';left:calc(7px + (100% - 14px) * '+((a-VX)/VW).toFixed(4)+')">'+mmEsc(window._altoU ? window._altoU(i+1, 'roman') : String(i+1))+'</span>'; });
   G.cards.forEach(function(q){ s+='<rect class="mm-c'+(q[4] ? ' '+q[4] : '')+(q[5]===cur ? ' h' : '')+'" x="'+q[0].toFixed(0)+'" y="'+q[1].toFixed(0)+'" width="'+q[2].toFixed(0)+'" height="'+q[3].toFixed(0)+'"/>'; });
   if(G.lm) s+='<g transform="matrix('+G.lm.m.map(function(v){ return v.toFixed(4); }).join(' ')+')"><path class="mm-l" d="'+G.lm.d+'"/></g>';
-  m.innerHTML=s+'<rect class="mm-v"/></svg>';
+  m.innerHTML=s+'<rect class="mm-v"/></svg>'+un;
   var q=m.getBoundingClientRect(), nb=R && R.el.getBoundingClientRect(), hit=!!(nb && nb.width && q.left<nb.right+8 && nb.left<q.right+8 && q.top<nb.bottom+8 && nb.top<q.bottom+8) || q.top<0;
   if(R) R.el.classList.toggle('lnv-nomm', hit);
   if(hit){ m.classList.remove('on'); return; }
