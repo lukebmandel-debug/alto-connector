@@ -102,16 +102,17 @@ NAV_CSS = """
   html.alto-lanes #canvas.ln-ov.ln-zin{ cursor:grab; }
   html.alto-lanes #canvas.ln-ov.ln-drag{ cursor:grabbing; }
   html.alto-lanes #canvas.ln-ov #world, html.alto-lanes #canvas.ln-ovanim #world{ pointer-events:none; transform-origin:0 0; will-change:transform; }
-  /* the overview (ovMarks): cards as blocks, lines at their drawn width, unit labels at reading size */
+  /* the overview (ovMarks): titles only at a reading size, or cards as blocks; lines at their drawn width; unit labels at reading size */
   html.alto-lanes #canvas.ln-ovmk #world .node-card > *{ opacity:0; transition:opacity .2s ease; }
+  html.alto-lanes #canvas.ln-ovtt #world .node-card > .node-title{ opacity:1; position:absolute; left:7%; right:7%; top:10%; bottom:10%; margin:0 !important; font-size:var(--ovtf,16px) !important;
+    line-height:1.15 !important; white-space:normal !important; overflow:hidden; display:block; text-overflow:clip; }
   html.alto-lanes #canvas.ln-ovmk #world .node-card{ border-width:calc(2px * var(--ovk,1)) !important; }
   html.alto-lanes #canvas.ln-ovmk #world :is(.lanes-tag,.ln-chip,.ln-otag,.lanes-past){ visibility:hidden; }
   html.alto-lanes #canvas.ln-ovmk #lanes-svg :is(path,line,polyline){ vector-effect:non-scaling-stroke; }
-  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-strip > .lu-chip{ position:absolute; left:0; transform:scale(var(--ovk,1)); transform-origin:0 50%; will-change:auto; }
+  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-strip > .lu-chip{ position:absolute; left:0; transform:translateY(var(--lu-dy,0px)) scale(var(--ovk,1)); transform-origin:0 50%; will-change:auto; }
   html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovn{ width:auto !important; }
   html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovn span{ display:none; }
   html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovn b{ margin-right:0; }
-  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovx{ visibility:hidden; }
   /* the minimap (Luke 2026-11-26, "instead of the view whole timeline button in the middle nav controls zooming out, make a minimap simplified where
      we usually have them that shows where the user is in the whole thing"): where every desktop minimap sits (minimap_home.py), just above the
      bottom-right buttons and as wide as they are; the main line, the cards, the event the steps are on, and the box the window shows. A phone keeps
@@ -901,20 +902,32 @@ function ovSet(o){
   ovSlab(o); ovMarks(o);
 }
 /* The overview (F9, 2026-11-27: "make it really show the whole line on screen ... keeping text legible (or switching to an overview treatment)").
-   Shrunk past the point where a card's words could be read (OV_MK of their size), the cards become plain blocks in their places, the lines keep
-   their drawn width, and each unit's label stays at its reading size over its stretch: its name, or only its numeral where the stretch is too
-   short for the name, or nothing where even that would run into the next. A tap still goes down to the event there. */
+   Shrunk until a card's title would read under ~9px: where a card is still wide enough to hold one (OV_TW px on screen) only its title stays,
+   drawn at a reading size (--ovtf) and clipped to the card; narrower still, the cards become plain blocks in their places (Board, 2026-11-27:
+   "keep the real cards (titles at least) whenever the scale allows"). The lines keep their drawn width; each unit keeps its label at reading
+   size: its name, or its numeral where the stretch is short, and where numerals would touch they step off the line, above and below by turns
+   (no unit's label is ever dropped). A tap still goes down to the event there. */
+var OV_TW=56;
 function ovMarks(o){
   var c=cv(), w=document.getElementById('world'); if(!c || !w) return;
-  var mk=!!o && o.s<1 && o.s*zk(c)<OV_MK;
-  c.classList.toggle('ln-ovmk', mk);
-  if(!mk){ w.style.removeProperty('--ovk'); return; }
+  var k=o && o.s<1 ? o.s*zk(c) : 1, tt=w.querySelector('.node:not(.ln-kid) .node-card .node-title'), fs=tt ? parseFloat(getComputedStyle(tt).fontSize)||16 : 16;
+  var cw=(w.querySelector('.node:not(.ln-kid) .node-card')||{}).offsetWidth||260;
+  var mk=!!o && o.s<1 && fs*k<9, tl=mk && cw*k>=OV_TW;
+  c.classList.toggle('ln-ovmk', mk); c.classList.toggle('ln-ovtt', tl);
+  if(!mk){ w.style.removeProperty('--ovk'); w.style.removeProperty('--ovtf'); return; }
   w.style.setProperty('--ovk', (1/o.s).toFixed(5));
+  if(tl) w.style.setProperty('--ovtf', (9.5/k).toFixed(2)+'px');
+  var put=[[],[],[]], gap=6;
   w.querySelectorAll('#lanes-ulabels .lu-strip').forEach(function(st){
     var ch=st.firstElementChild; if(!ch) return;
-    if(ch._lnNat==null){ ch._lnNat=ch.offsetWidth; var b=ch.querySelector('b'); ch._lnNum=(b ? b.offsetWidth : 0)+22; }
-    var room=(parseFloat(st.style.width)||0)*o.s-8, m=room>=ch._lnNat ? '' : room>=ch._lnNum ? 'n' : 'x';
-    if(ch._lnMk!==m){ ch._lnMk=m; ch.classList.toggle('lu-ovn', m==='n'); ch.classList.toggle('lu-ovx', m==='x'); }
+    if(ch._lnNat==null){ ch._lnNat=ch.offsetWidth; ch._lnH=ch.offsetHeight; var b=ch.querySelector('b'); ch._lnNum=(b ? b.offsetWidth : 0)+22; }
+    var sw=(parseFloat(st.style.width)||0)*o.s, room=sw-8, n=room<ch._lnNat, cwid=n ? ch._lnNum : ch._lnNat;
+    var x0=(parseFloat(st.style.left)||0)*o.s, x1=x0+cwid, row=0;
+    for(var r=0;r<3;r++){ var ok=put[r].every(function(q){ return x0>=q[1]+gap || x1<=q[0]-gap; }); if(ok){ row=r; break; } row=r; }
+    put[row].push([x0,x1]);
+    var dy=row===0 ? 0 : (row===1 ? -1 : 1)*(ch._lnH+6);
+    if(ch._lnMk!==(n?'n':'')+row){ ch._lnMk=(n?'n':'')+row; ch.classList.toggle('lu-ovn', n); }
+    ch.style.setProperty('--lu-dy', (dy/o.s).toFixed(2)+'px');
   });
 }
 /* The glass slab is the timeline's own backdrop. Shrunk with the board it becomes a thin

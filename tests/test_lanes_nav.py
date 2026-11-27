@@ -568,16 +568,18 @@ def test_the_whole_timeline_and_back_down(browser, page_file):
 
 
 OVW = """() => { const c=document.getElementById('canvas'), sv=document.getElementById('lanes-svg').getBoundingClientRect(), z=window._altoLanesZoom;
-  const ch=[...document.querySelectorAll('#lanes-ulabels .lu-chip')].filter(e=>getComputedStyle(e).visibility!=='hidden').map(e=>{ const r=e.getBoundingClientRect(), b=e.querySelector('b');
-    return [r.left, r.right, b.getBoundingClientRect().height]; }).sort((a,b)=>a[0]-b[0]);
-  const n=document.querySelector('#world .node-card > *');
-  return {s:z.s(), k:c.getBoundingClientRect().width/c.offsetWidth, mk:c.classList.contains('ln-ovmk'), l:sv.left, r:sv.right, w:innerWidth, chips:ch, ink:n?getComputedStyle(n).opacity:'1'}; }"""
+  const ch=[...document.querySelectorAll('#lanes-ulabels .lu-chip')].map(e=>{ const r=e.getBoundingClientRect(), b=e.querySelector('b');
+    return {l:r.left, r:r.right, t:r.top, b:r.bottom, h:b.getBoundingClientRect().height, v:getComputedStyle(e).visibility}; });
+  const t=document.querySelector('#world .node:not(.ln-kid) .node-card .node-title'), tr=t.getBoundingClientRect();
+  return {s:z.s(), mk:c.classList.contains('ln-ovmk'), tt:c.classList.contains('ln-ovtt'), l:sv.left, r:sv.right, w:innerWidth, chips:ch,
+          units:document.querySelectorAll('#lanes-ulabels .lu-chip').length, title:{op:getComputedStyle(t).opacity, px:parseFloat(getComputedStyle(t).fontSize)*tr.height/t.offsetHeight}}; }"""
 
 
-@pytest.mark.parametrize("width", [700, 1500])
+@pytest.mark.parametrize("width", [390, 700, 1500])
 def test_the_whole_timeline_shows_the_whole_line_and_reads_as_an_overview(browser, page_file, width):
     """F9 (2026-11-27): the whole timeline once stopped shrinking at 0.14, so a long line still ran off the window with ~5px card text.
-    It now always fits the whole line; too small to read, the cards turn to blocks and each unit keeps a label at reading size, none on another."""
+    It now always fits the whole line; where titles would read under ~9px a card wide enough shows its title alone at a reading size, a
+    narrower one becomes a block; every unit keeps its label at reading size, none on another (stepping off the line when crowded)."""
     ctx = browser.new_context(viewport={"width": width, "height": 900})
     pg = ctx.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(page_file.as_uri()); pg.wait_for_timeout(1500)
@@ -585,11 +587,18 @@ def test_the_whole_timeline_shows_the_whole_line_and_reads_as_an_overview(browse
     pg.wait_for_timeout(1100)
     o = pg.evaluate(OVW)
     assert o["l"] >= 0 and o["r"] <= o["w"], o                                         # the whole line is on screen
-    assert o["mk"] == (o["s"] * o["k"] < 0.5), o
+    if o["tt"]:
+        assert float(o["title"]["op"]) == 1 and o["title"]["px"] >= 9, o               # titles at a reading size
+    elif o["mk"]:
+        assert float(o["title"]["op"]) == 0, o                                         # blocks
+    else:
+        assert o["title"]["px"] >= 9, o                                                # the real cards, readable
     if o["mk"]:
-        assert float(o["ink"]) == 0 and o["chips"], o                                  # blocks, and the units still named
-        assert all(c[2] >= 9 for c in o["chips"]), o                                   # each label at a readable size
-        assert all(a[1] <= b[0] + 0.5 for a, b in zip(o["chips"], o["chips"][1:])), o  # never one on another
+        ch = o["chips"]
+        assert len(ch) == o["units"] and all(c["v"] != "hidden" and c["h"] >= 9 for c in ch), o   # every unit labelled, readable
+        bad = [(i, j) for i in range(len(ch)) for j in range(i + 1, len(ch))
+               if ch[i]["l"] < ch[j]["r"] - .5 and ch[j]["l"] < ch[i]["r"] - .5 and ch[i]["t"] < ch[j]["b"] - .5 and ch[j]["t"] < ch[i]["b"] - .5]
+        assert not bad, (bad, ch)                                                     # never one on another
     pg.evaluate("() => window._altoLanesZoom.whole()")
     pg.wait_for_timeout(1100)
     assert not pg.evaluate("document.getElementById('canvas').classList.contains('ln-ovmk')")
