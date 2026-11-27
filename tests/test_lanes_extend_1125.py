@@ -79,7 +79,7 @@ def test_a_page_with_extend_carries_the_variant_switch_and_cues():
     assert LANES_JS not in h and lanes_ext_js("lighthouse").split("window._ALTO_EXT_KEY=")[0] in h
     for a, b in _EXT_SWAPS:
         assert b in h
-    assert "window._ALTO_EXTEND_PAGE=1" in h and "ext-view-btn" in h and "ln-ext-cue" in h
+    assert "window._ALTO_EXTEND_PAGE=1" in h and "ext-view-btn" in h and "ln-main-pill" in h and "ln-ext-cue" not in h
     assert 'M8 4v16M8 4l-3 3M8 4l3 3M16 20V4M16 20l-3-3M16 20l3-3' in h        # the switch's glyph: up and down
     assert "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4" not in h                          # (not the outline's sideways one)
 
@@ -119,7 +119,7 @@ ST = """() => { const c = document.getElementById('canvas'), w = document.getEle
   cards.forEach(n => R.push(n.querySelector('.node-card').getBoundingClientRect()));
   let ov = 0; for (let i = 0; i < R.length; i++) for (let j = i + 1; j < R.length; j++) { const a = R[i], b = R[j];
     if (a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2) ov++; }
-  const sw = document.getElementById('ln-view'), cue = [...document.querySelectorAll('.ln-ext-cue')].filter(b => !b.hidden).map(b => b.getBoundingClientRect());
+  const sw = document.getElementById('ln-view'), cue = [...document.querySelectorAll('#ln-main-pill')].filter(b => !b.hidden).map(b => b.getBoundingClientRect());
   return {on: !!(window._altoLanesExtOn && window._altoLanesExtOn()), k: w.getBoundingClientRect().width / w.offsetWidth, scale: w.style.scale,
     compact: de.classList.contains('ln-compact'), cz: de.classList.contains('ln-cz'), R: f.mode && f.mode.R, u: f.mode && f.mode.u, need: f.need, A: f.A,
     mt: c.scrollHeight - c.clientHeight, top: c.scrollTop, overlaps: ov, n: cards.length,
@@ -171,11 +171,19 @@ def test_on_the_board_keeps_its_full_spacing_and_grows_up_and_down(site):
     assert s["R"] == 1 and s["u"] == 1, s                                            # one row a side, the gaps at their roomiest
     assert s["mt"] > 200 and s["overlaps"] == 0, s                                   # taller than the window: it scrolls; nothing on top of anything
     assert s["sw"]["shown"] and s["sw"]["pressed"] == "true" and s["sw"]["underScene"], s   # the one switch, lit, in the right rail under Scene
-    assert s["cues"] and s["cues"][0][0] == 20, s                                    # the quiet cue, 20 px in, on the side with more
-    pg.click(".ln-ext-cue:not([hidden])")
-    pg.wait_for_timeout(1500)
+    assert not s["cues"] and not pg.evaluate("document.querySelectorAll('.ln-ext-cue').length"), s   # no up / down arrows (Luke 2026-11-26); the line in view: no pill
+    ctx.close()
+    ctx, pg = _open(site, "tall", expanded=True)                                     # a board whose branches run far past the window
+    pg.evaluate("() => { const c = document.getElementById('canvas'); c.scrollTop = c.scrollHeight; }")   # down a long branch: the line leaves the view
+    pg.wait_for_timeout(700)
     t = pg.evaluate(ST)
-    assert t["top"] > 150, t                                                         # it went down
+    P = pg.evaluate("""() => { const p = document.getElementById('ln-main-pill'), r = p.getBoundingClientRect(), X = window._altoLanesExtRoom(), c = document.getElementById('canvas');
+      return {l: r.left, r: r.right, t: r.top, b: r.bottom, vw: innerWidth, X: X, sl: c.scrollLeft, text: p.textContent}; }""")
+    assert t["cues"] and abs((P["l"] + P["r"]) / 2 - P["vw"] / 2) < 1.5 and P["t"] >= P["X"]["t"] + 8 and P["text"], P   # centred, at the top, under the bar
+    pg.click("#ln-main-pill")                                                        # back: the line centred, no sideways move
+    pg.wait_for_timeout(1800)
+    back = pg.evaluate("""() => ({off: window._altoLanesMainOff(), sl: document.getElementById('canvas').scrollLeft, pill: !document.getElementById('ln-main-pill').hidden})""")
+    assert abs(back["off"]) < 24 and abs(back["sl"] - P["sl"]) < 1 and not back["pill"], back
     masked = pg.evaluate("() => [...document.querySelectorAll('#world > *')].filter(e => e.style.maskImage || e.style.webkitMaskImage).map(e => e.id)")
     assert not masked, masked                                                        # no fade: the board runs behind the bars to the window's edge (Luke 2026-11-25)
     assert not pg._errs, pg._errs
@@ -254,7 +262,7 @@ UNIT = """() => { const W = innerWidth, ml = document.querySelector('#lanes-svg 
   return [...document.querySelectorAll('#lanes-ulabels .lu-chip')].map(e => { const r = e.getBoundingClientRect(), hit = q => q.left < r.right && r.left < q.right && q.top < r.bottom && r.top < q.bottom;
     return {l: r.left, r: r.right, t: r.top, b: r.bottom, line: lineAt((r.left + r.right) / 2), cy: (r.top + r.bottom) / 2, pin: e.classList.contains('lu-pin'), dots: dots.filter(hit).length, cards: cards.filter(hit).length,
       z: getComputedStyle(e.parentElement).zIndex,
-      btn: [...document.querySelectorAll('#key-toggle, .ln-ext-cue')].filter(q => !q.hidden && getComputedStyle(q).display !== 'none').map(q => q.getBoundingClientRect()).filter(q => q.width && hit(q)).length}; })
+      btn: [...document.querySelectorAll('#key-toggle, #ln-main-pill')].filter(q => !q.hidden && getComputedStyle(q).display !== 'none').map(q => q.getBoundingClientRect()).filter(q => q.width && hit(q)).length}; })
     .filter(u => u.r > 0 && u.l < W); }"""
 
 
