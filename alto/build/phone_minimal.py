@@ -236,6 +236,10 @@ TALL BAR@@{height:52px !important;}
 /* on a detail page the text passes under the pill: its ground is solid there (Retro, Holo), the page's own ground with the blur in Classic; the card view keeps the glass */
 html.pmin.mobile:not(.phone-whole).detail-open #node-nav-bar@@{background:var(--nb-gd) !important;}
 DIV@@{align-self:center !important;flex:none !important;width:1px !important;height:22px !important;background:var(--nb-track) !important;}
+/* Classic: on a detail page the pill is the page's own ground, opaque, so the text being read never shows through it (phone audit B8) */
+CL.detail-open #node-nav-bar@@{background:var(--panel-glass-bg) !important;}
+/* a panel or sheet is open: the pill is gone, not faded (B4); it comes back when the panel closes */
+html.pmin.mobile:not(.phone-whole):has(#notes-panel.open,#minimap-wrap.expanded,#tutorial-wrap.expanded,#nav-drawer.open,#summary-wrap.open,#ef-panel.open,#msp.open) :is(#timeline-label-bar,#node-nav-bar)@@{visibility:hidden !important;}
 /* it rests with the controls (the lanes step bar does) and comes back to a touch */
 BAR@@{transition:opacity .6s ease !important;}
 html.pmin.pmin-idle BAR@@{opacity:.01 !important;}

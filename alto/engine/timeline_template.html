@@ -9501,6 +9501,10 @@ html.mobile.dark #hl-mode-btn:not(.active){
 /* compass ring: keep near-solid fills (8 circles ≠ 8 blur layers), Alto shadow tone */
 html.mobile .compass-btn{ box-shadow:0 3px 14px var(--node-rest-shadow); }
 
+/* Classic phone: a panel that carries reading text is opaque enough that the card behind it never reads through (Retro and Holo set their own, .97/.98;
+   the Atlas did the same). One token, so the menu, How to use, Notes, Map, Filter, Overview, search and the Account box all follow. */
+html.mobile:not(.alto-retro):not(.alto-holo){ --panel-glass-bg:rgba(252,252,255,0.98); }
+html.mobile.dark:not(.alto-retro):not(.alto-holo){ --panel-glass-bg:rgba(18,20,30,0.98); }
 /* ── PANELS: colors/frost/radius only — open/close JS, positions, dvh keyboard
    rules and safe-area paddings are all untouched. ── */
 /* full-screen overlays (one blur layer each, only while open) */
