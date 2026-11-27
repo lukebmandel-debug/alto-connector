@@ -2561,18 +2561,22 @@ LANES_EXT_TAIL = r"""
       +'html.alto-retro #lanes-nav .lnv-main.on{border-radius:0;color:#d9ae55;background:#000;box-shadow:inset 0 0 0 1.5px #d9ae55}'
       +'html.alto-holo #lanes-nav .lnv-main.on{border-radius:0;color:#4ff0e0;background:rgba(79,240,224,.1);box-shadow:inset 0 0 0 1.5px #4ff0e0}'
       +'html.phone-whole #lanes-nav>button.lnv-main:not(#_):not(#_){flex:0 0 auto !important}'
-      /* Holo's step bar is clear glass: over a board that runs under it, a card's words read through it (no text on text): opaque, as its minimap is */
-      +'html.alto-holo:not(.phone-whole) #lanes-nav:not(#_){background:#05070b;-webkit-backdrop-filter:none;backdrop-filter:none}'
+      /* Holo's step bar is clear glass: over a board that runs under it, a card's words read through it (no text on text): opaque, as its minimap is; on phones too (Board 2026-11-27: "1.1 MOTION ANSWER" read under "1/275" in landscape) */
+      +'html.alto-holo #lanes-nav:not(#_):not(#__):not(#___):not(#____):not(#_____):not(#______){background:#05070b !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}'      /* (holo.py G273 glass: !important at five ids) */
+      +'html.phone-whole:not(.alto-holo):not(.alto-retro) :is(#lanes-nav,#pmin-find,#hamburger-tab):not(#_):not(#__){background:var(--surface,#fff) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}'
+      +'html.phone-whole.alto-retro #lanes-nav:not(#_){background:#000;-webkit-backdrop-filter:none;backdrop-filter:none}'
       +'@media (prefers-reduced-motion:reduce){#lanes-nav .lnv-main{transition:none}}'
-      /* the brand marks in the top corners and the name: a backing while the board runs under them (Classic and Holo frosted, Retro black) */
+      /* the brand marks in the top corners and the name: a backing while the board runs under them (Classic and Holo frosted, Retro black). On phones only the marks
+         and the name: Holo's trace overlay is an svg of #nav too, and backed it covered the word with an empty box (Board 2026-11-27) */
       +'html.ln-under:not(.phone-whole):not(.alto-retro) #title-bar>svg:is(.brand-mark,.brand-word){background:var(--surface,#fff);border-radius:10px;box-shadow:0 0 0 4px var(--surface,#fff)}'
       /* the name tab too: frosted glass let a passing card's words read under the name (no text on text): the page's own surface instead */
       +'html.ln-under:not(.phone-whole):not(.alto-retro):not(.detail-open) #title-bar #title-text:not(#_):not(#_){background:var(--surface,#fff) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}'
       +'html.ln-under.alto-retro:not(.phone-whole) #title-bar>svg:is(.brand-mark,.brand-word){background:#000;box-shadow:0 0 0 4px #000}'
+      +'html.phone-whole.ln-under.alto-retro #nav>:is(svg.brand-mark,svg.brand-word,.title){background:#000;box-shadow:0 0 0 4px #000}'
       /* Retro's top bar is see-through (retro.py): while the board runs under it, it is the poster's black with its gold hairline, so no card's
          words stand under the name (Luke's Safari shot 2026-11-26: "EVOLUTIO… UNDER" under the title) */
       +'html.ln-under.alto-retro:not(.phone-whole):not(.detail-open) #title-bar:not(#_):not(#_){background:#000 !important;border-bottom:1px solid rgba(217,174,85,.35) !important}'
-      +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}';
+      +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg.brand-mark,svg.brand-word,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}';
     document.head.appendChild(st);
     var tag=document.querySelector('#world .lanes-tag.ln-main-tag'), nm=(tag && tag.textContent.trim()) || 'Main timeline';
     nm=nm.charAt(0).toUpperCase()+nm.slice(1).toLowerCase();
