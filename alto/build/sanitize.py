@@ -603,6 +603,9 @@ def sanitize_brief(b, nodes=None) -> list:
                 s.photos = copy.deepcopy(s.photos)
                 s.photos["items"] = sanitize_items(s.photos.get("items"))
                 s.photos["label"] = plain_text(s.photos.get("label") or "").strip()
+            if getattr(s, "figures", None):
+                from .figures import sanitize_items as _fg_items
+                s.figures = {"items": _fg_items(s.figures.get("items"))}
 
     b.title = plain_text(b.title)
     b.subject = plain_text(b.subject)

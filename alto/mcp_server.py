@@ -1640,6 +1640,15 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     every card, question, answer and explanation must be grounded in their notes
     — never outside knowledge. Offer a quiz or cards for outline concepts; see
     the guide's "Flash cards and quizzes". A bad one is refused with the reason.
+    KEY FIGURES (a Deadlines-style block, only from the user's own words): a section's
+    `figures: {items: [{figure, label?, detail?, quote?, cite?}]}` draws rows of a big
+    figure ("21 days", "$75,000", "3 years", "12") over a label, with an optional
+    detail line, quote and citation, exactly like a statute's Deadlines box (`t` may
+    be empty; the heading `h` names the block: "Key figures", "Deadlines"…; at most 24
+    rows; ONE of tree / cards / quiz / photos / figures per section). The owner can
+    add one by hand ("Add a section" > Key figures) and edit its rows on the page, so
+    read them with get_timeline and keep them when you rewrite a section. Use it only
+    for figures the materials state; never invent a number or a rule.
     PICTURES (the owner's own files only): a section's `photos: {items: [{ref,
     caption?, alt?}], label?}` and a card's `photos: [{ref, caption?, alt?}]` hold
     the names (`pic-…`) of pictures the owner has ADDED to their account, in Edit

@@ -230,6 +230,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     study = _prepare_study(brief, nodes)
     from .photos import prepare as _prepare_photos
     photos = _prepare_photos(brief, nodes)
+    from .figures import prepare as _prepare_figures
+    figures = _prepare_figures(brief, nodes)
     connections, _cw = sanitize_connections(brief, nodes, connections)
     warnings += _cw
 
@@ -274,7 +276,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     if drive_common.DriveConfig.from_env().available:      # a Drive build only: the link panel is placed by the enlarge safe box (engine_patches.share_safe_box)
         from .engine_patches import share_safe_box
         html = share_safe_box(html)
-    html = _add_tail(html, brief, nodes, warnings, trees, study, photos)
+    html = _add_tail(html, brief, nodes, warnings, trees, study, photos, figures)
     html = _add_background_head(html, brief)
     if phone_mode(brief) != "phone":
         from .phone import phone_scripts
@@ -338,7 +340,7 @@ def phone_mode(brief: Brief) -> str:
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
-              trees: dict = None, study: dict = None, photos: tuple = None) -> str:
+              trees: dict = None, study: dict = None, photos: tuple = None, figures: dict = None) -> str:
     """Detail-page extras that must wrap showDetail last (back-to-previous,
     banner clearance, auto-linking), placed just before the page's closing
     body tag. Every page gets them: they were gated to outline and index
@@ -352,6 +354,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .study import study_block_for
     from .study_plan import study_plan_block
     from .photos import block as photos_block
+    from .figures import block as figures_block
     from .manual_edit import manual_edit
     from .print_views import print_views
     from .study_sheet import study_sheet
@@ -367,7 +370,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.FOCUS_SETTLE + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
-            + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {})))
+            + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {}))) + figures_block(figures or {}, css=".dl-box{" not in html)
             + study_plan_block(brief, nodes)
             + manual_edit(brief, nodes) + print_views() + study_sheet(brief)
             + backgrounds.ui_block("This " + _bg_noun(brief), rail=True) + unit_numbers.panel_block() + hover_lines.block()

@@ -152,11 +152,14 @@ def edit_keys(b, nodes=()) -> str:
 def manual_edit(b, nodes=()) -> str:
     from .study_edit import STUDY_EDIT_CSS, STUDY_EDIT_FIELD, STUDY_EDIT_DECORATE, STUDY_EDIT_JS
     from .photos import EDIT_FIELD, EDIT_REFRESH
+    from .figures_edit import FIG_EDIT_FIELD, FIG_EDIT_REFRESH, FIG_EDIT_DECORATE, FIG_EDIT_JS, FIG_EDIT_CSS
     js = (MANUAL_JS.replace("/*__STUDY_FIELD__*/", STUDY_EDIT_FIELD)
           .replace("/*__PICS_FIELD__*/", EDIT_FIELD).replace("/*__PICS_REFRESH__*/", EDIT_REFRESH)
+          .replace("/*__FIG_FIELD__*/", FIG_EDIT_FIELD).replace("/*__FIG_REFRESH__*/", FIG_EDIT_REFRESH)
+          .replace("/*__FIG_DECORATE__*/", FIG_EDIT_DECORATE).replace("/*__FIG_EDIT__*/", FIG_EDIT_JS)
           .replace("/*__STUDY_DECORATE__*/", STUDY_EDIT_DECORATE)
           .replace("/*__STUDY_EDIT__*/", STUDY_EDIT_JS))
-    css = MANUAL_CSS[:MANUAL_CSS.rindex("</style>")] + STUDY_EDIT_CSS + "\n</style>"
+    css = MANUAL_CSS[:MANUAL_CSS.rindex("</style>")] + STUDY_EDIT_CSS + FIG_EDIT_CSS + "\n</style>"
     from .. import drive_common
     dcfg = drive_common.DriveConfig.from_env()
     pre = ""
@@ -718,7 +721,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = (EDK.ovf || {})[a], pm = (typeof PHASE_META !== 'undefined') ? PHASE_META[a] : null;
     h.textContent = f === 'short' ? ((EDK.sh || {})[a] || (pm && pm.label) || '') : ((pm && pm.label) || '');
   }
-  var PROV = '<span class="sec-prov">', SLOT = /<span class="a(?:dt|st|ph)-slot"[\s\S]*$/;
+  var PROV = '<span class="sec-prov">', SLOT = /<span class="a(?:dt|st|ph|fg)-slot"[\s\S]*$/;
   function hParts(h){ h = String(h || ''); var at = h.indexOf(PROV), mk = /^<span class="aed-k"[^>]*><\/span>/.exec(h);
     var lead = mk ? mk[0] : '', body = mk ? h.slice(lead.length) : h; at = body.indexOf(PROV);
     return {lead:lead, text: at >= 0 ? body.slice(0, at) : body, tail: at >= 0 ? body.slice(at) : ''}; }
@@ -1407,6 +1410,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     /*__STUDY_FIELD__*/
     /*__PICS_FIELD__*/
+    /*__FIG_FIELD__*/
     if(kind === 'dt' && p.length === 3 && p[2] === 'tree' && NEWT.test(id)){
       // a tree in a section added here: made with its first step
       if(!window._ALTO_DT || (!window._ALTO_DT[id] && !newTreeSec(id))) return null;
@@ -1550,6 +1554,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   Object.keys(window._ALTO_DT || {}).forEach(function(k){ PRIS['dt|' + k] = jh(JSON.stringify(window._ALTO_DT[k].n)); });
   Object.keys(window._ALTO_ST || {}).forEach(function(k){ PRIS['sd|' + k] = jh(JSON.stringify(window._ALTO_ST[k])); });
   Object.keys(window._ALTO_PH || {}).forEach(function(k){ PRIS['ph|' + k] = jh(JSON.stringify(window._ALTO_PH[k])); });
+  Object.keys(window._ALTO_FG || {}).forEach(function(k){ PRIS['fg|' + k] = jh(JSON.stringify(window._ALTO_FG[k])); });
   var conflicts = {}, APPLIED = {};      // APPLIED: what this page last set each field to
   function sigOf(f){ return f.sig ? f.sig() : f.get(); }
   // structure first (a section list, a tree), then new sections' words, then the rest, oldest first
@@ -1570,7 +1575,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(p[0] === 'fl') return -1;
     if(p[0] === 'pu') return -2.5;
     if(p[0] === 'pf') return -0.9;
-    if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd' || p[0] === 'ph') return NEWT.test(p[1]) ? 0.5 : 0;
+    if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd' || p[0] === 'ph' || p[0] === 'fg') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
   function overlay(){
     var any = false;
@@ -1726,6 +1731,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       return;
     }
     /*__PICS_REFRESH__*/
+    /*__FIG_REFRESH__*/
     if(kind === 'sd'){
       if(NEWT.test(p[1] || '')){ if(P){ rerenderPage(P); repaint(); } return; }
       var sb0 = dc && dc.querySelector('.ast[data-ast-key="' + p[1] + '"]');
@@ -1800,7 +1806,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     endField(true);
     root.classList.remove('alto-editing', 'alto-drag-ok'); selCard(null);
     endPick(true); endLink(); hideMenus();
-    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd,.aed-nadd,.aed-nx,.aed-st').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
+    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd,.aed-nadd,.aed-nx,.aed-st,.aed-fg-wrap').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
     hideBar(); closeAsk(); navSync();
     if(FTOUCH || structOK()) drawFilters();
@@ -1926,7 +1932,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
         var box = mk.closest('.detail-section'), h3 = box && box.querySelector(':scope > h3'); if(!h3) return; var k = mk.getAttribute('data-k');
         setF(h3, k + '|h'); box.setAttribute('data-aed-body', k + '|t'); lastOwn = box;
-        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('ast') && !c.classList.contains('aph') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
+        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('ast') && !c.classList.contains('aph') && !c.classList.contains('afg') && !c.classList.contains('aed-fg-wrap') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
         if(structOK() && !h3.querySelector('.aed-sc')) h3.appendChild(ctl('aed-sc', [['up', '↑', 'Move this section up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this section']], {sk: k}));
         decorateLists(box, k, h3);
       });
@@ -1950,6 +1956,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         });
       }
       /*__STUDY_DECORATE__*/
+      /*__FIG_DECORATE__*/
       dc.querySelectorAll('.adt[data-adt-key]').forEach(function(bx){
         var key = bx.getAttribute('data-adt-key');
         var T0 = (window._ALTO_DT || {})[key], rootId = T0 && T0.n.filter(function(x){ return !x.p; })[0];
@@ -3171,6 +3178,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
 
   /*__STUDY_EDIT__*/
+  /*__FIG_EDIT__*/
   /* a small box asking for a name; a menu of kinds of section */
   function hideMenus(){ ['aed-name', 'aed-form', 'aed-kinds', 'aed-chip', 'aed-chpop', 'aed-glyph'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
   /* the page's CSS zoom on n (html{zoom:.8–1}): window px per CSS px of n's own left/top/offsetWidth */
@@ -3207,7 +3215,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     ['cards', 'Flash cards', 'Cards you flip and mark Know it / Still learning — best written by Claude from your notes'],
     ['cases', 'Cases', 'A list of cases — each with its citation, a note and a link'],
     ['authorities', 'Authorities', 'A list of statutes, rules, Restatement sections or other sources'],
-    ['photos', 'Photos', 'A row of your own pictures, each with a caption']];
+    ['photos', 'Photos', 'A row of your own pictures, each with a caption'],
+    ['figures', 'Key figures', 'Big figures over labels, like the Deadlines box — deadlines, amounts, counts, limits']];
   function chooseKind(at, ok){
     hideMenus();
     var b = document.getElementById('aed-kinds');
@@ -3223,8 +3232,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = field(ok + '|order'); if(!f) return;
     if(kind === 'cases' || kind === 'authorities'){ addAuthSection(ok, kind, at || document.body); return; }
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
-    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', timeline:'Timeline', quiz:'Quiz', cards:'Flash cards', photos:'Photos'}[kind] || 'New section';
-    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : (kind === 'tree' || kind === 'timeline' || kind === 'photos') ? '' : 'Write here.';
+    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', timeline:'Timeline', quiz:'Quiz', cards:'Flash cards', photos:'Photos', figures:'Key figures'}[kind] || 'New section';
+    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : (kind === 'tree' || kind === 'timeline' || kind === 'photos' || kind === 'figures') ? '' : 'Write here.';
     var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H]];
     if(T) L.push([base + '|t', T]);
     if(PROVL[kind]) L.push([base + '|p', kind]);
@@ -3233,6 +3242,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(kind === 'photos'){
       if(window._altoPicsLoad) window._altoPicsLoad();
       L.push(['ph|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|pics', {lab: '', n: []}]);
+    }
+    if(kind === 'figures'){
+      var fk = DTPRE[q[0]] + '-' + q[1] + '-' + nk;
+      L.push(['fg|' + fk + '|figs', figStarter()]);
+      if(changes(L)) setTimeout(function(){ openFigEditor(fk, {fresh: true}); }, 60);
+      return;
     }
     if(kind === 'quiz' || kind === 'cards'){
       var sk = DTPRE[q[0]] + '-' + q[1] + '-' + nk;
@@ -4100,6 +4115,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     // a card's chips on the timeline: clicking one opens the card's chips to change
     var chipEl = structOK() && t.closest('#canvas .node-card .csym-btn,#canvas .node-card .esym-btn,#canvas .node-card .tsym-btn');
     if(chipEl){ var cn = chipEl.closest('.node'); if(cn && srcNode(cn.id.slice(5))){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); chipPop(cn.id.slice(5), chipEl); return; } }
+    var fgb = t.closest('.aed-fg');
+    if(fgb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); openFigEditor(fgb.getAttribute('data-fk')); return; }
     var stb = t.closest('.aed-st');
     if(stb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); openStudyEditor(stb.getAttribute('data-sk')); return; }
     var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button,.aed-chips button,.aed-nadd,.aed-nx');
