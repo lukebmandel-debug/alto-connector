@@ -2377,35 +2377,48 @@ window._altoLanesExtRoom=function(){
 LANES_EXT_TAIL = r"""
 (function(){
   var R=document.documentElement, cues={}, raf=0;
-  var SV={'-1':'M6 15l6-6 6 6','1':'M6 9l6 6 6-6'};
   function cv(){ return document.getElementById('canvas'); }
   function make(){
-    if(cues.pill || !document.body || !document.querySelector('#world .lanes-tag.ln-main-tag')) return;
+    var nav=document.getElementById('lanes-nav');
+    if(cues.pill || !document.body || !nav || !document.querySelector('#world .lanes-tag.ln-main-tag')) return;
     var st=document.createElement('style');
-    st.textContent='#ln-main-pill{position:fixed;left:50%;z-index:8000;transform:translateX(-50%);margin:0;font-family:inherit;line-height:1.3;box-sizing:border-box;box-shadow:0 4px 14px rgba(0,0,0,.14);'
-      +'white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:999px;color:var(--accent);cursor:pointer;'
-      +'background:var(--surface,#fff);border:1.5px solid currentColor}'
-      +'#ln-main-pill[hidden]{display:none}#ln-main-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}'
-      +'#ln-main-pill::after{content:"";position:absolute;left:-8px;right:-8px;top:50%;height:44px;transform:translateY(-50%)}'
-      +'html.alto-editing #ln-main-pill,html.detail-open #ln-main-pill,html.printing #ln-main-pill{display:none !important}'
-      /* a phone held sideways: the top row's name and marks stand on the board itself, so while the board runs under them they take
-         the desktop name tab's frosted backing (the board goes behind them, never shows through) */
-      /* the brand marks in the top corners: the same backing while the board runs under them (Classic and Holo frosted, Retro black) */
-      +'html.ln-under:not(.phone-whole):not(.alto-retro) #title-bar>svg:is(.brand-mark,.brand-word){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
+    /* the way back to the main line, in the step bar (Luke 2026-11-26, "if you are scrolled way up or down in a nested branch, you can
+       return to the timeline centered easily"; a pill floating on the board read as one more label, "clearly this is not the right
+       approach"): a button at the bar's left end, its arrow pointing to where the line is and the line's own name, there only while the
+       line is out of view; a click glides the view up or down until the line is centred (no sideways move) and the button fades */
+    st.textContent='#lanes-nav .lnv-main{width:auto;max-width:0;padding:0;margin:0;opacity:0;overflow:visible;white-space:nowrap;gap:5px;border-radius:14px;'
+      +'font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--accent);position:relative;pointer-events:none;'
+      +'transition:max-width .25s ease,padding .25s ease,opacity .2s ease,margin .25s ease}'
+      +'#lanes-nav .lnv-main>span{overflow:hidden;text-overflow:ellipsis;max-width:150px}'
+      +'#lanes-nav .lnv-main.on{max-width:200px;padding:0 10px 0 8px;margin-right:2px;opacity:1;pointer-events:auto;'
+      +'background:var(--accent);color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent)}'
+      +'#lanes-nav .lnv-main.on:hover{color:#fff;background:color-mix(in srgb,var(--accent) 85%,#000)}'
+      +'#lanes-nav .lnv-main::after{content:"";position:absolute;left:-4px;right:-4px;top:50%;height:44px;transform:translateY(-50%)}'
+      +'#lanes-nav .lnv-main svg{flex:0 0 auto}'
+      +'html.alto-retro #lanes-nav .lnv-main.on{border-radius:0;color:#d9ae55;background:#000;box-shadow:inset 0 0 0 1.5px #d9ae55}'
+      +'html.alto-holo #lanes-nav .lnv-main.on{border-radius:0;color:#4ff0e0;background:rgba(79,240,224,.1);box-shadow:inset 0 0 0 1.5px #4ff0e0}'
+      +'html.phone-whole #lanes-nav>button.lnv-main:not(#_):not(#_){flex:0 0 auto !important}'
+      /* Holo's step bar is clear glass: over a board that runs under it, a card's words read through it (no text on text): opaque, as its minimap is */
+      +'html.alto-holo:not(.phone-whole) #lanes-nav:not(#_){background:#05070b;-webkit-backdrop-filter:none;backdrop-filter:none}'
+      +'@media (prefers-reduced-motion:reduce){#lanes-nav .lnv-main{transition:none}}'
+      /* the brand marks in the top corners and the name: a backing while the board runs under them (Classic and Holo frosted, Retro black) */
+      +'html.ln-under:not(.phone-whole):not(.alto-retro) #title-bar>svg:is(.brand-mark,.brand-word){background:var(--surface,#fff);border-radius:10px;box-shadow:0 0 0 4px var(--surface,#fff)}'
+      /* the name tab too: frosted glass let a passing card's words read under the name (no text on text): the page's own surface instead */
+      +'html.ln-under:not(.phone-whole):not(.alto-retro):not(.detail-open) #title-bar #title-text:not(#_):not(#_){background:var(--surface,#fff) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}'
       +'html.ln-under.alto-retro:not(.phone-whole) #title-bar>svg:is(.brand-mark,.brand-word){background:#000;box-shadow:0 0 0 4px #000}'
-      +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
-      +'@media print{#ln-main-pill{display:none !important}}';
+      /* Retro's top bar is see-through (retro.py): while the board runs under it, it is the poster's black with its gold hairline, so no card's
+         words stand under the name (Luke's Safari shot 2026-11-26: "EVOLUTIO… UNDER" under the title) */
+      +'html.ln-under.alto-retro:not(.phone-whole):not(.detail-open) #title-bar:not(#_):not(#_){background:#000 !important;border-bottom:1px solid rgba(217,174,85,.35) !important}'
+      +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}';
     document.head.appendChild(st);
-    /* the way back to the main line (Luke 2026-11-26: "get rid of the up and down arrows ... but keep a main timeline toggle hovering
-       in the middle where the real label is for the main timeline ... so that if you are scrolled way up or down in a nested branch, you
-       can return to the timeline centered easily"): the main line's own label pill, centred, shown only while the line is out of view,
-       at the nearer edge of the room between the bars; a click glides the view up or down until the line is centred (no sideways move) */
-    var b=document.createElement('button'); b.type='button'; b.id='ln-main-pill'; b.className='ln-main-tag';      /* (not .lanes-tag: a click on one of those picks its line) */ b.hidden=true;
-    var tag=document.querySelector('#world .lanes-tag.ln-main-tag'); b.textContent=(tag && tag.textContent.trim()) || 'Main timeline';
-    b.title='Back to the main timeline'; b.setAttribute('aria-label', 'Back to the main timeline: '+b.textContent);
+    var tag=document.querySelector('#world .lanes-tag.ln-main-tag'), nm=(tag && tag.textContent.trim()) || 'Main timeline';
+    nm=nm.charAt(0).toUpperCase()+nm.slice(1).toLowerCase();
+    var b=document.createElement('button'); b.type='button'; b.className='lnv-main'; b.tabIndex=-1; b.setAttribute('aria-hidden','true');
+    b.innerHTML='<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"/></svg><span></span>';
+    b.querySelector('span').textContent=nm; b._nm=nm;
     b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(), d=off(); if(!c || d==null || !window._altoLanesVy) return;
       var k=(c.offsetHeight && c.getBoundingClientRect().height/c.offsetHeight)||1; window._altoLanesVy(d/k); });
-    document.body.appendChild(b); cues.pill=b;
+    nav.insertBefore(b, nav.firstChild); cues.pill=b;
   }
   /* how far the main line stands from the room's middle, screen px (+ below it), from its own label's height (the label sits on it) */
   function off(){ var y=lineY(); if(y==null) return null; var B=bounds(); return y-(B.t+B.b)/2; }
@@ -2423,9 +2436,11 @@ LANES_EXT_TAIL = r"""
     var a=on && mt>2 && y>2;
     if(R.classList.contains('ln-under')!==!!a) R.classList.toggle('ln-under', !!a);
     var d=on && mt>2 ? off() : null, half=(B.b-B.t)/2, side=d==null || Math.abs(d)<half-6 ? 0 : (d<0 ? -1 : 1);
-    if(p.hidden!==!side) p.hidden=!side; if(!side) return;
-    var k=(c.offsetWidth && c.getBoundingClientRect().width/c.offsetWidth)||1, h=p.offsetHeight*k;      // (the page's zoom: a fixed box's px are the zoomed page's)
-    var top=side<0 ? B.t+12 : B.b-12-h; p.style.top=(top/k).toFixed(2)+'px';
+    var was=p.classList.contains('on'); if(was!==!!side) p.classList.toggle('on', !!side);
+    p.tabIndex=side ? 0 : -1; if(side) p.removeAttribute('aria-hidden'); else p.setAttribute('aria-hidden','true');
+    if(!side || p._sd===side) return; p._sd=side;
+    var sv=p.querySelector('svg'); if(sv) sv.style.transform=side<0 ? '' : 'rotate(180deg)';
+    var t='Back to the main timeline, '+(side<0 ? 'above' : 'below')+': '+p._nm; p.title=t; p.setAttribute('aria-label', t);
   }
   function soon(){ if(!raf) raf=requestAnimationFrame(look); }
   function hook(){ make(); var c=cv(); if(c && !c._lnExtCue){ c._lnExtCue=1; c.addEventListener('scroll', soon, {passive:true}); } soon(); }
