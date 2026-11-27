@@ -123,6 +123,9 @@ class Section:
     # owner's own, kept off the page. A section carries one of tree, cards, quiz,
     # photos. Empty: none.
     photos: dict = field(default_factory=dict)
+    # Key figures drawn inside this section like a Deadlines box (figures.py): {items: [{id?, figure, label?, detail?, quote?, cite?}]}.
+    # One of tree / cards / quiz / photos / figures. Empty: none.
+    figures: dict = field(default_factory=dict)
 
 
 PROVENANCE = {"quoted": "Quoted", "notes": "From your notes",
@@ -629,6 +632,12 @@ def _check_sections(sections, what, warnings=None) -> None:
                 raise BriefError(f"{what} section {i+1}: a section carries one of `tree`, "
                                  "`cards`, `quiz` or `photos` — put each in its own section")
             check_photos(s.photos, f"{what} section {i+1}")
+        if s.figures:
+            from .figures import check_figures
+            if any((s.tree, s.cards, s.quiz, s.photos)):
+                raise BriefError(f"{what} section {i+1}: a section carries one of `tree`, "
+                                 "`cards`, `quiz`, `photos` or `figures` — put each in its own section")
+            check_figures(s.figures, f"{what} section {i+1}")
         if (warnings is not None and s.t and s.prov != "quoted"
                 and (s.h or "").strip().lower() in PRIMARY_TEXT_HEADINGS):
             warnings.append(

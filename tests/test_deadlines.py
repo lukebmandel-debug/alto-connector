@@ -58,9 +58,10 @@ def test_the_box_is_in_the_page_and_the_css_only_when_a_value_has_deadlines():
     h = _build(_doc())
     assert "dl-box" in h and ".dl-box{" in h and "30 days" in h and "§ 1446(b)(1)" in h
     plain = _build(_doc([{"id": "x", "name": "X", "sections": [{"h": "Summary", "t": "y"}]}]))
-    assert "dl-box" not in plain and "dl-per" not in plain
+    # (the page always carries the Key figures sheet and script, figures.py, so the sheet's own words are no sign of a box: look for the box itself)
+    assert 'class="dl-box"' not in plain and 'class="dl-per"' not in plain
     empty = _build(_doc([{"id": "x", "name": "X", "sections": [{"h": "Summary", "t": "y"}], "deadlines": []}]))
-    assert "dl-box" not in empty
+    assert 'class="dl-box"' not in empty
 
 
 def test_the_box_is_the_first_section_of_the_page():
