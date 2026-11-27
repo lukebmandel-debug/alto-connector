@@ -181,7 +181,14 @@ HEAD_JS = r"""(function(){
   function only(){ return (retroNow() && !retroOwn()) || (AUTO && !paged()); }
   var ov; // an id asked for by name (apply(id)); else what was chosen
   function ownRetro(w){ return !!(C[w] && C[w].g==='Retro'); }
-  function want(){ if(retroNow()){ var w=ov===undefined ? read() : ov; return retroOwn() && ownRetro(w) ? w : ''; } return AUTO && !paged() ? DEF : ov===undefined ? read() : ov; }
+  function want(){ if(retroNow()){ var w=ov===undefined ? read() : ov; return retroOwn() && ownRetro(w) ? w : ''; } return AUTO && !paged() ? DEF : unretro(ov===undefined ? read() : ov); }
+  // Luke 2026-11-27: "you also forgot to make a way to turn off the one background in retro". A Retro ground is chosen in the same record as every
+  // other pick (so it syncs with it), and the normal choice it replaced is kept beside it on this computer (KEY+'-n'): Retro's Plain tile puts that
+  // choice back (Retro draws any normal choice as its own plain black), and Classic and Holographic draw it while a Retro ground is the choice.
+  var NK=KEY+'-n';
+  function isRetroId(w){ return /^r-/.test(w||''); }
+  function normal(){ try{ var n=localStorage.getItem(NK); if(n!==null && !isRetroId(n)) return n; }catch(e){} return DEF; }
+  function unretro(w){ return isRetroId(w) ? normal() : w; }
   var lw=null;
   function retarget(){ var w=want(); if(w===lw) return; lw=w; cur=get(w) ? w : ''; sig=''; }
   // the opaque key in a private or shared page's address: what a gate knows about this page before it has it
@@ -334,7 +341,8 @@ HEAD_JS = r"""(function(){
   }
   function apply(id){ LB=null; ov=id; var w=want(); lw=w; cur=get(w) ? w : ''; sig=''; paint(); }
   window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, only:only, retro:retroNow, retroOwn:retroOwn, auto:AUTO, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
-    choose:function(id){ try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} var n={v:id||'', t:Date.now()}; if(o && o.m==='still') n.m='still'; localStorage.setItem(KEY, JSON.stringify(n)); }catch(e){} apply(); }};
+    normal:normal, isRetro:isRetroId,
+    choose:function(id){ try{ var w0=read(); if(isRetroId(id) && !isRetroId(w0)) localStorage.setItem(NK, w0); }catch(e){} try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} var n={v:id||'', t:Date.now()}; if(o && o.m==='still') n.m='still'; localStorage.setItem(KEY, JSON.stringify(n)); }catch(e){} apply(); }};
   // Holographic's Motion, On | Still (Luke 2026-11-18): kept in the SAME record as the background choice ({v, t, m:'still'}; On = no m, the default), so it syncs with it.
   // Still: the poster only, the clip is never fetched (holo_anim.py reads window._altoMotion and the 'alto-bg' event).
   window._altoMotion={get:function(){ try{ var o=JSON.parse(localStorage.getItem(KEY)||'null'); return o && o.m==='still' ? 'still' : 'on'; }catch(e){ return 'on'; } },
@@ -495,6 +503,8 @@ html.mobile #bg-panel .bg-foot{ padding:8px 16px 0; margin:0; border-top:1px sol
 #bg-panel .bg-solar-seg .bg-segb.on{ background:var(--accent,#6d5bd0); color:#fff; font-weight:600; }
 #bg-panel.bg-ret .bg-body > .bg-nr{ display:none !important; }
 #bg-panel.bg-ret .bg-foot:empty{ display:none; }
+#bg-panel .bg-tile.bg-plain{ background:#000; box-shadow:inset 0 0 0 1px #d9ae55; }
+#bg-panel .bg-tile.bg-plain .bg-name{ color:#efe6cf; }
 html:not(.mobile) #bg-panel.bg-ret .bg-body{ padding-bottom:6px; -webkit-mask-image:none; mask-image:none; }
 html.sk-retro #bg-panel .bg-solar-seg{ border-radius:0; border-color:rgba(217,174,85,.6); } html.sk-retro #bg-panel .bg-solar-seg .bg-segb{ text-transform:uppercase; letter-spacing:.14em; font-size:11px; }
 html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#000; }
@@ -534,8 +544,9 @@ UI_JS = r"""(function(){
     var a=mk('a',null,'source'); a.href=v.u; a.target='_blank'; a.rel='noopener'; foot.appendChild(a);
   }
   function mark(){
-    var cur=B.read(), custom=/^c:[0-9a-f]{6}$/.test(cur);
-    tiles.forEach(function(t){ var id=t.getAttribute('data-bg')||'', on=id===cur || (id==='c:' && custom);
+    var cur=B.read(); if(B.isRetro(cur) && !(B.retro && B.retro())) cur=B.normal();     // (out of Retro a Retro ground's choice shows the normal one it keeps)
+    var custom=/^c:[0-9a-f]{6}$/.test(cur);
+    tiles.forEach(function(t){ var id=t.getAttribute('data-bg')||'', on=id===cur || (id==='c:' && custom) || (id==='r:off' && !B.isRetro(cur));
       t.classList.toggle('active',on); t.setAttribute('aria-pressed',on?'true':'false'); });
     if(customTile){ var h=custom ? '#'+cur.slice(2) : ''; customTile.classList.toggle('set', !!h); if(h) customTile.style.setProperty('--bg-custom', h); else customTile.style.removeProperty('--bg-custom'); if(customInput && h) customInput.value=h; }
     if(tab) tab.classList.toggle('active', !!cur && cur!==B.def && !(B.only && B.only()));
@@ -563,6 +574,13 @@ UI_JS = r"""(function(){
     b.addEventListener('click', function(){ B.choose(id); mark(); });
     tiles.push(b); if(c) dress(b); return b;
   }
+  // Retro's own black, no picture: the way back from a Retro ground (it restores the normal choice, which Retro draws as plain black)
+  function plain(){
+    var b=mk('button','bg-tile bg-sw bg-plain'); b.type='button'; b.setAttribute('data-bg','r:off');
+    b.appendChild(mk('span','bg-name','Plain')); b.setAttribute('aria-label','Plain black, no picture');
+    b.addEventListener('click', function(){ B.choose(B.normal()); mark(); });
+    tiles.push(b); return b;
+  }
   function custom(){
     var b=mk('label','bg-tile bg-sw bg-custom'); b.setAttribute('data-bg','c:'); customTile=b;
     b.appendChild(mk('span','bg-name','Custom'));
@@ -585,10 +603,10 @@ UI_JS = r"""(function(){
     // Holographic's own backgrounds (holo_backgrounds.py), in the catalog only while that style is on: next, ahead of the rest
     if(by['Holographic']) body.appendChild(sec('Holographic', by['Holographic']));
     // Retro's own (retro_backgrounds.py), in the catalog only while that style is on (never on a System)
-    if(by['Retro']) body.appendChild(sec('Retro', by['Retro']));
+    if(by['Retro']) body.appendChild(sec('Retro', by['Retro'], plain()));
     // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
     if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
-      B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
+      B.ui={tile:tile, plain:plain, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
     order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic' && g!=='Retro') body.appendChild(sec(g, by[g])); });
