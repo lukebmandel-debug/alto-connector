@@ -494,6 +494,8 @@ html.mobile #bg-panel .bg-foot{ padding:8px 16px 0; margin:0; border-top:1px sol
   border-top:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; }
 #bg-panel .bg-solar-seg .bg-segb.on{ background:var(--accent,#6d5bd0); color:#fff; font-weight:600; }
 #bg-panel.bg-ret .bg-body > .bg-nr{ display:none !important; }
+#bg-panel.bg-ret .bg-foot:empty{ display:none; }
+html:not(.mobile) #bg-panel.bg-ret .bg-body{ padding-bottom:6px; -webkit-mask-image:none; mask-image:none; }
 html.sk-retro #bg-panel .bg-solar-seg{ border-radius:0; border-color:rgba(217,174,85,.6); } html.sk-retro #bg-panel .bg-solar-seg .bg-segb{ text-transform:uppercase; letter-spacing:.14em; font-size:11px; }
 html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#000; }
 #bg-panel .bg-solar-seg .bg-segb:last-child:nth-child(odd){ grid-column:1 / -1; border-left:0; }
@@ -518,7 +520,9 @@ UI_JS = r"""(function(){
   function variant(c){ return c.k==='p' ? (dark() ? c.d : c.l) : null; }
   function credit(){
     var id=B.read(), c=B.get(id); foot.textContent='';
+    if(panel && panel.classList.contains('bg-ret') && !(c && c.g==='Retro')){ return; }     // (Retro with its own grounds: the saved normal choice is not drawn, so it gets no caption)
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
+    if(c.g==='Retro'){ foot.textContent=c.n+' — a Retro background.'; return; }
     var both=root.classList.contains('alto-holo') ? '' : ', for the light and the dark theme';     // (Holographic is dark-only: it never says light)
     if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map'+both+'.'; return; }
     if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background.'; return; }
