@@ -126,6 +126,11 @@
       --panel-glass-bg:rgba(18,20,30,0.78);
     }
   }
+  /* A phone, upright or sideways: Classic panels (the Account box, How to use, share sheets…) are opaque, as on a timeline page (phone audit B3) */
+  @media (max-width:640px), (max-height:480px) and (orientation:landscape){
+    html:not(.alto-retro):not(.alto-holo){ --panel-glass-bg:rgb(252,252,255); }
+    html.dark:not(.alto-retro):not(.alto-holo){ --panel-glass-bg:rgb(18,20,30); }
+  }
   /* On ~1x screens the timeline deepens its muted ink and thickens its small text a hair
      (LOW-DPI ADAPTATION); the controls' glyphs and the guide text follow it. */
   @media (min-width:641px) and (-webkit-max-device-pixel-ratio:1.25), (min-width:641px) and (max-resolution:1.25dppx){
