@@ -102,6 +102,17 @@ NAV_CSS = """
   html.alto-lanes #canvas.ln-ov.ln-zin{ cursor:grab; }
   html.alto-lanes #canvas.ln-ov.ln-drag{ cursor:grabbing; }
   html.alto-lanes #canvas.ln-ov #world, html.alto-lanes #canvas.ln-ovanim #world{ pointer-events:none; transform-origin:0 0; will-change:transform; }
+  /* the overview (ovMarks): titles only at a reading size, or cards as blocks; lines at their drawn width; unit labels at reading size */
+  html.alto-lanes #canvas.ln-ovmk #world .node-card > *{ opacity:0; transition:opacity .2s ease; }
+  html.alto-lanes #canvas.ln-ovtt #world .node-card > .node-title{ opacity:1; position:absolute; left:7%; right:7%; top:10%; bottom:10%; margin:0 !important; font-size:var(--ovtf,16px) !important;
+    line-height:1.15 !important; white-space:normal !important; overflow:hidden; display:block; text-overflow:clip; }
+  html.alto-lanes #canvas.ln-ovmk #world .node-card{ border-width:calc(2px * var(--ovk,1)) !important; }
+  html.alto-lanes #canvas.ln-ovmk #world :is(.lanes-tag,.ln-chip,.ln-otag,.lanes-past){ visibility:hidden; }
+  html.alto-lanes #canvas.ln-ovmk #lanes-svg :is(path,line,polyline){ vector-effect:non-scaling-stroke; }
+  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-strip > .lu-chip{ position:absolute; left:0; transform:translateY(var(--lu-dy,0px)) scale(var(--ovk,1)); transform-origin:0 50%; will-change:auto; }
+  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovn{ width:auto !important; }
+  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovn span{ display:none; }
+  html.alto-lanes #canvas.ln-ovmk #lanes-ulabels .lu-chip.lu-ovn b{ margin-right:0; }
   /* the minimap (Luke 2026-11-26, "instead of the view whole timeline button in the middle nav controls zooming out, make a minimap simplified where
      we usually have them that shows where the user is in the whole thing"): where every desktop minimap sits (minimap_home.py), just above the
      bottom-right buttons and as wide as they are; the main line, the cards, the event the steps are on, and the box the window shows. A phone keeps
@@ -151,7 +162,7 @@ if(de.classList.contains('mobile')) return;          // phones: the engine's car
    once BIAS of the gap (BIAS_MIN..BIAS_MAX px) is travelled toward it */
 var SETTLE=170, TAU_CHASE=55, TAU_FLING=330, FLING_MIN=.12, FLING_MAX=5, COAST_PW=2.5, OFFLEN=260, MINSEG=56,
     BIAS=.12, BIAS_MIN=12, BIAS_MAX=48, NOTCH=.34, NOTCH_MIN=90, NOTCH_MAX=240, NOTCH_MS=260, SOFT=12, SFN=4.000244140625, LONE=40, GESTURE=120,
-    QMAX=3, OV_MIN=0.14, ZMAX=3, ZSNAP=.05, ZGAP=220;
+    QMAX=3, OV_MK=0.5, ZMAX=3, ZSNAP=.05, ZGAP=220;
 var RM=window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 function reduced(){ return !!(RM && RM.matches); }
 function cv(){ return document.getElementById('canvas'); }
@@ -894,7 +905,36 @@ var _ov=null, _ovA=null;
 function ovSet(o){
   var w=document.getElementById('world'), c=cv(), off=worldOff(c);
   w.style.transform='translate('+(o.tx-off.x)+'px,'+(o.ty-off.y)+'px) scale('+o.s+')';
-  ovSlab(o);
+  ovSlab(o); ovMarks(o);
+}
+/* The overview (F9, 2026-11-27: "make it really show the whole line on screen ... keeping text legible (or switching to an overview treatment)").
+   Shrunk until a card's title would read under ~9px: where a card is still wide enough to hold one (OV_TW px on screen) only its title stays,
+   drawn at a reading size (--ovtf) and clipped to the card; narrower still, the cards become plain blocks in their places (Board, 2026-11-27:
+   "keep the real cards (titles at least) whenever the scale allows"). The lines keep their drawn width; each unit keeps its label at reading
+   size: its name, or its numeral where the stretch is short, and where numerals would touch they step off the line, above and below by turns
+   (no unit's label is ever dropped). A tap still goes down to the event there. */
+var OV_TW=56;
+function ovMarks(o){
+  var c=cv(), w=document.getElementById('world'); if(!c || !w) return;
+  var k=o && o.s<1 ? o.s*zk(c) : 1, tt=w.querySelector('.node:not(.ln-kid) .node-card .node-title'), fs=tt ? parseFloat(getComputedStyle(tt).fontSize)||16 : 16;
+  var cw=(w.querySelector('.node:not(.ln-kid) .node-card')||{}).offsetWidth||260;
+  var mk=!!o && o.s<1 && fs*k<9, tl=mk && cw*k>=OV_TW;
+  c.classList.toggle('ln-ovmk', mk); c.classList.toggle('ln-ovtt', tl);
+  if(!mk){ w.style.removeProperty('--ovk'); w.style.removeProperty('--ovtf'); return; }
+  w.style.setProperty('--ovk', (1/o.s).toFixed(5));
+  if(tl) w.style.setProperty('--ovtf', (9.5/k).toFixed(2)+'px');
+  var put=[[],[],[]], gap=6;
+  w.querySelectorAll('#lanes-ulabels .lu-strip').forEach(function(st){
+    var ch=st.firstElementChild; if(!ch) return;
+    if(ch._lnNat==null){ ch._lnNat=ch.offsetWidth; ch._lnH=ch.offsetHeight; var b=ch.querySelector('b'); ch._lnNum=(b ? b.offsetWidth : 0)+22; }
+    var sw=(parseFloat(st.style.width)||0)*o.s, room=sw-8, n=room<ch._lnNat, cwid=n ? ch._lnNum : ch._lnNat;
+    var x0=(parseFloat(st.style.left)||0)*o.s, x1=x0+cwid, row=0;
+    for(var r=0;r<3;r++){ var ok=put[r].every(function(q){ return x0>=q[1]+gap || x1<=q[0]-gap; }); if(ok){ row=r; break; } row=r; }
+    put[row].push([x0,x1]);
+    var dy=row===0 ? 0 : (row===1 ? -1 : 1)*(ch._lnH+6);
+    if(ch._lnMk!==(n?'n':'')+row){ ch._lnMk=(n?'n':'')+row; ch.classList.toggle('lu-ovn', n); }
+    ch.style.setProperty('--lu-dy', (dy/o.s).toFixed(2)+'px');
+  });
 }
 /* The glass slab is the timeline's own backdrop. Shrunk with the board it becomes a thin
    ribbon floating on the empty page. Zoomed out, a layer of the same colours covers the
@@ -928,7 +968,7 @@ function ovSlab(o){
 function ins(c){ var q=getComputedStyle(c); return {l:parseFloat(q.paddingLeft)||0, r:parseFloat(q.paddingRight)||0}; }
 function ovFit(){
   var c=cv(), G=geo(), B=band(c), cw=c.clientWidth, P=PAD(), H=G.H+P, I=ins(c);
-  var s=Math.min(1,(cw-60-I.l-I.r)/G.W,(B.b-B.t-16)/H); s=Math.max(OV_MIN,s);
+  var s=Math.min(1,(cw-60-I.l-I.r)/G.W,(B.b-B.t-16)/H);   /* the whole line, always (no floor: a long one on a phone ran off the edge, F9 1127); too small to read, it is drawn as the overview below */
   var tx=cw/2-(c.scrollLeft+cw/2-worldOff(c).x)*s;          // what is in the middle now stays in the middle
   var ty=H*s<=B.b-B.t ? B.t+(B.b-B.t-H*s)/2 : B.t;
   return ovClampX({s:s, tx:tx, ty:ty});
@@ -972,7 +1012,7 @@ function ovLeave(id, instant, then){ mmLater(400);
   w.style.transform='none';
   var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop'), tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt));
   ovSet(from); ovSkyFade();
-  var fin=function(){ w.style.transform=''; ovSlab(null); ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); if(then) then(); };
+  var fin=function(){ w.style.transform=''; ovSlab(null); ovMarks(null); ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); if(then) then(); };
   if(instant){ fin(); return; }
   de.classList.add('ln-stepped');
   ovAnim(from, {s:1, tx:off.x-tl, ty:off.y-tt}, fin);
