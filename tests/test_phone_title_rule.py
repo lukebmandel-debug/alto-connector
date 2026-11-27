@@ -73,7 +73,7 @@ def browser():
 _RUN = """() => { const t = document.querySelector('#nav .title'), r = t.getBoundingClientRect(),
   c = document.querySelector('#nav .brand-mark').getBoundingClientRect(), w = document.querySelector('#nav .brand-word').getBoundingClientRect();
   const lines = Math.round(r.height / parseFloat(getComputedStyle(t).lineHeight || 16));
-  return {l: r.left, r: r.right, clef: c.right, word: w.left, h: r.height, lines}; }"""
+  return {l: r.left, r: r.right, clef: c.right, word: w.left, h: r.height, lines, two: t.classList.contains('ttl-2'), clamp: getComputedStyle(t).webkitLineClamp}; }"""
 
 
 @pytest.mark.parametrize("look", ["classic", "retro", "holo"])
@@ -92,6 +92,8 @@ def test_a_long_title_clears_the_clef_and_the_wordmark(browser, site, look, fmt,
         r = pg.evaluate(_RUN)
         assert r["l"] >= r["clef"] + 8 and r["r"] <= r["word"] - 8, r
         assert r["lines"] <= 2, r
+        if r["two"]:
+            assert r["clamp"] == "2", r      # a third line ends in an ellipsis in every look
     finally:
         ctx.close()
 
