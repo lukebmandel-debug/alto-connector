@@ -529,8 +529,8 @@ UNIT_GLASS_CSS = r"""
  -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
   X #world .phase-numeral:not(#_):not(#__){min-width:64px;box-sizing:border-box;text-align:center;justify-content:center;}
   X #world .unit-bar:not(#_)::before{left:calc(20px / var(--alto-zoom,.8) - 20px + var(--xl,0px)) !important;right:48px !important;height:6px !important;margin-top:-3px;border-radius:999px;
- background:linear-gradient(90deg,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 30%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 70%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent)) !important;
- box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 12px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 35%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
+ background:linear-gradient(rgba(255,255,255,.4),rgba(255,255,255,.4)) center/100% 1px no-repeat,linear-gradient(90deg,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent),color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 30%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 26%,transparent) 70%,color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 80%,transparent)) !important;
+ box-shadow:0 0 12px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 35%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   X #world .unit-bar:not(#_) .unit-dots{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 70%,transparent)) !important;}
   X #world .unit-bar:not(#_) .unit-dots .ud-sheen{display:none !important;}
   X #world .unit-bar:not(#_) .unit-dots .ud-base :is(circle,rect){fill:rgba(var(--ho-bgrgb),.92) !important;stroke:color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 90%,white) !important;stroke-width:1.6 !important;}
