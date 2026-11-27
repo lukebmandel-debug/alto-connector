@@ -88,5 +88,14 @@ def test_its_button_in_the_bar_turns_it_off_and_on_and_the_page_remembers(site):
     pg.wait_for_timeout(800)
     s = pg.evaluate(MM)
     assert s["on"] and not s["ovShown"], s
+def test_each_unit_has_its_band_divider_and_numeral_on_the_map(site):
+    """Luke 2026-11-26: "Add some unit label distinction on minimap"."""
+    ctx, pg = _open(site, "on")
+    u = pg.evaluate("""() => { const m = document.getElementById('ln-mm'), r = m.getBoundingClientRect();
+      const n = [...m.querySelectorAll('.mm-un')].map(e => { const q = e.getBoundingClientRect(); return {x: q.left, t: e.textContent, c: getComputedStyle(e).color, in: q.left >= r.left && q.right <= r.right && q.top >= r.top && q.bottom <= r.bottom}; });
+      return {units: document.querySelectorAll('#world .lanes-unit').length, bands: m.querySelectorAll('.mm-ub').length, divs: m.querySelectorAll('.mm-ud').length, n}; }""")
+    assert u["units"] >= 2 and u["bands"] == u["units"] and u["divs"] == u["units"] - 1 and len(u["n"]) == u["units"], u
+    xs = [q["x"] for q in u["n"]]
+    assert xs == sorted(xs) and all(q["in"] and q["t"] for q in u["n"]) and len({q["c"] for q in u["n"]}) > 1, u   # in order, inside the map, each its unit's colour
     assert not pg._errs, pg._errs
     ctx.close()
