@@ -641,6 +641,31 @@ window._altoRetroHome={on:function(){ if(!document.documentElement.classList.con
 """
 
 
+ROWPLATE_JS = r"""(function(){
+/* B-1126-BUTTONS-OPAQUE: the bottom-right row (search, list, i, style / edit) stood on the board with air between its buttons, and card text showed through
+   the gaps (and through Holographic's glass): one solid plate behind the row, the union of its buttons, in the style's own black. Sizes and places are the buttons'. */
+if(window._altoRowPlate) return; window._altoRowPlate=1;
+var de=document.documentElement, SEL='#search-btn,#key-toggle,#info-btn,.alto-edit-pill,#sx-toggle,#ext-view-btn', pl=null;
+function put(){
+  var on=(de.classList.contains('alto-retro')||de.classList.contains('alto-holo')) && !de.classList.contains('mobile') && !de.classList.contains('pmin') && !de.classList.contains('alto-home') && innerWidth>640;
+  var L=1e9,T=1e9,R=-1e9,B=-1e9,n=0;
+  if(on){
+    if(document.querySelector('#search-btn.expanded,#info-btn.expanded')) on=false;
+    else document.querySelectorAll(SEL).forEach(function(e){ var c=getComputedStyle(e); if(c.display==='none'||c.visibility==='hidden'||parseFloat(c.opacity)<.05) return;
+      var r=e.getBoundingClientRect(); if(!r.width||r.height>60||r.bottom<innerHeight-90||r.bottom>innerHeight||r.left<innerWidth*.4) return; L=Math.min(L,r.left);T=Math.min(T,r.top);R=Math.max(R,r.right);B=Math.max(B,r.bottom);n++; });
+  }
+  if(!on||n<2){ if(pl) pl.style.display='none'; return; }
+  if(!pl){ pl=document.createElement('div'); pl.id='alto-row-plate'; pl.setAttribute('aria-hidden','true'); document.body.appendChild(pl); }
+  var holo=de.classList.contains('alto-holo'), bg=holo ? 'rgb('+(getComputedStyle(de).getPropertyValue('--ho-bgrgb')||'0,0,0')+')' : '#000';
+  var s=pl.style, z=1; s.cssText='position:fixed;z-index:299;pointer-events:none;display:block;background:'+bg+';left:0;top:0;width:100px;height:10px;';
+  z=pl.getBoundingClientRect().width/100 || 1;   /* (the page is zoomed on a computer: this plate carries the same zoom as the buttons, so screen px / z) */
+  s.left=(L/z)+'px'; s.top=(T/z)+'px'; s.width=((R-L)/z)+'px'; s.height=((B-T)/z)+'px';
+  s.borderRadius=holo ? ((B-T)/z/2)+'px' : '0';   /* (Holographic's buttons are round: its plate is a pill) */
+}
+setInterval(put,250); addEventListener('resize',put); addEventListener('load',put); put();
+})();"""
+
+
 JS = r"""(function(){
 if(window._altoRetro) return;
 var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, BGS=__BGS__, st=null;
@@ -657,6 +682,7 @@ function art(){
   else if(m) m.remove();
 }
 HOMEB
+ROWPLATE
 __DARK__
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); if(typeof window.redrawConnections==='function') window.redrawConnections(); window.dispatchEvent(new Event('resize')); }catch(e){} }   // (the lines break at a divider by the style: vSegWithGaps)
 // the style's own backgrounds (retro_backgrounds.py): in the picker's catalog only while Retro is on and the page is not a System; a page
@@ -732,7 +758,7 @@ def css() -> str:
             "@media print{#sk-frame,#sk-mark{display:none !important;}}\n" + _rb.css_vars())
 
 
-ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)).replace("__BGS__", _json.dumps(_rb.client_entries(), separators=(",", ":"))))
+ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("ROWPLATE", ROWPLATE_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)).replace("__BGS__", _json.dumps(_rb.client_entries(), separators=(",", ":"))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-retro-{V}.js"
 GUARD = "_altoRetro"
