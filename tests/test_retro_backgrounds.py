@@ -154,6 +154,9 @@ def test_green_light_is_offered_only_in_retro_kept_per_timeline_and_never_on_a_s
     pg.evaluate("window._altoStyle.set('retro')")
     pg.wait_for_timeout(600)
     assert pg.evaluate(heads).count("Retro") == 1                         # Retro: its own section
+    shown = "[...document.querySelectorAll('#bg-panel .bg-tile')].filter(t => t.offsetParent).map(t => t.dataset.bg)"
+    assert not {"Colors", "Patterns"} & set(pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].filter(h => h.offsetParent).map(h => h.textContent)"))
+    assert pg.evaluate(shown) == ["r-green-light"]                        # Luke 2026-11-26: and nothing of the normal picker is drawn
     pg.click('.bg-tile[data-bg="r-green-light"]')
     pg.wait_for_timeout(400)
     assert pg.evaluate(cls + ".contains('alto-bg-h')")
@@ -165,6 +168,9 @@ def test_green_light_is_offered_only_in_retro_kept_per_timeline_and_never_on_a_s
     pg.evaluate("window._altoStyle.set('classic')")                      # back in Classic: no background, no section; the choice is kept
     pg.wait_for_timeout(400)
     assert not pg.evaluate(cls + ".contains('alto-bg')") and "Retro" not in pg.evaluate(heads)
+    pg.click("#bg-toggle") if not pg.evaluate("document.getElementById('bg-panel').classList.contains('open')") else None
+    pg.wait_for_timeout(300)
+    assert len(pg.evaluate(shown)) > 20                                   # the normal picker is back in Classic
     pg.evaluate("window._altoStyle.set('holo')")                          # Holographic never shows Retro's
     pg.wait_for_timeout(500)
     assert "Retro" not in pg.evaluate(heads) and not pg.evaluate(cls + ".contains('alto-bg-h')")
