@@ -128,6 +128,8 @@ LH #nav .brand-mark@@{translate:none !important;left:calc(var(--ls-l) + 16px) !i
 LH #nav>svg:not(.brand-mark)@@{translate:none !important;right:calc(var(--ls-r) + 16px) !important;left:auto !important;top:50% !important;height:22px !important;}
 LH #nav .title@@{position:absolute !important;left:calc(50% + (var(--ls-l) - var(--ls-r)) / 2) !important;top:50% !important;transform:translate(-50%,-50%) !important;flex:none !important;width:auto !important;
   max-width:24% !important;font-size:15px !important;line-height:1.2 !important;text-indent:0 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;margin:0 !important;padding:0 !important;}
+/* the horizontal timeline has no prev/next names in this row, so its title takes the whole run between the clef and the wordmark: one line, else two, else an ellipsis (phone audit B13) */
+html.pmin.alto-lanes:is(.mobile,.phone-whole) #nav .title@@{max-width:calc(100% - var(--ls-l) - var(--ls-r) - 176px) !important;white-space:normal !important;display:-webkit-box !important;-webkit-box-orient:vertical !important;-webkit-line-clamp:2 !important;font-size:13px !important;line-height:1.15 !important;text-align:center !important;}
 LH #timeline-label-bar@@{top:0 !important;height:44px !important;left:0 !important;right:0 !important;padding:0 var(--ls-r) 0 var(--ls-l) !important;box-sizing:border-box !important;background:none !important;border:0 !important;
   box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;pointer-events:none !important;z-index:106 !important;}
 LH #timeline-label-bar :is(#tlb-prev,#tlb-next)@@{pointer-events:auto !important;min-width:0 !important;font-size:12px !important;}

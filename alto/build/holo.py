@@ -471,6 +471,7 @@ S1_CSS = (_s1() + "{border:0 !important;outline:none;border-radius:999px !import
 S1_RIM = "inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 0 16px rgba(var(--ho-rgb),.30)"
 S1_RIM_HOVER = "inset 0 1px 0 rgba(255,255,255,.5),inset 0 0 16px rgba(var(--ho-rgb),.3),0 0 22px rgba(var(--ho-rgb),.55)"
 S1_BG = "radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%)," + S1_PLATE
+S1_BG_SOLID = "radial-gradient(circle at 32% 24%,rgba(255,255,255,.14),transparent 55%),rgb(var(--ho-bgrgb))"   # the page name's pill: solid, so a card's text passing under it never reads through (Luke 2026-11-27, Torts)
 S1_BLUR = "-webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;"
 _G_OUTER = ("#nav .nav-btn", "#nav .nav-group-label", "#ct-chips", "#node-nav-bar button", "#sol-ctl .sol-seg", "#sol-ctl #sol-motion", "#sol-ctl .sol-opt", "#lanes-nav", "#pal-ctl .pc-pill", "#pal-ctl .pc-city",
             "#pal-ctl .pc-dirb", "#wpal-root .wp-bar:not(.wp-pick)", "#bldg-root .bl-btn")
@@ -496,8 +497,8 @@ G273_CSS = (_G273 + "{border:1px solid transparent !important;border-radius:999p
             # the chips' plate is denser than the other controls' (cards scroll under the clear bars: no text on text; Board L-1123 chip backdrop)
             + "X #nav .nav-btn" + _S1_NOT + ",X #nav .nav-btn:is(.active,.on)" + _S1_NOT + "{background-color:rgba(var(--ho-bgrgb),.96) !important;}\n"
             # the title tab (Luke B-1118-GLASSCHROME: "the title tab"): the same S1 plate as a full pill, 6px off the top edge (a margin: its width and the row below do not move); the clef and wordmark stay as they are
-            + f"@media (min-width:641px){{X:not(.mobile) #title-bar #title-text{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}}\n"
-            + f"X.pmin #nav .title{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}\n"
+            + f"@media (min-width:641px){{X:not(.mobile) #title-bar #title-text{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG_SOLID + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}}\n"
+            + f"X.pmin #nav .title{_S1_NOT}" + "{border-radius:999px !important;margin-top:6px !important;background:" + S1_BG_SOLID + " !important;box-shadow:" + S1_RIM + " !important;" + S1_BLUR + "}\n"
             # the phone's prev / next names (B-1121-LOOK273-R3): upright, the one foot pill takes the S1 plate (its tokens: pill radius, plate, rim, blur; the strip is 44-52pt tall);
             # on its side each name's own label (the left one a square box, the right bare text) is an S1 pill inside its 44pt-tall touch row, which is not resized
             + "X.pmin.pmin{--nb-r:26px;--nb-g:" + S1_BG + ";--nb-bd:transparent;--nb-sh:" + S1_RIM + ";--nb-bf:blur(14px) saturate(1.5);}\n"
@@ -535,14 +536,17 @@ UNIT_GLASS_CSS = r"""
   X #world .unit-bar:not(#_) .unit-dots .ud-base :is(circle,rect){fill:rgba(var(--ho-bgrgb),.92) !important;stroke:color-mix(in srgb,var(--unit-color,rgb(var(--ho-rgb))) 90%,white) !important;stroke-width:1.6 !important;}
   X:not(.mobile) #title-bar #title-text:not(#_):not(#__):not(#___){
  border:0 !important;border-radius:0 0 20px 20px !important;
- background:radial-gradient(circle at 32% 0%,rgba(255,255,255,.14),transparent 60%),rgba(var(--ho-bgrgb),.86) !important;
+ background:radial-gradient(circle at 32% 0%,rgba(255,255,255,.14),transparent 60%),rgb(var(--ho-bgrgb)) !important;
  box-shadow:inset 0 -1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 8px 16px -4px rgba(var(--ho-rgb),.30) !important;
  -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
   X.pmin #nav .title:not(#_):not(#__):not(#___){position:absolute;left:50%;top:0;transform:translateX(-50%);width:auto;max-width:calc(100% - 150px);box-sizing:border-box;height:34px;line-height:31px;padding:0 22px !important;margin:0 !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;
  border:0 !important;border-radius:0 0 20px 20px !important;
- background:radial-gradient(circle at 32% 0%,rgba(255,255,255,.14),transparent 60%),rgba(var(--ho-bgrgb),.86) !important;
+ background:radial-gradient(circle at 32% 0%,rgba(255,255,255,.14),transparent 60%),rgb(var(--ho-bgrgb)) !important;
  box-shadow:inset 0 -1px 0 rgba(255,255,255,.3),inset 0 0 14px rgba(var(--ho-rgb),.16),0 8px 16px -4px rgba(var(--ho-rgb),.30) !important;
  -webkit-backdrop-filter:blur(14px) saturate(1.5) !important;backdrop-filter:blur(14px) saturate(1.5) !important;}
+  /* one title rule in every look (phone audit B6/B7/B13): one line, else two, else an ellipsis; never under the clef, the Back button or the wordmark */
+  X.pmin #nav .title.ttl-2:not(#_):not(#__):not(#___){height:auto;min-height:34px;line-height:1.2;padding:5px 22px 7px !important;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;align-self:auto;font-size:12.5px;border-radius:0 0 18px 18px !important;}
+  X.pmin.detail-open #nav .title:not(#_):not(#__):not(#___){max-width:calc(100% - 190px);}
   X.pmin .ix-tile:not(#_):not(#__):not(#___){--uu:var(--uc,rgb(var(--ho-rgb)));margin-inline:4px;border-radius:22px !important;
  border:1.5px solid color-mix(in srgb,var(--uu) 80%,transparent) !important;
  background:radial-gradient(circle at 30% 0%,rgba(255,255,255,.12),transparent 50%),linear-gradient(color-mix(in srgb,var(--uu) 12%,transparent),color-mix(in srgb,var(--uu) 12%,transparent)),rgba(var(--ho-bgrgb),.86) !important;
