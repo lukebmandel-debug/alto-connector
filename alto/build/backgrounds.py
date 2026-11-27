@@ -333,7 +333,7 @@ HEAD_JS = r"""(function(){
     r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
   }
   function apply(id){ LB=null; ov=id; var w=want(); lw=w; cur=get(w) ? w : ''; sig=''; paint(); }
-  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, only:only, auto:AUTO, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
+  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, only:only, retro:retroNow, retroOwn:retroOwn, auto:AUTO, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
     choose:function(id){ try{ var o=null; try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} var n={v:id||'', t:Date.now()}; if(o && o.m==='still') n.m='still'; localStorage.setItem(KEY, JSON.stringify(n)); }catch(e){} apply(); }};
   // Holographic's Motion, On | Still (Luke 2026-11-18): kept in the SAME record as the background choice ({v, t, m:'still'}; On = no m, the default), so it syncs with it.
   // Still: the poster only, the clip is never fetched (holo_anim.py reads window._altoMotion and the 'alto-bg' event).
@@ -493,6 +493,9 @@ html.mobile #bg-panel .bg-foot{ padding:8px 16px 0; margin:0; border-top:1px sol
 #bg-panel .bg-solar-seg .bg-segb{ min-width:0; padding:0 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:inherit; font-size:12px; height:30px; border:0;
   border-top:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; }
 #bg-panel .bg-solar-seg .bg-segb.on{ background:var(--accent,#6d5bd0); color:#fff; font-weight:600; }
+#bg-panel.bg-ret .bg-body > .bg-nr{ display:none !important; }
+#bg-panel.bg-ret .bg-foot:empty{ display:none; }
+html:not(.mobile) #bg-panel.bg-ret .bg-body{ padding-bottom:6px; -webkit-mask-image:none; mask-image:none; }
 html.sk-retro #bg-panel .bg-solar-seg{ border-radius:0; border-color:rgba(217,174,85,.6); } html.sk-retro #bg-panel .bg-solar-seg .bg-segb{ text-transform:uppercase; letter-spacing:.14em; font-size:11px; }
 html.sk-retro #bg-panel .bg-solar-seg .bg-segb.on{ background:#d9ae55; color:#000; }
 #bg-panel .bg-solar-seg .bg-segb:last-child:nth-child(odd){ grid-column:1 / -1; border-left:0; }
@@ -517,7 +520,9 @@ UI_JS = r"""(function(){
   function variant(c){ return c.k==='p' ? (dark() ? c.d : c.l) : null; }
   function credit(){
     var id=B.read(), c=B.get(id); foot.textContent='';
+    if(panel && panel.classList.contains('bg-ret') && !(c && c.g==='Retro')){ return; }     // (Retro with its own grounds: the saved normal choice is not drawn, so it gets no caption)
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
+    if(c.g==='Retro'){ foot.textContent=c.n+' — a Retro background.'; return; }
     var both=root.classList.contains('alto-holo') ? '' : ', for the light and the dark theme';     // (Holographic is dark-only: it never says light)
     if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map'+both+'.'; return; }
     if(c.k==='h'){ foot.textContent=c.n+' — a Holographic background.'; return; }
@@ -587,6 +592,8 @@ UI_JS = r"""(function(){
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
     order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace' && g!=='Holographic' && g!=='Retro') body.appendChild(sec(g, by[g])); });
+    // Luke 2026-11-26: under Retro (with its own grounds) the panel offers the style picker and Retro's own grounds only: the Alto wallpaper, the account's pictures, Colors, Patterns and the photographs are hidden (a saved normal choice is kept and returns in Classic); lim() sets the class
+    [].forEach.call(body.children, function(c){ if(c.id!=='bg-style' && c.id!=='bg-units' && c.id!=='bg-motion' && !c.classList.contains('bg-auto') && !(c.querySelector('.bg-h') && c.querySelector('.bg-h').textContent==='Retro') && !c.querySelector('[data-bg^="r-"]')) c.classList.add('bg-nr'); });
     lastDark=dark(); mark();
   }
   // A page that makes its own background, and Retro, hold the style picker and nothing else; the System's own style switch is mirrored here (its row is drawn in this file, not by the hosted library)
@@ -612,6 +619,7 @@ UI_JS = r"""(function(){
     if(!panel) return;
     var on=!!(B.only && B.only());
     panel.classList.toggle('bg-only', on);
+    panel.classList.toggle('bg-ret', !!(B.retro && B.retro() && B.retroOwn()));
     if(on){ if(drawn) solarRow(); var plain=root.classList.contains('alto-retro') || root.classList.contains('sk-retro');
       note.textContent=plain ? 'Retro is plain black, so there is no background to choose. Switch to Classic or Holographic to pick one.' : 'This format draws its own background. Open anything in it to choose a background for its detail page.'; }
     else solarMark();

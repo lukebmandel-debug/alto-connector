@@ -289,7 +289,9 @@ def test_retro_is_plain_black_whatever_is_saved_and_the_choice_returns(browser, 
     _shot(pg, "retro-scene-panel", page)
     if page in ("timeline", "lanes", "outline"):
         # Luke 2026-11-20: Retro's own "Green Light" (retro_backgrounds.py) is the one exception: these three pages offer it, so their picker is the full one
+        # Luke 2026-11-26: only the style picker and the Retro section: no normal Colors, Patterns, photographs or Alto wallpaper
         assert not d["only"] and "Retro" in d["sections"], (page, d)
+        assert not {"Colors", "Patterns", "bg-yours"} & set(d["sections"]) and len(d["sections"]) <= 4, (page, d)
     else:
         assert d["only"] and d["sections"] in (["bg-style"],), (page, d)      # the style picker, nothing else (and the Unit numbers switch)
     assert d["units"] == (page not in ("home", "reports")), (page, d)     # (a timeline's setting: the homepage and reports have none)
