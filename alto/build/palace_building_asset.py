@@ -136,6 +136,8 @@ html.bldg-open #world{visibility:hidden !important;}
 #bldg-root .bl-enlx svg{width:14px;height:14px;}
 html.mobile #bldg-root .bl-enlx{width:32px;height:32px;border-radius:16px;}
 html.mobile #bldg-root .bl-enl{padding-top:38px;}
+/* B14 (phone audit 2026-11-26): the card's Part label stands on its own backing, in one row with the close button, never loose over the plan */
+html.mobile #bldg-root .bl-enl > .node > .node-unit{top:-38px !important;right:auto !important;width:auto !important;height:32px;box-sizing:border-box;display:block !important;line-height:30px;padding:0 12px !important;border-radius:16px;background:var(--bl-panel);border:1px solid var(--bl-glass-edge);max-width:calc(100% - 44px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 @media (prefers-reduced-motion: reduce){#bldg-root .bl-enl{transition:opacity .15s linear;}#bldg-root .bl-enl.bl-grow{scale:1;}}
 #bldg-root .bl-tabs{top:14px;right:14px;display:flex;flex-direction:column-reverse;gap:6px;}
 /* a phone: the plan's name and floor tabs start below the phone design's MAP, Search and MENU (phone.py, 2026-10-23) */
@@ -197,6 +199,9 @@ html.mobile #bldg-root .bl-tabs{gap:2px;}html.mobile #bldg-root .bl-tab{height:4
 #bldg-root .bl-dock{display:contents;}
 #bldg-root .bl-dk,#bldg-root .bl-sep,#bldg-root .bl-x,#bldg-root .bl-cards{display:none;}
 html:is(.mobile,.pmin) #bldg-root .bl-cards{display:none !important;}
+/* B9 (phone audit 2026-11-26): the Key and credits sheet has its close button on a phone too (44pt, held at the top while the sheet scrolls); footClear() keeps the line and the sheet off the page's FIND and MENU */
+html:is(.mobile,.pmin) #bldg-root .bl-credits .bl-x{display:flex;position:sticky;top:0;float:right;margin:-8px -8px 0 8px;width:44px;height:44px;padding:0;align-items:center;justify-content:center;border-radius:22px;border:0;background:var(--bl-panel);color:var(--bl-text);cursor:pointer;z-index:1;}
+html:is(.mobile,.pmin) #bldg-root .bl-credits .bl-x svg{width:18px;height:18px;}
 #bldg-root .bl-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
 html:not(.mobile):not(.pmin) #bldg-root .bl-zo{order:1;} html:not(.mobile):not(.pmin) #bldg-root .bl-fit{order:2;} html:not(.mobile):not(.pmin) #bldg-root .bl-zi{order:3;}
 html.bl-lift.bldg-open :is(#mode-toggle,#info-btn,#search-btn,#edit-toggle,#alto-edit-pill){translate:0 calc(-1 * var(--bl-lift,46px));}
@@ -757,7 +762,15 @@ function layoutPills(glide){ // once a gesture settles: the places of the number
         for(k=0;k<c.length&&pick<0;k++) if(freeC(i,m.x+c[k][0],m.y+c[k][1],m.w,m.h,st.chip?0:-sl)) pick=k; }
       st.chip=pick>=0; if(pick>=0){ st.i=pick; cur[i]=[m.x+c[pick][0],m.y+c[pick][1],m.w,m.h]; at[m.id]={dx:c[pick][0],dy:c[pick][1],on:true}; }
       else { m.w=m.h=DOT; at[m.id]={dx:d.dx+dots[i].x-m.x,dy:d.dy+dots[i].y-m.y,on:true,dot:true,off:!d.on}; } }); }
-  else at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w,h,m){ return (!hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]))&&!(dk&&hit(x,y,w,h,dk)); }});   // pushed aside, a chip stays over the building's width, and never under the dock
+  else { var ph1=!isDesk(), pbars=[], sb1=null; if(ph1){ sb1=allBox(); var Z1=pageZ(); chromeEls().forEach(function(e){ var q=e.getBoundingClientRect(); pbars.push([(q.left-rr.left)/Z1-gap,(q.top-rr.top)/Z1-gap,(q.right-rr.left)/Z1+gap,(q.bottom-rr.top)/Z1+gap]); }); }
+    var okS=function(x,y,w,h){ return (!hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]))&&!(dk&&hit(x,y,w,h,dk))&&!pbars.some(function(q){ return hit(x,y,w,h,q); })&&(!sb1||(x-w/2>=sb1.l&&x+w/2<=sb1.r&&y-h/2>=sb1.t&&y+h/2<=sb1.b)); };   // (a phone: inside the box its bars leave, so never far from its room above the name card, nor off the page)
+    at=AltoMarkers.place(items, S.mkSt, {gap:gap, hide:ph1, ok:okS});   // pushed aside, a chip stays over the building's width, and never under the dock (a phone: nor under its bars, B9)
+    if(ph1){ var cur1=items.map(function(m){ var o=at[m.id]; return o.on?[m.x+o.dx,m.y+o.dy,m.w,m.h]:null; }), P1=DOT+3, ring=[];   // B9: a chip with no free place on a phone is a dot by its room, never stacked on another chip
+      for(var gx1=-6;gx1<=6;gx1++) for(var gy1=-6;gy1<=6;gy1++) ring.push([gx1*P1,gy1*P1]); ring.sort(function(a,b){ return a[0]*a[0]+a[1]*a[1]-b[0]*b[0]-b[1]*b[1]; });
+      items.forEach(function(m,i){ if(at[m.id].on) return; var pk=null;
+        for(var c1=0;c1<ring.length&&!pk;c1++){ var x=m.x+ring[c1][0], y=m.y+ring[c1][1]; if(!okS(x,y,DOT,DOT)) continue;
+          if(cur1.every(function(b){ return !b||Math.abs(x-b[0])>=(DOT+b[2])/2+gap||Math.abs(y-b[1])>=(DOT+b[3])/2+gap; })) pk=ring[c1]; }
+        m.w=m.h=DOT; if(pk){ cur1[i]=[m.x+pk[0],m.y+pk[1],DOT,DOT]; at[m.id]={dx:pk[0],dy:pk[1],on:true,dot:true}; } else at[m.id]={dx:0,dy:0,on:true,dot:true}; }); } }
   var box=items.map(function(m){ var o=at[m.id]; return [m.x+o.dx-m.w/2, m.y+o.dy, m.w, m.h]; });   // [left, centre y, w, h]
   function clear(i, x, w, s){ var b=box[i]; for(var j=0;j<box.length;j++){ if(j===i) continue; var c=box[j];
     if(x<c[0]+c[2]+gap-s && c[0]<x+w+gap-s && Math.abs(b[1]-c[1])<(b[3]+c[3])/2+gap-s) return false; } return true; }
@@ -796,7 +809,7 @@ function render(){
   if(!A.plan||!S.svg) return;
   var view=S.view; while(view.firstChild) view.removeChild(view.firstChild);
   S.labelSets=null; S.grid=null;
-  var lv=S.level;
+  var lv=S.level; if(S.hcAuto&&S.head&&S.head.classList.contains('bl-min')!==hMin()) hApply();   // (B9: the turned phone's pill follows one floor / All floors)
   S.geo=el('g',S.rot&&lv!=='all'?{transform:'rotate('+f2(S.rot)+')'}:{},view);   // (All floors: each floor's own group turns, inside its place in the grid)
   if(lv==='outside') drawOutside(S.geo); else if(lv==='all') drawAll(S.geo); else drawLevel(S.geo,lv);
   var bb=screenBounds(lv);
@@ -812,6 +825,7 @@ function render(){
 function fit(){ // the home box centred in the free part of the screen: on a phone the header card spans the top, the tool bar the bottom, the side rail the right (an equal gutter left keeps it centred)
   var h0=S.home, r=S.root.getBoundingClientRect(), W=r.width, H=r.height; S.vb=h0.slice(); if(W<1||H<1) return;
   if(S.level==='all'){ var ab=allBox(), ph=!isDesk(), as=ph?ab.w/h0[2]:Math.min(ab.w/h0[2],ab.h/h0[3]); S.vb=[h0[0]+h0[2]/2-(ab.l+ab.r)/2/as, ph?h0[1]-ab.t/as:h0[1]+h0[3]/2-(ab.t+ab.b)/2/as, W/as, H/as]; S.fitAll=S.vb.slice(); return; }   // (All floors: the grid fills the safe box)
+  if(!isDesk()){ var pb=allBox(), ps=Math.min(pb.w/h0[2],pb.h/h0[3]), pcx=h0[0]+h0[2]/2, pcy=h0[1]+h0[3]/2; S.vb=[pcx-(pb.l+pb.r)/2/ps, pcy-(pb.t+pb.b)/2/ps, W/ps, H/ps]; return; }   // B9 (phone audit 2026-11-26): a phone's floor fits the box its bars leave (name card, tabs, title, FIND, MENU, credits), in any orientation
   var top=0, bot=H, side=0, hb=S.head&&S.head.getBoundingClientRect();
   if(hb&&hb.height&&hb.width>W*.6) top=Math.max(0,hb.bottom-r.top+6);
   if(W<700){ bot=H-58; side=30; }
@@ -1070,8 +1084,9 @@ function lvLoad(){ try{ return localStorage.getItem(lvKey()); }catch(e){ return 
 function lvPick(id){ A.selectLevel(id); if(S.level===id){ try{ localStorage.setItem(lvKey(),id); }catch(e){} } }
 function hKey(){ return 'alto-bl-head:'+location.pathname+'|'+((A.data&&A.data.name)||''); }
 function hLoad(){ try{ var v=JSON.parse(localStorage.getItem(hKey())||'null'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; } }
-function hSave(){ try{ localStorage.setItem(hKey(),JSON.stringify({x:S.hp&&!S.auto?S.hp.x:null,y:S.hp&&!S.auto?S.hp.y:null,c:S.hc?1:0})); }catch(e){} }
-function hInit(){ var v=hLoad(); S.hc=!!v.c; S.hp=(typeof v.x==='number'&&typeof v.y==='number'&&isFinite(v.x)&&isFinite(v.y))?{x:v.x,y:v.y}:null; }
+function hSave(){ try{ localStorage.setItem(hKey(),JSON.stringify({x:S.hp&&!S.auto?S.hp.x:null,y:S.hp&&!S.auto?S.hp.y:null,c:S.hcAuto?null:(S.hc?1:0)})); }catch(e){} }
+function hInit(){ var v=hLoad(); S.hc=!!v.c; S.hcAuto=v.c==null&&innerHeight<500&&!isDesk();   /* B9 (phone audit 2026-11-26): on a phone on its side one floor opens with the label as its pill, so the plan, its tags and a card have the screen (All floors keeps it open, in flow); the reader's own open or closed wins */
+  S.hp=(typeof v.x==='number'&&typeof v.y==='number'&&isFinite(v.x)&&isFinite(v.y))?{x:v.x,y:v.y}:null; }
 function hZ(){ var r=S.root.getBoundingClientRect(); return (S.root.clientWidth&&r.width/S.root.clientWidth)||1; }
 function hBounds(){
   var r=S.root.getBoundingClientRect(), cs=getComputedStyle(document.documentElement), zz=hZ(), pr=S.probe;
@@ -1127,13 +1142,14 @@ function hClamp0(sx,sy){   /* settle the card where it is (or at a wanted screen
   var q=hSolve(sx,sy,hb.width,hb.height,hBounds(),hObst());
   if(q) hPut(q.x,q.y); else hDefault();
 }
+function hMin(){ return !!S.hc||(!!S.hcAuto&&S.level!=='all'); }
 function hApply(){
-  var c=!!S.hc; S.head.classList.toggle('bl-min',c);
+  var c=hMin(); S.head.classList.toggle('bl-min',c);
   if(S.hTog){ S.hTog.setAttribute('aria-expanded',c?'false':'true'); S.hTog.setAttribute('aria-label',c?'Open the blueprint label: '+S.hName:'Collapse the blueprint label to a pill'); S.hTog.title=c?'Open':'Collapse'; }
   if(S.hp) S.head.style.setProperty('left',S.hp.x+'px','important'),S.head.style.setProperty('top',S.hp.y+'px','important'),S.head.style.setProperty('right','auto','important'),S.head.style.setProperty('bottom','auto','important');
 }
 function hWire(gr,tg){
-  tg.addEventListener('click',function(e){ e.stopPropagation(); S.hc=!S.hc; hApply(); hSave(); requestAnimationFrame(function(){ hClamp(); }); });
+  tg.addEventListener('click',function(e){ e.stopPropagation(); S.hc=!hMin(); S.hcAuto=false; hApply(); hSave(); requestAnimationFrame(function(){ hClamp(); }); });
   ['pointerdown','pointerup','click','wheel'].forEach(function(t){ gr.addEventListener(t,function(e){ e.stopPropagation(); }); });
   gr.addEventListener('pointerdown',function(e){
     if(e.button>0) return; S.auto=false; var b=S.head.getBoundingClientRect();
@@ -1228,8 +1244,9 @@ function footer(){
   if(src.length||plan.n) h('h3',null,box,'Credits');
   src.forEach(function(x){ var cr=h('p',{'class':'bl-cr',title:'Show all'},box,dec(x.cr)); cr.addEventListener('click',function(){ cr.classList.toggle('open'); }); });
   if(plan.n) h('p',{'class':'bl-note'},box,dec(plan.n));
-  if(f){ f.addEventListener('click',function(e){ e.stopPropagation(); box.hidden=!box.hidden; });
-    f.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); box.hidden=!box.hidden; } }); }
+  if(f){ f.addEventListener('click',function(e){ e.stopPropagation(); footClear(); box.hidden=!box.hidden; });
+    f.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); footClear(); box.hidden=!box.hidden; } }); }
+  requestAnimationFrame(footClear);
 }
 /* a Memory Palace in a building is told apart from the city one by its name and a symbol (columns and a pediment): the back button and nav say "Memory Blueprint" / "Memory Blueprint" */
 function brand(){
@@ -1241,6 +1258,16 @@ function brand(){
 function nomsg(t){ if(!S.msg){ S.msg=h('div',{'class':'bl-msg'},S.root); } S.msg.textContent=t; }
 
 // one sheet at a time above the dock: the card list or the key
+function footClear(){ // a phone: the credits line runs between the page's bottom tiles (FIND, MENU), never under them; the Key sheet opens above them
+  var f=S.root&&S.root.querySelector('.bl-foot'), bx=S.credits; if(!f&&!bx) return;
+  if(isDesk()){ if(f){ f.style.paddingLeft=f.style.paddingRight=''; } if(bx) bx.style.bottom=''; return; }
+  var rr=S.root.getBoundingClientRect(), vw=innerWidth, vh=innerHeight, pl=10, pr=10, lo=rr.bottom, fr=f&&f.getBoundingClientRect();
+  [].forEach.call(document.body.children,function(c){ if(c===S.root||c.id==='world'||/^(SCRIPT|STYLE)$/.test(c.tagName)) return; var cs=getComputedStyle(c); if(!/^(fixed|absolute|sticky)$/.test(cs.position)||cs.display==='none'||cs.visibility==='hidden'||!(+cs.opacity>0)) return;
+    var q=c.getBoundingClientRect(); if(q.width<2||q.height<2||q.width>vw*.45||q.top<vh/2) return;   // (a small tile in the bottom half: FIND, MENU)
+    lo=Math.min(lo,q.top);
+    if(fr&&q.bottom>fr.top&&q.top<fr.bottom){ if((q.left+q.right)/2<vw/2) pl=Math.max(pl,q.right-rr.left+8); else pr=Math.max(pr,rr.right-q.left+8); } });
+  if(f){ f.style.paddingLeft=pl+'px'; f.style.paddingRight=pr+'px'; }
+  if(bx) bx.style.bottom=Math.max(22,Math.round(rr.bottom-lo+10))+'px'; }
 function closeSheets(){ if(S.cards) S.cards.hidden=true; if(S.credits) S.credits.hidden=true; if(S.cardsBtn) S.cardsBtn.classList.remove('on'); if(S.keyBtn) S.keyBtn.classList.remove('on'); }
 function sheet(w){
   var box=w==='cards'?S.cards:S.credits, was=box&&!box.hidden; closeSheets(); if(!box||was) return;
@@ -1323,7 +1350,7 @@ function wire(){
   function pinch(){ var k=Object.keys(pts); if(k.length<2) return 0; return Math.hypot(pts[k[0]].x-pts[k[1]].x,pts[k[0]].y-pts[k[1]].y); }
   function mid(){ var k=Object.keys(pts); return {x:(pts[k[0]].x+pts[k[1]].x)/2,y:(pts[k[0]].y+pts[k[1]].y)/2}; }
   document.addEventListener('pointerdown',function(e){ var t=e.target; if(!(t&&t.closest&&t.closest('.bl-pill.bl-peek'))) unpeek(); },true);   // a tap anywhere else puts a dot's number away
-  window.addEventListener('resize',function(){ if(S.root&&!S.root.hidden&&S.level==='all'){ clearTimeout(S.allT); S.allT=setTimeout(function(){ if(S.level==='all'&&S.grid&&!S.enl&&gridOf().cols!==S.grid.cols){ S.home=null; S.vb=null; render(); } },260); }
+  window.addEventListener('resize',function(){ footClear(); if(S.root&&!S.root.hidden&&S.level==='all'){ clearTimeout(S.allT); S.allT=setTimeout(function(){ if(S.level==='all'&&S.grid&&!S.enl&&gridOf().cols!==S.grid.cols){ S.home=null; S.vb=null; render(); } },260); }
     if(S.root&&!S.root.hidden){ setTop(); if(S.vb) applyVB(); clearTimeout(S.enT); S.enT=setTimeout(enlFit,140); [120,500].forEach(function(t){ setTimeout(hClamp,t); }); } });
   window.addEventListener('orientationchange',function(){ [120,500,1000].forEach(function(t){ setTimeout(function(){ if(S.root&&!S.root.hidden){ setTop(); hClamp(); } },t); }); });
 }
