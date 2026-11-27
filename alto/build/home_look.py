@@ -218,7 +218,8 @@ ALIGN_GUARD_NEW = "  if(!mt) return;   // (Retro hides the moon: the cluster is 
 # a phone on its side in a dark-only style (Holographic, Retro: no light/dark button): info and search close up into its place, no hole in
 # the row (Luke 2026-11-13, "light mode is still available incorrectly on mobile holo"); a computer keeps the empty slot as before
 ALIGN_SLOT_OLD = "  mt.style.right = right + 'px'; mt.style.bottom = INSET + 'px';\n  right += W + GAP;\n"
-ALIGN_SLOT_NEW = ("  if(mt.offsetWidth || !document.documentElement.classList.contains('sh-ph')){\n"
+ALIGN_SLOT_NEW = ("  if(mt.offsetWidth && window.innerWidth > 640 && !matchMedia('(max-height:500px) and (pointer:coarse)').matches) right += W + GAP;   // the Scene button (backgrounds.py HOME_JS) is the row's last, 20px in: Classic's moon steps one place left, Retro and Holo have no moon and Scene takes its empty slot\n"
+                  "  if(mt.offsetWidth || !document.documentElement.classList.contains('sh-ph')){\n"
                   "    mt.style.right = right + 'px'; mt.style.bottom = INSET + 'px';\n    right += W + GAP;\n  }\n")
 
 
