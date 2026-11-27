@@ -282,27 +282,32 @@ def test_the_chip_and_down_open_a_family_and_up_closes_it_again(browser, tmp_pat
     assert not errs, errs
 
 
-def test_down_opens_the_events_children_up_goes_back_and_left_right_carry_on(browser, tmp_path):
+def test_the_key_toward_the_branch_opens_it_steps_through_and_back_and_left_right_carry_on(browser, tmp_path):
+    """(Luke 2026-11-27: the key toward a branch's side of the line steps into it; the key back steps out, one card at a time, then onto the parent.)"""
     pg, errs = _open(browser, _d(), tmp_path)
     kids = "()=>[].slice.call(document.querySelectorAll('.node.ln-kid-shut')).length"
     pg.mouse.move(800, 990)
     pg.evaluate("window._altoLanesStep('warning')")          # (the first Right now goes past it: the opening's first two events share one view)
     pg.wait_for_timeout(1500)
     assert pg.evaluate("()=>window._altoLanesCurrent()") == "warning"
-    pg.keyboard.press("ArrowDown")
+    into, out = _side_key(pg, "warning")
+    pg.keyboard.press(into)
     pg.wait_for_timeout(700)
     assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "warn-terms" and pg.evaluate(kids) == 3
-    pg.keyboard.press("ArrowDown")
-    pg.keyboard.press("ArrowDown")
-    assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "warn-rock"
-    pg.keyboard.press("ArrowUp")                         # Up goes out to the parent: warn-rock sits under warn-terms
-    assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "warn-terms"
-    pg.keyboard.press("ArrowUp")
+    fam = pg.evaluate("()=>window._altoLanesGeo.fams.warning")
+    pg.keyboard.press(into)
+    pg.keyboard.press(into)
+    assert pg.evaluate("()=>window._altoLanesKids.cursor()") == fam[2]
+    pg.keyboard.press(out)                               # back one card
+    assert pg.evaluate("()=>window._altoLanesKids.cursor()") == fam[1]
+    pg.keyboard.press(out)
+    pg.keyboard.press(out)                               # past the first: onto the parent on the line
+    pg.wait_for_timeout(900)
     assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "" and pg.evaluate("()=>window._altoLanesCurrent()") == "warning"
-    pg.keyboard.press("ArrowDown")
+    pg.keyboard.press(into)
     pg.wait_for_timeout(400)
     assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "warn-terms"
-    pg.keyboard.press("ArrowRight")                      # on along the line from the parent
+    pg.keyboard.press("ArrowRight")                      # on along the line from the parent (a column)
     pg.wait_for_timeout(1500)
     assert pg.evaluate("()=>window._altoLanesKids.cursor()") == "" and pg.evaluate("()=>window._altoLanesCurrent()") == "great-storm"
     pg.evaluate("window._altoLanesKids.open('warning', false)")             # (Esc no longer tucks them away)
@@ -595,4 +600,90 @@ def test_the_outline_collapses_cleanly_with_its_branch(browser, tmp_path):
     pg.evaluate("window._altoLanesKids.open('warning', true)")
     pg.wait_for_timeout(700)
     assert not [t for t in _fam_geo(pg, "warning")["tags"] if "ln-otag" in t["cls"] and t["pr"] == "true"]     # reopened as the column
+    assert not errs
+
+
+_NAV = """() => ({kc: window._altoLanesKids.cursor(), cur: window._altoLanesCurrent(), f: window._focusedNodeId || ''})"""
+
+
+def _side_key(pg, root):
+    below = not pg.evaluate("(r) => document.getElementById('node-' + r).classList.contains('ln-sd-1')", root)
+    return ("ArrowDown", "ArrowUp") if below else ("ArrowUp", "ArrowDown")
+
+
+def test_the_key_toward_a_branch_steps_into_it_and_the_key_back_steps_out(browser, tmp_path):
+    """Luke 2026-11-27: "if you go down/up, it gets you into the nested branch"."""
+    pg, errs = _open(browser, _d(), tmp_path)
+    for root in ("warning", "council"):
+        into, out = _side_key(pg, root)
+        pg.evaluate("(r) => window._altoLanesStep(r)", root)
+        pg.wait_for_timeout(900)
+        pg.keyboard.press(into)
+        pg.wait_for_timeout(500)
+        n = pg.evaluate(_NAV)
+        assert n["kc"] and pg.evaluate("(k) => window._altoLanesKids.nest(k)", n["kc"]) == root, (root, n)   # into the branch, on its first card
+        pg.keyboard.press(out)
+        pg.wait_for_timeout(900)
+        n = pg.evaluate(_NAV)
+        assert not n["kc"] and n["cur"] == root, (root, n)                              # and back onto its parent on the line
+    assert not errs
+
+
+def test_inside_an_outline_the_arrows_and_step_bar_stay_in_the_branch_until_back_on_the_line(browser, tmp_path):
+    """Luke 2026-11-27: "with in outline mode on nested branch, the arrow key navigation only works within that branch instead of on the
+    timeline until returned to timeline"."""
+    pg, errs = _open(browser, _d(), tmp_path)
+    root = "warning"
+    fam = pg.evaluate("(r) => (window._altoLanesGeo.fams || {})[r] || []", root)
+    pg.evaluate("(r) => { const K = window._altoLanesKids; K.open(r, true); K.outline(r, true); window._altoLanesStep(r); }", root)
+    pg.wait_for_timeout(1200)
+    fam = pg.evaluate("(r) => window._altoLanesGeo.fams[r]", root)
+    into, out = _side_key(pg, root)
+    pg.keyboard.press(into)
+    pg.wait_for_timeout(500)
+    seen = set()
+    for k in ["ArrowRight"] * 4 + ["ArrowLeft"] * 6 + [into] * 3 + ["ArrowRight"] * 3:
+        pg.keyboard.press(k)
+        pg.wait_for_timeout(350)
+        n = pg.evaluate(_NAV)
+        assert n["kc"] in fam, (k, n)                                                    # never off the branch
+        seen.add(n["kc"])
+    assert len(seen) >= 3
+    for d in (1, 1, 1, -1, -1, -1, -1, -1):                                              # the step bar's ‹ ›: through the branch too
+        pg.evaluate("(d) => window._altoLanesStep(d)", d)
+        pg.wait_for_timeout(300)
+        assert pg.evaluate(_NAV)["kc"] in fam
+    pg.keyboard.press("Escape")                                                          # Esc: back on the line
+    pg.wait_for_timeout(900)
+    n = pg.evaluate(_NAV)
+    assert not n["kc"] and n["cur"] == root, n
+    pg.keyboard.press(into)                                                              # in again, and out by the keys past the first level
+    pg.wait_for_timeout(400)
+    for _ in range(6):                                                                   # (only until it is back: one more would cross to the next line)
+        if not pg.evaluate(_NAV)["kc"]:
+            break
+        pg.keyboard.press(out)
+        pg.wait_for_timeout(300)
+    pg.wait_for_timeout(700)
+    n = pg.evaluate(_NAV)
+    assert not n["kc"] and n["cur"] == root, n
+    pg.keyboard.press("ArrowRight")                                                      # on the line, the arrows travel it again
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate(_NAV)["cur"] != root
+    assert not errs
+
+
+def test_an_enlarged_card_in_an_outline_moves_within_its_branch(browser, tmp_path):
+    pg, errs = _open(browser, _d(), tmp_path)
+    root = "warning"
+    pg.evaluate("(r) => { const K = window._altoLanesKids; K.open(r, true); K.outline(r, true); }", root)
+    pg.wait_for_timeout(900)
+    fam = pg.evaluate("(r) => window._altoLanesGeo.fams[r]", root)
+    first = [k for k in fam if pg.evaluate("(k) => window._altoLanesKids.nest(k)", k) == root][0]
+    pg.evaluate("(k) => window.enterFocus(k)", first)
+    pg.wait_for_timeout(900)
+    for k in ("ArrowRight", "ArrowRight", "ArrowLeft"):
+        pg.keyboard.press(k)
+        pg.wait_for_timeout(700)
+        assert pg.evaluate("window._focusedNodeId") in fam, k
     assert not errs

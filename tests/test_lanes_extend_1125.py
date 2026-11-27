@@ -449,3 +449,44 @@ def test_the_lowest_and_highest_cards_scroll_fully_clear_of_the_bars(site, how):
     assert t["hi"] >= t["head"] + 19, t                                              # and the highest one under the top bar
     assert not pg._errs, pg._errs
     ctx.close()
+
+
+def test_the_lawsuit_button_lets_an_enlarged_branch_card_go_and_comes_back_on_its_parent(site):
+    """Luke 2026-11-27: "The lawsuit button doesn't work if a nested branch node is enlarged"."""
+    ctx, pg = _open(site, "tall", expanded=True)
+    kid = pg.evaluate("() => Object.keys(window._ALTO_LANES.ev).find(i => /-k20$/.test(i))")
+    root = kid.rsplit("-k", 1)[0]
+    pg.evaluate("(id) => window.enterFocus(id)", kid)                                 # a card deep in a long branch, enlarged
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("window._focusedNodeId") == kid
+    on = pg.evaluate("() => document.querySelector('#lanes-nav .lnv-main').classList.contains('on')")
+    assert on                                                                        # the line is out of view: the button is offered
+    pg.click("#lanes-nav .lnv-main")
+    pg.wait_for_timeout(2000)
+    r = pg.evaluate("""(root) => { const n = document.querySelector('#node-' + root + ' .node-card').getBoundingClientRect();
+      return {f: window._focusedNodeId || '', off: window._altoLanesMainOff(), cx: (n.left + n.right) / 2, w: innerWidth, kc: window._altoLanesKids.cursor()}; }""", root)
+    assert not r["f"] and not r["kc"], r                                             # the card let go, out of the branch
+    assert abs(r["off"]) < 30, r                                                     # back on the line
+    assert 0 < r["cx"] < r["w"], r                                                   # on the branch's parent
+    assert not pg._errs, pg._errs
+    ctx.close()
+
+
+def test_an_enlarged_card_leaves_nested_cards_no_stronger_than_their_parents_and_no_label_under_it(site):
+    """Luke 2026-11-27: "you see the problem with the nested nodes in the background being more visible than their parents?" — and the
+    enlarged card stood over a unit's label (text under text)."""
+    ctx, pg = _open(site, "tall", expanded=True)
+    r = pg.evaluate("() => Object.keys(window._altoLanesGeo.fams)[0]")
+    pg.evaluate("(r) => window.enterFocus(window._altoLanesGeo.fams[r][0])", r)
+    pg.wait_for_timeout(1400)
+    o = pg.evaluate("""() => { const op = e => { let o = 1; for (let q = e; q && q !== document.body; q = q.parentElement) o *= +getComputedStyle(q).opacity; return o; };
+      const G = window._altoLanesGeo, f = window._focusedNodeId, bad = [];
+      Object.keys(G.fams).forEach(r => { const rc = document.querySelector('#node-' + r + ' .node-card');
+        G.fams[r].forEach(k => { if (k === f) return; const kc = document.querySelector('#node-' + k + ' .node-card'); if (r !== f && op(kc) > op(rc) + 1e-3) bad.push(k); }); });
+      const kl = document.querySelector('#lanes-svg .ln-kids'), fr = document.querySelector('#world .node.focused .node-card').getBoundingClientRect();
+      const under = [...document.querySelectorAll('#world :is(.lu-chip,.lanes-tag,.lanes-box)')].filter(e => { const q = e.getBoundingClientRect();
+        return getComputedStyle(e).visibility !== 'hidden' && q.width && q.left < fr.right && fr.left < q.right && q.top < fr.bottom && fr.top < q.bottom; }).length;
+      return {bad, lines: kl ? op(kl) : 0, under}; }""")
+    assert not o["bad"] and o["lines"] <= 0.15 and o["under"] == 0, o
+    assert not pg._errs, pg._errs
+    ctx.close()
