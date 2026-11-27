@@ -151,7 +151,8 @@ NAV_CSS = """
   @media print{ #ln-mm{ display:none !important; } }
   @media (prefers-reduced-motion:reduce){ #ln-mm{ transition:none; } }
   /* the enlarged card held to the room on a phone (NAV_JS): it scrolls inside, and its touch moves its text, not the board */
-  html.phone-whole #world .node.focused .node-card.ln-fit{ overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+  html.phone-whole #world .node.focused .node-card.ln-fit > .ln-fitw{ overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; min-height:0; }
+  html.phone-whole #world .node.focused .node-card.ln-fit > .ln-fitw.ln-more{ -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 14px),transparent); mask-image:linear-gradient(to bottom,#000 calc(100% - 14px),transparent); }
   /* Classic's page-name pill while the board runs under it on a phone: its frost let a dimmed card's words read through it (Board 2026-11-27) */
   html.phone-whole.ln-under:not(.alto-retro):not(.alto-holo) #nav > .title:not(#_):not(#__){ background:var(--surface,#fff) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; box-shadow:0 0 0 4px var(--surface,#fff) !important; }
 """
@@ -1373,24 +1374,45 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
     var n=document.getElementById('lanes-nav'), q=n && n.getBoundingClientRect(); if(q && q.height && q.top>window.innerHeight/2) bot=Math.min(bot, q.top);
     return {t:top+20, b:bot-20};
   }
-  function undo(){ if(!fit) return; if(fit._lnSh){ fit._lnSh.style.removeProperty('visibility'); fit._lnSh=null; } fit.style.removeProperty('translate'); fit.style.removeProperty('max-height'); fit.style.removeProperty('overflow-y'); fit.classList.remove('ln-fit'); fit=null; }
+  function undo(){ if(!fit) return; if(fit._lnSh){ fit._lnSh.style.removeProperty('visibility'); fit._lnSh=null; }
+    var w=fit.querySelector(':scope > .ln-fitw'); if(w){ while(w.firstChild) fit.insertBefore(w.firstChild, w); w.remove(); }
+    fit.style.removeProperty('translate'); fit.classList.remove('ln-fit'); fit=null; }
+  /* held to the room, the card's text scrolls in a box inside its padding (Board 2026-11-27: the last line ran to the card's edge, and
+     Holographic's frame crossed a line): the padding stays empty, the frame and the order number (laid on the card, not in its flow)
+     stay where they are, and a short fade at the foot says there is more below */
+  function holdIn(c, room, r){
+    var w=document.createElement('div'); w.className='ln-fitw';
+    var kids=[].filter.call(c.children, function(e){ var p=getComputedStyle(e).position; return p!=='absolute' && p!=='fixed'; });
+    if(!kids.length) return r;
+    c.insertBefore(w, kids[0]); kids.forEach(function(e){ w.appendChild(e); });
+    /* a card of a set height (its text ran past its foot, clipped there): the box is the card's content area */
+    /* measured on screen (the card's zoom and the board's scale lie between its own px and the screen's): the box runs from where the
+       text starts to the card's foot less its bottom padding (at the top padding's scale) */
+    var cs=getComputedStyle(c), pt=parseFloat(cs.paddingTop)||0, pb=parseFloat(cs.paddingBottom)||0, wr=w.getBoundingClientRect(),
+        k=(w.offsetHeight && wr.height) ? wr.height/w.offsetHeight : 1, padB=pt ? (wr.top-r.top)*pb/pt : pb*k, want=r.bottom-padB-wr.top;
+    if(wr.height>want+1){ w.style.maxHeight=Math.max(20, Math.floor(want/k))+'px'; r=c.getBoundingClientRect(); }
+    var mh=w.offsetHeight||1;
+    for(var it=0; it<4 && r.height>room+1; it++){ var nh=Math.max(20, mh-(r.height-room)*(mh/Math.max(1, r.height))); if(Math.abs(nh-mh)<0.5) break; mh=nh;
+      w.style.maxHeight=Math.floor(mh)+'px'; r=c.getBoundingClientRect(); }
+    var more=function(){ w.classList.toggle('ln-more', w.scrollTop+w.clientHeight<w.scrollHeight-2); };
+    w.addEventListener('scroll', more, {passive:true}); more();
+    return r;
+  }
   function place(){
     var id=window._focusedNodeId, n=id && document.getElementById('node-'+id), c=n && n.querySelector('.node-card');
     if(fit && fit!==c) undo();
     if(!c || !de.classList.contains('phone-whole')) return;
+    if(fit===c) undo();
     var B=band(), room=B.b-B.t; if(room<80) return;
-    fit=c; c.classList.add('ln-fit'); c.style.removeProperty('translate');
+    fit=c; c.classList.add('ln-fit');
     var r=c.getBoundingClientRect();
-    if(r.height>room+1){      /* held to the room: a height in the card's own px, measured (the card's zoom and the board's scale lie between them) */
-      var mh=c.offsetHeight||r.height; c.style.setProperty('overflow-y','auto');
-      for(var it=0; it<3 && Math.abs(r.height-room)>1; it++){ mh=mh*room/r.height; c.style.setProperty('max-height', Math.floor(mh)+'px'); r=c.getBoundingClientRect(); }
-    }
+    if(r.height>room+1 || c.scrollHeight>c.clientHeight+1) r=holdIn(c, room, r);      /* (taller than the room, or its text past its own foot) */
     var dy=r.top<B.t ? B.t-r.top : (r.bottom>B.b ? B.b-r.bottom : 0);
     if(Math.abs(dy)>0.5){ c.style.setProperty('translate', '0 100px'); var k=(c.getBoundingClientRect().top-r.top)/100 || 1;      // screen px a translate px moves
       c.style.setProperty('translate', '0 '+(dy/k).toFixed(1)+'px'); }
     /* the enlarge's own shadow layer (engine_patches .alto-fshadow) keeps the card's full size and place: held or moved, it would hang
        below the card as a pale box, so it goes while the card is fitted */
-    if((dy || c.style.maxHeight) && n._fsh){ n._fsh.style.setProperty('visibility','hidden'); c._lnSh=n._fsh; }
+    if((Math.abs(dy)>0.5 || c.querySelector(':scope > .ln-fitw')) && n._fsh){ n._fsh.style.setProperty('visibility','hidden'); c._lnSh=n._fsh; }
   }
   function soon(){ clearTimeout(T); T=setTimeout(place, 650); }      /* (once the card's zoom ramp has settled) */
   function hook(){

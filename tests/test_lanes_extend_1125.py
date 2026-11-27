@@ -501,18 +501,20 @@ def test_an_enlarged_card_on_a_landscape_phone_fits_between_the_top_chrome_and_t
         n = document.getElementById('lanes-nav').getBoundingClientRect(),
         tops = ['#nav > .title', '#nav > svg.brand-mark', '#nav > svg.brand-word'].map(q => document.querySelector(q)).filter(e => e && e.getBoundingClientRect().height)
           .map(e => e.getBoundingClientRect().bottom).filter(b => b < innerHeight / 2);
-      return {t: r.top, b: r.bottom, nav: n.top, head: Math.max(0, ...tops), sh: c.scrollHeight, ch: c.clientHeight, ov: getComputedStyle(c).overflowY}; }"""
+      const w = c.querySelector(':scope > .ln-fitw'), k = r.height / c.offsetHeight, pb = parseFloat(getComputedStyle(c).paddingBottom) * k;
+      return {t: r.top, b: r.bottom, nav: n.top, head: Math.max(0, ...tops), held: !!w, ov: w ? getComputedStyle(w).overflowY : '',
+              more: w ? w.scrollHeight > w.clientHeight + 1 : false, wb: w ? w.getBoundingClientRect().bottom : 0, pad: r.bottom - pb}; }"""
     ids = pg.evaluate("() => Object.keys(window._ALTO_LANES.ev).filter(i => !(window._altoLanesKids && window._altoLanesKids.nest(i)))")
     for nid in ids[:3]:
         pg.evaluate("(id) => window.enterFocus(id)", nid)
         pg.wait_for_timeout(1600)
         g = pg.evaluate(G)
         assert g and g["t"] >= g["head"] + 19 and g["b"] <= g["nav"] - 19, (nid, g)     # in the room, 20 px clear of each
-        if g["sh"] > g["ch"] + 1:
-            assert g["ov"] == "auto", (nid, g)                                           # longer text scrolls inside the card
+        if g["held"]:
+            assert g["ov"] == "auto" and g["wb"] <= g["pad"] + 1, (nid, g)              # longer text scrolls inside the card's padding: its foot stays empty
     pg.evaluate("() => window.exitFocus()")
     pg.wait_for_timeout(900)
-    assert pg.evaluate("() => !document.querySelector('#world .node-card.ln-fit') && ![...document.querySelectorAll('#world .node-card')].some(c => c.style.translate || c.style.maxHeight)")
+    assert pg.evaluate("() => !document.querySelector('#world .node-card.ln-fit, #world .ln-fitw') && ![...document.querySelectorAll('#world .node-card')].some(c => c.style.translate || c.style.maxHeight)")
     t = pg.evaluate("() => { const e = document.querySelector('#nav > .title'); return e ? getComputedStyle(e).backgroundColor : null; }")
     if t and pg.evaluate("() => document.documentElement.classList.contains('ln-under')"):
         assert t.startswith("rgb("), t                                                   # the name's pill solid while the board runs under it
