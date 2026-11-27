@@ -91,6 +91,8 @@ P.msearch-open #m-search-results X{display:block !important;position:fixed !impo
   transform:none !important;width:auto !important;max-width:none !important;max-height:none !important;border-radius:0 !important;z-index:9000 !important;background:var(--surface,#fff) !important;overflow-y:auto !important;}
 html.pmin.alto-retro.msearch-open :is(#m-search,#m-search-results)X{background:#000 !important;}
 P.msearch-open :is(C)X{opacity:0 !important;pointer-events:none !important;}
+/* a result's kind tag is a small pill over its title, not a full-width empty box that reads as a field (F15) */
+P :is(#m-search-results,#msp-results) .sr-kind X{display:block !important;width:fit-content !important;max-width:100% !important;margin:0 0 5px !important;}
 #pmin-done{display:none;}
 P.msearch-open #pmin-done{display:block;flex:none;margin-left:10px;font:600 16px -apple-system,system-ui,sans-serif;color:var(--accent,#6d5bd0);background:none;border:0;padding:8px 2px;}
 /* the open MENU: every item a square button, icon over its name, three to a row; the section names run across */
