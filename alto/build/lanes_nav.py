@@ -150,6 +150,10 @@ NAV_CSS = """
   html.mobile #ln-mm, html.phone-whole #ln-mm, html.detail-open #ln-mm, html.printing #ln-mm, html.alto-editing #ln-mm{ display:none !important; }
   @media print{ #ln-mm{ display:none !important; } }
   @media (prefers-reduced-motion:reduce){ #ln-mm{ transition:none; } }
+  /* the enlarged card held to the room on a phone (NAV_JS): it scrolls inside, and its touch moves its text, not the board */
+  html.phone-whole #world .node.focused .node-card.ln-fit{ overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+  /* Classic's page-name pill while the board runs under it on a phone: its frost let a dimmed card's words read through it (Board 2026-11-27) */
+  html.phone-whole.ln-under:not(.alto-retro):not(.alto-holo) #nav > .title:not(#_):not(#__){ background:var(--surface,#fff) !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; box-shadow:0 0 0 4px var(--surface,#fff) !important; }
 """
 
 NAV_JS = r"""
@@ -1356,5 +1360,45 @@ if(_lay) window._altoLanes=function(h){
   return r;
 };
 window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0); });
+})();
+/* An enlarged card on a phone fits the room between the top chrome and the step bar, 20 px clear of each (Board 2026-11-27, l844: its last
+   line ran under the step bar's "2 / 275"): slid into that room, and where it is taller than the room, held to it and scrolled inside.
+   Let go, it is as it was. */
+(function(){
+  var de=document.documentElement, fit=null, T=0;
+  function band(){
+    var top=0, bot=window.innerHeight;
+    ['#nav > .title','#nav > svg.brand-mark','#nav > svg.brand-word'].forEach(function(q){ var e=document.querySelector(q), r=e && e.getBoundingClientRect();
+      if(r && r.height && r.bottom<window.innerHeight/2) top=Math.max(top, r.bottom); });
+    var n=document.getElementById('lanes-nav'), q=n && n.getBoundingClientRect(); if(q && q.height && q.top>window.innerHeight/2) bot=Math.min(bot, q.top);
+    return {t:top+20, b:bot-20};
+  }
+  function undo(){ if(!fit) return; if(fit._lnSh){ fit._lnSh.style.removeProperty('visibility'); fit._lnSh=null; } fit.style.removeProperty('translate'); fit.style.removeProperty('max-height'); fit.style.removeProperty('overflow-y'); fit.classList.remove('ln-fit'); fit=null; }
+  function place(){
+    var id=window._focusedNodeId, n=id && document.getElementById('node-'+id), c=n && n.querySelector('.node-card');
+    if(fit && fit!==c) undo();
+    if(!c || !de.classList.contains('phone-whole')) return;
+    var B=band(), room=B.b-B.t; if(room<80) return;
+    fit=c; c.classList.add('ln-fit'); c.style.removeProperty('translate');
+    var r=c.getBoundingClientRect();
+    if(r.height>room+1){      /* held to the room: a height in the card's own px, measured (the card's zoom and the board's scale lie between them) */
+      var mh=c.offsetHeight||r.height; c.style.setProperty('overflow-y','auto');
+      for(var it=0; it<3 && Math.abs(r.height-room)>1; it++){ mh=mh*room/r.height; c.style.setProperty('max-height', Math.floor(mh)+'px'); r=c.getBoundingClientRect(); }
+    }
+    var dy=r.top<B.t ? B.t-r.top : (r.bottom>B.b ? B.b-r.bottom : 0);
+    if(Math.abs(dy)>0.5){ c.style.setProperty('translate', '0 100px'); var k=(c.getBoundingClientRect().top-r.top)/100 || 1;      // screen px a translate px moves
+      c.style.setProperty('translate', '0 '+(dy/k).toFixed(1)+'px'); }
+    /* the enlarge's own shadow layer (engine_patches .alto-fshadow) keeps the card's full size and place: held or moved, it would hang
+       below the card as a pale box, so it goes while the card is fitted */
+    if((dy || c.style.maxHeight) && n._fsh){ n._fsh.style.setProperty('visibility','hidden'); c._lnSh=n._fsh; }
+  }
+  function soon(){ clearTimeout(T); T=setTimeout(place, 650); }      /* (once the card's zoom ramp has settled) */
+  function hook(){
+    var ef=window.enterFocus; if(typeof ef==='function' && !ef._lnFit){ var nf=function(){ undo(); var r=ef.apply(this, arguments); soon(); return r; }; for(var kk in ef) nf[kk]=ef[kk]; nf._lnFit=1; window.enterFocus=nf; }
+    var xf=window.exitFocus; if(typeof xf==='function' && !xf._lnFit){ var nx=function(){ clearTimeout(T); undo(); return xf.apply(this, arguments); }; for(var kx in xf) nx[kx]=xf[kx]; nx._lnFit=1; window.exitFocus=nx; }
+  }
+  hook(); window.addEventListener('load', hook);      /* (the engine's focus may arrive after this script) */
+  window.addEventListener('resize', function(){ if(fit || window._focusedNodeId) soon(); });
+  window._altoLanesFitCard=place;
 })();
 """
