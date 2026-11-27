@@ -1198,6 +1198,11 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     // link to the top window, which is where an app link or claude.ai belongs.
     try{ window.top.location.href = u; } catch(e){ try{ window.open(u, '_blank'); } catch(_){ location.href = u; } }
   }
+  function goNew(u){
+    // claude.ai opens in its own tab (a phone's reader keeps Alto where it was); a blocked pop-up falls back to the same-window hand-off
+    try{ var w = window.open(u, '_blank', 'noopener'); if(w) return; } catch(e){}
+    go(u);
+  }
   function toast(web){
     var el = document.getElementById('alto-edit-toast');
     if(!el){ el = document.createElement('div'); el.id = 'alto-edit-toast'; document.body.appendChild(el); }
@@ -1211,7 +1216,7 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     var q = encodeURIComponent(typeof text === 'string' ? text : prompt()), web = 'https://claude.ai/new?q=' + q;
     var touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                 (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-    if(touch){ go(web); return; }          // the Claude app intercepts the universal link
+    if(touch){ goNew(web); return; }       // the Claude app intercepts the universal link; a new tab, so the reader never leaves Alto
     toast(web);
     go('claude://claude.ai/new?q=' + q);
   }
