@@ -86,14 +86,15 @@ MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
 IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148"
 
 
-def _prompt(title, key, ua=MAC, page=""):
+def _prompt(title, key, ua=MAC, page="", want="went"):
     if not Path(NODE).is_file():
         pytest.skip("needs node")
     script = dx.EDIT_TILE.split('<script id="alto-edit-tile">', 1)[1].rsplit("</script>", 1)[0]
     harness = r"""
     const [script, title, key, ua, page] = JSON.parse(process.argv[1]);
-    const went = [];
+    const went = [], tabs = [];
     global.window = global;
+    window.open = (u, t, f) => { tabs.push([u, t, f]); return {}; };
     window._ALTO_EDIT = { title, key };
     global.document = { title: 'x', getElementById: () => null, addEventListener(){},
                         createElement: () => ({ classList: { add(){}, remove(){} }, appendChild(){} }),
@@ -103,9 +104,9 @@ def _prompt(title, key, ua=MAC, page=""):
     window.addEventListener = () => {}; global.setTimeout = () => 0;
     eval(script);
     if (window._altoEditTimeline) window._altoEditTimeline();
-    console.log(JSON.stringify(went));
+    console.log(JSON.stringify(process.argv[2] === 'tabs' ? tabs : went));
     """
-    out = subprocess.run([NODE, "-e", harness, json.dumps([script, title, key, ua, page])],
+    out = subprocess.run([NODE, "-e", harness, json.dumps([script, title, key, ua, page]), want],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)
 
@@ -142,8 +143,10 @@ def test_a_share_opens_nothing():
 
 
 def test_a_phone_gets_the_stars_way_to_claude_but_no_room_making():
-    went = _prompt("Torts", "alto-doc-torts", IPHONE)
-    assert len(went) == 1 and went[0].startswith("https://claude.ai/new?q=")      # a touch device opens the web address (the app intercepts it)
+    tabs = _prompt("Torts", "alto-doc-torts", IPHONE, want="tabs")
+    assert len(tabs) == 1 and tabs[0][0].startswith("https://claude.ai/new?q=")   # a touch device opens the web address (the app intercepts it)
+    assert tabs[0][1] == "_blank"                                                 # in its own tab: the reader never leaves Alto (phone audit F12)
+    assert _prompt("Torts", "alto-doc-torts", IPHONE) == []                       # and the Alto page itself is not navigated away
     js = dx.EDIT_TILE
     assert js.index("if(PH) return;") < js.index("var world = null;")
 
