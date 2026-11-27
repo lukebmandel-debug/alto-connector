@@ -687,11 +687,12 @@ _FORMAT_NAME_JS = r"""
 function hub(){return !!window._ALTO_SOLAR&&!H.classList.contains('mobile')}
 function ic(g){var v=g[2]||20;return '<svg viewBox="0 0 '+v+' '+v+'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="'+v/16+'" stroke-linecap="round" stroke-linejoin="round">'+g[1]+'</svg>'}
 function set(s,f){[].forEach.call(document.querySelectorAll(s),f)}
-function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._altoPalace||window._palTr)?(G._p||'palace'):G.lanes?'lanes':'timeline';
+function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(G._p||window._altoPalace||window._palTr)?(G._p||'palace'):G.lanes?'lanes':'timeline';
 if(K===k)return;K=k;
 var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g):n,t='Back to the '+(/^Memory/.test(n)?n:n.toLowerCase());window._altoFB=function(){return h};
 set('#desk-back .db-label',function(e){e.textContent='Back'});
 /* a phone: back to the timeline is one symbol, the format's own (Luke, 2026-10-24: "I don't like that you have two symbols in back to timeline"), with its name under it like the other tiles (2026-11-13: the first tile had no label) */
+set('#drawer-timeline-btn',function(e){e.classList.toggle('pmin-word',!g[1])});   /* no drawing: the name is the label, not a heading over it (B10) */
 set('#drawer-timeline-btn .drawer-icon',function(e){e.innerHTML=h});set('#drawer-timeline-btn .drawer-label',function(e){e.textContent=t});
 set('#desk-back,#drawer-timeline-btn,#detail-back-fixed',function(e){e.setAttribute('aria-label',t);if(e.id=='desk-back')e.title=t});
 var ph=H.classList.contains('mobile')||H.classList.contains('phone-whole');
