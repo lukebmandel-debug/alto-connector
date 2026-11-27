@@ -40,6 +40,7 @@ def test_the_first_tile_names_its_format_once(site, page, label):
         pg = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, user_agent=pm.UA).new_page()
         pg.goto(f"{base}/{page}.html", wait_until="load")
         pg.wait_for_timeout(2500)
+        pg.evaluate("document.documentElement.classList.add('detail-open')")       # the tile is offered only away from the timeline itself (F13)
         pg.evaluate("window.openNavDrawer()")
         pg.wait_for_timeout(700)
         m = pg.evaluate(JS)
