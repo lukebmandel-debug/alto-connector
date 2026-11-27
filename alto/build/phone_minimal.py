@@ -109,6 +109,8 @@ P #nav-drawer-body #drawer-timeline-btn .drawer-icon X{font-size:13px !important
 /* a word tile (no icon) is at least 44 pt and fills its grid row, so a row mixing word and icon tiles is one height (B16) */
 P #nav-drawer-body .drawer-btn.pmin-word X{aspect-ratio:auto;height:auto !important;min-height:44px !important;align-self:stretch;}
 P #nav-drawer-body .drawer-btn.pmin-word .drawer-icon X{display:none !important;}
+/* "Back to the timeline" does something only from the Overview or a detail page: on the timeline itself it is not offered (F13) */
+P:not(.detail-open):not(.summary-open) #nav-drawer-body #drawer-timeline-btn X{display:none !important;}
 P #nav-drawer-body .drawer-btn .drawer-label X{font-size:11.5px !important;line-height:1.2 !important;letter-spacing:.02em;text-align:center !important;white-space:normal !important;}
 /* the System at rest is the chart */
 html.pmin.alto-solar #world .node:is([data-solar=moon],[data-solar=sat]):not(.focused):not(.ph-hover)>.sol-lbl{opacity:0 !important;}
