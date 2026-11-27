@@ -567,6 +567,45 @@ def test_the_whole_timeline_and_back_down(browser, page_file):
     assert not errs
 
 
+OVW = """() => { const c=document.getElementById('canvas'), sv=document.getElementById('lanes-svg').getBoundingClientRect(), z=window._altoLanesZoom;
+  const ch=[...document.querySelectorAll('#lanes-ulabels .lu-chip')].map(e=>{ const r=e.getBoundingClientRect(), b=e.querySelector('b');
+    return {l:r.left, r:r.right, t:r.top, b:r.bottom, h:b.getBoundingClientRect().height, v:getComputedStyle(e).visibility}; });
+  const t=document.querySelector('#world .node:not(.ln-kid) .node-card .node-title'), tr=t.getBoundingClientRect();
+  return {s:z.s(), mk:c.classList.contains('ln-ovmk'), tt:c.classList.contains('ln-ovtt'), l:sv.left, r:sv.right, w:innerWidth, chips:ch,
+          units:document.querySelectorAll('#lanes-ulabels .lu-chip').length, title:{op:getComputedStyle(t).opacity, px:parseFloat(getComputedStyle(t).fontSize)*tr.height/t.offsetHeight}}; }"""
+
+
+@pytest.mark.parametrize("width", [390, 700, 1500])
+def test_the_whole_timeline_shows_the_whole_line_and_reads_as_an_overview(browser, page_file, width):
+    """F9 (2026-11-27): the whole timeline once stopped shrinking at 0.14, so a long line still ran off the window with ~5px card text.
+    It now always fits the whole line; where titles would read under ~9px a card wide enough shows its title alone at a reading size, a
+    narrower one becomes a block; every unit keeps its label at reading size, none on another (stepping off the line when crowded)."""
+    ctx = browser.new_context(viewport={"width": width, "height": 900})
+    pg = ctx.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(page_file.as_uri()); pg.wait_for_timeout(1500)
+    pg.evaluate("() => window._altoLanesZoom.whole()")
+    pg.wait_for_timeout(1100)
+    o = pg.evaluate(OVW)
+    assert o["l"] >= 0 and o["r"] <= o["w"], o                                         # the whole line is on screen
+    if o["tt"]:
+        assert float(o["title"]["op"]) == 1 and o["title"]["px"] >= 9, o               # titles at a reading size
+    elif o["mk"]:
+        assert float(o["title"]["op"]) == 0, o                                         # blocks
+    else:
+        assert o["title"]["px"] >= 9, o                                                # the real cards, readable
+    if o["mk"]:
+        ch = o["chips"]
+        assert len(ch) == o["units"] and all(c["v"] != "hidden" and c["h"] >= 9 for c in ch), o   # every unit labelled, readable
+        bad = [(i, j) for i in range(len(ch)) for j in range(i + 1, len(ch))
+               if ch[i]["l"] < ch[j]["r"] - .5 and ch[j]["l"] < ch[i]["r"] - .5 and ch[i]["t"] < ch[j]["b"] - .5 and ch[j]["t"] < ch[i]["b"] - .5]
+        assert not bad, (bad, ch)                                                     # never one on another
+    pg.evaluate("() => window._altoLanesZoom.whole()")
+    pg.wait_for_timeout(1100)
+    assert not pg.evaluate("document.getElementById('canvas').classList.contains('ln-ovmk')")
+    assert not errs
+    ctx.close()
+
+
 SKY = """() => { const k=document.getElementById('lanes-ov-sky'), e=document.getElementById('glass-slab'), c=document.getElementById('canvas').getBoundingClientRect();
   const r=k && k.getBoundingClientRect();
   return {sky: !!k, t:r&&r.top, b:r&&r.bottom, l:r&&r.left, r:r&&r.right, ct:c.top, cb:c.bottom, op:k&&getComputedStyle(k).opacity, slabOp:getComputedStyle(e).opacity,
