@@ -572,6 +572,8 @@ OVW = """() => { const c=document.getElementById('canvas'), sv=document.getEleme
     return {l:r.left, r:r.right, t:r.top, b:r.bottom, h:b.getBoundingClientRect().height, v:getComputedStyle(e).visibility}; });
   const t=document.querySelector('#world .node:not(.ln-kid) .node-card .node-title'), tr=t.getBoundingClientRect();
   return {s:z.s(), mk:c.classList.contains('ln-ovmk'), tt:c.classList.contains('ln-ovtt'), l:sv.left, r:sv.right, w:innerWidth, chips:ch,
+          cut:[...document.querySelectorAll('#world .node .node-card > .node-title')].filter(e=>{ const cs=getComputedStyle(e), lh=parseFloat(cs.lineHeight), n=e.clientHeight/lh;
+            return c.classList.contains('ln-ovtt') && e.textContent.trim() && (Math.abs(n-Math.round(n))>0.06 || e.offsetTop+e.clientHeight>e.parentElement.clientHeight+1); }).length,
           units:document.querySelectorAll('#lanes-ulabels .lu-chip').length, title:{op:getComputedStyle(t).opacity, px:parseFloat(getComputedStyle(t).fontSize)*tr.height/t.offsetHeight}}; }"""
 
 
@@ -589,6 +591,7 @@ def test_the_whole_timeline_shows_the_whole_line_and_reads_as_an_overview(browse
     assert o["l"] >= 0 and o["r"] <= o["w"], o                                         # the whole line is on screen
     if o["tt"]:
         assert float(o["title"]["op"]) == 1 and o["title"]["px"] >= 9, o               # titles at a reading size
+        assert o["cut"] == 0, o                                                        # whole lines, the last ending in an ellipsis, never cut mid-line
     elif o["mk"]:
         assert float(o["title"]["op"]) == 0, o                                         # blocks
     else:
