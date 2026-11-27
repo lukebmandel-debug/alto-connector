@@ -729,6 +729,10 @@ def lanes_data(b, nodes) -> str:
 
 
 LANES_CSS = KEY_CSS + """
+  /* the enlarged card is solid in Classic (light and dark): its glass let the cards behind it read through it (Board 2026-11-27: no text
+     under text); Retro and Holographic cards are solid already */
+  html.alto-lanes:not(.mobile):not(.alto-retro):not(.alto-holo) #world .node.focused .node-card:not(#_):not(#__){background:var(--surface,#fff) !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   html.alto-lanes:not(.mobile) #world{margin:0 !important;}
   html.alto-lanes:not(.mobile) #glass-slab{left:0 !important;transform:none !important;width:var(--lanes-w,1700px) !important;}
   html.alto-lanes:not(.mobile) #world .phase-band,html.alto-lanes:not(.mobile) #world .phase-label-float,html.alto-lanes:not(.mobile) #world .unit-bar{display:none !important;}

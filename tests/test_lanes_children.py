@@ -687,3 +687,22 @@ def test_an_enlarged_card_in_an_outline_moves_within_its_branch(browser, tmp_pat
         pg.wait_for_timeout(700)
         assert pg.evaluate("window._focusedNodeId") in fam, k
     assert not errs
+
+
+def test_an_enlarged_card_is_solid_in_classic_so_no_card_reads_through_it(browser, tmp_path):
+    """Board 2026-11-27: "Enlarged card on Classic... cards behind it read through it... The enlarged card must be opaque, so there's no text
+    under text." Light and dark both."""
+    pg, errs = _open(browser, _d(), tmp_path)
+    nid = pg.evaluate("() => Object.keys(window._ALTO_LANES.ev).find(i => !window._altoLanesKids.nest(i))")
+    for dark in (False, True):
+        pg.evaluate("(d) => document.documentElement.classList.toggle('dark', d)", dark)
+        pg.evaluate("(id) => window.enterFocus(id)", nid)
+        pg.wait_for_timeout(1500)
+        bg = pg.evaluate("""() => { const c = document.querySelector('#world .node.focused .node-card'), s = getComputedStyle(c);
+          return {bg: s.backgroundColor, bf: s.backdropFilter || s.webkitBackdropFilter || 'none'}; }""")
+        a = bg["bg"].replace(" ", "")
+        assert a.startswith("rgb(") or a.endswith(",1)"), (dark, bg)                 # no alpha: nothing behind it shows
+        assert bg["bf"] == "none", (dark, bg)
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(700)
+    assert not errs
