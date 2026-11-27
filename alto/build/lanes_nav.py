@@ -106,7 +106,9 @@ NAV_CSS = """
      we usually have them that shows where the user is in the whole thing"): where every desktop minimap sits (minimap_home.py), just above the
      bottom-right buttons and as wide as they are; the main line, the cards, the event the steps are on, and the box the window shows. A phone keeps
      its whole-timeline button in the bar (no minimap there). */
-  html:not(.phone-whole) #lanes-nav:not(.lnv-nomm):not(.lnv-mmoff) .lnv-ov{ display:none; }
+  /* Luke 2026-11-27: "the back to events button on the left of the middle toggle isn't useful" (Board: (b) + (c)): the desktop has no whole-timeline
+     button (the minimap, pinch, ⌘ + scroll and − reach the whole view; Esc, 0, a click and ‹ › come back); a phone keeps it, to open the whole view only */
+  html:not(.phone-whole) #lanes-nav .lnv-ov{ display:none; }
   /* its on / off switch (Luke 2026-11-26, "should be able to toggle minimap on/off like usual, so bring back that button"): the map button in the
      bar, as System's and the Atlas's bars have it, remembered per page; while the minimap is off the whole-timeline button is back */
   #lanes-nav.lnv-nomm .lnv-map, html.phone-whole #lanes-nav .lnv-map{ display:none; }   /* (a window too narrow for the minimap to clear the bar keeps the button: lnv-nomm) */
@@ -478,7 +480,9 @@ function setCur(id){
    event each, each landing before the next starts (the engine's _hop): up to three
    wait their turn, a held key's repeat adds at most one */
 function step(dir, src, repeat){
+  if(on() && _ov && (src==='rail' || src==='key')){ ovLeave(null); return; }      /* (‹ › from the whole view: back down to the events) */
   if(!on() || _ov) return;
+  var KK=window._altoLanesKids; if(typeof dir==='number' && KK && KK.step && KK.step(dir)) return;      // (inside a branch set out as an outline: through it, lanes.py kidStep)
   /* an enlarged card (Luke, 2026-11-13: "make sure user can enlarge nodes in horizontal timeline"): the rail and ← → hop it along the stops */
   var fid=window._focusedNodeId; if(fid && typeof dir==='number'){ var nx=neighbour(fid, dir); if(nx && window.enterFocus) window.enterFocus(nx); return; }
   if(_busy){ if(repeat ? !_q.length : _q.length<QMAX) _q.push([dir,src]); return; }
@@ -519,6 +523,8 @@ function focusCard(id){
 var _navPrev=window._altoLanesNav;
 window._altoLanesNav=function(id, dir){
   if(!geo() || de.classList.contains('mobile')) return null;
+  var KK=window._altoLanesKids, kt=(KK && KK.nav) ? KK.nav(id, dir) : undefined;      /* (a branch's own rules first: lanes.py kidNav) */
+  if(kt!==undefined) return kt;
   var r=(dir==='e'||dir==='w') ? neighbour(id, dir==='e'?1:-1) : (_navPrev ? _navPrev(id, dir) : null);
   if(r && window._focusedNodeId){ setCur(r); _trust=true; ui(r,0); }     // the engine is hopping the enlarged card there
   return r;
@@ -809,7 +815,7 @@ function buildRail(){
      thumb:n.querySelector('.lnv-thumb'), ov:n.querySelector('.lnv-ov'), prev:n.querySelector('.lnv-prev'), next:n.querySelector('.lnv-next'), sr:n.querySelector('.lnv-sr')};
   R.prev.addEventListener('click', function(){ step(-1,'rail'); });
   R.next.addEventListener('click', function(){ step(1,'rail'); });
-  R.ov.addEventListener('click', function(){ if(_ov) ovLeave(null); else ovEnter(); });
+  R.ov.addEventListener('click', function(){ if(!_ov) ovEnter(); });      /* (opens the whole view only: Esc, a tap on the board or ‹ › come back) */
   R.map=n.querySelector('.lnv-map'); mmSwitch(); R.map.addEventListener('click', function(){ MMON=!MMON; try{ localStorage.setItem(MMK, MMON ? '1' : '0'); }catch(e){} mmSwitch(); mmDraw(); });
   R.thumb.addEventListener('keydown', function(e){
     var d=e.key==='ArrowRight'||e.key==='ArrowUp'?1:e.key==='ArrowLeft'||e.key==='ArrowDown'?-1:0;
@@ -951,7 +957,7 @@ function ovEnter(){ if(MM) MM.classList.remove('on');      /* (the whole timelin
   var c=cv(), off=worldOff(c), from={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop}, to=ovFit();
   _ov=to;
   ovHold(true); ovSet(from); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
-  if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title=OV_BACK; R.ov.setAttribute('aria-label', OV_BACK); }
+  if(R){ R.ov.setAttribute('aria-pressed','true'); }
   ovAnim(from, to, function(){});
 }
 /* back down to step mode, resting on this event (null: where the steps were) */
@@ -1102,7 +1108,7 @@ function zEnter(){
   var c=cv(), off=worldOff(c);
   _ov={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop, hand:1};
   ovHold(true); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov'); if(MM) MM.classList.remove('on');
-  if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title=OV_BACK; R.ov.setAttribute('aria-label', OV_BACK); }
+  if(R){ R.ov.setAttribute('aria-pressed','true'); }
   return true;
 }
 function zSet(s2, q, w){                     /* scale s2; world point w (default: the one under q) under q */
