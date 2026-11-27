@@ -106,7 +106,10 @@ NAV_CSS = """
      we usually have them that shows where the user is in the whole thing"): where every desktop minimap sits (minimap_home.py), just above the
      bottom-right buttons and as wide as they are; the main line, the cards, the event the steps are on, and the box the window shows. A phone keeps
      its whole-timeline button in the bar (no minimap there). */
-  html:not(.phone-whole) #lanes-nav:not(.lnv-nomm) .lnv-ov{ display:none; }   /* (a window too narrow for the minimap to clear the bar keeps the button: lnv-nomm) */
+  html:not(.phone-whole) #lanes-nav:not(.lnv-nomm):not(.lnv-mmoff) .lnv-ov{ display:none; }
+  /* its on / off switch (Luke 2026-11-26, "should be able to toggle minimap on/off like usual, so bring back that button"): the map button in the
+     bar, as System's and the Atlas's bars have it, remembered per page; while the minimap is off the whole-timeline button is back */
+  #lanes-nav.lnv-nomm .lnv-map, html.phone-whole #lanes-nav .lnv-map{ display:none; }   /* (a window too narrow for the minimap to clear the bar keeps the button: lnv-nomm) */
   #ln-mm{ position:fixed; z-index:305; box-sizing:border-box; padding:5px 7px; border-radius:12px; cursor:pointer; touch-action:none; user-select:none; -webkit-user-select:none;
     background:var(--surface, #fff); border:1px solid var(--card-glass-border, var(--border)); box-shadow:0 10px 26px var(--node-rest-shadow);   /* (opaque: no card's text reads through it) */
     opacity:0; visibility:hidden; pointer-events:none; transition:opacity .25s ease, visibility 0s .25s; }
@@ -779,7 +782,8 @@ function watchFocus(){
 }
 
 /* ── the rail ──────────────────────────────────────────────────────────── */
-var R=null;
+var R=null, MMK='alto-lanes-mm:'+location.pathname, MMON=true;      /* (the minimap's on / off, per page: see mmSwitch) */
+try{ MMON=localStorage.getItem(MMK)!=='0'; }catch(e){}
 function svgI(d){ return '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; }
 function buildRail(){
   if(R || de.classList.contains('mobile')) return;
@@ -790,6 +794,7 @@ function buildRail(){
     +'<div class="lnv-mid"><div class="lnv-txt"><span><b class="lnv-n">1</b> / <span class="lnv-N">1</span></span><span class="lnv-tag"></span></div>'
     +'<div class="lnv-rail" title="Drag to look along the timeline"><i class="lnv-thumb" role="slider" tabindex="0" aria-label="Where you are in the story"></i></div></div>'
     +'<button type="button" class="lnv-next" title="Next event (→)" aria-label="Next event">'+svgI('<path d="M8 5l5 5-5 5"/>')+'</button>'
+    +'<button type="button" class="lnv-map">'+svgI('<rect x="3" y="4.5" width="14" height="11" rx="2"/><circle cx="7.5" cy="9" r="1.2"/><circle cx="12.5" cy="11.5" r="1.2"/><path d="M8.5 9.6 11.5 11"/>')+'</button>'
     +'<span class="lnv-sr" aria-live="polite"></span>';
   document.body.appendChild(n);
   R={el:n, n:n.querySelector('.lnv-n'), N:n.querySelector('.lnv-N'), tag:n.querySelector('.lnv-tag'), rail:n.querySelector('.lnv-rail'),
@@ -797,6 +802,7 @@ function buildRail(){
   R.prev.addEventListener('click', function(){ step(-1,'rail'); });
   R.next.addEventListener('click', function(){ step(1,'rail'); });
   R.ov.addEventListener('click', function(){ if(_ov) ovLeave(null); else ovEnter(); });
+  R.map=n.querySelector('.lnv-map'); mmSwitch(); R.map.addEventListener('click', function(){ MMON=!MMON; try{ localStorage.setItem(MMK, MMON ? '1' : '0'); }catch(e){} mmSwitch(); mmDraw(); });
   R.thumb.addEventListener('keydown', function(e){
     var d=e.key==='ArrowRight'||e.key==='ArrowUp'?1:e.key==='ArrowLeft'||e.key==='ArrowDown'?-1:0;
     if(d){ e.preventDefault(); e.stopPropagation(); step(d,'rail',e.repeat); }
@@ -1176,6 +1182,9 @@ window._altoLanesZoom={s:function(){ return _ov ? _ov.s : 1; }, view:function(){
 
 /* ── the minimap (see NAV_CSS): drawn from the board as laid out, in the board's own px; the box follows the camera ── */
 var MM=null, _mmR=0, _mmG=null;
+window._altoLanesMmOn=function(){ return MMON; };
+function mmSwitch(){ if(!R || !R.map) return; var t=MMON ? 'Hide the minimap' : 'Show the minimap';
+  R.map.setAttribute('aria-pressed', MMON ? 'true' : 'false'); R.map.title=t; R.map.setAttribute('aria-label', t); R.el.classList.toggle('lnv-mmoff', !MMON); }
 function mmRow(){ return window._altoMmRow ? window._altoMmRow() : null; }
 function mmMake(){ if(MM) return MM; MM=document.createElement('div'); MM.id='ln-mm'; MM.className='alto-mm'; MM.setAttribute('role','navigation'); MM.tabIndex=-1;
   MM.setAttribute('aria-label','Minimap: the whole timeline; the box is what the window shows. Click to go there.'); MM.title='Where you are in the whole timeline: click to go there';
@@ -1207,6 +1216,7 @@ function mmAt(cx){ if(!_mmG || !MM) return null; var sv=MM.querySelector('svg'),
   _mmG.cards.forEach(function(q){ if(S.indexOf(q[5])<0) return; var d=Math.abs(q[0]+q[2]/2-x); if(d<bd){ bd=d; best=q[5]; } }); return best; }
 function mmDraw(){
   var m=mmMake(), G=mmGeo(), row=mmRow(); _mmG=G;
+  if(!MMON){ m.classList.remove('on'); return; }
   if(!G || !row || !on() || _ov || phone()){ m.classList.remove('on'); if(R && !_ov) R.el.classList.toggle('lnv-nomm', !row && !phone()); return; }
   var z=parseFloat(getComputedStyle(de).zoom)||1; row=row.map(function(v){ return v/z; });      /* (a zoomed page: fixed px are its own) */
   var rw=(row[2]-row[0]), x0=G.b[0], y0=G.b[1], W=Math.max(1, G.b[2]-x0), H=Math.max(1, G.b[3]-y0);
