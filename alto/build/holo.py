@@ -616,6 +616,7 @@ JS = r"""(function(){
 if(window._altoHolo) return;
 var r=document.documentElement, CSS=__CSS__, BGS=__BGS__, st=null;
 HOMEB
+ROWPLATE
 // the homepage's Projector (PROJ_CSS): each plate's flat symbol is kept (hidden) and three clones turn in its place. A computer's page only: a phone's tiles stay as they are.
 var PN={timeline:'Timeline',lanes:'Timeline · Horizontal',outline:'Outline',system:'System',palace:'Memory Map',building:'Memory Blueprint',world:'Memory Atlas'}, MAXT=40, pmo=null, praf=0, pio=null, rz=0;
 function pel(c,t){ var e=document.createElement(t||'div'); if(c) e.className=c; return e; }
@@ -710,7 +711,7 @@ window._altoHolo={on:on, off:off};
 })();"""
 JS = JS.replace("window._altoHolo={on:on, off:off};", _ht.JS + "window._altoHolo={on:on, off:off};", 1)   # (the wordmark's trace of light: holo_trace.py)
 
-ASSET = _rt._slim(JS.replace("ANIMJS", _ha.JS.replace("__HA__", _ha.client())).replace("HOMEB", _rt.HOME_B_JS).replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
+ASSET = _rt._slim(JS.replace("ANIMJS", _ha.JS.replace("__HA__", _ha.client())).replace("HOMEB", _rt.HOME_B_JS).replace("ROWPLATE", _rt.ROWPLATE_JS).replace("__CSS__", _json.dumps(css())).replace("__BGS__", _json.dumps(_hb.client_entries(), separators=(",", ":"))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-holo-{V}.js"
 GUARD = "_altoHolo"
