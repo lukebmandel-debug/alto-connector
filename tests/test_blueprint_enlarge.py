@@ -132,6 +132,10 @@ def _open(browser, site, style="classic", ctx_kw=None, path="/index.html"):
     return ctx, pg, errors
 
 
+# the floor the blueprint opened on before B-1126 (where the walk starts), for the tests of one floor
+ONE_FLOOR = "AltoBuilding.selectLevel((AltoBuilding.plan.sp||{}).l||document.querySelector('#bldg-root .bl-tab:not([data-level=outside]):not([data-level=all])').dataset.level)"
+
+
 # Everything drawn over the plan, found independently of the page's own walk: the Blueprint's bars (tabs, dock, name card, rail, footer) and
 # every positioned element outside #bldg-root and the board that is not a full-window layer.
 CHROME = r"""()=>{const vw=innerWidth,vh=innerHeight,out=[];
@@ -302,6 +306,7 @@ def test_a_tag_enlarges_its_card_clear_of_the_chrome(browser, site, style, size)
 def test_a_room_click_enlarges_its_first_card_and_the_plan_does_not_jump(browser, site):
     ctx, pg, errors = _open(browser, site)
     try:
+        pg.evaluate(ONE_FLOOR)                                                          # (one floor: since B-1126 the blueprint opens on All floors)
         lv = pg.evaluate("document.querySelector('#bldg-root .bl-tab.on').getAttribute('data-level')")
         nid = pg.evaluate("l=>AltoBuilding.data.order.find(id=>{const n=AltoBuilding.data.nodes[id]; return n.r&&AltoBuilding.plan.rm.find(r=>r.id===n.r).l===l;})", lv)
         room = pg.evaluate("id=>AltoBuilding.data.nodes[id].r", nid)
@@ -335,6 +340,7 @@ def test_a_room_click_enlarges_its_first_card_and_the_plan_does_not_jump(browser
 def test_the_arrows_and_the_tour_hop_card_by_card(browser, site, style):
     ctx, pg, errors = _open(browser, site, style)
     try:
+        pg.evaluate(ONE_FLOOR)                                                          # (one floor: since B-1126 the blueprint opens on All floors)
         ids = pg.evaluate("AltoBuilding.data.order.filter(id=>AltoBuilding.data.nodes[id].r)")
         pg.evaluate("AltoBuilding.tour(0)")
         pg.wait_for_timeout(700)
@@ -441,7 +447,8 @@ def test_all_floors_enlarge_pinch_pan_and_the_tabs_stay_in_step(browser, site, s
         assert pg.evaluate("AltoBuilding.enlarged()") == ids[ids.index(nid) + 1] and pg.evaluate(on) == "all"
         pg.keyboard.press("Escape")
         pg.wait_for_timeout(300)
-        vb = "document.querySelector('#bldg-root svg.bl-svg').getAttribute('viewBox').split(' ').map(Number)"
+        vb = """async()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'); for(let i=0;i<60&&s.style.transform;i++) await new Promise(f=>setTimeout(f,20));   // (settled: B-1126 commits the viewBox after a gesture)
+          return s.getAttribute('viewBox').split(' ').map(Number); }"""
         a = pg.evaluate(vb)
         pg.evaluate("""()=>{ const s=document.querySelector('#bldg-root svg.bl-svg'), r=s.getBoundingClientRect();
           for(let i=0;i<8;i++) s.dispatchEvent(new WheelEvent('wheel',{deltaY:-6,ctrlKey:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true,cancelable:true})); }""")
@@ -466,6 +473,7 @@ def test_all_floors_enlarge_pinch_pan_and_the_tabs_stay_in_step(browser, site, s
 def test_the_filter_dim_on_one_floor_and_all_floors(browser, site, style):
     ctx, pg, errors = _open(browser, site, style)
     try:
+        pg.evaluate(ONE_FLOOR)                                                          # (one floor: since B-1126 the blueprint opens on All floors)
         pg.evaluate("document.querySelectorAll('#world .node-card').forEach((c,i)=>{ if(i%2) c.classList.add('ent-dimmed'); })")   # what the engine's filter does
         pg.wait_for_timeout(500)
         DIM = """()=>{ const out=id=>{ const c=document.querySelector('#node-'+id+' .node-card'); return c.classList.contains('ent-dimmed'); };
