@@ -62,3 +62,22 @@ def test_beads_are_centred_on_the_line_on_a_phone_whole_view(phone_ctx, site, lo
         _check(pg)
     finally:
         ctx.close()
+
+
+def test_holo_tubes_bright_line_runs_through_the_beads(phone_ctx, site):
+    """Luke's Safari crop (Torts, Holo): the beads were centred on the 6px tube but its bright hairline sat on the tube's top edge, so they hung below the line.
+    The highlight is now a hairline at the tube's centre: no inset top highlight, a 1px centred layer in the tube's own background."""
+    b, _ = phone_ctx
+    ctx = b.new_context(viewport={"width": 1960, "height": 1000}, device_scale_factor=2)
+    pg = ctx.new_page()
+    try:
+        pg.goto(site + "/timeline.html", wait_until="load")
+        pg.wait_for_timeout(1200)
+        pg.evaluate("window._altoStyle.set('holo')")
+        pg.wait_for_timeout(1500)
+        bf = pg.evaluate("(() => { const c = getComputedStyle(document.querySelector('#world .unit-bar'), '::before'); return [c.boxShadow, c.backgroundImage, c.backgroundPosition, c.backgroundSize]; })()")
+        assert "inset" not in bf[0], bf
+        assert "1px" in bf[3] and "50%" in bf[2], bf
+        _check(pg)
+    finally:
+        ctx.close()
