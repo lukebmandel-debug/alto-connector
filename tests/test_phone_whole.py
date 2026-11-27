@@ -275,3 +275,27 @@ def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_c
     pg.tap("#detail-back-fixed")
     pg.wait_for_timeout(1000)
     assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")
+
+
+# ── B1 (phone audit 2026-11-26): System on a phone was an empty star field ──
+# html.sk-3d hides the 2D board, so the 3D canvas must be showing: the phone remap had rewritten its rule off.
+
+_SYS3D = """() => { const de = document.documentElement, c = document.getElementById('sk3d'), r = c && c.getBoundingClientRect();
+  return {three: de.classList.contains('sk-3d'), disp: c && getComputedStyle(c).display, w: r ? r.width : 0, h: r ? r.height : 0}; }"""
+
+
+def test_system_on_a_phone_shows_a_scene_not_an_empty_star_field(pg, site):
+    pg.goto(site + "/system.html", wait_until="load")
+    pg.wait_for_timeout(2000)
+    pg.evaluate("window._altoSolarStyles.set('3d')")                               # the 3D Star chart (sk-3d), which hides the 2D board
+    pg.wait_for_timeout(2500)
+    st = pg.evaluate(_SYS3D)
+    if not st["three"]:
+        pytest.skip("no WebGL here, so the 2D board stands (nothing to check)")
+    assert st["disp"] == "block" and st["w"] > 100 and st["h"] > 100, st          # the board is hidden, so the canvas must show
+    from PIL import Image
+    import io
+    im = Image.open(io.BytesIO(pg.screenshot())).convert("L")
+    w, h = im.size
+    px = im.crop((0, h // 5, w, h * 4 // 5)).resize((78, 120)).getdata()
+    assert sum(1 for v in px if v > 90) > 40, "the middle of the page is a bare dark field"      # a sun/planets are bright
