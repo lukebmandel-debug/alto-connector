@@ -2380,42 +2380,52 @@ LANES_EXT_TAIL = r"""
   var SV={'-1':'M6 15l6-6 6 6','1':'M6 9l6 6 6-6'};
   function cv(){ return document.getElementById('canvas'); }
   function make(){
-    if(cues['1'] || !document.body) return;
+    if(cues.pill || !document.body || !document.querySelector('#world .lanes-tag.ln-main-tag')) return;
     var st=document.createElement('style');
-    st.textContent='.ln-ext-cue{position:fixed;left:20px;z-index:8000;width:34px;height:34px;padding:0;margin:0;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;'
-      +'box-sizing:border-box;border:1px solid var(--card-glass-border,var(--border));background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--text);'
-      +'-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(0,0,0,.14);opacity:.82;transition:opacity .25s}'
-      +'.ln-ext-cue:hover{opacity:1}.ln-ext-cue[hidden]{display:none}.ln-ext-cue:focus-visible{outline:2px solid var(--accent);outline-offset:2px}'
-      +'html.phone-whole .ln-ext-cue::after{content:"";position:absolute;inset:-5px}'
-      +'html.alto-retro .ln-ext-cue,html.alto-holo .ln-ext-cue{border-radius:0}'
-      +'html.alto-editing .ln-ext-cue,html.detail-open .ln-ext-cue,html.printing .ln-ext-cue{display:none !important}'
+    st.textContent='#ln-main-pill{position:fixed;left:50%;z-index:8000;transform:translateX(-50%);margin:0;font-family:inherit;line-height:1.3;box-sizing:border-box;box-shadow:0 4px 14px rgba(0,0,0,.14);'
+      +'white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:999px;color:var(--accent);cursor:pointer;'
+      +'background:var(--surface,#fff);border:1.5px solid currentColor}'
+      +'#ln-main-pill[hidden]{display:none}#ln-main-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}'
+      +'#ln-main-pill::after{content:"";position:absolute;left:-8px;right:-8px;top:50%;height:44px;transform:translateY(-50%)}'
+      +'html.alto-editing #ln-main-pill,html.detail-open #ln-main-pill,html.printing #ln-main-pill{display:none !important}'
       /* a phone held sideways: the top row's name and marks stand on the board itself, so while the board runs under them they take
          the desktop name tab's frosted backing (the board goes behind them, never shows through) */
       /* the brand marks in the top corners: the same backing while the board runs under them (Classic and Holo frosted, Retro black) */
       +'html.ln-under:not(.phone-whole):not(.alto-retro) #title-bar>svg:is(.brand-mark,.brand-word){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
       +'html.ln-under.alto-retro:not(.phone-whole) #title-bar>svg:is(.brand-mark,.brand-word){background:#000;box-shadow:0 0 0 4px #000}'
       +'html.phone-whole.ln-under:not(.alto-retro) #nav>:is(svg,.title){background:var(--card-glass-bg,rgba(255,255,255,.5));-webkit-backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);backdrop-filter:blur(18px) saturate(1.9) brightness(1.1);border-radius:10px;box-shadow:0 0 0 4px var(--card-glass-bg,rgba(255,255,255,.5))}'
-      +'@media print{.ln-ext-cue{display:none !important}}';
+      +'@media print{#ln-main-pill{display:none !important}}';
     document.head.appendChild(st);
-    ['-1','1'].forEach(function(d){
-      var b=document.createElement('button'); b.type='button'; b.className='ln-ext-cue'; b.setAttribute('data-ln-edge',''); b.hidden=true;
-      b.setAttribute('aria-label', d==='-1' ? 'Scroll up' : 'Scroll down');
-      b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+SV[d]+'"/></svg>';
-      b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(); if(!c || !window._altoLanesVy) return;
-        var k=(c.offsetHeight && c.getBoundingClientRect().height/c.offsetHeight)||1; window._altoLanesVy(+d*.7*(bounds().b-bounds().t)/k); });
-      document.body.appendChild(b); cues[d]=b;
-    });
+    /* the way back to the main line (Luke 2026-11-26: "get rid of the up and down arrows ... but keep a main timeline toggle hovering
+       in the middle where the real label is for the main timeline ... so that if you are scrolled way up or down in a nested branch, you
+       can return to the timeline centered easily"): the main line's own label pill, centred, shown only while the line is out of view,
+       at the nearer edge of the room between the bars; a click glides the view up or down until the line is centred (no sideways move) */
+    var b=document.createElement('button'); b.type='button'; b.id='ln-main-pill'; b.className='ln-main-tag';      /* (not .lanes-tag: a click on one of those picks its line) */ b.hidden=true;
+    var tag=document.querySelector('#world .lanes-tag.ln-main-tag'); b.textContent=(tag && tag.textContent.trim()) || 'Main timeline';
+    b.title='Back to the main timeline'; b.setAttribute('aria-label', 'Back to the main timeline: '+b.textContent);
+    b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(), d=off(); if(!c || d==null || !window._altoLanesVy) return;
+      var k=(c.offsetHeight && c.getBoundingClientRect().height/c.offsetHeight)||1; window._altoLanesVy(d/k); });
+    document.body.appendChild(b); cues.pill=b;
   }
+  /* how far the main line stands from the room's middle, screen px (+ below it), from its own label's height (the label sits on it) */
+  function off(){ var y=lineY(); if(y==null) return null; var B=bounds(); return y-(B.t+B.b)/2; }
+  /* the main line's screen height at the window's middle (the drawn line itself: it dips where the story turns back) */
+  function lineY(){
+    var pa=document.querySelector('#lanes-svg path.ln-main'); if(!pa || !pa.getTotalLength) return null; var m=pa.getScreenCTM(); if(!m) return null;
+    var L=pa.getTotalLength(), lo=0, hi=L, sx=window.innerWidth/2, q;
+    function X(t){ q=pa.getPointAtLength(t); return m.a*q.x+m.c*q.y+m.e; }
+    if(sx<=X(0)) X(0); else if(sx>=X(L)) X(L); else { for(var i=0;i<24;i++){ var t=(lo+hi)/2; if(X(t)<sx) lo=t; else hi=t; } X((lo+hi)/2); }
+    return m.b*q.x+m.d*q.y+m.f; }
   function bounds(){ return window._altoLanesExtRoom(); }
   function look(){
-    raf=0; var c=cv(); if(!c || !cues['1']) return;
-    var on=window._altoLanesExtOn && window._altoLanesExtOn(), mt=c.scrollHeight-c.clientHeight, y=c.scrollTop;
-    var a=on && mt>2 && y>2, z=on && mt>2 && y<mt-2, B=bounds();
-    cues['-1'].hidden=!a; cues['1'].hidden=!z;
+    raf=0; if(!cues.pill) make(); var c=cv(); if(!c || !cues.pill) return;
+    var on=window._altoLanesExtOn && window._altoLanesExtOn(), mt=c.scrollHeight-c.clientHeight, y=c.scrollTop, B=bounds(), p=cues.pill;
+    var a=on && mt>2 && y>2;
     if(R.classList.contains('ln-under')!==!!a) R.classList.toggle('ln-under', !!a);
-    var k=(c.offsetWidth && c.getBoundingClientRect().width/c.offsetWidth)||1;      // (the page's zoom: a fixed box's px are the zoomed page's)
-    ['-1','1'].forEach(function(d){ var e=cues[d]; e.style.left=(20/k).toFixed(2)+'px'; e.style.width=e.style.height=(34/k).toFixed(2)+'px'; });
-    cues['-1'].style.top=((B.t+12)/k).toFixed(2)+'px'; cues['1'].style.top=((B.b-46)/k).toFixed(2)+'px';
+    var d=on && mt>2 ? off() : null, half=(B.b-B.t)/2, side=d==null || Math.abs(d)<half-6 ? 0 : (d<0 ? -1 : 1);
+    if(p.hidden!==!side) p.hidden=!side; if(!side) return;
+    var k=(c.offsetWidth && c.getBoundingClientRect().width/c.offsetWidth)||1, h=p.offsetHeight*k;      // (the page's zoom: a fixed box's px are the zoomed page's)
+    var top=side<0 ? B.t+12 : B.b-12-h; p.style.top=(top/k).toFixed(2)+'px';
   }
   function soon(){ if(!raf) raf=requestAnimationFrame(look); }
   function hook(){ make(); var c=cv(); if(c && !c._lnExtCue){ c._lnExtCue=1; c.addEventListener('scroll', soon, {passive:true}); } soon(); }
@@ -2424,6 +2434,7 @@ LANES_EXT_TAIL = r"""
   window.addEventListener('resize',function(){ setTimeout(soon,80); });
   if(window.MutationObserver) new MutationObserver(function(){ setTimeout(soon,60); }).observe(R,{attributes:true,attributeFilter:['class']});
   window._altoLanesCueLook=function(){ soon(); };
+  window._altoLanesMainOff=function(){ return off(); };      // (how far the main line is from the room's middle: tests)
 })();
 """
 
