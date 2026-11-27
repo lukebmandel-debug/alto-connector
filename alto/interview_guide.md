@@ -994,6 +994,17 @@ section; the section's `t` may be empty or introduce it.
   "✎ Edit cards" button in manual edit mode); their edits reach the draft, so
   `get_timeline` shows them. Prefer extending what is there to replacing it.
 
+**Key figures inside a page.** A page can carry a block of big figures — "21 days",
+"$75,000", "3 years", "12" — each over a label, with an optional detail line, quote
+and citation, drawn exactly like a statute's Deadlines box. It is a section:
+`sections: [{h: "Key figures", t: "", figures: {items: [{figure, label?, detail?,
+quote?, cite?}, …]}}]` (the heading names the block: "Key figures", "Deadlines", a
+subject's own word; at most 24 rows; one of `tree` / `cards` / `quiz` / `photos` /
+`figures` per section). Students can add one by hand ("Add a section" → Key
+figures) and edit its rows ("✎ Edit figures": add, remove, reorder), and those
+edits reach the draft, so `get_timeline` shows them. §0 applies: only figures the
+student's materials state — never a number, limit or rule from your own knowledge.
+
 ### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary

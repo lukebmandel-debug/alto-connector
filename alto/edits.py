@@ -310,7 +310,7 @@ def _jdump(v) -> str:
 def _shown(obj):
     """The object's sections a page carries, by own index (subtree.prepare
     gives a tree section a slot, so it shows even with no words of its own)."""
-    return [j for j, s in enumerate(obj.sections) if s.t or s.tree or s.cards or s.quiz or s.photos]
+    return [j for j, s in enumerate(obj.sections) if s.t or s.tree or s.cards or s.quiz or s.photos or s.figures]
 
 
 def order_sig(obj) -> str:
@@ -335,6 +335,12 @@ def study_list(sec):
 def photos_list(sec):
     """A sanitized Photos section as the page carries it (photos.compact)."""
     from .build.photos import compact
+    return compact(sec)
+
+
+def figures_list(sec):
+    """A sanitized Key figures section as the page carries it (figures.compact)."""
+    from .build.figures import compact
     return compact(sec)
 
 
@@ -448,6 +454,12 @@ def _target(key, brief, by_id, conns):
             return (None, None, "newphotos") if _owner(_OWNER[m.group(1)], m.group(2), brief, by_id) is not None else None
         t = _dt_section(p[1], brief, by_id)
         return (t[0], "photos", "photos") if t and t[0].get("photos") else None
+    if kind == "fg" and len(p) == 3 and p[2] == "figs":
+        m = NEW_TREE.match(p[1])
+        if m:
+            return (None, None, "newfigs") if _owner(_OWNER[m.group(1)], m.group(2), brief, by_id) is not None else None
+        t = _dt_section(p[1], brief, by_id)
+        return (t[0], "figures", "figures") if t and t[0].get("figures") else None
     if kind == "pc" and len(p) == 3 and p[2] == "pics":
         if p[1] in by_id:
             return by_id[p[1]], "photos", "cardpics"
@@ -664,8 +676,8 @@ def fold(store, uid, tid) -> "dict | None":
 
     def touch(key):
         p = key.split("|")
-        m = DT_KEY.match(p[1]) if p[0] in ("dt", "sd", "ph") else None
-        mn = NEW_TREE.match(p[1]) if p[0] in ("dt", "sd", "ph") else None
+        m = DT_KEY.match(p[1]) if p[0] in ("dt", "sd", "ph", "fg") else None
+        mn = NEW_TREE.match(p[1]) if p[0] in ("dt", "sd", "ph", "fg") else None
         if p[0] in ("n", "fn", "ch", "pf", "pc"):
             touched["nodes"].add(p[1])
         elif mn and mn.group(1) == "n":
@@ -1156,7 +1168,28 @@ def fold(store, uid, tid) -> "dict | None":
         written.append(k)
         touch(k)
 
-    singles = [k for k in live if kinds[k] not in ("tree", "study", "newstudy", "photos", "newphotos", "order", "newsec", "newnode", "delnode",
+    # 1d. a Key figures section's whole list (figures.py), the same way
+    for k in by_time([k for k in live if kinds[k] == "figures"]):
+        sec = _dt_section(k.split("|")[1], brief, by_id)
+        pv = pristine.owner(sec[1], sec[2])
+        lst = figures_list(pv.sections[sec[3]]) if pv and sec[3] < len(pv.sections) else None
+        if lst is not None and _jdump(lst) == _jdump(live[k].get("v")):
+            already.append(k)
+            continue
+        if lst is None or jhash(_jdump(lst)) != live[k].get("b"):
+            conflicts.append(k)
+            continue
+        from .build.figures import from_compact as figures_from_compact
+        try:
+            new = figures_from_compact(live[k].get("v"))
+        except BriefError:
+            conflicts.append(k)
+            continue
+        sec[0]["figures"] = new
+        written.append(k)
+        touch(k)
+
+    singles = [k for k in live if kinds[k] not in ("tree", "study", "newstudy", "photos", "newphotos", "figures", "newfigs", "order", "newsec", "newnode", "delnode",
                                                     "newtree", "newtreef", "newunit", "unitname",
                                                     "newchip", "reparent", "unitmove", "unitdel",
                                                     "newaxis", "axisdel", "chipdel", "cardsize")
@@ -1576,8 +1609,19 @@ def fold(store, uid, tid) -> "dict | None":
                         conflicts.append(pkey)
                 elif pkey in live:
                     mine.append(pkey)                  # a Photos section nothing was put in: nothing to keep
+                fkey = f"fg|{DTPRE_OF[p[0]]}-{p[1]}-{x}|figs"
+                fv = (live.get(fkey) or {}).get("v")
+                if isinstance(fv, dict) and fv.get("n"):
+                    from .build.figures import from_compact as figures_from_compact
+                    try:
+                        d["figures"] = figures_from_compact(fv)
+                        mine.append(fkey)
+                    except BriefError:
+                        conflicts.append(fkey)
+                elif fkey in live:
+                    mine.append(fkey)                  # a Key figures section no row was put in: nothing to keep
                 mine.extend(q for q in (hk, tk, pk) if q in live)
-                if (d["t"] or "").strip() or d.get("tree") or d.get("cards") or d.get("quiz") or d.get("photos"):
+                if (d["t"] or "").strip() or d.get("tree") or d.get("cards") or d.get("quiz") or d.get("photos") or d.get("figures"):
                     out.append(d)
         if waiting:
             continue
@@ -1586,7 +1630,7 @@ def fold(store, uid, tid) -> "dict | None":
         written.append(k)
         touch(k)
     # words of a new section whose place was never recorded have nowhere to go
-    missing += [k for k in live if kinds[k] in ("newsec", "newtree", "newtreef", "newstudy", "newphotos") and k not in written]
+    missing += [k for k in live if kinds[k] in ("newsec", "newtree", "newtreef", "newstudy", "newphotos", "newfigs") and k not in written]
 
     # 4. cards taken out (nothing under them; their lines go with them)
     for k in by_time([k for k in live if kinds[k] == "delnode"]):
@@ -1902,7 +1946,7 @@ def fold(store, uid, tid) -> "dict | None":
 DTPRE_OF = {"n": "n", "c": "c", "env": "a0", "theme": "a1"}
 
 
-_NEW_SEC_KINDS = ("newsec", "newtree", "newtreef", "newstudy", "newphotos")
+_NEW_SEC_KINDS = ("newsec", "newtree", "newtreef", "newstudy", "newphotos", "newfigs")
 
 
 def _empty_val(v) -> bool:
