@@ -60,6 +60,7 @@ def test_a_phone_keeps_its_bar_and_has_no_minimap(site, w, h):
     ctx, pg = _open(site, "on", w=w, h=h, phone=True, q="?view=whole")
     s = pg.evaluate(MM)
     assert not s["on"] and s["ovShown"], s
+    assert not pg.evaluate("() => { const b = document.querySelector('#lanes-nav .lnv-map'); return !!b && getComputedStyle(b).display !== 'none'; }")   # (no map switch on a phone)
     ctx.close()
 
 
@@ -67,4 +68,25 @@ def test_a_window_too_narrow_for_it_keeps_the_bars_button(site):
     ctx, pg = _open(site, "on", w=768, h=1024)
     s = pg.evaluate(MM)
     assert not s["on"] and s["ovShown"], s                                                       # never over the bar: the bar keeps its way to the whole timeline
+    ctx.close()
+
+
+def test_its_button_in_the_bar_turns_it_off_and_on_and_the_page_remembers(site):
+    """Luke 2026-11-26: "should be able to toggle minimap on/off like usual, so bring back that button"."""
+    ctx, pg = _open(site, "on")
+    btn = "#lanes-nav .lnv-map"
+    assert pg.get_attribute(btn, "aria-pressed") == "true" and pg.get_attribute(btn, "aria-label") == "Hide the minimap"
+    pg.click(btn)
+    pg.wait_for_timeout(600)
+    s = pg.evaluate(MM)
+    assert not s["on"] and s["ovShown"], s                                                       # off: the bar's whole-timeline button is back
+    assert pg.get_attribute(btn, "aria-pressed") == "false"
+    pg.reload(wait_until="load")
+    pg.wait_for_timeout(3000)
+    assert not pg.evaluate(MM)["on"]                                                              # remembered for this page
+    pg.click(btn)
+    pg.wait_for_timeout(800)
+    s = pg.evaluate(MM)
+    assert s["on"] and not s["ovShown"], s
+    assert not pg._errs, pg._errs
     ctx.close()
