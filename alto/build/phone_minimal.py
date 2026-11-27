@@ -205,6 +205,9 @@ html.pmin.alto-retro #nb-full,html.pmin.alto-holo #nb-full{background:#000;}
 html.pmin.alto-holo #nb-full{background:rgb(var(--ho-bgrgb));}
 """
 NB_ALL = r"""
+/* a phone panel is opaque in every look (no text on text): Holo's and Retro's panel grounds were .98 / .97, so the card faintly showed; desktop keeps its own */
+html.pmin.alto-holo@@{--panel-glass-bg:rgb(var(--ho-sfrgb));}
+html.pmin.alto-retro@@{--panel-glass-bg:rgb(3,4,7);}
 /* the header is clear: no unit colour (Classic); on a detail page it takes the page's own ground so the text can pass under it */
 CL #nav@@{background:none !important;border-bottom-color:transparent !important;box-shadow:none !important;}
 CL #nav@@::before{background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;bottom:0 !important;}
@@ -237,6 +240,12 @@ TALL BAR@@{height:52px !important;}
 /* on a detail page the text passes under the pill: its ground is solid there (Retro, Holo), the page's own ground with the blur in Classic; the card view keeps the glass */
 html.pmin.mobile:not(.phone-whole).detail-open #node-nav-bar@@{background:var(--nb-gd) !important;}
 DIV@@{align-self:center !important;flex:none !important;width:1px !important;height:22px !important;background:var(--nb-track) !important;}
+/* Classic: on a detail page the pill is the page's own ground, opaque, so the text being read never shows through it (phone audit B8) */
+CL.detail-open #node-nav-bar@@{background:var(--panel-glass-bg) !important;}
+/* a panel or sheet is open: the pill is gone, not faded (B4); it comes back when the panel closes */
+html.pmin.mobile:not(.phone-whole):has(#notes-panel.open,#minimap-wrap.expanded,#tutorial-wrap.expanded,#nav-drawer.open,#summary-wrap.open,#ef-panel.open,#msp.open) :is(#timeline-label-bar,#node-nav-bar)@@{visibility:hidden !important;}
+/* and FIND / MENU too: a panel has its own close, and the two tiles never sit on its text (Board 2026-11-27) */
+html.pmin:has(#notes-panel.open,#minimap-wrap.expanded,#tutorial-wrap.expanded,#nav-drawer.open,#summary-wrap.open,#ef-panel.open) :is(#pmin-find,#hamburger-tab)@@{visibility:hidden !important;}
 /* it rests with the controls (the lanes step bar does) and comes back to a touch */
 BAR@@{transition:opacity .6s ease !important;}
 html.pmin.pmin-idle BAR@@{opacity:.01 !important;}
