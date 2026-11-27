@@ -403,6 +403,10 @@ STUDY_CSS = r"""<style id="alto-st-css">
     backface-visibility:hidden;-webkit-backface-visibility:hidden;}
   .asc-face > *,.asc-face img{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
   .asc-front{transform:rotateY(0deg);}
+  /* WebKit paints a backface-hidden face inside a preserve-3d grid: show one face only, switching halfway through the turn (B2) */
+  .asc-face{transition:visibility 0s linear .25s;}
+  .asc-card.nt .asc-face{transition:none;}
+  .asc-card:not(.flip) .asc-back,.asc-card.flip .asc-front{visibility:hidden;}
   .asc-back{transform:rotateY(180deg);background:color-mix(in srgb,var(--ast-acc) 9%,var(--card-glass-bg,var(--surface)));}
   .asc-side{position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
   .asc-tx{font-size:19px;line-height:1.45;font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;}
@@ -513,7 +517,7 @@ STUDY_JS = r"""<script id="alto-st">
     card.tabIndex = 0; card.setAttribute('role', 'button'); card.setAttribute('aria-label', 'Flash card. Press Space to flip.');
     var fr = el('div', 'asc-face asc-front'), bk = el('div', 'asc-face asc-back');
     var frS = el('span', 'asc-side', 'Front'), bkS = el('span', 'asc-side', 'Back'), frT = el('div', 'asc-tx'), bkT = el('div', 'asc-tx');
-    var hint = el('span', 'asc-hint', 'Click or press Space to flip · ← → to move');
+    var hint = el('span', 'asc-hint', window.matchMedia && matchMedia('(pointer:coarse)').matches ? 'Tap to flip · swipe to move' : 'Click or press Space to flip · ← → to move');
     fr.appendChild(frS); fr.appendChild(frT); fr.appendChild(hint); bk.appendChild(bkS); bk.appendChild(bkT);
     inner.appendChild(fr); inner.appendChild(bk); card.appendChild(inner); slide.appendChild(card);
     stage.appendChild(prev); stage.appendChild(slide); stage.appendChild(next); body.appendChild(stage);

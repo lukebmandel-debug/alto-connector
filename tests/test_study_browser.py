@@ -534,3 +534,28 @@ def test_the_cloud_layer_syncs_study_beside_the_notes():
     assert "k === ST_KEY" in JS                                                            # the Storage.prototype hook (Safari)
     assert "ST_KEY = `alto-hl-${tid}-st`" in JS                                            # setTid (the private shell)
     assert "alto-study-sync" in JS and "mergeStudy" in JS
+
+
+# ── B2 / B11 (phone audit 2026-11-26) ───────────────────────────────────────
+
+_FACES = """() => ['front','back'].map(k => { const f = document.querySelector('.ast-cards .asc-'+k), c = getComputedStyle(f); return c.visibility !== 'hidden'; })"""
+
+
+def test_a_flash_card_shows_one_face_at_a_time(phone):
+    pg = phone
+    c = pg.locator(".ast-cards")
+    c.scroll_into_view_if_needed()
+    assert pg.evaluate(_FACES) == [True, False]                  # the question only, not the answer mirrored over it
+    c.locator(".asc-card").tap(); pg.wait_for_timeout(750)
+    assert pg.evaluate(_FACES) == [False, True]                  # then the answer only
+    c.locator(".asc-card").tap(); pg.wait_for_timeout(750)
+    assert pg.evaluate(_FACES) == [True, False]
+
+
+def test_the_flash_card_hint_says_tap_on_a_touch_screen_and_click_on_a_mouse(phone, desk):
+    assert pg_hint(phone).startswith("Tap to flip") and "Space" not in pg_hint(phone)
+    assert "Click or press Space" in pg_hint(desk)
+
+
+def pg_hint(pg):
+    return pg.locator(".ast-cards .asc-hint").inner_text()
