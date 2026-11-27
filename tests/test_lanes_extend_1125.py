@@ -420,3 +420,32 @@ def test_unit_labels_keep_their_size_and_glide_without_overlapping(site):
     assert rode
     assert not pg._errs, pg._errs
     ctx.close()
+
+
+# ── room under the lowest card (Luke 2026-11-26: "i can't see the node hiding behind the toggle, we need to be able to scroll down enough to see it fully") ──
+
+CLEAR = """() => { const vis = e => { if (!e) return null; const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+    return (r.width && r.height && cs.display !== 'none' && cs.visibility !== 'hidden' && +cs.opacity > .05) ? r : null; };
+  let lo = -1e9, hi = 1e9; document.querySelectorAll('#world .node').forEach(n => { const r = vis(n) && vis(n.querySelector('.node-card')); if (!r) return;
+    lo = Math.max(lo, r.bottom); hi = Math.min(hi, r.top); });
+  const nav = vis(document.getElementById('lanes-nav')), mm = vis(document.querySelector('#ln-mm.on')), tb = vis(document.getElementById('title-text'));
+  return {lo, hi, clear: Math.min(nav ? nav.top : 1e9, mm ? mm.top : 1e9), head: tb ? tb.bottom : 0}; }"""
+
+
+@pytest.mark.parametrize("how", ["expanded", "branch"])
+def test_the_lowest_and_highest_cards_scroll_fully_clear_of_the_bars(site, how):
+    ctx, pg = _open(site, "tall", expanded=(how == "expanded"))
+    if how == "branch":                                                               # one branch opened in the Compact view
+        pg.evaluate("() => { const k = window._altoLanesKids, f = Object.keys((window._altoLanesGeo || {}).fams || {}); "
+                    "const r = [...document.querySelectorAll('#world .ln-chip')].pop(); if (r) r.click(); }")
+        pg.wait_for_timeout(1500)
+    pg.evaluate("() => { const c = document.getElementById('canvas'); c.scrollTop = c.scrollHeight; }")
+    pg.wait_for_timeout(900)
+    b = pg.evaluate(CLEAR)
+    assert b["lo"] <= b["clear"] - 19, b                                             # the lowest card whole, 20 px over the bar and the minimap
+    pg.evaluate("() => { document.getElementById('canvas').scrollTop = 0; }")
+    pg.wait_for_timeout(900)
+    t = pg.evaluate(CLEAR)
+    assert t["hi"] >= t["head"] + 19, t                                              # and the highest one under the top bar
+    assert not pg._errs, pg._errs
+    ctx.close()

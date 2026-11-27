@@ -2331,6 +2331,17 @@ _EXT_SWAPS = (
     ("Math.max(0, A-(y1-y0))/2", "Math.max(0, A0-(y1-y0))/2"),
     ("if(room && y1-y0<=A) H=", "if(room && y1-y0<=A0) H="),
     ("var foot=Math.ceil((room && y1-y0<=A) ?", "var foot=Math.ceil((room && y1-y0<=A0) ?"),     # the frosted slab runs to the board's foot
+    # a board taller than the window ends with room under its lowest card (and over its highest) for the card to scroll fully clear of
+    # the bottom bar and the minimap (and the top bar), 20 px more (Luke 2026-11-26, "i can't see the node hiding behind the toggle,
+    # we need to be able to scroll down enough to see it fully")
+    ("  fitStage(KSHOW);                 // (once more, now that the world and the slab have their final heights)",
+     "  if(window._altoLanesRoomFix) window._altoLanesRoomFix();\n  fitStage(KSHOW);                 // (once more, now that the world and the slab have their final heights)"),
+    ("  KSHOW=Object.keys(geoK).length>0; fitStage(KSHOW);",
+     "  if(window._altoLanesRoomFix) window._altoLanesRoomFix();\n  KSHOW=Object.keys(geoK).length>0; fitStage(KSHOW);"),
+    ("var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl||hasBA)?AX+BOTTOM-56:24);",
+     "if(window._altoLanesExtOn() && room && y1-y0>A0) dy+=window._altoLanesHeadRoom(room);\n"
+     "  var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl||hasBA)?AX+BOTTOM-56:24);\n"
+     "  if(window._altoLanesExtOn() && room && y1-y0>A0) H=Math.max(H, y1-AX+dy+window._altoLanesFootRoom(room));"),
     ("if(!on || de.classList.contains('printing') || PRINTX) return;",
      "if(window._altoLanesCueLook){ window._altoLanesCueLook(1); setTimeout(function(){ window._altoLanesCueLook(1); if(!window._lnRested && window._altoLanesRestV){ window._lnRested=1; window._altoLanesRestV(); } }, 450); }\n"
      "  if(!on || window._altoLanesExtOn() || de.classList.contains('printing') || PRINTX) return;"),
@@ -2369,6 +2380,35 @@ window._altoLanesExtRoom=function(){
   var ph=document.documentElement.classList.contains('phone-whole'), t=ph ? 44 : 104, b=window.innerHeight-(ph ? 68 : 62), q;
   var nav=document.getElementById('lanes-nav'); if(nav && (q=nav.getBoundingClientRect()).height && q.top<window.innerHeight) b=Math.min(b, q.top-8);
   return {t:t, b:b};
+};
+/* the room a board taller than the window keeps past its lowest card, in the canvas's px: from the line 20 px over the highest of the
+   bottom bar (the rail, or the phone's bottom row) and the minimap (drawn or about to be, just over the bottom-right buttons) to the
+   canvas's foot; and over its highest card, what the top bar's 20 px take beyond the room the layout already leaves (room.top) */
+window._altoLanesFootRoom=function(room){
+  var c=document.getElementById('canvas'); if(!c || !room) return 0;
+  var r=c.getBoundingClientRect(), k=(r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1, clr=window._altoLanesExtRoom().b+8, q;
+  var mm=document.getElementById('ln-mm'), mon=!window._altoLanesMmOn || window._altoLanesMmOn();
+  if(mon && mm && mm.classList.contains('on') && (q=mm.getBoundingClientRect()).height) clr=Math.min(clr, q.top);
+  else if(mon && window._altoMmRow && !document.documentElement.classList.contains('phone-whole')){ var w=window._altoMmRow(); if(w) clr=Math.min(clr, w[1]-(window._altoMmGap||12)-106); }
+  return Math.max(0, room.ch-((clr-20)-r.top)/k);
+};
+/* and measured on the cards as they stand (a branch's cards can be taller than the rows the layout allowed them): the board's foot
+   (the slab, and the world with it) moves down until the lowest card has that room under it */
+window._altoLanesRoomFix=function(){
+  var de=document.documentElement, w=document.getElementById('world'), sl=document.getElementById('glass-slab'), f=window._altoLanesFit;
+  if(!w || !sl || !f || !f.room || !window._altoLanesExtOn() || de.classList.contains('printing')) return;
+  var lo=-1e9; w.querySelectorAll('.node').forEach(function(n){ var c=n.querySelector('.node-card'), y=parseFloat(n.style.top);
+    if(!c || isNaN(y) || n.classList.contains('ln-kid-shut') || getComputedStyle(n).display==='none') return; lo=Math.max(lo, y+c.offsetHeight/2); });
+  if(lo<0) return;
+  var end=sl.offsetTop+sl.offsetHeight, need=Math.ceil(lo+window._altoLanesFootRoom(f.room)); if(need<=end+1) return;
+  de.style.setProperty('--lanes-slab-h', Math.round((parseFloat(getComputedStyle(sl).height)||0)+need-end)+'px');
+  var wcs=getComputedStyle(w), pads=(parseFloat(wcs.paddingTop)||0)+(parseFloat(wcs.paddingBottom)||0);
+  w.style.minHeight=Math.max(0, sl.offsetTop+sl.offsetHeight-pads)+'px';
+};
+window._altoLanesHeadRoom=function(room){
+  var c=document.getElementById('canvas'); if(!c || !room) return 0;
+  var r=c.getBoundingClientRect(), k=(r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1;
+  return Math.max(0, ((window._altoLanesExtRoom().t+20)-r.top)/k-room.top);
 };
 """
 
@@ -2443,12 +2483,13 @@ LANES_EXT_TAIL = r"""
     var t='Back to the main timeline, '+(side<0 ? 'above' : 'below')+': '+p._nm; p.title=t; p.setAttribute('aria-label', t);
   }
   function soon(){ if(!raf) raf=requestAnimationFrame(look); }
+  var ft=0; function fix(){ clearTimeout(ft); ft=setTimeout(function(){ if(window._altoLanesRoomFix) window._altoLanesRoomFix(); }, 140); }   /* (after whatever laid the board out last: the room under its lowest card) */
   function hook(){ make(); var c=cv(); if(c && !c._lnExtCue){ c._lnExtCue=1; c.addEventListener('scroll', soon, {passive:true}); } soon(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',hook); else hook();
-  window.addEventListener('load',function(){ hook(); [400,1500,3500].forEach(function(t){ setTimeout(soon,t); }); });
-  window.addEventListener('resize',function(){ setTimeout(soon,80); });
-  if(window.MutationObserver) new MutationObserver(function(){ setTimeout(soon,60); }).observe(R,{attributes:true,attributeFilter:['class']});
-  window._altoLanesCueLook=function(){ soon(); };
+  window.addEventListener('load',function(){ hook(); [400,1500,3500].forEach(function(t){ setTimeout(soon,t); setTimeout(fix,t); }); });
+  window.addEventListener('resize',function(){ setTimeout(soon,80); setTimeout(fix,400); });
+  if(window.MutationObserver) new MutationObserver(function(){ setTimeout(soon,60); fix(); }).observe(R,{attributes:true,attributeFilter:['class']});
+  window._altoLanesCueLook=function(){ soon(); fix(); };
   window._altoLanesMainOff=function(){ return off(); };      // (how far the main line is from the room's middle: tests)
 })();
 """
