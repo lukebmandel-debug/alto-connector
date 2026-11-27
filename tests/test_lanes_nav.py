@@ -567,6 +567,36 @@ def test_the_whole_timeline_and_back_down(browser, page_file):
     assert not errs
 
 
+OVW = """() => { const c=document.getElementById('canvas'), sv=document.getElementById('lanes-svg').getBoundingClientRect(), z=window._altoLanesZoom;
+  const ch=[...document.querySelectorAll('#lanes-ulabels .lu-chip')].filter(e=>getComputedStyle(e).visibility!=='hidden').map(e=>{ const r=e.getBoundingClientRect(), b=e.querySelector('b');
+    return [r.left, r.right, b.getBoundingClientRect().height]; }).sort((a,b)=>a[0]-b[0]);
+  const n=document.querySelector('#world .node-card > *');
+  return {s:z.s(), k:c.getBoundingClientRect().width/c.offsetWidth, mk:c.classList.contains('ln-ovmk'), l:sv.left, r:sv.right, w:innerWidth, chips:ch, ink:n?getComputedStyle(n).opacity:'1'}; }"""
+
+
+@pytest.mark.parametrize("width", [700, 1500])
+def test_the_whole_timeline_shows_the_whole_line_and_reads_as_an_overview(browser, page_file, width):
+    """F9 (2026-11-27): the whole timeline once stopped shrinking at 0.14, so a long line still ran off the window with ~5px card text.
+    It now always fits the whole line; too small to read, the cards turn to blocks and each unit keeps a label at reading size, none on another."""
+    ctx = browser.new_context(viewport={"width": width, "height": 900})
+    pg = ctx.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(page_file.as_uri()); pg.wait_for_timeout(1500)
+    pg.evaluate("() => window._altoLanesZoom.whole()")
+    pg.wait_for_timeout(1100)
+    o = pg.evaluate(OVW)
+    assert o["l"] >= 0 and o["r"] <= o["w"], o                                         # the whole line is on screen
+    assert o["mk"] == (o["s"] * o["k"] < 0.5), o
+    if o["mk"]:
+        assert float(o["ink"]) == 0 and o["chips"], o                                  # blocks, and the units still named
+        assert all(c[2] >= 9 for c in o["chips"]), o                                   # each label at a readable size
+        assert all(a[1] <= b[0] + 0.5 for a, b in zip(o["chips"], o["chips"][1:])), o  # never one on another
+    pg.evaluate("() => window._altoLanesZoom.whole()")
+    pg.wait_for_timeout(1100)
+    assert not pg.evaluate("document.getElementById('canvas').classList.contains('ln-ovmk')")
+    assert not errs
+    ctx.close()
+
+
 SKY = """() => { const k=document.getElementById('lanes-ov-sky'), e=document.getElementById('glass-slab'), c=document.getElementById('canvas').getBoundingClientRect();
   const r=k && k.getBoundingClientRect();
   return {sky: !!k, t:r&&r.top, b:r&&r.bottom, l:r&&r.left, r:r&&r.right, ct:c.top, cb:c.bottom, op:k&&getComputedStyle(k).opacity, slabOp:getComputedStyle(e).opacity,
