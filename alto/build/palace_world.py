@@ -634,7 +634,9 @@ function labels(){                                  // decided once a gesture se
   for(var id0 in S.pins){ var P0=S.pins[id0], n0=N(id0); P0.el.classList.toggle('n',big); P0.num.textContent=big?(n0.n||''):''; }
   place();
   var taken=[];
-  for(var id in S.pins){ var P=S.pins[id]; taken.push([P.x-8,P.y-8,P.x+8,P.y+8]); }
+  var mob=document.documentElement.classList.contains("mobile"); for(var id in S.pins){ var P=S.pins[id], q=[P.x-8,P.y-8,P.x+8,P.y+8];   // a pin as it is really drawn: its number plate when zoomed in and its count badge, not a 16 px dot (phone audit B12, 2026-11-26: "Erie & Co" under the "2.1-1" plate)
+    if(mob&&P.el&&P.el.offsetWidth){ [P.el].concat([].slice.call(P.el.children)).forEach(function(e){ var r=e.getBoundingClientRect(); if(r.width<1) return; var a=cp(r.left,r.top), b=cp(r.right,r.bottom); q=[Math.min(q[0],a[0]-2),Math.min(q[1],a[1]-2),Math.max(q[2],b[0]+2),Math.max(q[3],b[1]+2)]; }); }
+    taken.push(q); }
   if(S.cl) S.cl.boxes.forEach(function(b){ taken.push(b); });
   [S.rowEl,S.ctlEl,S.keyEl,S.tourEl,S.list,S.navEl,S.mmEl].forEach(function(e){ if(!e||e.hidden||(e===S.mmEl&&!e.classList.contains('on'))) return; var r=e.getBoundingClientRect(); if(!r.width) return;      // the map's own panels: no name goes under them
     var a=cp(r.left,r.top), b=cp(r.right,r.bottom); taken.push([a[0]-6,a[1]-6,b[0]+6,b[1]+6]); });
@@ -1004,7 +1006,7 @@ function layoutCluster(){
   // the place's own card goes on the side of its pin that hides the fewest other pins (above, then beside, then below)
   // (Luke 2026-11-26, "try to not have nodes block the countries generally": it also keeps off its own country: the side, and how far out, that cover the least of the land,
   // sampled on a grid against the country's real outline; the page's 20 px edge margin on a computer)
-  var sc=shortC(), E=phone()?8:20, cid=N(C.id)&&N(C.id).c, cp=cid&&!S.globe&&S.paths[cid], land=function(b){ if(!cp||!cp.isPointInFill) return 0; var hit=0, tot=0;
+  var sc=shortC()||(sideways()&&S.tour), E=phone()?8:20, cid=N(C.id)&&N(C.id).c, cp=cid&&!S.globe&&S.paths[cid], land=function(b){ if(!cp||!cp.isPointInFill) return 0; var hit=0, tot=0;
       for(var i=0;i<5;i++) for(var j=0;j<4;j++){ tot++; try{ if(cp.isPointInFill(new DOMPoint((b[0]+(b[2]-b[0])*(i+.5)/5-S.vw/2)/S.k+S.cx,(b[1]+(b[3]-b[1])*(j+.5)/4-S.vh/2)/S.k+S.cy))) hit++; }catch(x){ return 0; } }
       return hit/tot; },
     cost=function(sd,gx){ var b=mainBox(P,sd,mw,mh,gx), c=(sc?b[0]<I.l-2||b[2]>S.vw-I.r+2||b[1]<I.t-2||b[3]>S.vh-I.b+2:b[0]<E||b[2]>S.vw-E||b[1]<E||b[3]>S.vh-I.b+40)?1000:0;
@@ -1032,7 +1034,7 @@ function cluster(){
   if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim){ closeCluster(); if(!S.tour) setTimeout(function(){ if(!S.cl&&!S.anim) unfocus(); },0); } return; }
   var I=inset(), links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh,C.gx);
-  var sc=shortC(), E=phone()?8:20, mx=sc?clamp(mb[0],I.l,Math.max(I.l,S.vw-I.r-mw)):clamp(mb[0],E,Math.max(E,S.vw-E-mw)), my=sc?clamp(mb[1],I.t,Math.max(I.t,S.vh-I.b-mh)):clamp(mb[1],E,Math.max(E,S.vh-E-mh));     // the place's own card beside its pin (a phone on its side: never over the Tour block, whose arrows it covered, e4)
+  var sc=shortC()||(sideways()&&S.tour), E=phone()?8:20, mx=sc?clamp(mb[0],I.l,Math.max(I.l,S.vw-I.r-mw)):clamp(mb[0],E,Math.max(E,S.vw-E-mw)), my=sc?clamp(mb[1],I.t,Math.max(I.t,S.vh-I.b-mh)):clamp(mb[1],E,Math.max(E,S.vh-E-mh));     // the place's own card beside its pin (a phone on its side: never over the Tour block, whose arrows it covered, e4; any map with the Tour on, not only one country: phone audit B5)
   C.main.style.transform='translate('+mx.toFixed(1)+'px,'+my.toFixed(1)+'px)'; C.main._x=mx; C.main._y=my; var org=P.x.toFixed(1)+'px '+P.y.toFixed(1)+'px'; C.main.style.transformOrigin=org;
   C.boxes=[[mx,my,mx+mw,my+mh]];
   C.cards.forEach(function(K){ var w=K.el.offsetWidth, hh=K.el.offsetHeight, x=P.x+K.c[0]-w/2, y=P.y+K.c[1]-hh/2;

@@ -143,19 +143,19 @@ LH #summary-wrap.open@@{max-height:calc(100vh - 44px) !important;height:calc(100
 LC :is(#pmin-find,#hamburger-tab)@@{translate:none !important;}
 LC #pmin-find@@{left:calc(var(--ls-l) + 14px) !important;}
 LC #hamburger-tab@@{right:calc(var(--ls-r) + 14px) !important;}
-/* the card: a spread, 16 pt clear of the safe edges and of the two corner controls, under the row */
-LC.focus-mode:not(.detail-open) .node.mobile-featured@@{left:calc(50% + (var(--ls-l) - var(--ls-r)) / 2) !important;top:calc(52px + (100dvh - 64px) / 2) !important;}
-LC.focus-mode .node.mobile-featured .node-card@@{box-sizing:border-box !important;width:calc(100vw - var(--ls-cx) - var(--ls-cy)) !important;height:calc(100dvh - 64px) !important;max-height:none !important;min-height:0 !important;
+/* the card: a spread, 16 pt clear of the safe edges and of the two corner controls, under the row. Not a card the Memory Atlas has borrowed (.wp-bnode): it sizes and places its own (phone audit B5, 2026-11-26: the spread's height and 170 px unit padding ran it off the screen and stacked its unit label a letter a line) */
+LC.focus-mode:not(.detail-open) .node.mobile-featured:not(.wp-bnode)@@{left:calc(50% + (var(--ls-l) - var(--ls-r)) / 2) !important;top:calc(52px + (100dvh - 64px) / 2) !important;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card@@{box-sizing:border-box !important;width:calc(100vw - var(--ls-cx) - var(--ls-cy)) !important;height:calc(100dvh - 64px) !important;max-height:none !important;min-height:0 !important;
   overflow:hidden !important;padding:12px 18px 12px !important;display:grid !important;grid-template-columns:minmax(0,38%) minmax(0,1fr);grid-template-rows:minmax(34px,auto) auto minmax(0,1fr) auto;column-gap:22px;align-content:stretch;}
-LC.focus-mode .node.mobile-featured .node-card>*@@{grid-column:1 / -1;min-width:0;}
-LC.focus-mode .node.mobile-featured .node-card>.node-unit@@{grid-column:1 / -1;grid-row:1;position:static !important;margin:0 0 4px !important;padding:0 170px 0 0 !important;letter-spacing:.1em !important;line-height:1.4 !important;}
-LC.focus-mode .node.mobile-featured .node-card>.node-tag@@{grid-column:1;grid-row:2;margin:0 0 4px !important;}
-LC.focus-mode .node.mobile-featured .node-card>.node-title@@{grid-column:1;grid-row:3;align-self:start;margin:0 !important;font-size:20px !important;line-height:24px !important;max-height:100%;overflow-y:auto;}
-LC.focus-mode .node.mobile-featured .node-card>.node-footer@@{grid-column:1;grid-row:4;align-self:end;margin:8px 0 0 !important;}
-LC.focus-mode .node.mobile-featured .node-card>.node-desc@@{grid-column:2;grid-row:2 / 5;align-self:stretch;max-height:none !important;height:auto !important;min-height:0;overflow-y:auto !important;
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>*@@{grid-column:1 / -1;min-width:0;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>.node-unit@@{grid-column:1 / -1;grid-row:1;position:static !important;margin:0 0 4px !important;padding:0 170px 0 0 !important;letter-spacing:.1em !important;line-height:1.4 !important;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>.node-tag@@{grid-column:1;grid-row:2;margin:0 0 4px !important;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>.node-title@@{grid-column:1;grid-row:3;align-self:start;margin:0 !important;font-size:20px !important;line-height:24px !important;max-height:100%;overflow-y:auto;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>.node-footer@@{grid-column:1;grid-row:4;align-self:end;margin:8px 0 0 !important;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>.node-desc@@{grid-column:2;grid-row:2 / 5;align-self:stretch;max-height:none !important;height:auto !important;min-height:0;overflow-y:auto !important;
   -webkit-overflow-scrolling:touch;padding:2px 0 0 !important;margin:0 !important;font-size:14px !important;line-height:1.55 !important;overscroll-behavior:contain;}
-LC.focus-mode .node.mobile-featured .node-card>.node-order@@{position:absolute !important;top:12px !important;right:18px !important;left:auto !important;}
-LC.focus-mode .node.mobile-featured .sp-tag@@{top:12px !important;right:124px !important;bottom:auto !important;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .node-card>.node-order@@{position:absolute !important;top:12px !important;right:18px !important;left:auto !important;}
+LC.focus-mode .node.mobile-featured:not(.wp-bnode) .sp-tag@@{top:12px !important;right:124px !important;bottom:auto !important;}
 /* a detail page on its side (sim1111h): the text keeps clear of the island (its symbol and first letters were under it), and the "Back to" pill, which lay on the
    first line of the summary on so short a screen, sits in the page's own empty top margin at the right */
 /* (sim1112a R1: --dp-il / --dp-ir tell a style what the page's side padding gained, so a plate laid behind the text column (Holo on one of its own backgrounds) can run on to the page's
