@@ -204,6 +204,9 @@ html.pmin.alto-retro #nb-full,html.pmin.alto-holo #nb-full{background:#000;}
 html.pmin.alto-holo #nb-full{background:rgb(var(--ho-bgrgb));}
 """
 NB_ALL = r"""
+/* a phone panel is opaque in every look (no text on text): Holo's and Retro's panel grounds were .98 / .97, so the card faintly showed; desktop keeps its own */
+html.pmin.alto-holo@@{--panel-glass-bg:rgb(var(--ho-sfrgb));}
+html.pmin.alto-retro@@{--panel-glass-bg:rgb(3,4,7);}
 /* the header is clear: no unit colour (Classic); on a detail page it takes the page's own ground so the text can pass under it */
 CL #nav@@{background:none !important;border-bottom-color:transparent !important;box-shadow:none !important;}
 CL #nav@@::before{background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;bottom:0 !important;}

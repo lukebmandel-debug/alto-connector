@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_phone_minimal import pages, site, phone_ctx, pg, _go, _RETRO   # noqa: E402,F401
 
 _ALPHA = """(sel) => { const c = getComputedStyle(document.querySelector(sel)).backgroundColor, m = c.match(/[\\d.]+/g); return m.length > 3 ? +m[3] : 1; }"""
-_TOKEN = """() => { const c = getComputedStyle(document.documentElement).getPropertyValue('--panel-glass-bg'), m = c.match(/[\\d.]+/g); return m.length > 3 ? +m[3] : 1; }"""
+_TOKEN = """() => { const e = document.createElement('i'); e.style.background = 'var(--panel-glass-bg)'; document.body.appendChild(e); const c = getComputedStyle(e).backgroundColor, m = c.match(/[\\d.]+/g); e.remove(); return m.length > 3 ? +m[3] : 1; }"""
 
 
 def test_classic_phone_panels_are_opaque_in_light_and_dark(pg, site):
@@ -26,9 +26,16 @@ def test_classic_phone_panels_are_opaque_in_light_and_dark(pg, site):
     assert pg.evaluate(_ALPHA, "#notes-panel") >= .94
 
 
-def test_retro_keeps_its_own_panel_ground(pg, site):
+def test_retro_phone_panel_ground_is_fully_opaque(pg, site):
     _go(pg, site + "/retro.html")
-    assert .96 <= pg.evaluate(_TOKEN) <= 1
+    assert pg.evaluate(_TOKEN) == 1
+
+
+def test_holo_phone_panel_ground_is_fully_opaque_and_desktop_keeps_its_own(pg, site):
+    _go(pg, site + "/timeline.html")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate(_TOKEN) == 1
 
 
 def test_the_prev_next_pill_is_hidden_not_dimmed_while_a_panel_is_open(pg, site):
