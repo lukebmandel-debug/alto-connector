@@ -64,10 +64,10 @@ def test_a_phone_keeps_its_bar_and_has_no_minimap(site, w, h):
     ctx.close()
 
 
-def test_a_window_too_narrow_for_it_keeps_the_bars_button(site):
+def test_a_window_too_narrow_for_it_has_no_minimap_over_the_bar(site):
     ctx, pg = _open(site, "on", w=768, h=1024)
     s = pg.evaluate(MM)
-    assert not s["on"] and s["ovShown"], s                                                       # never over the bar: the bar keeps its way to the whole timeline
+    assert not s["on"] and not s["ovShown"], s      # never over the bar; no whole-timeline button on a desktop (Luke 2026-11-27, Board (b)): pinch, ⌘ + scroll, − reach it
     ctx.close()
 
 
@@ -79,7 +79,7 @@ def test_its_button_in_the_bar_turns_it_off_and_on_and_the_page_remembers(site):
     pg.click(btn)
     pg.wait_for_timeout(600)
     s = pg.evaluate(MM)
-    assert not s["on"] and s["ovShown"], s                                                       # off: the bar's whole-timeline button is back
+    assert not s["on"] and not s["ovShown"], s                                                   # off (the desktop has no whole-timeline button since 2026-11-27)
     assert pg.get_attribute(btn, "aria-pressed") == "false"
     pg.reload(wait_until="load")
     pg.wait_for_timeout(3000)
@@ -97,5 +97,24 @@ def test_each_unit_has_its_band_divider_and_numeral_on_the_map(site):
     assert u["units"] >= 2 and u["bands"] == u["units"] and u["divs"] == u["units"] - 1 and len(u["n"]) == u["units"], u
     xs = [q["x"] for q in u["n"]]
     assert xs == sorted(xs) and all(q["in"] and q["t"] for q in u["n"]) and len({q["c"] for q in u["n"]}) > 1, u   # in order, inside the map, each its unit's colour
+    assert not pg._errs, pg._errs
+    ctx.close()
+
+
+def test_a_phone_bar_button_opens_the_whole_view_only_and_prev_next_come_back(site):
+    """Luke 2026-11-27: "the back to events button on the left of the middle toggle isn't useful": a phone's button opens the whole
+    timeline and keeps its name (no "Back to the events"); ‹ › (or Esc, a tap) come back."""
+    ctx, pg = _open(site, "on", w=390, h=844, phone=True, q="?view=whole")
+    b = "#lanes-nav .lnv-ov"
+    lab = pg.get_attribute(b, "aria-label")
+    pg.click(b)
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate("window._altoLanesZoom.s()") < 1 and pg.get_attribute(b, "aria-label") == lab and "Back" not in lab
+    pg.click(b)                                                                                    # pressed again: still the whole view
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window._altoLanesZoom.s()") < 1
+    pg.click("#lanes-nav .lnv-next")                                                               # › : back to the events
+    pg.wait_for_timeout(1400)
+    assert pg.evaluate("window._altoLanesZoom.s()") == 1
     assert not pg._errs, pg._errs
     ctx.close()

@@ -898,6 +898,13 @@ LANES_CSS = KEY_CSS + """
   html.alto-lanes:not(.mobile) #world .node.ln-sd1.ln-has-kids::after{left:18px;right:18px;bottom:-13px;border-radius:0 0 12px 12px;opacity:.6;}
   html.alto-lanes:not(.mobile) #world .node.ln-sd-1.ln-has-kids::before{left:9px;right:9px;top:-7px;border-radius:12px 12px 0 0;}
   html.alto-lanes:not(.mobile) #world .node.ln-sd-1.ln-has-kids::after{left:18px;right:18px;top:-13px;border-radius:12px 12px 0 0;opacity:.6;}
+  /* a card enlarged: a nested card never reads stronger than the parent it hangs from (Luke 2026-11-27, "the nested nodes in the background being
+     more visible than their parents"): small and all title, at the parents' .14 they read darker, and their connectors stayed at full strength */
+  html.alto-lanes:not(.mobile) #canvas.focus-mode #world .node.ln-kid:not(.focused) .node-card{opacity:.1 !important;}
+  html.alto-lanes:not(.mobile) #canvas.focus-mode #lanes-svg .ln-kids{opacity:.12;transition:opacity .3s;}
+  html.alto-lanes:not(.mobile) #canvas.focus-mode #world .node:not(.focused) .node-card :is(.ln-chip,.ln-otag){visibility:hidden;}
+  /* and no line label under the enlarged card's glass (no text under text): lanes.py underFocus() */
+  html.alto-lanes:not(.mobile) #canvas.focus-mode #world :is(.lu-chip,.lanes-tag,.lanes-box).ln-ufoc{visibility:hidden;}
   .node-card.ln-kid-dim{background:var(--surface) !important;border-top-color:var(--border) !important;}
   .node-card.ln-kid-dim > *{opacity:0.15;}
   html.alto-lanes:not(.mobile) #world .node.ln-kc:not(.focused) .node-card{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 70%,transparent), 0 10px 26px var(--node-rest-shadow) !important;}
@@ -1614,7 +1621,7 @@ function openFam(root, on){
   if(window._altoLanesCueLook) window._altoLanesCueLook();
 }
 window._altoLanesKids={open:function(id, on){ openFam(rootOf(id), on!==false); }, outline:function(id, on){ var r=rootOf(id); if(arguments.length>1) setOutline(r, on!==false); return !!OUTL[r]; }, view:function(x){ if(arguments.length) setView(x==='expanded' || x===true); return EXPD ? 'expanded' : 'compact'; },
-  cursor:function(){ return KC; }, shut:kidShut, nest:nestOf,
+  cursor:function(){ return KC; }, shut:kidShut, nest:nestOf, step:function(d){ return kidStep(d); }, nav:function(id, d){ return kidNav(id, d); }, home:function(){ return kidHome(); },
   grown:function(){ return EXPD || Object.keys(OPEN).length>0; }};      /* (Extend's on while the board holds more than its main line: lanes_ext_js) */
 function clearKC(){ if(!KC) return; var n=document.getElementById('node-'+KC); if(n) n.classList.remove('ln-kc'); KC=''; }
 function setKC(id){
@@ -2257,28 +2264,101 @@ document.addEventListener('click', function(e){
   e.stopPropagation(); e.preventDefault(); var r=b.getAttribute('data-root'); openFam(r, !OPEN[r]);
 }, true);
 ['pointerdown','mousedown'].forEach(function(t){ document.addEventListener(t, function(e){ if(e.target.closest && e.target.closest('.ln-chip,.ln-otag')) e.stopPropagation(); }, true); });
-/* Down opens the children of the event the path is on and lands on the first (then on the next, one at a time, in outline order);
-   Up goes back out, to the parent; ← → carry on along the line from the parent; Enter opens the card; Esc tucks them away */
+/* Into a branch and out of it (Luke 2026-11-27: "fix navigation when a nested branch is open such that if you go down/up, it gets you into the
+   nested branch, and then with in outline mode on nested branch, the arrow key navigation only works within that branch instead of on the timeline
+   until returned to timeline"). A branch hangs on one side of the line: the key toward it (↓ below the line, ↑ above) steps from the parent into it,
+   one card deeper each press; the key back toward the line steps out, and past the branch's first level back onto the parent on the line.
+   A branch set out as a column: ← → carry on along the line from the parent. A branch set out as an outline holds the arrows (and the step bar's
+   ‹ ›) until the reader is back on the line (the key toward the line from its first level, Esc, or the "↑/↓ The lawsuit" button): ← → go to the
+   card beside at the same level, ‹ › through the branch in outline order. The same with a card enlarged: the enlarged card moves. Enter opens it. */
+function sdOf(root){ var n=document.getElementById('node-'+root); return n && n.classList.contains('ln-sd-1') ? -1 : 1; }
+function famIds(root){ return (((window._altoLanesGeo||{}).fams||{})[root]||[]).slice(); }
+function outRoot(id){ var r=rootOf(id); return (id && r!==id && document.querySelector('#node-'+r+' .ln-otag[aria-pressed=true]')) ? r : ''; }
+function kidsOfIn(root, id){ return famIds(root).filter(function(k){ return nestOf(k)===id; }); }
+function cx(id){ var n=document.getElementById('node-'+id); return n ? parseFloat(n.style.left)||0 : 0; }
+function depth(id){ var d=0, q=id; while(nestOf(q) && d<40){ q=nestOf(q); d++; } return d; }
+/* the card beside, at the same level of the same branch (nearest to that side) */
+function beside(root, id, dir){ var dd=depth(id), x=cx(id), best='', bd=1e9;
+  famIds(root).forEach(function(k){ if(k===id || depth(k)!==dd) return; var dx=(cx(k)-x)*dir; if(dx>0.5 && dx<bd){ bd=dx; best=k; } }); return best; }
+var CAP=null;      /* kidNav: where an enlarged card would go, asked instead of done */
+function goKid(id, enlarged){ if(!id) return; if(CAP){ CAP.t=id; return; } if(enlarged && window.enterFocus){ window.enterFocus(id); setKC(id); return; } setKC(id); }
+function backToLine(root, enlarged){
+  clearKC(); if(CAP){ CAP.t=root; return; } if(enlarged){ if(window.enterFocus) window.enterFocus(root); return; }
+  var c=document.getElementById('canvas'); if(c) try{ c.scrollTo({left:c.scrollLeft, top:c.scrollTop, behavior:'instant'}); }catch(er){}   /* (a branch card's own smooth scroll into view stops: the glide owns the camera) */
+  if(window._altoLanesStep) window._altoLanesStep(root); }
+/* one arrow inside or toward a branch: what it does, or false (the line's own) */
+function kidKey(k, cur, enlarged){
+  var fams=(window._altoLanesGeo||{}).fams||{}, inK=cur && isKid(cur) && !kidShut(cur);
+  if(!inK){                                                  // on the line: the key toward this event's branch steps into it
+    var mine=fams[cur]||[]; if(!mine.length || (k!=='ArrowDown' && k!=='ArrowUp')) return false;
+    var toward=sdOf(cur)<0 ? 'ArrowUp' : 'ArrowDown'; if(k!==toward) return false;
+    if(!openNow(cur)) openFam(cur, true);
+    goKid(kidsOfIn(cur, cur)[0] || famIds(cur)[0], enlarged); return true;
+  }
+  var root=rootOf(cur), sd=sdOf(root), deeper=sd<0 ? 'ArrowUp' : 'ArrowDown', ol=!!outRoot(cur);
+  if(k==='ArrowLeft' || k==='ArrowRight'){
+    if(!ol){ clearKC(); return false; }                      // a column: carry on along the line
+    var b=beside(root, cur, k==='ArrowRight' ? 1 : -1); if(b) goKid(b, enlarged); return true;   // an outline holds the arrows (at its edge: stays)
+  }
+  if(k===deeper){
+    if(ol){ var ch=kidsOfIn(root, cur); if(ch.length) goKid(ch[0], enlarged); return true; }
+    var f=famIds(root), i=f.indexOf(cur); if(f[i+1]) goKid(f[i+1], enlarged); return true;
+  }
+  /* back toward the line */
+  if(ol){ var pa=nestOf(cur); if(pa && pa!==root) goKid(pa, enlarged); else backToLine(root, enlarged); return true; }
+  var f2=famIds(root), j=f2.indexOf(cur); if(j>0) goKid(f2[j-1], enlarged); else backToLine(root, enlarged); return true;
+}
 document.addEventListener('keydown', function(e){
   if(!KG || !kidsOn() || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || de.classList.contains('alto-editing') || de.classList.contains('printing')) return;
-  if(window._focusedNodeId || de.classList.contains('detail-open')) return;
+  if(de.classList.contains('detail-open')) return;
   var ae=document.activeElement, tg=ae && ae.tagName; if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
   var k=e.key, stop=function(){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
-  if(k==='ArrowLeft' || k==='ArrowRight'){ if(KC) clearKC(); return; }
-  if(k!=='ArrowDown' && k!=='ArrowUp') return;
+  var fid=window._focusedNodeId;
+  if(k==='Escape' && KC && !fid){ stop(); backToLine(rootOf(KC), false); return; }
+  if(k!=='ArrowDown' && k!=='ArrowUp' && k!=='ArrowLeft' && k!=='ArrowRight') return;
+  if(fid) return;                                           // an enlarged card: the engine's own arrows ask kidNav (below) where to go
   var cur=KC || (window._altoLanesCurrent && window._altoLanesCurrent()); if(!cur) return;
-  var fams=(window._altoLanesGeo||{}).fams||{};
-  if(k==='ArrowDown'){
-    if(KC){ var f=fams[rootOf(KC)]||[], i=f.indexOf(KC); stop(); if(f[i+1]) setKC(f[i+1]); return; }
-    var mine=(fams[cur]||[]); if(!mine.length) return;
-    stop(); if(!openNow(cur)) openFam(cur, true); setKC(mine[0]); return;
-  }
-  if(KC){ stop(); var pa=nestOf(KC); if(!pa || pa===rootOf(KC)) clearKC(); else setKC(pa); }
+  if(kidKey(k, cur, false)) stop();
 }, true);
+/* the labels on the line (a unit's, a line's name, a box) the enlarged card stands over are hidden while it is enlarged */
+(function(){
+  var t=0;
+  function under(){
+    var c=document.getElementById('canvas'), f=c && c.classList.contains('focus-mode') && document.querySelector('#world .node.focused .node-card'), r=f && f.getBoundingClientRect();
+    document.querySelectorAll('#world :is(.lu-chip,.lanes-tag,.lanes-box)').forEach(function(e){
+      var q=r && e.getBoundingClientRect(), hit=!!(q && q.width && q.left<r.right+4 && r.left<q.right+4 && q.top<r.bottom+4 && r.top<q.bottom+4);
+      if(e.classList.contains('ln-ufoc')!==hit) e.classList.toggle('ln-ufoc', hit); });
+  }
+  function soon(){ clearTimeout(t); under(); t=setTimeout(under, 520); }
+  function hook(){ var c=document.getElementById('canvas'); if(!c || c._lnUf || !window.MutationObserver) return; c._lnUf=1;
+    new MutationObserver(soon).observe(c, {attributes:true, attributeFilter:['class']});
+    document.addEventListener('alto-focus', soon); c.addEventListener('scroll', function(){ if(c.classList.contains('focus-mode')) soon(); }, {passive:true}); }
+  window.addEventListener('load', function(){ hook(); });
+  window._altoLanesUnderFocus=soon;
+})();
+/* the step bar's ‹ › (lanes_nav.py step()): inside an outline, through the branch in outline order; false = the line's own step */
+function kidStep(dir){
+  var cur=window._focusedNodeId || KC; if(!cur || !outRoot(cur)) return false;
+  var f=famIds(rootOf(cur)), i=f.indexOf(cur), n=f[i+(dir>0 ? 1 : -1)];
+  if(n) goKid(n, !!window._focusedNodeId); return true;
+}
+/* an enlarged card's arrows (the engine's focusNeighbor, through lanes_nav.py's _altoLanesNav): the card the branch rules send it to, null to
+   stay, undefined for the line's own hop */
+function kidNav(id, dir){
+  var k={e:'ArrowRight', w:'ArrowLeft', n:'ArrowUp', s:'ArrowDown'}[dir]; if(!k || !KG || !kidsOn()) return undefined;
+  CAP={t:null}; var h=false; try{ h=kidKey(k, id, true); }finally{ var t=CAP.t; CAP=null; }
+  if(!h) return undefined; if(t && isKid(t)) setKC(t); return t || id;      // (to stay: the same card; the engine takes a null as "its own hop")
+}
+/* back to the line from wherever in a branch (the "↑/↓ The lawsuit" button: lanes_ext_js): an enlarged card is let go first */
+function kidHome(){
+  var cur=window._focusedNodeId || KC, root=cur && isKid(cur) ? rootOf(cur) : (window._focusedNodeId || '');
+  if(window._focusedNodeId && window.exitFocus) try{ window.exitFocus(); }catch(er){}
+  clearKC(); return root;
+}
 /* search (and anything else that enlarges a card by its id) finds a child tucked behind its parent: the family opens first */
 window.addEventListener('load', function(){
   var ef=window.enterFocus; if(typeof ef==='function' && !ef._ln){
-    window.enterFocus=function(id){ if(KG && id && kidShut(id)) openFam(rootOf(id), true); return ef.apply(this, arguments); };
+    window.enterFocus=function(id){ if(KG && id && kidShut(id)) openFam(rootOf(id), true); var r=ef.apply(this, arguments); if(window._altoLanesUnderFocus) window._altoLanesUnderFocus(); return r; };
     window.enterFocus._ln=1; }
   /* the engine's own "is this shown" (its hops, an enlarged card's ← →) leaves a tucked child out */
   var sh=window._altoShown; if(!sh || !sh._lk){ var f2=function(id){ return !kidShut(id) && (!sh || sh.apply(this, arguments)); }; f2._lk=1; f2._ln=sh ? sh._ln : 1; window._altoShown=f2; }
@@ -2456,8 +2536,13 @@ LANES_EXT_TAIL = r"""
     var b=document.createElement('button'); b.type='button'; b.className='lnv-main'; b.tabIndex=-1; b.setAttribute('aria-hidden','true');
     b.innerHTML='<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"/></svg><span></span>';
     b.querySelector('span').textContent=nm; b._nm=nm;
-    b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(), d=off(); if(!c || d==null || !window._altoLanesVy) return;
-      var k=(c.offsetHeight && c.getBoundingClientRect().height/c.offsetHeight)||1; window._altoLanesVy(d/k); });
+    b.addEventListener('click', function(e){ e.stopPropagation(); var c=cv(); if(!c || !window._altoLanesVy) return;
+      /* from inside a branch, or a card of it enlarged (Luke 2026-11-27: "The lawsuit button doesn't work if a nested branch node is enlarged"):
+         the card is let go, and the camera comes back to the line on the branch's parent */
+      var K=window._altoLanesKids, root=(K && K.home) ? K.home() : '';
+      function vy(){ var d=off(); if(d==null) return; var k=(c.offsetHeight && c.getBoundingClientRect().height/c.offsetHeight)||1; window._altoLanesVy(d/k); }
+      if(root && window._altoLanesStep){ window._altoLanesStep(root); setTimeout(vy, 80); setTimeout(function(){ vy(); soon(); }, 760); return; }
+      vy(); });
     nav.insertBefore(b, nav.firstChild); cues.pill=b;
   }
   /* how far the main line stands from the room's middle, screen px (+ below it), from its own label's height (the label sits on it) */
