@@ -1297,12 +1297,34 @@ function layoutLanes(h){
      later in time, just clear of the card in its way, and everything after it moves as much */
   var rows={'-1':mode.one?0:mode.R, '1':mode.R}, placed={'-1':[], '1':[]}, sideOf={}, offOf={}, rowOf={}, alt=0, cum=0, PX=[], X0={};
   var rowOff=function(sd,r){ return band[sd]+STm+r*(HR+CARD_GAP); };
+  /* Luke 2026-11-28: "on outlines in extended mode for horizontal timelines, i'd like different nested branches not to overlap" — he picked
+     "A: stretch the line". In the Expanded view, while any branch is set out as an outline, an outline OWNS the strip of the board it hangs in:
+     no other card of its row stands over it, no other branch of its row shares its width (24px between them), and no card of a farther row
+     drops its stem through it. A card that would break that moves later in time, just clear, and everything after it moves as much — the
+     rule the cards themselves already keep. So every outline sits right under its own card, the card over the middle of it (at the board's
+     left edge the CARD moves in, not the fan), and one wide outline no longer spreads under its neighbours and pushes their branches far
+     below it. Lists beside lists pack as before; Compact and the phone never come here (expandedNow, kidsOn). */
+  var strips=expandedNow() && Object.keys(kidO).some(function(k){ return kidO[k]; }), own={'-1':[], '1':[]};
+  var famSpan=function(id){ if(!strips || !kidH[id]) return null; var f=famOf(kids, id, 1, []);
+    if(kidO[id]){ var o=outPlan(id, f), fa=o && outFan(o, f.map(function(q){ return q.id; })); if(fa) return {l:fa.l-12, r:fa.r+12, o:true}; }
+    var md=1; f.forEach(function(q){ md=Math.max(md, q.d); }); var l0=-(w[id]||270)/2; return {l:l0-12, r:l0+KIDIND*md+KIDW+12, o:false}; };
+  var clearX=function(sd, r, x, half, fs){
+    var hit=function(a, b){ return !!a && !!b && a[0]<b[1] && a[1]>b[0]; };
+    for(var g=0;g<80;g++){ var nx=x, C=[x-half, x+half], F=fs ? [x+fs.l, x+fs.r] : null, FO=F && fs.o ? F : null, to=function(a, b){ nx=Math.max(nx, x+b[1]-a[0]); };
+      if(FO && FO[0]<12) nx=Math.max(nx, x+12-FO[0]);                      /* (the fan 24px inside the board's left edge) */
+      own[sd].forEach(function(e){ var EO=e.o ? e.f : null;
+        if(e.r===r){ if(hit(C, e.c)) to(C, e.c); if(hit(FO, e.c)) to(FO, e.c); if(hit(C, EO)) to(C, EO); if((FO || EO) && hit(F, e.f)) to(F, e.f); }
+        else if(e.r<r){ if(hit(C, EO)) to(C, EO); }
+        else if(hit(FO, e.c)) to(FO, e.c); });
+      if(nx<=x+.01) return x; x=nx; }
+    return x; };
   order.slice().sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }).forEach(function(id){
     var ln=lineOfEv(id), x0=X[id], x=x0+cum, half=w[id]/2+CARD_PAD;
     var sides=mode.one ? ['1'] : ln===main ? (fbOf[id]?['1']:(alt?['1','-1']:['-1','1'])) : [String(ln.sd)];
     var pick=null, best=null;
     for(var r=0;r<3 && !pick;r++) sides.forEach(function(sd){
       if(pick || r>=rows[sd]) return;
+      if(strips){ var cx=clearX(sd, r, x, half, famSpan(id)); if(cx<=x+.01) pick={sd:sd, r:r, x:x}; else if(!best || cx<best.x-.5) best={sd:sd, r:r, x:cx}; return; }
       var row=placed[sd][r]||[], lo=x-half, hi=x+half, blk=row.filter(function(q){ return lo<q[1] && hi>q[0]; });
       if(!blk.length){ pick={sd:sd, r:r, x:x}; return; }
       var nx=Math.max.apply(null, blk.map(function(q){ return q[1]; }))+half;
@@ -1311,6 +1333,7 @@ function layoutLanes(h){
     pick=pick||best;
     cum+=pick.x-x; X0[id]=x0; X[id]=pick.x; PX.push([x0, cum]);
     (placed[pick.sd][pick.r]=placed[pick.sd][pick.r]||[]).push([pick.x-half, pick.x+half]);
+    if(strips){ var fsp=famSpan(id); own[pick.sd].push({r:pick.r, c:[pick.x-half, pick.x+half], f:fsp ? [pick.x+fsp.l, pick.x+fsp.r] : null, o:!!(fsp && fsp.o)}); }
     sideOf[id]=+pick.sd; offOf[id]=rowOff(pick.sd, pick.r); rowOf[id]=pick.r;
     if(ln===main && !fbOf[id]) alt=1-alt;
   });

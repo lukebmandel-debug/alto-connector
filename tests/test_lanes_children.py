@@ -766,6 +766,56 @@ def test_every_branch_as_an_outline_at_once_runs_into_nothing(browser, tmp_path)
     assert not errs
 
 
+def _civ_wide():
+    """_civ with one WIDE outline: the second event holds seven sections of two points, so its outline fans far wider than the step between events."""
+    d = _civ()
+    m = [n for n in d["nodes"] if not n.get("nest")][1]
+    base = {k: v for k, v in m.items() if k not in ("id", "nest", "title", "desc", "present", "flash")}
+    for a in range(2, 7):
+        i = f"{m['id']}-s{a}"
+        d["nodes"].append(dict(base, id=i, nest=m["id"], title=f"Section {a + 1} of {m['title']}", desc="A section."))
+        for b in range(2):
+            d["nodes"].append(dict(base, id=f"{i}-{b}", nest=i, title=f"Point {b + 1} under section {a + 1}", desc="A point."))
+    return d
+
+
+_STRIPS = """() => { const G = window._altoLanesGeo, F = G.fams || {}, R = e => e.getBoundingClientRect(), card = i => R(document.querySelector('#node-' + i + ' .node-card'));
+  const T = Object.keys(F).map(r => { const c = card(r), ks = F[r].map(card), b = {l: Math.min(...ks.map(k => k.left)), r: Math.max(...ks.map(k => k.right)), t: Math.min(...ks.map(k => k.top)), b: Math.max(...ks.map(k => k.bottom))};
+    return {root: r, w: b.r - b.l, gap: Math.max(b.t - c.bottom, c.top - b.b), off: Math.abs((b.l + b.r) / 2 - (c.left + c.right) / 2), left: b.l - R(document.getElementById('world')).left,
+            l: Math.min(b.l, c.left), r: Math.max(b.r, c.right), t: Math.min(b.t, c.top), b: Math.max(b.b, c.bottom), fl: b.l, fr: b.r, ft: b.t, fb: b.b}; });
+  const mains = [...document.querySelectorAll('#world .node:not(.ln-kid) .node-card')].map(c => ({id: c.closest('.node').id.slice(5), r: R(c)})).filter(m => m.r.width > 2);
+  let tangled = [], under = [];
+  for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) { const a = T[i], b = T[j]; if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) tangled.push([a.root, b.root]); }
+  const ly = (p => p.top + p.height / 2)(R(document.querySelector('#lanes-svg path.ln-main')));
+  T.forEach(a => mains.forEach(m => { if (m.id !== a.root && ((a.ft + a.fb) / 2 > ly) === ((m.r.top + m.r.bottom) / 2 > ly) && a.fl < m.r.right - 1 && m.r.left < a.fr - 1 && ((a.ft >= m.r.bottom - 1 && a.ft - m.r.bottom < 400) || (a.fb <= m.r.top + 1 && m.r.top - a.fb < 400))) under.push([a.root, m.id]); }));
+  const k = document.getElementById('world').getBoundingClientRect().width / document.getElementById('world').offsetWidth;
+  return {n: T.length, wide: Math.max(...T.map(a => a.w)) / k, tangled, under, far: T.filter(a => a.gap / k > 80).map(a => [a.root, Math.round(a.gap / k)]),
+          off: Math.max(...T.map(a => a.off)) / k, left: Math.min(...T.map(a => a.left)) / k, xs: mains.map(m => Math.round((m.r.left + m.r.right) / 2 / k))}; }"""
+
+
+def test_an_outline_owns_the_strip_under_its_card_and_the_line_stretches_to_make_the_room(browser, tmp_path):
+    """Luke 2026-11-28: "on outlines in extended mode for horizontal timelines, i'd like different nested branches not to overlap" — and of the
+    three ways shown: "A: stretch the line". One wide outline among narrow ones: no two branches entangled (a card and its branch, taken as one
+    box, never meet another's), none far from its own card, none spread under another event's card, each card over the middle of its outline
+    and the fan inside the board. The line is longer only while the outlines are out: back as lists, every card is where it was."""
+    pg, errs = _open(browser, _civ_wide(), tmp_path)
+    pg.evaluate("() => window._altoLanesKids.view('expanded')")
+    pg.wait_for_timeout(1000)
+    lists = pg.evaluate(_STRIPS)
+    pg.evaluate("() => window._altoLanesKids.outlineAll(true)")
+    pg.wait_for_timeout(1400)
+    o = pg.evaluate(_STRIPS)
+    assert o["n"] >= 8 and o["wide"] >= 900, (o["n"], o["wide"])                       # the fixture: one outline far wider than a step
+    assert o["tangled"] == [] and o["far"] == [] and o["under"] == [], o
+    assert o["off"] <= 2 and o["left"] >= 23, (o["off"], o["left"])                    # card over the middle; 24px inside the left edge
+    assert max(o["xs"]) > max(lists["xs"]) + 300, (max(lists["xs"]), max(o["xs"]))     # the line made the room
+    assert not _overlaps(_rects(pg)) and pg.evaluate(_THROUGH)["through"] == 0
+    pg.evaluate("() => window._altoLanesKids.outlineAll(false)")
+    pg.wait_for_timeout(1400)
+    assert pg.evaluate(_STRIPS)["xs"] == lists["xs"]                                   # lists again: nothing moved for good
+    assert not errs
+
+
 def test_an_enlarged_card_is_solid_in_classic_so_no_card_reads_through_it(browser, tmp_path):
     """Board 2026-11-27: "Enlarged card on Classic... cards behind it read through it... The enlarged card must be opaque, so there's no text
     under text." Light and dark both."""
