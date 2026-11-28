@@ -40,7 +40,7 @@ def test_a_label_is_one_or_two_letters_and_the_legend_is_checked():
     from alto.build.builder import load_brief
     from alto.build.brief import tags_of
     assert clean_label(" h! ") == "H" and clean_label("abc") == "AB" and clean_label(None) == "" and clean_label("\u2605") == "\u2605"
-    assert tags_of("o", ["\u2605", "O", "x"]) == ["O", "\u2605"]          # `label` is shorthand; two tags at most, no repeats
+    assert tags_of("o", ["\u2605", "O", "x"]) == ["\u2605", "O"]          # `label` is shorthand; two tags at most, no repeats
     d = _brief("outline")
     validate_brief(load_brief(copy.deepcopy(d))[0])
     bad = copy.deepcopy(d)
@@ -51,6 +51,18 @@ def test_a_label_is_one_or_two_letters_and_the_legend_is_checked():
     bad["brief"]["chip_legend"] = LEGEND + [{"label": "H", "meaning": "again"}]
     with pytest.raises(BriefError):
         validate_brief(load_brief(bad)[0])
+
+
+def test_an_unlabelled_page_is_byte_identical_to_main_and_the_star_sorts_first():
+    import subprocess
+    from alto.build.brief import tags_of
+    assert tags_of("O", ["\u2605"]) == ["\u2605", "O"]
+    d = _brief("outline", labelled=False)
+    h = _html(d)
+    assert "alto-lbl" not in h and "_altoChipLbl" not in h and "aed-lblbtn" not in h
+    legend_only = _brief("outline", labelled=False)
+    legend_only["brief"]["chip_legend"] = copy.deepcopy(LEGEND)
+    assert "aed-lblbtn" in _html(legend_only), "a page with a legend lets edit mode add the first label"
 
 
 def test_an_unlabelled_timeline_carries_no_badges_and_the_label_survives_a_rebuild():
@@ -210,9 +222,9 @@ def test_in_edit_mode_a_chip_page_offers_a_label_button_that_labels_and_undoes(b
     pg.fill("#aed-form [data-f=legend]", "H = history\nX = my own letter")
     pg.click("#aed-form [data-a=ok]")
     pg.wait_for_timeout(500)
-    assert pg.evaluate(f"window._altoChipLbl.get('env','{vid}').join(' ')") == "X \u2605"
+    assert pg.evaluate(f"window._altoChipLbl.get('env','{vid}').join(' ')") == "\u2605 X"
     assert pg.evaluate("window._altoChipLbl.legend().map(r=>r.label).join('')") == "HX"
-    assert pg.evaluate("document.querySelector('#detail-page .detail-name .alto-lbl')?.textContent") == "X"
+    assert pg.evaluate("document.querySelector('#detail-page .detail-name .alto-lbl:last-child')?.textContent") == "X"
     pg.wait_for_timeout(2500)
     folded = pg.evaluate("JSON.stringify(window.__edits||{}) + JSON.stringify(Object.assign({}, localStorage))")
     assert f"env|{vid}|label" in folded and "cl|legend" in folded
@@ -238,3 +250,11 @@ def test_a_chip_can_wear_a_letter_and_a_gold_star_and_the_index_page_keys_only_t
     pg.wait_for_timeout(400)
     two = pg.evaluate("[...document.querySelectorAll('#detail-content [data-lbl]')].filter(e=>e.querySelectorAll(':scope>.alto-lbl').length===2).length")
     assert two >= 1, "a chip with a letter and a star shows two badges"
+
+
+def test_the_star_comes_first_in_the_key_the_bubble_and_on_the_chip(browser):
+    pg = _open(browser, "outline", phone=True)
+    pg.evaluate("showDetail('index','env')")
+    pg.wait_for_timeout(600)
+    assert pg.evaluate("document.querySelector('.alto-lbl-key .alto-lbl').textContent") == "\u2605"
+    assert pg.evaluate("document.querySelector('#detail-content [data-lbl^=\"\u2605\"] .alto-lbl').textContent") == "\u2605"

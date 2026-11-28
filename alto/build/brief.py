@@ -804,7 +804,8 @@ def tags_of(label, labels) -> list[str]:
         c = clean_label(x)
         if c and c not in out:
             out.append(c)
-    return out[:2]
+    out = out[:2]
+    return sorted(out, key=lambda x: x != STAR)           # the critical star first
 
 
 def _check_chip_labels(b) -> None:

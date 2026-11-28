@@ -24,7 +24,7 @@ CSS = r"""
 .alto-lbl.star:not(#_){color:var(--star,#c58a00);background:color-mix(in srgb,var(--star,#c58a00) 18%,transparent);text-transform:none;}
 html.dark .alto-lbl.star:not(#_){--star:#f0c040;}
 [data-lbl]{-webkit-touch-callout:none;}
-.alto-lbl-key:not(#_){display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;box-sizing:border-box;margin:12px 0 24px;padding:0;font-size:13px;line-height:1.3;color:var(--muted,inherit);max-width:100%;}
+.alto-lbl-key:not(#_){display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;box-sizing:border-box;margin:12px 0 26px;padding:0;font-size:13px;line-height:1.3;color:var(--muted,inherit);max-width:100%;}
 .alto-lbl-key .lk{display:inline-flex;align-items:center;gap:0;}
 .alto-lbl-key .alto-lbl{margin:0 .5em 0 0;font-size:.8em;color:var(--text,inherit);}
 .alto-lbl-key .alto-lbl.star{color:var(--star,#c58a00);}
@@ -46,6 +46,9 @@ JS = r"""
 (function(){
   var D=window._ALTO_CHIPLBL; if(!D) return;
   var STAR='★', BYID=D.byId||{}, BYNAME=D.byName||{}, LEG=D.legend||[], means={};
+  function starFirst(a){ return a.slice().sort(function(x,y){ return (x===STAR?0:1)-(y===STAR?0:1); }); }
+  function ordered(list){ var order=LEG.map(function(r){ return r.label; }); var seen=[]; list.forEach(function(l){ if(seen.indexOf(l)<0) seen.push(l); });
+    return seen.sort(function(a,b){ if(a===STAR||b===STAR) return (a===STAR?0:1)-(b===STAR?0:1); var x=order.indexOf(a), y=order.indexOf(b); return (x<0?99:x)-(y<0?99:y); }); }
   function setMeans(){ means={}; LEG.forEach(function(r){ means[r.label]=r.meaning||''; }); if(!means[STAR]) means[STAR]='critical case'; }
   setMeans();
   var KIND={'csym-btn':'char','esym-btn':'env','tsym-btn':'theme'};
@@ -81,7 +84,7 @@ JS = r"""
     var used=[]; dc.querySelectorAll('[data-lbl]').forEach(function(e){ e.getAttribute('data-lbl').split(' ').forEach(function(l){ if(l&&used.indexOf(l)<0) used.push(l); }); });
     var old=dc.querySelector('.alto-lbl-key'), sig=used.join(' ');
     if(old&&old.getAttribute('data-sig')===sig) return; if(old) old.remove(); if(!used.length) return;
-    var order=LEG.map(function(r){ return r.label; }); used.sort(function(a,b){ var x=order.indexOf(a), y=order.indexOf(b); return (x<0?99:x)-(y<0?99:y); });
+    used=ordered(used);
     var k=document.createElement('div'); k.className='alto-lbl-key'; k.setAttribute('data-sig',sig);
     used.forEach(function(l){ var d=document.createElement('span'); d.className='lk'; var b=document.createElement('i'); b.className='alto-lbl'+(l===STAR?' star':''); b.textContent=l; d.appendChild(b); d.appendChild(document.createTextNode(means[l]||'')); k.appendChild(d); });
     var h=dc.querySelector('.detail-header'); if(h&&h.parentNode===dc) dc.insertBefore(k,h.nextSibling); else dc.insertBefore(k,dc.firstChild);
@@ -93,7 +96,7 @@ JS = r"""
   function clean(l){ l=String(l||'').trim(); if(l===STAR) return STAR; return l.replace(/[^0-9A-Za-z]/g,'').slice(0,2).toUpperCase(); }
   window._altoChipLbl={
     get:function(k,id){ return ((BYID[k]||{})[id]||[]).slice(); },
-    set:function(k,id,tags,name){ BYID[k]=BYID[k]||{}; BYNAME[k]=BYNAME[k]||{}; var t=[]; (tags||[]).forEach(function(x){ x=clean(x); if(x&&t.indexOf(x)<0) t.push(x); }); t=t.slice(0,2);
+    set:function(k,id,tags,name){ BYID[k]=BYID[k]||{}; BYNAME[k]=BYNAME[k]||{}; var t=[]; (tags||[]).forEach(function(x){ x=clean(x); if(x&&t.indexOf(x)<0) t.push(x); }); t=starFirst(t.slice(0,2));
       if(t.length){ BYID[k][id]=t; if(name) BYNAME[k][name]=t; } else { delete BYID[k][id]; if(name) delete BYNAME[k][name]; } refresh(); },
     legend:function(){ return LEG.map(function(r){ return {label:r.label,meaning:r.meaning}; }); },
     setLegend:function(v){ LEG=(v||[]).map(function(r){ return {label:r.label,meaning:r.meaning||''}; }); setMeans(); D.legend=LEG;
@@ -105,7 +108,7 @@ JS = r"""
   function legendInPanel(){
     var body=document.querySelector('#ef-panel .ef-body'); if(!body||!LEG.length||body.querySelector('.alto-lbl-legend')) return;
     var s=document.createElement('div'); s.className='alto-lbl-legend ef-sec'; var h=document.createElement('div'); h.className='ef-h'; h.textContent='Labels'; s.appendChild(h);
-    LEG.forEach(function(r){ var d=document.createElement('div'); d.className='lg'; var b=document.createElement('b'); b.textContent=r.label; var t=document.createElement('span'); t.textContent=r.meaning; d.appendChild(b); d.appendChild(t); s.appendChild(d); });
+    ordered(LEG.map(function(r){ return r.label; })).forEach(function(l){ var r={label:l,meaning:means[l]}; var d=document.createElement('div'); d.className='lg'; var b=document.createElement('b'); b.textContent=r.label; var t=document.createElement('span'); t.textContent=r.meaning; d.appendChild(b); d.appendChild(t); s.appendChild(d); });
     body.insertBefore(s,body.firstChild);
   }
   /* the bubble: hover on a computer, a long press on a touch screen */
@@ -115,7 +118,7 @@ JS = r"""
     if(!tip){ tip=document.createElement('div'); tip.id='alto-lbl-tip'; document.body.appendChild(tip); }
     tip.textContent='';
     var nm=el.getAttribute('data-tn'); if(nm){ var hd=document.createElement('div'); hd.style.fontWeight='600'; hd.style.marginBottom='4px'; hd.textContent=nm; tip.appendChild(hd); }
-    var rows=LEG.slice(); tags.forEach(function(l){ if(!rows.some(function(r){ return r.label===l; })) rows.push({label:l,meaning:means[l]||''}); });
+    var rows=ordered(LEG.map(function(r){ return r.label; }).concat(tags)).map(function(l){ return {label:l,meaning:means[l]||''}; });
     rows.forEach(function(r){ var d=document.createElement('div'); if(tags.indexOf(r.label)>=0) d.className='on'; var b=document.createElement('b'); b.textContent=r.label; d.appendChild(b);
       if(r.meaning){ var t=document.createElement('span'); t.textContent=r.meaning; d.appendChild(t); } tip.appendChild(d); });
     tip.style.display='block';
@@ -171,6 +174,33 @@ def _lean(js: str) -> str:
 
 
 def block(brief) -> str:
+    if not active(brief):
+        return ""
     t = table(brief) or {"byId": {"char": {}, "env": {}, "theme": {}}, "byName": {"char": {}, "env": {}, "theme": {}}, "legend": []}
     return ("<style>" + _lean(CSS) + "</style><script>window._ALTO_CHIPLBL=" + json.dumps(t, separators=(",", ":")).replace("</", "<\\/") + ";"
             + _lean(JS) + "</script>\n")
+
+
+# ── manual edit mode ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# The edit code rides in manual_edit's script only on a page that has labels or a legend, so every other page stays byte-identical to what it
+# was before chip labels (the page budget is tight). A page gets its first label through the MCP tools (or a legend); from then on edit mode
+# can add, change and clear labels and edit the legend.
+FIELD_JS = "    // a chip's label (1-2 letters, chip_labels.py) and the page's legend of what each letter means\n    if((kind === 'c' || kind === 'env' || kind === 'theme') && p.length === 3 && p[2] === 'label'){\n      var RL = reg(kind), CL = window._altoChipLbl; if(!RL || !RL[id] || !CL) return null;\n      return {kind:'plain', get:function(){ return CL.get(kind, id).join(' '); },\n        set:function(v){ CL.set(kind, id, String(v || '').split(/\\s+/), txt(RL[id].name || '')); }};\n    }\n    if(kind === 'cl' && id === 'legend' && p.length === 2){\n      var CL2 = window._altoChipLbl; if(!CL2) return null;\n      return {kind:'list', get:function(){ return CL2.legend(); }, set:function(v){ CL2.setLegend(v || []); }};\n    }\n"
+CALL_JS = "        if(kind !== 'n') decorateLabel(dc, kind, P.id);\n"
+FN_JS = "  /* a chip's page: a button for its label and the page's legend (chip_labels.py) */\n  function legendText(L){ return (L || []).map(function(r){ return r.label + ' = ' + (r.meaning || ''); }).join('\\n'); }\n  function legendParse(t){ var out = [], seen = {};\n    String(t || '').split(/\\n|;/).forEach(function(ln){ var m = ln.match(/^\\s*([0-9A-Za-z]{1,2}|★)\\s*[=:\\-–]\\s*(.*)$/); if(!m) return; var l = m[1].toUpperCase(); if(seen[l]) return; seen[l] = 1; out.push({label: l, meaning: m[2].trim().slice(0, 60)}); });\n    return out.slice(0, 12); }\n  function decorateLabel(dc, kind, id){\n    var CL = window._altoChipLbl, hd = dc.querySelector('.detail-header'); if(!CL || !hd || dc.querySelector('.aed-lblbtn') || !field(kind + '|' + id + '|label')) return;\n    var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-lblbtn'; var cur = CL.get(kind, id).join(' ');\n    b.textContent = cur ? 'Labels: ' + cur + ' — change' : '+ Add a label'; b.setAttribute('aria-label', 'Label and legend of this chip');\n    b.style.cssText = 'margin:8px 0 0;min-height:44px !important;height:44px !important;box-sizing:border-box;padding:0 14px;border-radius:12px;border:1px dashed currentColor;background:none;color:inherit;font:inherit;font-size:13px;cursor:pointer;display:block;';\n    b.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault();\n      askForm(b, 'Label this chip', [{k: 'label', l: 'Labels (up to two, apart by a space: O ★ — blank for none)', val: CL.get(kind, id).join(' ')},\n        {k: 'legend', l: 'What each letter means (one per line: H = history)', type: 'area', val: legendText(CL.legend())}], 'Save', function(v){\n        var l = String(v.label || '').split(/\\s+/).map(function(x){ return x === '\\u2605' ? x : x.replace(/[^0-9A-Za-z]/g, '').slice(0, 2).toUpperCase(); }).filter(function(x, i, a){ return x && a.indexOf(x) === i; }).slice(0, 2).sort(function(x, y){ return (x.charCodeAt(0) === 9733 ? 0 : 1) - (y.charCodeAt(0) === 9733 ? 0 : 1); }).join(' '), L = legendParse(v.legend), ch = [];\n        if(l !== CL.get(kind, id).join(' ')) ch.push([kind + '|' + id + '|label', l]);\n        if(JSON.stringify(L) !== JSON.stringify(CL.legend())) ch.push(['cl|legend', L]);\n        if(ch.length){ changes(ch); b.textContent = l ? 'Labels: ' + l + ' — change' : '+ Add a label'; toast(l ? 'Labelled ' + l + '. ⌘Z puts it back.' : 'Label changed. ⌘Z puts it back.'); } });\n    });\n    hd.parentNode.insertBefore(b, hd.nextSibling);\n  }\n"
+_A_FIELD = "    if((kind === 'c' || kind === 'env' || kind === 'theme') && p.length === 3 && /^(name|role)$/.test(p[2])){"
+_A_CALL = "        setF(dc.querySelector('.detail-role'), kind + '|' + P.id + '|' + (kind === 'n' ? 'tag' : 'role'));\n      }"
+_A_FN = "  var decT = null;\n"
+
+
+def active(brief) -> bool:
+    return bool(table(brief)) or bool(brief.chip_legend)
+
+
+def patch_manual(js: str, brief) -> str:
+    """manual_edit's script with the label field, button and legend editor in it (only when the page has labels or a legend)."""
+    if not active(brief) or _A_FIELD not in js or _A_CALL not in js or _A_FN not in js:
+        return js
+    js = js.replace(_A_FIELD, FIELD_JS + _A_FIELD, 1)
+    js = js.replace(_A_CALL, _A_CALL[:-len("      }")] + CALL_JS + "      }", 1)
+    return js.replace(_A_FN, FN_JS + _A_FN, 1)

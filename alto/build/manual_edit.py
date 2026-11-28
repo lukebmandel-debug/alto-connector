@@ -152,6 +152,7 @@ def edit_keys(b, nodes=()) -> str:
 def manual_edit(b, nodes=()) -> str:
     from .study_edit import STUDY_EDIT_CSS, STUDY_EDIT_FIELD, STUDY_EDIT_DECORATE, STUDY_EDIT_JS
     from .photos import EDIT_FIELD, EDIT_REFRESH
+    from . import chip_labels as _chip_labels
     from .figures_edit import FIG_EDIT_FIELD, FIG_EDIT_REFRESH, FIG_EDIT_DECORATE, FIG_EDIT_JS, FIG_EDIT_CSS
     js = (MANUAL_JS.replace("/*__STUDY_FIELD__*/", STUDY_EDIT_FIELD)
           .replace("/*__PICS_FIELD__*/", EDIT_FIELD).replace("/*__PICS_REFRESH__*/", EDIT_REFRESH)
@@ -170,9 +171,9 @@ def manual_edit(b, nodes=()) -> str:
     if bass_ui.enabled():                    # Bass (bass_ui.py): its button in the Edit pill and the loader of its hosted bundle; off, the markers vanish and nothing changes
         js = js.replace("/*__BASS_FN__*/", bass_ui.PILL_FN).replace("/*__BASS_USE__*/", bass_ui.PILL_USE).replace("/*__BASS_WIRE__*/", bass_ui.PILL_WIRE)
         css = css.replace("</style>", bass_ui.PILL_CSS + "</style>")
-        return edit_keys(b, nodes) + pre + css + "\n" + js + "\n" + bass_ui.pill_script()
+        return edit_keys(b, nodes) + pre + css + "\n" + _chip_labels.patch_manual(js, b) + "\n" + bass_ui.pill_script()
     js = js.replace("/*__BASS_FN__*/", "").replace("/*__BASS_USE__*/", "").replace("/*__BASS_WIRE__*/", "")
-    return edit_keys(b, nodes) + pre + css + "\n" + js + "\n"
+    return edit_keys(b, nodes) + pre + css + "\n" + _chip_labels.patch_manual(js, b) + "\n"
 
 
 # How a linked file is shown (MANUAL_JS openFile). A Claude preview may not
@@ -1367,16 +1368,6 @@ MANUAL_JS = r"""<script id="alto-manual">
         n[p[2]] = v; var l = liveNode(id); if(l) l[p[2]] = v;
         var el = document.querySelector('#node-' + id + ' .node-' + p[2]); if(el) el.textContent = v; }};
     }
-    // a chip's label (1-2 letters, chip_labels.py) and the page's legend of what each letter means
-    if((kind === 'c' || kind === 'env' || kind === 'theme') && p.length === 3 && p[2] === 'label'){
-      var RL = reg(kind), CL = window._altoChipLbl; if(!RL || !RL[id] || !CL) return null;
-      return {kind:'plain', get:function(){ return CL.get(kind, id).join(' '); },
-        set:function(v){ CL.set(kind, id, String(v || '').split(/\s+/), txt(RL[id].name || '')); }};
-    }
-    if(kind === 'cl' && id === 'legend' && p.length === 2){
-      var CL2 = window._altoChipLbl; if(!CL2) return null;
-      return {kind:'list', get:function(){ return CL2.legend(); }, set:function(v){ CL2.setLegend(v || []); }};
-    }
     if((kind === 'c' || kind === 'env' || kind === 'theme') && p.length === 3 && /^(name|role)$/.test(p[2])){
       var R = reg(kind); if(!R || !R[id]) return null;
       return {kind:'plain', get:function(){ return txt(R[id][p[2]] || ''); }, set:function(v){ R[id][p[2]] = esc(v); }};
@@ -1923,26 +1914,6 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
 
   /* ── what is editable on screen ───────────────────────────────────────── */
-  /* a chip's page: a button for its label and the page's legend (chip_labels.py) */
-  function legendText(L){ return (L || []).map(function(r){ return r.label + ' = ' + (r.meaning || ''); }).join('\n'); }
-  function legendParse(t){ var out = [], seen = {};
-    String(t || '').split(/\n|;/).forEach(function(ln){ var m = ln.match(/^\s*([0-9A-Za-z]{1,2}|★)\s*[=:\-–]\s*(.*)$/); if(!m) return; var l = m[1].toUpperCase(); if(seen[l]) return; seen[l] = 1; out.push({label: l, meaning: m[2].trim().slice(0, 60)}); });
-    return out.slice(0, 12); }
-  function decorateLabel(dc, kind, id){
-    var CL = window._altoChipLbl, hd = dc.querySelector('.detail-header'); if(!CL || !hd || dc.querySelector('.aed-lblbtn') || !field(kind + '|' + id + '|label')) return;
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-lblbtn'; var cur = CL.get(kind, id).join(' ');
-    b.textContent = cur ? 'Labels: ' + cur + ' — change' : '+ Add a label'; b.setAttribute('aria-label', 'Label and legend of this chip');
-    b.style.cssText = 'margin:8px 0 0;min-height:44px !important;height:44px !important;box-sizing:border-box;padding:0 14px;border-radius:12px;border:1px dashed currentColor;background:none;color:inherit;font:inherit;font-size:13px;cursor:pointer;display:block;';
-    b.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault();
-      askForm(b, 'Label this chip', [{k: 'label', l: 'Labels (up to two, apart by a space: O ★ — blank for none)', val: CL.get(kind, id).join(' ')},
-        {k: 'legend', l: 'What each letter means (one per line: H = history)', type: 'area', val: legendText(CL.legend())}], 'Save', function(v){
-        var l = String(v.label || '').split(/\s+/).map(function(x){ return x === '\u2605' ? x : x.replace(/[^0-9A-Za-z]/g, '').slice(0, 2).toUpperCase(); }).filter(function(x, i, a){ return x && a.indexOf(x) === i; }).slice(0, 2).join(' '), L = legendParse(v.legend), ch = [];
-        if(l !== CL.get(kind, id).join(' ')) ch.push([kind + '|' + id + '|label', l]);
-        if(JSON.stringify(L) !== JSON.stringify(CL.legend())) ch.push(['cl|legend', L]);
-        if(ch.length){ changes(ch); b.textContent = l ? 'Labels: ' + l + ' — change' : '+ Add a label'; toast(l ? 'Labelled ' + l + '. ⌘Z puts it back.' : 'Label changed. ⌘Z puts it back.'); } });
-    });
-    hd.parentNode.insertBefore(b, hd.nextSibling);
-  }
   var decT = null;
   function decorateSoon(){ clearTimeout(decT); decT = setTimeout(decorate, 0); }
   function setF(el, k){ if(!el || !k || !field(k)) return; el.classList.add('aed-f'); el.setAttribute('data-aed', k); }
@@ -1957,7 +1928,6 @@ MANUAL_JS = r"""<script id="alto-manual">
         setF(dc.querySelector('.detail-name'), kind + '|' + P.id + '|' + (kind === 'n' ? 'title' : 'name'));
         if(kind === 'n') setF(dc.querySelector('.alto-lead'), 'n|' + P.id + '|desc');
         setF(dc.querySelector('.detail-role'), kind + '|' + P.id + '|' + (kind === 'n' ? 'tag' : 'role'));
-        if(kind !== 'n') decorateLabel(dc, kind, P.id);
       }
       var lastOwn = null;
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
