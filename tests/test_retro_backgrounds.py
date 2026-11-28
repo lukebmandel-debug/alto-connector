@@ -256,3 +256,23 @@ def test_a_page_that_chose_green_light_gets_the_first_deco_scene(browser, site):
     assert pg.evaluate("window._altoBgId") == FIRST
     assert pg.evaluate("document.documentElement.classList.contains('alto-bg-h')")
     ctx.close()
+
+
+@pytest.mark.parametrize("size", [(1440, 900), (390, 844), (844, 390)])
+def test_the_ground_fills_the_window_exactly_so_the_frame_keeps_20px(browser, site, size):
+    """A photograph's layer overhangs the window by 40 px (for its blur); a Deco ground's must not, or the gilt frame drawn 20 px in from
+    the edge lands under or past it."""
+    ctx = browser.new_context(viewport={"width": size[0], "height": size[1]})
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(500)
+    pg.evaluate("(id) => window._altoBg.choose(id)", FIRST)
+    pg.wait_for_timeout(400)
+    box = pg.evaluate("""(() => { const s = getComputedStyle(document.getElementById('page-bg'), '::before'), b = document.getElementById('page-bg').getBoundingClientRect();
+      return [s.left, s.right, s.top, s.bottom, Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)]; })()""")
+    assert box[:4] == ["0px"] * 4, box
+    assert box[4:6] == [0, 0] and box[6] == size[0] and box[7] >= size[1], box
+    ctx.close()
