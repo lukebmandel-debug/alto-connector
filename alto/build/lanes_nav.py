@@ -1381,7 +1381,7 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
   }
   function undo(){ if(!fit) return; if(fit._lnSh){ fit._lnSh.style.removeProperty('visibility'); fit._lnSh=null; }
     var w=fit.querySelector(':scope > .ln-fitw'); if(w){ while(w.firstChild) fit.insertBefore(w.firstChild, w); w.remove(); }
-    fit.style.removeProperty('translate'); fit.classList.remove('ln-fit'); fit=null; }
+    fit.style.removeProperty('translate'); fit.style.removeProperty('height'); fit.classList.remove('ln-fit'); fit=null; }
   /* held to the room, the card's text scrolls in a box inside its padding (Board 2026-11-27: the last line ran to the card's edge, and
      Holographic's frame crossed a line): the padding stays empty, the frame and the order number (laid on the card, not in its flow)
      stay where they are, and a short fade at the foot says there is more below */
@@ -1410,7 +1410,16 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
     if(fit===c) undo();
     var B=band(), room=B.b-B.t; if(room<80) return;
     fit=c; c.classList.add('ln-fit');
+    /* a card of a set height whose text runs past its foot grows to hold it first (Board 2026-11-27, p390: its description was cut off with
+       the room below unused); only what the room cannot hold scrolls inside */
+    if(c.scrollHeight>c.clientHeight+1) c.style.setProperty('height', 'auto', 'important');
     var r=c.getBoundingClientRect();
+    /* a unit's label or the line's tag beside the card bounds the room too, 20 px clear (Board 2026-11-27, Retro p390: the gold ring met
+       "I BEFORE SUIT") */
+    [].forEach.call(document.querySelectorAll('#lanes-ulabels .lu-chip, #world .lanes-tag'), function(e){
+      var q=e.getBoundingClientRect(); if(!q.height || q.right<=r.left || q.left>=r.right || getComputedStyle(e).visibility==='hidden') return;
+      if(q.top+q.height/2<r.top+r.height/2) B.t=Math.max(B.t, q.bottom+20); else B.b=Math.min(B.b, q.top-20); });
+    room=B.b-B.t; if(room<80){ undo(); return; }
     if(r.height>room+1 || c.scrollHeight>c.clientHeight+1) r=holdIn(c, room, r);      /* (taller than the room, or its text past its own foot) */
     var dy=r.top<B.t ? B.t-r.top : (r.bottom>B.b ? B.b-r.bottom : 0);
     if(Math.abs(dy)>0.5){ c.style.setProperty('translate', '0 100px'); var k=(c.getBoundingClientRect().top-r.top)/100 || 1;      // screen px a translate px moves
@@ -1419,10 +1428,10 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
        below the card as a pale box, so it goes while the card is fitted */
     if((Math.abs(dy)>0.5 || c.querySelector(':scope > .ln-fitw')) && n._fsh){ n._fsh.style.setProperty('visibility','hidden'); c._lnSh=n._fsh; }
   }
-  function soon(){ clearTimeout(T); T=setTimeout(place, 650); }      /* (once the card's zoom ramp has settled) */
+  var T2=0; function soon(){ clearTimeout(T); clearTimeout(T2); T=setTimeout(place, 650); T2=setTimeout(place, 1300); }      /* (once the card's zoom ramp has settled, and again once the camera's glide has: a pinned unit label moves with it) */
   function hook(){
     var ef=window.enterFocus; if(typeof ef==='function' && !ef._lnFit){ var nf=function(){ undo(); var r=ef.apply(this, arguments); soon(); return r; }; for(var kk in ef) nf[kk]=ef[kk]; nf._lnFit=1; window.enterFocus=nf; }
-    var xf=window.exitFocus; if(typeof xf==='function' && !xf._lnFit){ var nx=function(){ clearTimeout(T); undo(); return xf.apply(this, arguments); }; for(var kx in xf) nx[kx]=xf[kx]; nx._lnFit=1; window.exitFocus=nx; }
+    var xf=window.exitFocus; if(typeof xf==='function' && !xf._lnFit){ var nx=function(){ clearTimeout(T); clearTimeout(T2); undo(); return xf.apply(this, arguments); }; for(var kx in xf) nx[kx]=xf[kx]; nx._lnFit=1; window.exitFocus=nx; }
   }
   hook(); window.addEventListener('load', hook);      /* (the engine's focus may arrive after this script) */
   window.addEventListener('resize', function(){ if(fit || window._focusedNodeId) soon(); });

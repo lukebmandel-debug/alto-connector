@@ -520,3 +520,27 @@ def test_an_enlarged_card_on_a_landscape_phone_fits_between_the_top_chrome_and_t
         assert t.startswith("rgb("), t                                                   # the name's pill solid while the board runs under it
     assert not pg._errs, pg._errs
     ctx.close()
+
+
+def test_an_enlarged_card_on_a_portrait_phone_grows_into_the_room_and_stays_clear_of_the_unit_labels(site):
+    """Board 2026-11-27 (p390): the enlarged card kept a set height and cut its description off with the room below unused, and in Retro its ring
+    met the unit's label. It grows to hold its text (scrolling only past the room) and keeps 20 px from any unit label or line tag beside it."""
+    ctx, pg = _open(site, "tall", 390, 844, phone=True, q="?view=whole")
+    G = """() => { const c = document.querySelector('#world .node.focused .node-card'); if (!c) return null; const r = c.getBoundingClientRect(),
+        w = c.querySelector(':scope > .ln-fitw'), box = w || c,
+        chips = [...document.querySelectorAll('#lanes-ulabels .lu-chip, #world .lanes-tag')].map(e => e.getBoundingClientRect())
+          .filter(q => q.height && q.right > r.left && q.left < r.right),
+        gap = Math.min(999, ...chips.map(q => q.bottom <= r.top ? r.top - q.bottom : (q.top >= r.bottom ? q.top - r.bottom : -1)));
+      return {cut: !w && c.scrollHeight > c.clientHeight + 1, held: !!w, gap, h: r.height}; }"""
+    ids = pg.evaluate("() => Object.keys(window._ALTO_LANES.ev).filter(i => !(window._altoLanesKids && window._altoLanesKids.nest(i)))")
+    for nid in ids[:3]:
+        pg.evaluate("(id) => window.enterFocus(id)", nid)
+        pg.wait_for_timeout(1600)
+        g = pg.evaluate(G)
+        assert g and not g["cut"], (nid, g)                                               # no text clipped at the card's foot
+        assert g["gap"] >= 19, (nid, g)                                                   # clear of the unit labels beside it
+    pg.evaluate("() => window.exitFocus()")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => ![...document.querySelectorAll('#world .node-card')].some(c => c.style.height || c.style.translate)")
+    assert not pg._errs, pg._errs
+    ctx.close()
