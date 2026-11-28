@@ -139,6 +139,16 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
 }
 html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
+/* The page's name and the filter chips stand over the board: their glass let a dimmed card's words read through them while a card is enlarged
+   (Board 2026-11-27, contracts d1440: no text under text). Each one solid on its own (the chips, their group names, the x that winds them in,
+   the name's pill), never the row as one band: Classic in the page's own surface, Holographic in its own ground (holo.py's glass is !important
+   at five ids), Retro in its black. */
+html:not(.mobile):not(.alto-retro):not(.alto-holo) :is(#title-bar #title-text, #ct-chips, #nav .nav-btn, #nav .nav-group-label):not(#_):not(#__){ background:var(--surface, #fff) !important;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
+html:not(.mobile) #nav .nav-group-label:not(#_){ border-radius:999px; padding-inline:8px; }
+html.alto-holo:not(.mobile) :is(#ct-chips, #nav .nav-btn, #nav .nav-group-label):not(#_):not(#__):not(#___):not(#____):not(#_____):not(#______){ background-color:rgba(var(--ho-bgrgb),1) !important; }
+  /* (Holographic keeps its S1 glass, the lit sheen and the blur over it: only the ground under the sheen is solid) */
+html.alto-retro:not(.mobile) :is(#ct-chips, #nav .nav-btn, #nav .nav-group-label):not(#_):not(#__){ background-color:#000 !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 /* An outline with cards past the page's left or right edge (window._altoSideX = [left, right] px, set by the tree's
    layout as --xl / --xr on #world: detail_extras._altoSides; like _altoHX, absent = 0 = no change anywhere). The board
    starts that much further left, and the bands, the tubes (initLayout), the glass and the lines reach as far. */
