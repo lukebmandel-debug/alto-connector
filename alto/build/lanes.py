@@ -879,6 +879,11 @@ LANES_CSS = KEY_CSS + """
   html.alto-lanes:not(.mobile) #world .node.ln-kid:not(.focused) .node-card:not(.focused) .node-title{font-size:13px;line-height:1.2;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;}
   #lanes-svg .ln-kidline{stroke:color-mix(in srgb,var(--accent) 78%,var(--text));stroke-width:2;fill:none;stroke-opacity:.9;stroke-linecap:round;}
   #lanes-svg .ln-kiddot{fill:var(--accent);fill-opacity:.9;}
+  #lanes-svg .ln-kidline{transition:stroke-width .15s, stroke-opacity .15s;}
+  #lanes-svg .ln-kidline.ln-khot{stroke-width:4;stroke-opacity:1;}
+  #lanes-svg g.ln-xrefs g.ln-xhov .ln-xline{stroke-opacity:.95;stroke-width:2.5;stroke-dasharray:none;}
+  #lanes-svg g.ln-xrefs g.ln-xhov .ln-xdot{opacity:1;}
+  html.alto-lanes:not(.mobile) #canvas.ln-lf,html.alto-lanes:not(.mobile) #canvas.ln-lf #world,html.alto-lanes:not(.mobile) #canvas.ln-lf #lanes-svg *{cursor:pointer !important;}
   /* the hide/show-inside control hangs off the card's far edge (under it, or over it on the upper side of the line): a tab outside the
      card's text box, 20px tall, its hit area 44px (Luke, 2026-11-26: "should not be covering text in a node ... a hanging tag").
      The second tag (.ln-otag) beside it sets an opened branch out as an outline. */
@@ -1560,7 +1565,7 @@ function placeKids(){
           var nd0=NODES.filter(function(q2){ return q2.id===f.id; })[0]; if(nd0){ nd0.displayX=kx; nd0.y=kcy-P; } return; }
         var nd=NODES.filter(function(q){ return q.id===f.id; })[0]; if(nd){ nd.displayX=kx; nd.y=kcy-P; }
         if(g){ var rx=pl+12, rr=8;
-          el('path',{'class':'ln-kidline', d:'M'+rx+' '+pb+' V'+(kcy-sd*rr)+' Q'+rx+' '+kcy+' '+(rx+rr)+' '+kcy+' H'+kl}, g);
+          el('path',{'class':'ln-kidline', 'data-k':f.id, 'data-p':pid, d:'M'+rx+' '+pb+' V'+(kcy-sd*rr)+' Q'+rx+' '+kcy+' '+(rx+rr)+' '+kcy+' H'+kl}, g);
           el('circle',{'class':'ln-kiddot', cx:kl, cy:kcy, r:3}, g); }
       });
       /* an outline's connectors: a card under its parent hangs from a bus halfway down the gap (a card on the parent's own row, a flank, from its side) */
@@ -2313,6 +2318,54 @@ document.addEventListener('click', function(e){
   else if(i>=0) nx.splice(i,1); else nx.push(id);
   setPick(nx);
 }, true);
+/* ── following a connecting line (Luke 2026-11-28, Expanded with outlines open: "clicking on them does not take you over to the next
+   connection"). As in the vertical timeline: a click on a line enlarges the card at its far end, the end farther from the click, so a line
+   reads as "go there" from either side. Every line a branch draws counts: an event to its branch cards, a branch card to the cards under it
+   (list or outline), and the cross-references. The target is 44 px across (22 either side of the line) and is only ever the empty board: a
+   click that lands on a card, a tab or a button is that thing's, untouched. Where two lines are in reach the nearer one is meant; on a trunk
+   brothers share, the one whose card is next along it; where a cross-reference lies along a branch's line, the branch's line. The line
+   in reach is drawn full and the pointer shows a hand. Phones (no branches there) and Compact are as they were. ── */
+var _lf={hot:null, down:null, raf:0, ev:null};
+function lfOn(){ var cv=document.getElementById('canvas'); return !!KG && EXPD && kidsOn() && !!cv && !de.classList.contains('alto-editing') && !de.classList.contains('printing') && !de.classList.contains('detail-open') && !cv.classList.contains('focus-mode') && !cv.classList.contains('ln-ov'); }
+function lfBg(t){ return !!(t && t.closest && t.closest('#canvas') && !t.closest('.node,button,a,input,select,textarea,[role="button"],[onclick],.lanes-tag,.ln-chip,.ln-otag,#lanes-key')); }
+function lfPts(p){ if(p._lf) return p._lf; var Ln=0; try{ Ln=p.getTotalLength(); }catch(er){} var n=Math.max(1, Math.ceil(Ln/4)), a=[], b=[1e9, 1e9, -1e9, -1e9];
+  for(var k=0;k<=n;k++){ var q=p.getPointAtLength(Ln*k/n); a.push(q.x, q.y); if(q.x<b[0]) b[0]=q.x; if(q.y<b[1]) b[1]=q.y; if(q.x>b[2]) b[2]=q.x; if(q.y>b[3]) b[3]=q.y; } return (p._lf={a:a, b:b}); }
+/* the line in reach of a pointer: [its path, the two cards it joins] */
+function lfNear(x, y, tight){
+  var svg=document.getElementById('lanes-svg'), M=svg && svg.getScreenCTM(); if(!M) return null;
+  var pt=svg.createSVGPoint(); pt.x=x; pt.y=y; var q=pt.matrixTransform(M.inverse()), R=(tight ? 8 : 22)/(Math.hypot(M.a, M.b)||1), best=null, bd=R, be=0;
+  /* the nearest line (to its run, not to a sample of it). Brothers share a trunk: on it, the one whose card is next along it from here */
+  [].forEach.call(svg.querySelectorAll('.ln-kids path.ln-kidline[data-k],g.ln-xrefs g.ln-xref .ln-xline'), function(p){
+    var g=lfPts(p), b=g.b, a=g.a, m=1e9; if(q.x<b[0]-R || q.x>b[2]+R || q.y<b[1]-R || q.y>b[3]+R) return;
+    for(var i=0;i+3<a.length;i+=2){ var ux=a[i+2]-a[i], uy=a[i+3]-a[i+1], l2=ux*ux+uy*uy, t=l2 ? Math.max(0, Math.min(1, ((q.x-a[i])*ux+(q.y-a[i+1])*uy)/l2)) : 0,
+        dx=a[i]+t*ux-q.x, dy=a[i+1]+t*uy-q.y, dd=dx*dx+dy*dy; if(dd<m) m=dd; }
+    m=Math.sqrt(m); if(m>R) return; var n=a.length, e=p.hasAttribute('data-k') ? Math.hypot(a[n-2]-q.x, a[n-1]-q.y) : 1e6+m;      /* (a cross-reference laid along a branch's line: the branch's line) */
+    if(!best || m<bd-1.5 || (m<bd+1.5 && e<be)){ best=p; bd=Math.min(bd, m); be=e; } });
+  if(!best) return null; var w=best.parentNode;
+  return best.hasAttribute('data-k') ? [best, best.getAttribute('data-p'), best.getAttribute('data-k')] : [best, w.getAttribute('data-a'), w.getAttribute('data-b')];
+}
+function lfHot(n){ var p=n ? n[0] : null; if(p===_lf.hot) return;
+  var off=function(o){ if(!o) return; o.classList.remove('ln-khot'); if(o.parentNode && o.parentNode.classList) o.parentNode.classList.remove('ln-xhov'); };
+  off(_lf.hot); _lf.hot=p; var cv=document.getElementById('canvas'); if(cv) cv.classList.toggle('ln-lf', !!p);
+  if(p){ if(p.hasAttribute('data-k')) p.classList.add('ln-khot'); else p.parentNode.classList.add('ln-xhov'); } }
+function lfAt(e){ return (lfOn() && lfBg(e.target)) ? lfNear(e.clientX, e.clientY, !!(e.target.classList && e.target.classList.contains('ln-hit'))) : null; }   /* (on a character's line only a connector right under the pointer) */
+document.addEventListener('pointermove', function(e){ if(e.pointerType==='touch' || (!KG && !_lf.hot)) return; _lf.ev=e;
+  if(!_lf.raf) _lf.raf=requestAnimationFrame(function(){ _lf.raf=0; var ev=_lf.ev; _lf.ev=null; if(ev) lfHot(ev.buttons ? null : lfAt(ev)); }); }, {passive:true});
+document.addEventListener('mousedown', function(e){ _lf.down=[e.clientX, e.clientY]; }, true);
+document.addEventListener('click', function(e){
+  if(e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || typeof window.enterFocus!=='function') return;
+  if(_lf.down && Math.abs(e.clientX-_lf.down[0])+Math.abs(e.clientY-_lf.down[1])>6) return;          // a drag, not a click
+  if(document.querySelector('#notes-panel.open,#summary-wrap.open,#ef-panel.open,#bg-panel.open,#note-dialog.visible,#share-dialog.visible')) return;
+  var n=lfAt(e); if(!n) return;
+  var far='', fd=-1; [n[1], n[2]].forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card'); if(!c) return;
+    var r=c.getBoundingClientRect(), dx=r.left+r.width/2-e.clientX, dy=r.top+r.height/2-e.clientY, dd=dx*dx+dy*dy; if(dd>fd){ fd=dd; far=id; } });
+  if(!far) return;
+  e.preventDefault(); e.stopImmediatePropagation(); lfHot(null);
+  lfGo(far);
+}, true);
+/* over to a card: the engine's own enlarge, which flies the board to it (a branch card keeps the branch's cursor, as an arrow into it does) */
+function lfGo(id){ if(nestOf(id)) goKid(id, true); else { clearKC(); window.enterFocus(id); } }
+window._altoLanesLineAt=function(x, y){ var n=lfOn() ? lfNear(x, y) : null; return n ? [n[1], n[2]] : null; };
 /* Esc shows every line again — not while it is closing the key, an enlarged card or the whole timeline */
 var _escBusy=false;
 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var k=document.getElementById('lanes-key'), c=document.getElementById('canvas');
