@@ -814,4 +814,53 @@ def test_no_branch_connector_runs_through_a_card_in_any_view(browser, tmp_path):
     pg.wait_for_timeout(1400)
     o = pg.evaluate(_THROUGH)
     assert o["lines"] == kids and o["through"] == 0 and o["off"] == 0, ("outline", kids, o)
+
+
+def _xref_brief():
+    """Civ-pro-like: every event holds a branch two levels deep, with cross-references between nested cards of different events."""
+    d = _civ()
+    ids = [n["id"] for n in d["nodes"] if n.get("nest") and "-s" in n["id"] and n["id"].count("-s") == 1 and n["id"][-2:] in ("-0", "-1")]
+    d["connections"] = [[ids[i], ids[i + 3], "xref", f"Note {i}"] for i in range(0, min(len(ids) - 3, 24), 2)]
+    rel = d["brief"].setdefault("relations", [])
+    if not any(r.get("key") == "xref" for r in rel):
+        rel.append({"key": "xref", "label": "Connects"})
+    return d
+
+
+_XR = """() => { const svg = document.getElementById('lanes-svg'), gs = [...svg.querySelectorAll('g.ln-xrefs g.ln-xref')];
+  const vis = n => { if (!n || n.classList.contains('ln-kid-shut')) return null; const c = n.querySelector('.node-card'), r = c && c.getBoundingClientRect(); return r && r.width > 2 ? r : null; };
+  const cards = [...document.querySelectorAll('#world .node[id^="node-"]')].map(n => [n.id.slice(5), vis(n)]).filter(x => x[1]);
+  const owed = (CONNECTIONS || []).filter(c => c[2] !== 'spine' && cards.some(x => x[0] === c[0]) && cards.some(x => x[0] === c[1])).length;
+  const pt = (p, L) => { const m = p.getScreenCTM(), q = p.getPointAtLength(L); return {x: m.a*q.x + m.c*q.y + m.e, y: m.b*q.x + m.d*q.y + m.f}; };
+  const ed = (q, r) => Math.hypot(Math.max(r.left - q.x, 0, q.x - r.right), Math.max(r.top - q.y, 0, q.y - r.bottom));
+  let off = 0, through = 0, loud = 0;
+  gs.forEach(g => { const p = g.querySelector('.ln-xline'), L = p.getTotalLength(), a = g.getAttribute('data-a'), b = g.getAttribute('data-b');
+    const ra = cards.find(x => x[0] === a)[1], rb = cards.find(x => x[0] === b)[1], s0 = pt(p, 0), s1 = pt(p, L);
+    if (Math.min(ed(s0, ra), ed(s0, rb)) > 2 || Math.min(ed(s1, ra), ed(s1, rb)) > 2) off++;
+    for (let k = 1; k < 40; k++) { const q = pt(p, L * k / 40); if (cards.some(([id, r]) => q.x > r.left + 2 && q.x < r.right - 2 && q.y > r.top + 2 && q.y < r.bottom - 2)) { through++; break; } }
+    if (+getComputedStyle(p).strokeOpacity > 0.4) loud++; });
+  return {owed, drawn: gs.length, off, through, loud}; }"""
+
+
+def test_cross_references_join_their_cards_in_the_open_views_quietly_and_light_with_their_card(browser, tmp_path):
+    """Luke 2026-11-27: "please make sure the connecting lines are functional as usual in horizontal timeline with nested branches expanded and
+    in outline format". In Expanded and Outline all every cross-reference whose two cards show is drawn edge to edge, never through a card,
+    quiet at rest and full while one of its cards is hovered; Compact draws none (its ends are tucked)."""
+    pg, errs = _open(browser, _xref_brief(), tmp_path)
+    assert pg.evaluate(_XR)["drawn"] == 0                                                 # Compact: as it was
+    pg.evaluate("() => { const K = window._altoLanesKids; K.view('expanded'); Object.keys(window._altoLanesGeo.fams || {}).forEach(r => K.open(r, true)); }")
+    pg.wait_for_timeout(1500)
+    for state in ("expanded", "outline"):
+        if state == "outline":
+            pg.evaluate("() => window._altoLanesKids.outlineAll(true)")
+            pg.wait_for_timeout(1500)
+        x = pg.evaluate(_XR)
+        assert x["owed"] >= 6 and x["drawn"] == x["owed"] and x["off"] == 0 and x["through"] == 0 and x["loud"] == 0, (state, x)
+    a = pg.evaluate("() => document.querySelector('#lanes-svg g.ln-xref').getAttribute('data-a')")
+    pg.hover(f"#node-{a} .node-card")
+    pg.wait_for_timeout(400)
+    lit = pg.evaluate("(a) => [...document.querySelectorAll('#lanes-svg g.ln-xref.ln-xon')].map(g => [g.getAttribute('data-a'), g.getAttribute('data-b')])", a)
+    assert lit and all(a in p for p in lit), lit                                          # its card's lines, and only those, drawn full
+    assert pg.evaluate("() => +getComputedStyle(document.querySelector('#lanes-svg g.ln-xref.ln-xon .ln-xline')).strokeOpacity") > 0.8
+    assert pg.evaluate("() => !!document.querySelector('#lanes-svg g.ln-xref title')")    # the other end and the note as its tooltip
     assert not errs
