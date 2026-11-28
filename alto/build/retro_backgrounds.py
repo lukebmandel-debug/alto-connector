@@ -1,19 +1,24 @@
 """Backgrounds made for the Retro style (retro.py): its own set, offered only while a page is in Retro, never on a System.
 
-Luke, 2026-11-20: "i want you to add a great gatsby themed background option for retro, think the green lighthouse scene and the
-abstract art style of the time, maybe bauhaus" / "not for system retro though". "Green Light" is original art drawn here as flat SVG,
-nothing traced from the 1925 jacket, a film or any existing artwork: a small green light at the end of a dock across a dark bay, an Art
-Deco sunburst fanning from it, a stepped skyline on the far shore and concentric arches, in Retro's black and gold with the green
-light as the only bright accent. (The 2026-11-26 art round picked mock A, Deco-forward: ORG/notes-art/gatsby-1126.)
+Luke, 2026-11-20, asked for "a great gatsby themed background option for retro" ("not for system retro though"); the first one, "Green Light",
+was replaced on 2026-11-27: "i hate the green lighthouse background, i want something that really feels art deco and not done at an
+elementary school level". Of three directions drawn as mocks (ORG/notes-art/deco-1127) he picked two: "i like a and c for art deco
+background, go with both". Each is original geometry drawn here as flat vector SVG, nothing traced from a jacket, a film or any existing
+artwork, in Retro's black and gold:
+  Setback  black lacquer and gold leaf: one symmetrical stepped tower on the axis, fluted, a fine-ruled sunburst behind it, low mirrored
+           setbacks at the sides, and a double gilt rule round the window with stepped corners and a quarter fan in each.
 
-How it rides, like holo_backgrounds.py: the hosted Retro script (retro.py) adds the entry to the picker's catalog while Retro is on
-(kind 'h', group 'Retro': drawn as a CSS ground, painted through Retro's own background layer) and takes it away when Retro goes off
-or on a System; the page never carries it. Retro is always dark, so the light and the dark entry are the same picture. Two framings,
-one for a landscape window and one for a portrait one, are chosen by the hosted sheet's custom property `--rt-gl`.
+How it rides, like holo_backgrounds.py: the hosted Retro script (retro.py) adds the entries to the picker's catalog while Retro is on
+(kind 'h', group 'Retro': drawn as a CSS ground, painted through Retro's own background layer) and takes them away when Retro goes off
+or on a System; the page never carries them. Retro is always dark, so the light and the dark entry are the same picture. Three framings
+of each, for a landscape window, a portrait one and a short wide one (a phone on its side), are chosen by a custom property of the hosted sheet (SCENES[..]['var']).
+A page that had Green Light chosen gets the first of these instead (retro.py, bgs()).
 
 Readability: the cards, chips and bars are opaque or black plates in Retro, so text sits on the scene only in a few free labels and
-rules; every shape stays under a luminance that keeps Retro's gold (#d9ae55) and cream (#efe6cf) text at WCAG AA (4.5:1), and a flat veil
-damps the rays across the middle of the board where cards and text pass. tests/test_retro_backgrounds.py holds this.
+rules. Inside the content band every stroke stays under a luminance that keeps Retro's gold (#d9ae55) and cream (#efe6cf) text at WCAG AA
+(4.5:1): the rays and flutes are drawn in the dimmest gold, damped where cards and text pass, and the bright gilding (EDGE) lives only in
+the frame, 20 px in from the window's edge, and the margins outside the band (on a phone, where the band runs to the edge, the frame is
+drawn in the dim gold too). Grounds are gradients, never a flat colour band. tests/test_retro_backgrounds.py holds this.
 """
 from __future__ import annotations
 
@@ -21,83 +26,150 @@ import math
 from urllib.parse import quote
 
 GROUP = "Retro"
-BG_ID = "r-green-light"
-BASE = ("#06070a", "#0a0e12", "#08141a")            # sky top, horizon haze, water
-GOLD_D, GOLD_M = "#241f11", "#332b15"              # rays, thin strokes: dim gold
-HALO = ("#0b3322", "#0c4328")                       # the dark halo round the light
-CORE = "#3dff8a"                                    # the green light: the one bright thing, kept off the card band
+FRAME_M = 20                                         # the frame keeps 20 px off the window's edge
 
 
-def _rays(cx, cy, r, n, a0, a1, fill, op):
+def _f(v):
+    return f"{v:.1f}".rstrip("0").rstrip(".")
+
+
+def _svg(W, H, body, c0, c1):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMax slice">'
+            f'<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{c0}"/><stop offset="1" stop-color="{c1}"/>'
+            f'</linearGradient></defs><rect width="{W}" height="{H}" fill="url(#g)"/>' + "".join(body) + "</svg>")
+
+
+def _frame(W, H, m, col, gap=5, w=1.1, step=14):
+    """a thin double rule round the window with stepped (setback) corners"""
+    out = []
+    for k in (0, gap):
+        a, s = m + k, step - k * .5
+        d = (f"M{_f(a + s)} {_f(a)}H{_f(W - a - s)}V{_f(a + s / 2)}H{_f(W - a - s / 2)}V{_f(a + s)}H{_f(W - a)}"
+             f"V{_f(H - a - s)}H{_f(W - a - s / 2)}V{_f(H - a - s / 2)}H{_f(W - a - s)}V{_f(H - a)}"
+             f"H{_f(a + s)}V{_f(H - a - s / 2)}H{_f(a + s / 2)}V{_f(H - a - s)}H{_f(a)}"
+             f"V{_f(a + s)}H{_f(a + s / 2)}V{_f(a + s / 2)}H{_f(a + s)}Z")
+        out.append(f'<path d="{d}" fill="none" stroke="{col}" stroke-width="{w}"/>')
+    return out
+
+
+def _fan(cx, cy, r, n, a0, a1, col, w=1, rings=()):
+    """a fan: n fine rays between angles a0..a1 (degrees, 0 = right, counter-clockwise, screen y down), with concentric arcs"""
     d = []
-    for i in range(0, n, 2):
-        t0 = math.radians(a0 + (a1 - a0) * i / n)
-        t1 = math.radians(a0 + (a1 - a0) * (i + 1) / n)
-        d.append(f"M{cx} {cy}L{cx + r * math.cos(t0):.0f} {cy - r * math.sin(t0):.0f}L{cx + r * math.cos(t1):.0f} {cy - r * math.sin(t1):.0f}Z")
-    return f'<path d="{"".join(d)}" fill="{fill}" opacity="{op}"/>'
+    for i in range(n + 1 if n else 0):
+        t = math.radians(a0 + (a1 - a0) * i / n)
+        d.append(f"M{_f(cx)} {_f(cy)}L{_f(cx + r * math.cos(t))} {_f(cy - r * math.sin(t))}")
+    for k in rings:
+        rr = r * k
+        t0, t1 = math.radians(a0), math.radians(a1)
+        d.append(f"M{_f(cx + rr * math.cos(t0))} {_f(cy - rr * math.sin(t0))}A{_f(rr)} {_f(rr)} 0 {1 if a1 - a0 > 180 else 0} 0 "
+                 f"{_f(cx + rr * math.cos(t1))} {_f(cy - rr * math.sin(t1))}")
+    return f'<path d="{"".join(d)}" fill="none" stroke="{col}" stroke-width="{w}"/>'
 
 
-def _skyline(base, steps, w, fill):
-    d = f"M0 {base}"
-    for h in steps:
-        d += f"V{base - h}h{w}"
-    return f'<path d="{d}V{base}Z" fill="{fill}"/>'
+def _rays(cx, cy, r0, r1, n, a0, a1, col, w=1, alt=None):
+    d = []
+    for i in range(n + 1):
+        t = math.radians(a0 + (a1 - a0) * i / n)
+        r = r1 if (alt is None or i % 2 == 0) else r1 * alt
+        d.append(f"M{_f(cx + r0 * math.cos(t))} {_f(cy - r0 * math.sin(t))}L{_f(cx + r * math.cos(t))} {_f(cy - r * math.sin(t))}")
+    return f'<path d="{"".join(d)}" fill="none" stroke="{col}" stroke-width="{w}"/>'
 
 
-def _scene(W, H, land):
-    s = 1 if land else .62
-    hy = round(H * (.62 if land else .80))
-    lx = round(W * .93) if land else 300                 # phone: nudged inward, well clear of the card edge (Board, 2026-11-26)
-    ly = hy - round(16 * s)
-    b = [f'<rect width="{W}" height="{H}" fill="{BASE[0]}"/><rect y="{hy - round(H * .3)}" width="{W}" height="{round(H * .3)}" fill="{BASE[1]}"/>',
-         _rays(lx, hy, W * 1.1, 24, 6, 174, GOLD_D, .9)]
-    for r in (260, 190, 120):
-        r = r * s
-        b.append(f'<path d="M{lx - r:.0f} {hy}A{r:.0f} {r:.0f} 0 0 1 {lx + r:.0f} {hy}" fill="none" stroke="{GOLD_M}" stroke-width="2"/>')
-    sw = round(34 * s)
-    b.append(_skyline(hy, [60, 110, 80, 150, 120, 200, 140, 90, 60], sw, "#0d1015"))
-    b.append(_skyline(hy, [30, 40, 30, 60, 40, 70, 50, 30, 20], sw + 10, "#10141a"))
-    # the veil: where cards and text cross the middle of the board the rays and arches are damped (a flat horizontal fade,
-    # darkest across the card band, open at the far right where the light sits)
-    b.append(f'<defs><linearGradient id="v" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="{BASE[0]}" stop-opacity=".55"/>'
-             f'<stop offset=".72" stop-color="{BASE[0]}" stop-opacity=".55"/><stop offset="1" stop-color="{BASE[0]}" stop-opacity="0"/></linearGradient></defs>'
-             f'<rect width="{W}" height="{hy}" fill="url(#v)"/>')
-    b.append(f'<rect y="{hy}" width="{W}" height="{H - hy}" fill="{BASE[2]}"/>')
-    b.extend(f'<rect y="{hy + round(30 * s) + i * round(38 * s)}" width="{W}" height="1" fill="{GOLD_D}"/>' for i in range(12))
-    b.extend(f'<rect x="{lx - round((30 - i * 3) * s)}" y="{hy + round(14 * s) + i * round(14 * s)}" width="{round((60 - i * 6) * s)}" height="{round(3 * s) or 2}" fill="{HALO[1]}" opacity="{.7 - i * .09:.2f}"/>' for i in range(6))
-    px = lx - round(150 * s)
-    b.append(f'<rect x="{px}" y="{hy + round(2 * s)}" width="{W - px}" height="{round(5 * s)}" fill="{GOLD_M}"/>'
-             f'<rect x="{px - round(3 * s)}" y="{hy + round(2 * s) - round(22 * s)}" width="{round(6 * s)}" height="{round(22 * s)}" fill="{GOLD_M}"/>')
-    halo = ((46, HALO[0]), (30, HALO[1])) if land else ((34, HALO[0]), (20, HALO[1]))
-    b.extend(f'<circle cx="{lx}" cy="{ly}" r="{k * (s if land else 1)}" fill="{c}"/>' for k, c in halo)
-    b.append(f'<circle cx="{lx}" cy="{ly}" r="{8 if land else 7}" fill="{CORE}"/>')
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMax slice">' + "".join(b) + "</svg>")
+def _ziggurat(cx, base, tiers, fill, col, w=1.2):
+    """a symmetrical setback silhouette: tiers [(half width, height)] bottom up; returns the outline and its top y"""
+    pts, y = [], base
+    for hw, h in tiers:
+        pts.append((cx - hw, y)); y -= h; pts.append((cx - hw, y))
+    poly = pts + [(2 * cx - x, yy) for x, yy in reversed(pts)]
+    return (f'<path d="M{"L".join(f"{_f(x)} {_f(yy)}" for x, yy in poly)}Z" fill="{fill}" stroke="{col}" stroke-width="{w}" '
+            f'stroke-linejoin="miter"/>'), y
 
 
-def svg_landscape() -> str:
-    return _scene(1440, 900, True)
+def _gilding(W, H, gilt, edge, dim):
+    """the frame 20 px in, a quarter fan in each corner; on a phone (the content band runs to the window's edge) it is dim gold,
+    the top corners of an upright phone (above the band) excepted"""
+    q = 56 if gilt else 30
+    out = _frame(W, H, FRAME_M, edge if gilt else dim, 5, 1.1, 18 if gilt else 12)
+    for (x, y, a0) in ((FRAME_M, FRAME_M, 270), (W - FRAME_M, FRAME_M, 180), (FRAME_M, H - FRAME_M, 0), (W - FRAME_M, H - FRAME_M, 90)):
+        out.append(_fan(x, y, q, 6, a0, a0 + 90, edge if (gilt or (y < H / 2 and H > W)) else dim, .9, rings=(1, .7, .4)))
+    return out
 
 
-def svg_portrait() -> str:
-    return _scene(390, 844, False)
+# ── Setback ────────────────────────────────────────────────────────────
+A_IN, A_IN2, A_EDGE, A_FILL = "#4a3a1b", "#2c2312", "#a8843a", "#0c0b09"   # dim gold (strokes), dimmer gold (hair rays, flutes), gilt, lacquer
 
 
-def _url(svg: str) -> str:
-    return 'url("data:image/svg+xml,' + quote(svg.replace('"', "'"), safe=" '=/:;,.-()!") + '")'
+def setback(W, H, s, gilt):
+    cx, base = W / 2, H - (54 if gilt else 40) * s
+    b = []
+    top = base - 330 * s
+    # the sunburst: 96 hair rays from below the tower's crown, long and short alternately, two pairs of thin arcs crossing them
+    b.append(_rays(cx, top + 40 * s, 60 * s, max(W, H) * 1.2, 96, 0, 180, A_IN2, .9, alt=.62))
+    b.append(_fan(cx, top + 40 * s, 240 * s, 0, 0, 180, A_IN, 1, rings=(1, 1.04, 1.9, 1.94)))
+    # the tower: five setbacks, fluted
+    tiers = [(hw * s, h * s) for hw, h in ((250, 70), (190, 80), (138, 80), (92, 60), (54, 40))]
+    p, ytop = _ziggurat(cx, base, tiers, A_FILL, A_IN, 1.2)
+    b.append(p)
+    fl, y = [], base
+    for hw, h in tiers:
+        for k in range(-int(hw // (14 * s)) + 1, int(hw // (14 * s))):
+            fl.append(f"M{_f(cx + k * 14 * s)} {_f(y - 6 * s)}V{_f(y - h + 6 * s)}")
+        y -= h
+    b.append(f'<path d="{"".join(fl)}" stroke="{A_IN2}" stroke-width=".8"/>')
+    b.append(_fan(cx, ytop, 34 * s, 8, 0, 180, A_IN, 1, rings=(1, .6)))                                   # its crown
+    b.append(f'<path d="M{_f(cx)} {_f(ytop - 34 * s)}V{_f(ytop - 120 * s)}" stroke="{A_IN}" stroke-width="1.2"/>')   # the mast
+    # the base rule and the flanking setbacks, mirrored, low
+    b.append(f'<path d="M0 {_f(base)}H{W}M0 {_f(base + 6 * s)}H{W}" stroke="{A_IN}" stroke-width="1"/>')
+    for side in (-1, 1):
+        x0 = cx + side * (W * .5 - FRAME_M)
+        pts = ((0, 0), (0, 120), (60, 120), (60, 170), (110, 170), (110, 120), (170, 120), (170, 60), (230, 60), (230, 0))
+        b.append(f'<path d="M{"L".join(f"{_f(x0 - side * px * s)} {_f(base - py * s)}" for px, py in pts)}Z" fill="{A_FILL}" '
+                 f'stroke="{A_IN}" stroke-width="1"/>')
+    b += _gilding(W, H, gilt, A_EDGE, A_IN)
+    return _svg(W, H, b, "#060607", "#0d0c0a")
+
+
+# id: picker name, the sheet's custom property, the drawing, its ground (top, bottom)
+SCENES = {
+    "r-deco-setback": {"n": "Setback", "var": "--rt-ds", "fn": setback, "c": ("#060607", "#0d0c0a")},
+}
+OLD_IDS = ("r-green-light",)                         # retired grounds: a page that chose one gets the first scene
+
+
+# the framings: (window, scale, gilt). A desk window; an upright phone; a phone on its side (short and wide: drawn at its own size so the
+# frame keeps its 20 px and its top rule, which the desk framing scaled down to cover it would crop away)
+FRAMINGS = {"land": ((1440, 900), 1, True), "port": ((390, 844), .62, False), "short": ((844, 390), .42, False)}
+
+
+def svg(bg_id: str, framing) -> str:
+    """one scene in one framing ('land', 'port', 'short'; True/False stand for land/port)"""
+    framing = {True: "land", False: "port"}.get(framing, framing)
+    (W, H), s, gilt = FRAMINGS[framing]
+    return SCENES[bg_id]["fn"](W, H, s, gilt)
+
+
+def _url(s: str) -> str:
+    return 'url("data:image/svg+xml,' + quote(s.replace('"', "'"), safe=" '=/:;,.-()!") + '")'
 
 
 def css_vars() -> str:
-    """The two framings as a custom property of the Retro sheet: the portrait one in a portrait window, the landscape one otherwise."""
-    return (f"html.alto-retro{{--rt-gl:{_url(svg_landscape())};}}"
-            f"@media (max-aspect-ratio:1/1){{html.alto-retro{{--rt-gl:{_url(svg_portrait())};}}}}")
+    """Each scene's framings as a custom property of the Retro sheet: the portrait one in a portrait window, the short one in a wide window
+    under 500 px tall (a phone on its side), the landscape one otherwise."""
+    def at(fr):
+        return "".join(f"{v['var']}:{_url(svg(k, fr))};" for k, v in SCENES.items())
+    return (f"html.alto-retro{{{at('land')}}}@media (max-aspect-ratio:1/1){{html.alto-retro{{{at('port')}}}}}"
+            f"@media (min-aspect-ratio:1/1) and (max-height:500px){{html.alto-retro{{{at('short')}}}}}")
 
 
-def _entry() -> dict:
-    ground = f"var(--rt-gl) center bottom / cover no-repeat, linear-gradient(180deg,{BASE[0]},{BASE[1]} 62%,{BASE[2]})"
-    return {"b": ground, "a": BASE[0], "s": BASE[0], "q": BASE[1]}
+def _entry(v: dict) -> dict:
+    c0, c1 = v["c"]
+    return {"b": f"var({v['var']}) center bottom / cover no-repeat, linear-gradient(180deg,{c0},{c1})", "a": c0, "s": c0, "q": c1}
 
 
 def client_entries() -> dict:
     """Catalog entries the Retro script adds while the style is on: {id: {g, k 'h', n, l, d}} (Retro is always dark: l == d)."""
-    e = _entry()
-    return {BG_ID: {"g": GROUP, "k": "h", "n": "Green Light", "l": e, "d": dict(e)}}
+    out = {}
+    for k, v in SCENES.items():
+        e = _entry(v)
+        out[k] = {"g": GROUP, "k": "h", "n": v["n"], "l": e, "d": dict(e)}
+    return out
