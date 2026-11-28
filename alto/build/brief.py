@@ -145,7 +145,8 @@ class Entity:
     sections: list[Section] = field(default_factory=list)   # entity detail page
     aliases: list[str] = field(default_factory=list)   # other names prose uses
     sources: list[str] = field(default_factory=list)   # Brief.source_docs ids
-    label: str = ""            # a 1-2 letter badge on the chip ("H"); meaning in Brief.chip_legend
+    label: str = ""            # shorthand for one tag; folded into `labels` at build
+    labels: list[str] = field(default_factory=list)   # up to 2 badges on the chip ("O", "★"); meanings in Brief.chip_legend
 
 
 @dataclass
@@ -153,7 +154,8 @@ class AxisValue:
     id: str
     name: str
     symbol_svg: str = ""
-    label: str = ""            # a 1-2 letter badge on the chip ("H"); meaning in Brief.chip_legend
+    label: str = ""            # shorthand for one tag; folded into `labels` at build
+    labels: list[str] = field(default_factory=list)   # up to 2 badges on the chip ("O", "★"); meanings in Brief.chip_legend
     color: str = ""
     role: str = ""
     sections: list[Section] = field(default_factory=list)
@@ -784,19 +786,37 @@ def _check_persona(p, warnings) -> None:
                         "material and never adds outside facts")
 
 
+STAR = "\u2605"
+
+
 def clean_label(x) -> str:
-    """A chip label: one or two letters or digits, upper-cased ("" when none)."""
-    return re.sub(r"[^0-9A-Za-z]", "", str(x or ""))[:2].upper()
+    """A chip tag: one or two letters or digits, upper-cased, or the critical-case star ("" when none)."""
+    x = str(x or "").strip()
+    if x == STAR:
+        return STAR
+    return re.sub(r"[^0-9A-Za-z]", "", x)[:2].upper()
+
+
+def tags_of(label, labels) -> list[str]:
+    """The tags a chip wears: `label` (shorthand) then `labels`, cleaned, no repeats, at most two."""
+    out: list[str] = []
+    for x in [label] + list(labels or []):
+        c = clean_label(x)
+        if c and c not in out:
+            out.append(c)
+    return out[:2]
 
 
 def _check_chip_labels(b) -> None:
+    def one(owner, o):
+        raw = ([o.label] if o.label else []) + list(o.labels or [])
+        if len(raw) > 2 or any(clean_label(x) != x or not x for x in raw):
+            raise BriefError(f"{owner} labels {raw!r}: at most two tags, each one or two letters or digits (or {STAR})")
     for e in b.entities:
-        if e.label and clean_label(e.label) != e.label:
-            raise BriefError(f"entity {e.id} label {e.label!r}: one or two letters or digits")
+        one(f"entity {e.id}", e)
     for ax in b.axes:
         for v in ax.values:
-            if v.label and clean_label(v.label) != v.label:
-                raise BriefError(f"axis value {v.id} label {v.label!r}: one or two letters or digits")
+            one(f"axis value {v.id}", v)
     if not isinstance(b.chip_legend, list) or len(b.chip_legend) > 12:
         raise BriefError("chip_legend: a list of at most 12 {label, meaning}")
     seen = set()

@@ -39,7 +39,7 @@ NEW_UNIT = re.compile(r"^unit-[a-z0-9]{4,12}$")
 CHIP_ATTR = {"chars": "entity_ids", "envs": "axis1_values", "themes": "axis2_values"}
 NEW_TREE = re.compile(r"^(n|c|a0|a1)-(.+)-(new-[a-z0-9]+)$")
 FILE_ID = re.compile(r"^file-[a-z0-9]{6,12}$")
-from .build.brief import clean_label  # noqa: E402
+from .build.brief import clean_label, tags_of  # noqa: E402
 from .drive_common import GD_KEY, _ID as DRIVE_ID, clean_name as _drive_name  # noqa: E402  (neutral: no alto.bass)
 PROV_KEYS = ("quoted", "notes", "summary")
 # A solar outline (layout 'solar') is drawn sun > planets > moons > satellites:
@@ -601,6 +601,11 @@ def _tree_from_list(v, old):
 
 
 # ── fold ────────────────────────────────────────────────────────────────────
+
+def _tag_str(holder) -> str:
+    """A chip's tags as the page writes them in one field: "O ★"."""
+    return " ".join(tags_of(holder.get("label"), holder.get("labels")))
+
 
 def _legend_list(v) -> list:
     """A chip legend as the page keeps it: [{label, meaning}]."""
@@ -1214,14 +1219,18 @@ def fold(store, uid, tid) -> "dict | None":
         holder, f, kind = t
         v, b = o.get("v"), o.get("b")
         if kind in ("plain", "para"):
-            cur = plain_text(holder.get(f) or "")
+            cur = _tag_str(holder) if f == "label" and k.split("|")[0] in ("c", "env", "theme") else plain_text(holder.get(f) or "")
             if cur == (v or ""):
                 already.append(k)
                 continue
             if cur != (b or ""):
                 conflicts.append(k)
                 continue
-            holder[f] = clean_label(v) if f == "label" else v or ""
+            if f == "label" and k.split("|")[0] in ("c", "env", "theme"):                 # the page's "O ★" is the chip's tags
+                holder["labels"] = tags_of("", str(v or "").split())
+                holder.pop("label", None)
+            else:
+                holder[f] = v or ""
         elif kind == "legend":
             cur = _legend_list(holder.get(f))
             if cur == _legend_list(v):
@@ -2033,7 +2042,7 @@ def published(store, uid, tid) -> int:
         if len(p) > 2 and p[2] == "s":
             pass                 # by its ORIGINAL place: a reorder moves it, so trust the fold
         elif t is not None and t[2] in ("plain", "para"):
-            carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
+            carried = (_tag_str(t[0]) if t[1] == "label" and p[0] in ("c", "env", "theme") else plain_text(t[0].get(t[1]) or "")) == (o.get("v") or "")
         elif t is not None and t[2] in ("shift", "slide"):
             carried = _same((t[0].get(t[1]) or {}).get(t[2]), o.get("v"))
         elif t is not None and t[2] in ("lot", "fno", "out", "shape"):

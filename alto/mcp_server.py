@@ -1437,11 +1437,22 @@ def _resolve_local(sources: list) -> "tuple[list, dict]":
     return out, report
 
 
+def _tagged(o: dict) -> dict:
+    """A chip's tags: `labels` (up to 2) with `label` as shorthand for one, cleaned."""
+    if "label" not in o and "labels" not in o:
+        return o
+    from .build.brief import tags_of
+    o = {**o, "labels": tags_of(o.get("label"), o.get("labels"))}
+    o.pop("label", None)
+    return o
+
+
 @mcp.tool(title="Set chip legend", annotations=RW)
 @accounted
 def set_chip_legend(timeline_id: str, legend: list[dict]) -> dict:
     """What each chip label means: [{label, meaning}], at most 12, label one or
-    two letters/digits (e.g. H = history, R = modern rule, O = overruled).
+    two letters/digits, or ★ (e.g. H = history, R = modern rule, O = overruled,
+    ★ = critical case; any letters the user picks).
     Replaces the whole legend. A chip gets its label from `label` on an entity
     (set_entities) or an axis value (set_axis_values); the page shows the
     letter as a small badge on the chip, with the meaning on hover (long-press
@@ -1469,10 +1480,11 @@ def set_entities(timeline_id: str, entities: list[dict],
                  autolink: list[str] | None = None,
                  autolink_overview: bool | None = None) -> dict:
     """Define the entity axis (the chips): ≤12 entities
-    [{id, name, role?, color?, symbol_svg?, label?, sections?: [{h,t,prov?}],
+    [{id, name, role?, color?, symbol_svg?, labels?, label?, sections?: [{h,t,prov?}],
       aliases?: [str], sources?: [source id]}].
-    `label` is a 1-2 letter badge shown on the chip everywhere it appears (see
-    set_chip_legend for what each letter means).
+    `labels` (up to 2 tags, each 1-2 letters/digits, or ★ for a critical case)
+    show as small badges on the chip everywhere it appears; `label` is shorthand
+    for one (see set_chip_legend for what each tag means).
     In outline mode give each entity sections on how it is satisfied, from the
     material, where the material says — otherwise its page lists concepts only.
     `autolink` picks which kinds of page are linked by name in running text:
@@ -1487,7 +1499,7 @@ def set_entities(timeline_id: str, entities: list[dict],
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
-    entities = [{**e, "label": clean_label(e["label"])} if e.get("label") else e for e in entities]
+    entities = [_tagged(e) for e in entities]
     brief = {**doc["brief"], "entities": entities}
     if autolink is not None:
         brief["autolink"] = list(autolink)
@@ -1521,7 +1533,7 @@ def set_axis_values(timeline_id: str, slot: int, label: str | None = None,
     `singular` and `hide_nav` stay as they are (only a new axis needs label and
     singular). An id that is already used says which slot holds it.
 
-    values: [{id, name, role?, color?, symbol_svg?, label?, sections?: [{h,t,prov?}],
+    values: [{id, name, role?, color?, symbol_svg?, labels?, label?, sections?: [{h,t,prov?}],
     aliases?: [str], cite?: {ch?, p?, note?}, sources?: [source id],
     group?: str, deadlines?: [{period, what, trigger?, quote, cite}]}],
     upserted by id, so this can be called repeatedly as material arrives.
@@ -1592,7 +1604,7 @@ def set_axis_values(timeline_id: str, slot: int, label: str | None = None,
         ax["index_sections"] = list(index_sections)
     merged = {v["id"]: v for v in (ax.get("values") or []) if v.get("id")}
     for v in values:
-        merged[v.get("id", "")] = {**v, **({"label": clean_label(v["label"])} if v.get("label") else {})}
+        merged[v.get("id", "")] = _tagged(v)
     ax["values"] = list(merged.values())
     brief = {**doc["brief"], "axes": axes}
     if index_label is not None:

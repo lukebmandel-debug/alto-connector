@@ -21,6 +21,8 @@ def _brief(name, labelled=True):
         for ax in b.get("axes", []):
             for i, v in enumerate(ax["values"]):
                 v["label"] = "HRO"[i % 3]
+                if i == 0:
+                    v["labels"] = ["\u2605"]
         if b.get("entities"):
             b["entities"][0]["label"] = "R"
     return d
@@ -36,11 +38,13 @@ def _html(d):
 def test_a_label_is_one_or_two_letters_and_the_legend_is_checked():
     from alto.build.brief import BriefError, clean_label, validate_brief
     from alto.build.builder import load_brief
-    assert clean_label(" h! ") == "H" and clean_label("abc") == "AB" and clean_label(None) == ""
+    from alto.build.brief import tags_of
+    assert clean_label(" h! ") == "H" and clean_label("abc") == "AB" and clean_label(None) == "" and clean_label("\u2605") == "\u2605"
+    assert tags_of("o", ["\u2605", "O", "x"]) == ["O", "\u2605"]          # `label` is shorthand; two tags at most, no repeats
     d = _brief("outline")
     validate_brief(load_brief(copy.deepcopy(d))[0])
     bad = copy.deepcopy(d)
-    bad["brief"]["axes"][0]["values"][0]["label"] = "TOOLONG"
+    bad["brief"]["axes"][0]["values"][0]["labels"] = ["A", "B", "C"]
     with pytest.raises(BriefError):
         validate_brief(load_brief(bad)[0])
     bad = copy.deepcopy(d)
@@ -170,10 +174,10 @@ def test_the_legend_heads_the_filter_panel(browser):
 def test_the_edit_api_relabels_every_chip_and_undo_restores(browser):
     pg = _open(browser, "outline")
     vid = pg.evaluate("Object.keys(window._ALTO_CHIPLBL.byId.env)[0]")
-    pg.evaluate(f"window._altoChipLbl.set('env','{vid}','Z', document.querySelector('.esym-btn[data-lbl]').getAttribute('data-tn'))")
+    pg.evaluate(f"window._altoChipLbl.set('env','{vid}',['Z'], document.querySelector('.esym-btn[data-lbl]').getAttribute('data-tn'))")
     pg.wait_for_timeout(300)
     assert pg.evaluate("[...document.querySelectorAll('.esym-btn .alto-lbl')].some(e=>e.textContent==='Z')")
-    pg.evaluate(f"window._altoChipLbl.set('env','{vid}','', document.querySelector('.esym-btn[data-lbl]').getAttribute('data-tn'))")
+    pg.evaluate(f"window._altoChipLbl.set('env','{vid}',[], document.querySelector('.esym-btn[data-lbl]').getAttribute('data-tn'))")
     assert not pg.evaluate("[...document.querySelectorAll('.esym-btn .alto-lbl')].some(e=>e.textContent==='Z')")
 
 
@@ -202,11 +206,11 @@ def test_in_edit_mode_a_chip_page_offers_a_label_button_that_labels_and_undoes(b
     btn.wait_for(timeout=5000)
     assert btn.count() == 1 and btn.evaluate("e => e.offsetHeight") >= 44
     btn.click()
-    pg.fill("#aed-form [data-f=label]", "x")
+    pg.fill("#aed-form [data-f=label]", "x \u2605 q")
     pg.fill("#aed-form [data-f=legend]", "H = history\nX = my own letter")
     pg.click("#aed-form [data-a=ok]")
     pg.wait_for_timeout(500)
-    assert pg.evaluate(f"window._altoChipLbl.get('env','{vid}')") == "X"
+    assert pg.evaluate(f"window._altoChipLbl.get('env','{vid}').join(' ')") == "X \u2605"
     assert pg.evaluate("window._altoChipLbl.legend().map(r=>r.label).join('')") == "HX"
     assert pg.evaluate("document.querySelector('#detail-page .detail-name .alto-lbl')?.textContent") == "X"
     pg.wait_for_timeout(2500)
@@ -214,5 +218,23 @@ def test_in_edit_mode_a_chip_page_offers_a_label_button_that_labels_and_undoes(b
     assert f"env|{vid}|label" in folded and "cl|legend" in folded
     pg.click("#alto-edit-exit .ee-undo")        # the label and the legend were one change: one undo
     pg.wait_for_timeout(400)
-    assert pg.evaluate(f"window._altoChipLbl.get('env','{vid}')") in ("H", "R", "O")
+    assert pg.evaluate(f"window._altoChipLbl.get('env','{vid}').length") == 2
     assert pg.evaluate("window._altoChipLbl.legend().length") == 3
+
+
+def test_a_chip_can_wear_a_letter_and_a_gold_star_and_the_index_page_keys_only_the_tags_it_uses(browser):
+    pg = _open(browser, "outline", phone=True)
+    pg.evaluate("showDetail('index','env')")
+    pg.wait_for_timeout(600)
+    k = pg.evaluate("""() => { const e=document.querySelector('#detail-content .alto-lbl-key'); if(!e) return null; const r=e.getBoundingClientRect();
+      return {t:e.innerText, l:r.left, rt:window.innerWidth-r.right, n:e.querySelectorAll('.alto-lbl').length, star:!!e.querySelector('.alto-lbl.star')}; }""")
+    assert k, "no key on the page that lists the values"
+    assert k["n"] == 4 and k["star"] and "history" in k["t"] and "overruled" in k["t"], k       # the 3 letters + the star, nothing else
+    assert k["l"] >= 20 and k["rt"] >= 20, k
+    pg.evaluate("showDetail('node','formation')")
+    pg.wait_for_timeout(400)
+    assert pg.evaluate("document.querySelectorAll('#detail-content .alto-lbl-key').length") == 0
+    pg.evaluate("showDetail('index','env')")
+    pg.wait_for_timeout(400)
+    two = pg.evaluate("[...document.querySelectorAll('#detail-content [data-lbl]')].filter(e=>e.querySelectorAll(':scope>.alto-lbl').length===2).length")
+    assert two >= 1, "a chip with a letter and a star shows two badges"

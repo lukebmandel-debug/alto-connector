@@ -1370,8 +1370,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     // a chip's label (1-2 letters, chip_labels.py) and the page's legend of what each letter means
     if((kind === 'c' || kind === 'env' || kind === 'theme') && p.length === 3 && p[2] === 'label'){
       var RL = reg(kind), CL = window._altoChipLbl; if(!RL || !RL[id] || !CL) return null;
-      return {kind:'plain', get:function(){ return CL.get(kind, id); },
-        set:function(v){ CL.set(kind, id, String(v || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 2).toUpperCase(), txt(RL[id].name || '')); }};
+      return {kind:'plain', get:function(){ return CL.get(kind, id).join(' '); },
+        set:function(v){ CL.set(kind, id, String(v || '').split(/\s+/), txt(RL[id].name || '')); }};
     }
     if(kind === 'cl' && id === 'legend' && p.length === 2){
       var CL2 = window._altoChipLbl; if(!CL2) return null;
@@ -1926,20 +1926,20 @@ MANUAL_JS = r"""<script id="alto-manual">
   /* a chip's page: a button for its label and the page's legend (chip_labels.py) */
   function legendText(L){ return (L || []).map(function(r){ return r.label + ' = ' + (r.meaning || ''); }).join('\n'); }
   function legendParse(t){ var out = [], seen = {};
-    String(t || '').split(/\n|;/).forEach(function(ln){ var m = ln.match(/^\s*([0-9A-Za-z]{1,2})\s*[=:\-–]\s*(.*)$/); if(!m) return; var l = m[1].toUpperCase(); if(seen[l]) return; seen[l] = 1; out.push({label: l, meaning: m[2].trim().slice(0, 60)}); });
+    String(t || '').split(/\n|;/).forEach(function(ln){ var m = ln.match(/^\s*([0-9A-Za-z]{1,2}|★)\s*[=:\-–]\s*(.*)$/); if(!m) return; var l = m[1].toUpperCase(); if(seen[l]) return; seen[l] = 1; out.push({label: l, meaning: m[2].trim().slice(0, 60)}); });
     return out.slice(0, 12); }
   function decorateLabel(dc, kind, id){
     var CL = window._altoChipLbl, hd = dc.querySelector('.detail-header'); if(!CL || !hd || dc.querySelector('.aed-lblbtn') || !field(kind + '|' + id + '|label')) return;
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-lblbtn'; var cur = CL.get(kind, id);
-    b.textContent = cur ? 'Label: ' + cur + ' — change' : '+ Add a label'; b.setAttribute('aria-label', 'Label and legend of this chip');
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-lblbtn'; var cur = CL.get(kind, id).join(' ');
+    b.textContent = cur ? 'Labels: ' + cur + ' — change' : '+ Add a label'; b.setAttribute('aria-label', 'Label and legend of this chip');
     b.style.cssText = 'margin:8px 0 0;min-height:44px !important;height:44px !important;box-sizing:border-box;padding:0 14px;border-radius:12px;border:1px dashed currentColor;background:none;color:inherit;font:inherit;font-size:13px;cursor:pointer;display:block;';
     b.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault();
-      askForm(b, 'Label this chip', [{k: 'label', l: 'Label (one or two letters, blank for none)', val: CL.get(kind, id)},
+      askForm(b, 'Label this chip', [{k: 'label', l: 'Labels (up to two, apart by a space: O ★ — blank for none)', val: CL.get(kind, id).join(' ')},
         {k: 'legend', l: 'What each letter means (one per line: H = history)', type: 'area', val: legendText(CL.legend())}], 'Save', function(v){
-        var l = String(v.label || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 2).toUpperCase(), L = legendParse(v.legend), ch = [];
-        if(l !== CL.get(kind, id)) ch.push([kind + '|' + id + '|label', l]);
+        var l = String(v.label || '').split(/\s+/).map(function(x){ return x === '\u2605' ? x : x.replace(/[^0-9A-Za-z]/g, '').slice(0, 2).toUpperCase(); }).filter(function(x, i, a){ return x && a.indexOf(x) === i; }).slice(0, 2).join(' '), L = legendParse(v.legend), ch = [];
+        if(l !== CL.get(kind, id).join(' ')) ch.push([kind + '|' + id + '|label', l]);
         if(JSON.stringify(L) !== JSON.stringify(CL.legend())) ch.push(['cl|legend', L]);
-        if(ch.length){ changes(ch); b.textContent = l ? 'Label: ' + l + ' — change' : '+ Add a label'; toast(l ? 'Labelled “' + l + '”. ⌘Z puts it back.' : 'Label changed. ⌘Z puts it back.'); } });
+        if(ch.length){ changes(ch); b.textContent = l ? 'Labels: ' + l + ' — change' : '+ Add a label'; toast(l ? 'Labelled ' + l + '. ⌘Z puts it back.' : 'Label changed. ⌘Z puts it back.'); } });
     });
     hd.parentNode.insertBefore(b, hd.nextSibling);
   }
