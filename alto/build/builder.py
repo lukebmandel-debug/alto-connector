@@ -373,7 +373,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {}))) + figures_block(figures or {}, css=".dl-box{" not in html)
             + study_plan_block(brief, nodes)
             + chip_labels.block(brief)
-            + manual_edit(brief, nodes) + print_views() + study_sheet(brief)
+            + manual_edit(brief, nodes) + print_views(brief) + study_sheet(brief)
             + backgrounds.ui_block("This " + _bg_noun(brief), rail=True) + unit_numbers.panel_block() + hover_lines.block()
             + (focus_branch.block() if brief.mode == "outline" and not solar_style(brief) else "")   # focus on a branch: the normal outline only (Luke L-1114-focus: not the timeline, the horizontal timeline or any other format)
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief), hl_key=ID_PATTERNS["hl_key"].format(tid=brief.timeline_id))
