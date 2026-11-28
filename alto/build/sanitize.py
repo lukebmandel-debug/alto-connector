@@ -640,7 +640,11 @@ def sanitize_brief(b, nodes=None) -> list:
         if p:
             out["p"] = p
         return out
+    from .brief import clean_label
+    b.chip_legend = [{"label": clean_label(r.get("label")), "meaning": plain_text(str(r.get("meaning") or ""))}
+                     for r in b.chip_legend if isinstance(r, dict) and clean_label(r.get("label"))]
     for e in b.entities:
+        e.label = clean_label(e.label)
         e.name, e.role = plain_text(e.name), plain_text(e.role)
         e.symbol_svg = clean_svg(e.symbol_svg)
         sections(e.sections, f"entity {e.id}")
@@ -651,6 +655,7 @@ def sanitize_brief(b, nodes=None) -> list:
         ax.index_blurb = [plain_text(h) for h in ax.index_blurb]
         sections(ax.index_sections, f"{ax.label} index")
         for v in ax.values:
+            v.label = clean_label(v.label)
             v.name, v.role = plain_text(v.name), plain_text(v.role)
             v.group = plain_text(v.group)
             v.symbol_svg = clean_svg(v.symbol_svg)

@@ -145,6 +145,7 @@ class Entity:
     sections: list[Section] = field(default_factory=list)   # entity detail page
     aliases: list[str] = field(default_factory=list)   # other names prose uses
     sources: list[str] = field(default_factory=list)   # Brief.source_docs ids
+    label: str = ""            # a 1-2 letter badge on the chip ("H"); meaning in Brief.chip_legend
 
 
 @dataclass
@@ -152,6 +153,7 @@ class AxisValue:
     id: str
     name: str
     symbol_svg: str = ""
+    label: str = ""            # a 1-2 letter badge on the chip ("H"); meaning in Brief.chip_legend
     color: str = ""
     role: str = ""
     sections: list[Section] = field(default_factory=list)
@@ -467,6 +469,10 @@ class Brief:
     # (characters, environments, themes, doctrines…), so any of them can be
     # filtered by. Set false for a timeline that should not offer that.
     chip_filters: bool = True
+    # What each chip label means, [{label, meaning}] — "H" history, "R" modern rule,
+    # "O" overruled. A chip carries its label (Entity.label / AxisValue.label); the
+    # legend is on the page's Key and in the badge's tooltip. At most 12.
+    chip_legend: list[dict] = field(default_factory=list)
     # The user's own marks in their notes, [{id, name}] — "pivotal", "not
     # tested", "revisit"… The interview asks which marks they want. Each gets
     # a chip in the Filter toggle's "Flags" section; a node carries any number
@@ -778,6 +784,32 @@ def _check_persona(p, warnings) -> None:
                         "material and never adds outside facts")
 
 
+def clean_label(x) -> str:
+    """A chip label: one or two letters or digits, upper-cased ("" when none)."""
+    return re.sub(r"[^0-9A-Za-z]", "", str(x or ""))[:2].upper()
+
+
+def _check_chip_labels(b) -> None:
+    for e in b.entities:
+        if e.label and clean_label(e.label) != e.label:
+            raise BriefError(f"entity {e.id} label {e.label!r}: one or two letters or digits")
+    for ax in b.axes:
+        for v in ax.values:
+            if v.label and clean_label(v.label) != v.label:
+                raise BriefError(f"axis value {v.id} label {v.label!r}: one or two letters or digits")
+    if not isinstance(b.chip_legend, list) or len(b.chip_legend) > 12:
+        raise BriefError("chip_legend: a list of at most 12 {label, meaning}")
+    seen = set()
+    for r in b.chip_legend:
+        if not isinstance(r, dict) or clean_label(r.get("label")) != r.get("label") or not r.get("label"):
+            raise BriefError(f"chip_legend entry {r!r}: needs a label of one or two letters or digits")
+        if r["label"] in seen:
+            raise BriefError(f"chip_legend: label {r['label']!r} appears twice")
+        seen.add(r["label"])
+        if len(str(r.get("meaning") or "")) > 60:
+            raise BriefError(f"chip_legend {r['label']}: meaning is at most 60 characters")
+
+
 def validate_brief(b: Brief) -> list[str]:
     """Raise BriefError on hard violations; return soft warnings."""
     warnings = []
@@ -803,6 +835,7 @@ def validate_brief(b: Brief) -> list[str]:
     if len(b.acts) < (1 if (solar_style(b) or building_view(b) or world_view(b)) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
+    _check_chip_labels(b)
     for flag in ("line_filter", "chip_filters"):
         if not isinstance(getattr(b, flag), bool):
             raise BriefError(f"{flag}: must be true or false")
