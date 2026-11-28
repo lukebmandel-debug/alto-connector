@@ -531,7 +531,12 @@ def test_an_enlarged_card_on_a_portrait_phone_grows_into_the_room_and_stays_clea
         chips = [...document.querySelectorAll('#lanes-ulabels .lu-chip, #world .lanes-tag')].map(e => e.getBoundingClientRect())
           .filter(q => q.height && q.right > r.left && q.left < r.right),
         gap = Math.min(999, ...chips.map(q => q.bottom <= r.top ? r.top - q.bottom : (q.top >= r.bottom ? q.top - r.bottom : -1)));
-      return {cut: !w && c.scrollHeight > c.clientHeight + 1, held: !!w, gap, h: r.height}; }"""
+      const cs = getComputedStyle(c); let ring = 0;
+      (cs.boxShadow || '').split(/,(?![^(]*\))/).forEach(sh => { if (/inset/.test(sh)) return; const n = (sh.replace(/rgba?\([^)]*\)|#[0-9a-f]+/gi, '').match(/-?[\d.]+px/g) || []).map(parseFloat);
+        if (n.length >= 4 && n[2] === 0) ring = Math.max(ring, n[3] + Math.max(Math.abs(n[0]), Math.abs(n[1]))); });
+      if (cs.outlineStyle !== 'none') ring = Math.max(ring, (parseFloat(cs.outlineWidth) || 0) + (parseFloat(cs.outlineOffset) || 0));
+      const rg = ring * r.width / c.offsetWidth, labels = [...document.querySelectorAll('#lanes-ulabels .lu-chip')].filter(e => getComputedStyle(e).visibility !== 'hidden').length;
+      return {cut: !w && c.scrollHeight > c.clientHeight + 1, held: !!w, gap, h: r.height, l: r.left - rg, r: innerWidth - (r.right + rg), labels}; }"""
     ids = pg.evaluate("() => Object.keys(window._ALTO_LANES.ev).filter(i => !(window._altoLanesKids && window._altoLanesKids.nest(i)))")
     for nid in ids[:3]:
         pg.evaluate("(id) => window.enterFocus(id)", nid)
@@ -539,6 +544,8 @@ def test_an_enlarged_card_on_a_portrait_phone_grows_into_the_room_and_stays_clea
         g = pg.evaluate(G)
         assert g and not g["cut"], (nid, g)                                               # no text clipped at the card's foot
         assert g["gap"] >= 19, (nid, g)                                                   # clear of the unit labels beside it
+        assert g["l"] >= 19 and g["r"] >= 19, (nid, g)                                    # its outer ring 20 px from the screen's sides
+        assert g["labels"] == 0, (nid, g)                                                 # the units' labels step away while it is enlarged
     pg.evaluate("() => window.exitFocus()")
     pg.wait_for_timeout(900)
     assert pg.evaluate("() => ![...document.querySelectorAll('#world .node-card')].some(c => c.style.height || c.style.translate)")

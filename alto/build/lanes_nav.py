@@ -152,6 +152,8 @@ NAV_CSS = """
   @media print{ #ln-mm{ display:none !important; } }
   @media (prefers-reduced-motion:reduce){ #ln-mm{ transition:none; } }
   /* the enlarged card held to the room on a phone (NAV_JS): it scrolls inside, and its touch moves its text, not the board */
+  /* while a card is enlarged and fitted on a phone the units' labels step away (Board 2026-11-27: "I BEFORE SUIT" showed under the ring on one path) */
+  html.phone-whole.ln-fitting #lanes-ulabels .lu-chip{ visibility:hidden !important; }
   html.phone-whole #world .node.focused .node-card.ln-fit > .ln-fitw{ overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; min-height:0; }
   html.phone-whole #world .node.focused .node-card.ln-fit > .ln-fitw.ln-more{ -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 14px),transparent); mask-image:linear-gradient(to bottom,#000 calc(100% - 14px),transparent); }
   /* Classic's page-name pill while the board runs under it on a phone: its frost let a dimmed card's words read through it (Board 2026-11-27) */
@@ -1381,7 +1383,7 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
   }
   function undo(){ if(!fit) return; if(fit._lnSh){ fit._lnSh.style.removeProperty('visibility'); fit._lnSh=null; }
     var w=fit.querySelector(':scope > .ln-fitw'); if(w){ while(w.firstChild) fit.insertBefore(w.firstChild, w); w.remove(); }
-    fit.style.removeProperty('translate'); fit.style.removeProperty('height'); fit.classList.remove('ln-fit'); fit=null; }
+    fit.style.removeProperty('translate'); fit.style.removeProperty('height'); fit.style.removeProperty('scale'); fit.classList.remove('ln-fit'); de.classList.remove('ln-fitting'); fit=null; }
   /* held to the room, the card's text scrolls in a box inside its padding (Board 2026-11-27: the last line ran to the card's edge, and
      Holographic's frame crossed a line): the padding stays empty, the frame and the order number (laid on the card, not in its flow)
      stay where they are, and a short fade at the foot says there is more below */
@@ -1409,7 +1411,16 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
     if(!c || !de.classList.contains('phone-whole')) return;
     if(fit===c) undo();
     var B=band(), room=B.b-B.t; if(room<80) return;
-    fit=c; c.classList.add('ln-fit');
+    fit=c; c.classList.add('ln-fit'); de.classList.add('ln-fitting');
+    /* its outer ring (Retro's and Holographic's rings are box-shadows and outlines past the border) 20 px from the screen's sides: the card is
+       scaled down to fit where it would come closer (Board 2026-11-27, retro-p390: the gold ring 8 px from each edge) */
+    var ring=0, cs0=getComputedStyle(c);
+    (cs0.boxShadow||'').split(/,(?![^(]*\))/).forEach(function(sh){ if(/inset/.test(sh)) return; var n=(sh.replace(/rgba?\([^)]*\)|#[0-9a-f]+/gi,'').match(/-?[\d.]+px/g)||[]).map(parseFloat);
+      if(n.length>=4 && n[2]===0) ring=Math.max(ring, n[3]+Math.max(Math.abs(n[0]), Math.abs(n[1]))); });
+    if(cs0.outlineStyle!=='none') ring=Math.max(ring, (parseFloat(cs0.outlineWidth)||0)+(parseFloat(cs0.outlineOffset)||0));
+    var r0=c.getBoundingClientRect(), kk=(c.offsetWidth && r0.width) ? r0.width/c.offsetWidth : 1, rg=ring*kk, ow=r0.width+2*rg, vw=window.innerWidth;
+    if(ow>vw-40){ c.style.setProperty('scale', ((vw-40)/ow).toFixed(4)); r0=c.getBoundingClientRect(); rg=ring*(r0.width/(c.offsetWidth||r0.width)); }
+    var dx=r0.left-rg<20 ? 20-(r0.left-rg) : (r0.right+rg>vw-20 ? (vw-20)-(r0.right+rg) : 0); c._lnRing=rg;
     /* a card of a set height whose text runs past its foot grows to hold it first (Board 2026-11-27, p390: its description was cut off with
        the room below unused); only what the room cannot hold scrolls inside */
     if(c.scrollHeight>c.clientHeight+1) c.style.setProperty('height', 'auto', 'important');
@@ -1419,11 +1430,11 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
     [].forEach.call(document.querySelectorAll('#lanes-ulabels .lu-chip, #world .lanes-tag'), function(e){
       var q=e.getBoundingClientRect(); if(!q.height || q.right<=r.left || q.left>=r.right || getComputedStyle(e).visibility==='hidden') return;
       if(q.top+q.height/2<r.top+r.height/2) B.t=Math.max(B.t, q.bottom+20); else B.b=Math.min(B.b, q.top-20); });
-    room=B.b-B.t; if(room<80){ undo(); return; }
+    room=B.b-B.t-2*(c._lnRing||0); if(room<80){ undo(); return; }      /* (the ring stays inside the room too) */
     if(r.height>room+1 || c.scrollHeight>c.clientHeight+1) r=holdIn(c, room, r);      /* (taller than the room, or its text past its own foot) */
-    var dy=r.top<B.t ? B.t-r.top : (r.bottom>B.b ? B.b-r.bottom : 0);
-    if(Math.abs(dy)>0.5){ c.style.setProperty('translate', '0 100px'); var k=(c.getBoundingClientRect().top-r.top)/100 || 1;      // screen px a translate px moves
-      c.style.setProperty('translate', '0 '+(dy/k).toFixed(1)+'px'); }
+    var rr=c._lnRing||0, dy=r.top-rr<B.t ? B.t-(r.top-rr) : (r.bottom+rr>B.b ? B.b-(r.bottom+rr) : 0);
+    if(Math.abs(dy)>0.5 || Math.abs(dx)>0.5){ c.style.setProperty('translate', '0 100px'); var k=(c.getBoundingClientRect().top-r.top)/100 || 1;      // screen px a translate px moves
+      c.style.setProperty('translate', (dx/k).toFixed(1)+'px '+(dy/k).toFixed(1)+'px'); }
     /* the enlarge's own shadow layer (engine_patches .alto-fshadow) keeps the card's full size and place: held or moved, it would hang
        below the card as a pale box, so it goes while the card is fitted */
     if((Math.abs(dy)>0.5 || c.querySelector(':scope > .ln-fitw')) && n._fsh){ n._fsh.style.setProperty('visibility','hidden'); c._lnSh=n._fsh; }
