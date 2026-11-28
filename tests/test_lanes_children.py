@@ -1031,3 +1031,58 @@ def test_a_phone_follows_no_line(browser, tmp_path):
     assert pg.evaluate("() => window._altoLanesLineAt ? window._altoLanesLineAt(195, 420) : null") is None
     assert pg.evaluate("() => document.querySelectorAll('#lanes-svg .ln-kids path.ln-kidline').length") == 0
     assert not errs
+
+
+# ── no two lines on one track ────────────────────────────────────────────────
+
+# pairs of lines that run together: side by side within 4 px for 15 px or more. Connectors of one parent share its trunk and bus by design,
+# and a card's line in meets its lines out at the card; any other pair reads as one line. Cross-references against every connector.
+_SHARED = """() => { const svg = document.getElementById('lanes-svg');
+  const samp = p => { const L = p.getTotalLength(), n = Math.max(2, Math.ceil(L / 3)), a = []; for (let k = 0; k <= n; k++) { const q = p.getPointAtLength(L * k / n); a.push([q.x, q.y]); } return a; };
+  const cs = [...svg.querySelectorAll('.ln-kids path.ln-kidline[data-k]')].map(p => ({k: p.getAttribute('data-k'), par: p.getAttribute('data-p'), s: samp(p)}));
+  const xs = [...svg.querySelectorAll('g.ln-xref .ln-xline')].map(p => ({x: 1, k: p.parentNode.getAttribute('data-a') + '>' + p.parentNode.getAttribute('data-b'), s: samp(p)}));
+  const grid = new Map(); cs.forEach((l, i) => l.s.forEach(q => { const key = Math.floor(q[0] / 8) + ',' + Math.floor(q[1] / 8); let a = grid.get(key); if (!a) grid.set(key, a = []); a.push([i, q[0], q[1]]); }));
+  const near = (q, ok) => { const gx = Math.floor(q[0] / 8), gy = Math.floor(q[1] / 8); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const a = grid.get((gx + dx) + ',' + (gy + dy)); if (a) for (const e of a) if (ok(e[0]) && Math.hypot(e[1] - q[0], e[2] - q[1]) < 4) return e[0]; } return -1; };
+  const run = (l, ok) => { let r = 0, at = null, who = -1; for (const q of l.s) { const o = near(q, ok); if (o >= 0) { r++; if (r >= 6) { at = q; who = o; break; } } else r = 0; } return at ? [who, Math.round(at[0]), Math.round(at[1])] : null; };
+  const conn = [], xref = [], seen = {};
+  cs.forEach((l, i) => { const h = run(l, j => j !== i && cs[j].par !== l.par && cs[j].k !== l.par && cs[j].par !== l.k); if (h) { const key = [Math.min(i, h[0]), Math.max(i, h[0])].join('|'); if (!seen[key]) { seen[key] = 1; conn.push([l.k, cs[h[0]].k, h[1], h[2]]); } } });
+  xs.forEach(l => { const h = run(l, j => true); if (h) xref.push([l.k, cs[h[0]].k, h[1], h[2]]); });
+  return {lines: cs.length, xrefs: xs.length, conn, xref}; }"""
+
+
+def _deep():
+    """Civ-pro-like chains: every event holds two sections, each with two points, each point with a note under it: three levels, which an
+    outline stacks in one column, with cross-references between branches."""
+    d = _xref_brief()
+    for n in [n for n in d["nodes"] if n.get("nest") and n["id"].count("-s") == 1 and n["id"][-2:] in ("-0", "-1")]:
+        d["nodes"].append(dict(n, id=n["id"] + "-n", nest=n["id"], title="A note under " + n["title"], desc="A note."))
+    return d
+
+
+def test_no_two_lines_run_on_one_track(browser, tmp_path):
+    """Board 2026-11-28 (civ-pro, Outline all: 81 pairs of connectors from different parents on one gutter track, 16 to 24 cross-references
+    lying along a connector): each level of a branch has its own track beside a column, and a cross-reference steps aside from a
+    connector. Lists, every branch an outline, and one outline among lists: no pair of lines runs together; nothing through a card."""
+    pg, errs = _open(browser, _deep(), tmp_path)
+    pg.evaluate("() => window._altoLanesKids.view('expanded')")
+    pg.wait_for_timeout(1500)
+    roots = pg.evaluate("() => Object.keys(window._altoLanesGeo.fams || {})")
+    kids = pg.evaluate("() => Object.keys(window._altoLanesGeo.kids || {}).length")
+
+    def check(state):
+        s = pg.evaluate(_SHARED)
+        assert s["lines"] == kids and s["xrefs"] >= 6, (state, s["lines"], s["xrefs"])
+        assert s["conn"] == [] and s["xref"] == [], (state, s["conn"][:6], s["xref"][:6])
+        t = pg.evaluate(_THROUGH)
+        assert t["through"] == 0 and t["off"] == 0, (state, t)
+        x = pg.evaluate(_XR)
+        assert x["drawn"] == x["owed"] and x["off"] == 0 and x["through"] == 0 and x["hug"] == 0, (state, x)
+
+    check("lists")
+    pg.evaluate("(r) => window._altoLanesKids.outline(r, true)", roots[1])
+    pg.wait_for_timeout(1400)
+    check("one outline")
+    pg.evaluate("() => window._altoLanesKids.outlineAll(true)")
+    pg.wait_for_timeout(1600)
+    check("outline all")
+    assert not errs
