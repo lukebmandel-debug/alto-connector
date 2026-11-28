@@ -400,6 +400,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       cl.className = 'node-card ink-card' + (items[i].d === 0 ? ' hub' : '');
       cl.querySelectorAll('[id]').forEach(function(e){ e.removeAttribute('id'); });
       cl.querySelectorAll('[class*="aed-"], [class*="alto-edit"], .alto-fshadow, .node-unit, .era-badge, .weight-badge').forEach(function(e){ e.remove(); });
+      @@INKSUM@@
       // Ink-saver leaves out every chip that shows only a glyph, icon or colour (Luke 2026-11-28): a chip stays when it carries a text label
       // (a case's name, a Rule, a U.S.C. section: an axis that names its values), judged by what it shows, not by its kind. A letter/★ badge
       // (.alto-lbl) rides with a chip that stays and does not by itself make an icon-only chip stay.
@@ -765,5 +766,8 @@ PRINT_JS = r"""<script id="alto-print-views-js">
 </script>"""
 
 
-def print_views() -> str:
-    return PRINT_CSS + PRINT_JS + "\n"
+def print_views(brief=None) -> str:
+    """The print block. A page with chip summaries (chip_summaries.py) also carries their table, the hook that lists them and its rule;
+    any other page is exactly what it was without them."""
+    from . import chip_summaries
+    return chip_summaries.splice(PRINT_CSS, PRINT_JS, brief) + "\n"

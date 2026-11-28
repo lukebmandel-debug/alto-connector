@@ -30,8 +30,8 @@ def _chips(d, kinds):
     b = d["brief"]
     b["entities"] = [{"id": "dot1", "name": "Doctrine dot", "role": "r"}, {"id": "dot2", "name": "Entity dot", "role": "r"}]
     b["axes"] = [{"label": "Cases", "singular": "Case", "hide_nav": True, "values": [
-                    {"id": "lz", "name": "Lucy v. Zehmer", "labels": ["\u2605", "R"]},
-                    {"id": "r4h", "name": "Fed. R. Civ. P. 4(h)"}, {"id": "u1367", "name": "28 U.S.C. § 1367"}]},
+                    {"id": "lz", "name": "Lucy v. Zehmer", "labels": ["\u2605", "R"], "summary": "Joke sale of a farm; objective assent binds; reasonable-person test."},
+                    {"id": "r4h", "name": "Fed. R. Civ. P. 4(h)", "summary": "unstarred: must not print"}, {"id": "u1367", "name": "28 U.S.C. § 1367"}]},
                  {"label": "Topics", "singular": "Topic", "values": [{"id": "tp1", "name": "Icon only topic"}, {"id": "tp2", "name": "Another icon topic"}]}]
     b["chip_legend"] = [{"label": "R", "meaning": "rule case"}]
     for n in d["nodes"]:
@@ -101,3 +101,12 @@ def test_the_screen_page_keeps_every_chip(pages, fmt):
     n = pg.evaluate("document.querySelectorAll('.node-footer .csym-btn, .node-footer .esym-btn, .node-footer .tsym-btn').length")
     assert n >= 7                                           # 2 dots + 3 text + 2 icon topics on the first card
 
+
+@pytest.mark.parametrize("fmt", ["outline", "lanes"])
+def test_a_starred_chip_with_a_summary_gets_one_line_under_its_chips_and_unstarred_do_not(pages, fmt):
+    pg = pages[fmt]
+    _stage(pg)
+    r = pg.evaluate("""() => [...document.querySelectorAll('#alto-ink-host .ink-sum')].map(e => { const f = e.parentNode.querySelector('.node-footer');
+        return {t: e.textContent, after: !f || !!(f.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)}; })""")
+    assert [x["t"] for x in r] == ["\u2605 Lucy v. Zehmer \u2014 Joke sale of a farm; objective assent binds; reasonable-person test."], r
+    assert all(x["after"] for x in r)
