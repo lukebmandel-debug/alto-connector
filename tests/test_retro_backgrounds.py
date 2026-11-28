@@ -276,7 +276,8 @@ def test_the_ground_fills_the_window_exactly_so_the_frame_keeps_20px(browser, si
     pg.wait_for_timeout(500)
     pg.evaluate("(id) => window._altoBg.choose(id)", FIRST)
     pg.wait_for_timeout(400)
-    s = pg.evaluate("""(() => { const s = getComputedStyle(document.getElementById('page-bg'), '::before');
-      return [s.position, s.left, s.top, s.width, s.height]; })()""")
-    assert s == ["fixed", "0px", "0px", f"{size[0]}px", f"{size[1]}px"], s
+    s = pg.evaluate("""(() => { const s = getComputedStyle(document.getElementById('page-bg'), '::before'),
+      z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;      // (a desk page is drawn zoomed: html carries the scale)
+      return [s.position, s.left, s.top, Math.round(parseFloat(s.width) * z), Math.round(parseFloat(s.height) * z)]; })()""")
+    assert s == ["fixed", "0px", "0px", size[0], size[1]], s
     ctx.close()
