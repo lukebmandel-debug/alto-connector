@@ -400,10 +400,20 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       cl.className = 'node-card ink-card' + (items[i].d === 0 ? ' hub' : '');
       cl.querySelectorAll('[id]').forEach(function(e){ e.removeAttribute('id'); });
       cl.querySelectorAll('[class*="aed-"], [class*="alto-edit"], .alto-fshadow, .node-unit, .era-badge, .weight-badge').forEach(function(e){ e.remove(); });
+      // Ink-saver leaves out every chip that shows only a glyph, icon or colour (Luke 2026-11-28): a chip stays when it carries a text label
+      // (a case's name, a Rule, a U.S.C. section: an axis that names its values), judged by what it shows, not by its kind. A letter/★ badge
+      // (.alto-lbl) rides with a chip that stays and does not by itself make an icon-only chip stay.
+      cl.querySelectorAll('.csym-btn, .esym-btn, .tsym-btn').forEach(function(b){
+        var c = b.cloneNode(true); c.querySelectorAll('svg, img, canvas, .alto-lbl').forEach(function(e){ e.remove(); });
+        if(!/[\p{L}\p{N}]/u.test(c.textContent || '')) b.remove();
+      });
+      cl.querySelectorAll('.node-footer').forEach(function(f){ if(!f.querySelector('button')) f.remove(); });
       cl.querySelectorAll('.csym-btn, .tsym-btn').forEach(function(b){
         var t = b.getAttribute('title') || '';
         if(!t){ b.remove(); return; }
-        var sp = document.createElement('span'); sp.className = 'ink-ent'; sp.textContent = t; b.parentNode.replaceChild(sp, b);
+        var sp = document.createElement('span'); sp.className = 'ink-ent'; sp.textContent = t;
+        var lb = b.querySelector('.alto-lbl'); if(lb) sp.appendChild(lb.cloneNode(true));          // a case's letter/★ stays with its chip
+        b.parentNode.replaceChild(sp, b);
       });
       cl.querySelectorAll('button').forEach(function(b){ b.removeAttribute('title'); b.removeAttribute('onclick'); });
       // A System page keeps the number, tag, title and description inside a .sol-body that only shows when the
