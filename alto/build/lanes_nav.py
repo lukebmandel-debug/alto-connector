@@ -1417,12 +1417,25 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
   /* where a line leaves a card: the middle of the side facing the other card, just outside it */
   /* where a line leaves a card: the middle of a side, just outside it, the side facing the other card first, else the next clear one
      (a card in a stacked column has only a few px of gap above and below it) */
-  function port(r, o, others){ var cx=(r[0]+r[2])/2, cy=(r[1]+r[3])/2, ox=(o[0]+o[2])/2, oy=(o[1]+o[3])/2, dx=ox-cx, dy=oy-cy, D=PAD+CELL+2;
+  function port(r, o, others, rails, beside){ var cx=(r[0]+r[2])/2, cy=(r[1]+r[3])/2, ox=(o[0]+o[2])/2, oy=(o[1]+o[3])/2, dx=ox-cx, dy=oy-cy, D=PAD+CELL+2;
     var S={r:[[r[2], cy],[r[2]+D, cy]], l:[[r[0], cy],[r[0]-D, cy]], b:[[cx, r[3]],[cx, r[3]+D]], t:[[cx, r[1]],[cx, r[1]-D]]};
     var h=dx>0 ? ['r','l'] : ['l','r'], v=dy>0 ? ['b','t'] : ['t','b'], order=Math.abs(dx)*(r[3]-r[1])>Math.abs(dy)*(r[2]-r[0]) ? [h[0], v[0], v[1], h[1]] : [v[0], h[0], h[1], v[1]];
     function free(q){ return !others.some(function(b){ return q[0]>b[0]-PAD-1 && q[0]<b[2]+PAD+1 && q[1]>b[1]-PAD-1 && q[1]<b[3]+PAD+1; }); }
-    for(var k=0;k<4;k++) if(free(S[order[k]][1])) return S[order[k]];
+    /* not from the spot where one of the card's own branch lines meets it: the two would leave as one line (Board 2026-11-28) */
+    function rides(q){ var c=Math.abs(q[0][0]-q[1][0])<.01 ? 0 : 1, o2=1-c, lo=Math.min(q[0][o2], q[1][o2]), hi=Math.max(q[0][o2], q[1][o2]);
+      return (rails||[]).some(function(t){ return Math.abs(t[c]-t[c+2])<.01 && Math.abs(t[c]-q[0][c])<6 && Math.min(hi, Math.max(t[o2], t[o2+2]))-Math.max(lo, Math.min(t[o2], t[o2+2]))>=3; }); }
+    /* (first the middle of each side; then, on each side, 14 px to either side of the middle: beside its branch line, not on it) */
+    var alt=function(sd, f){ var q=S[sd], v=(sd==='r' || sd==='l') ? 1 : 0, lim=(v ? r[3]-r[1] : r[2]-r[0])/2-8, d=f*Math.min(14, lim); if(lim<8) return null;
+      return [[q[0][0]+(v ? 0 : d), q[0][1]+(v ? d : 0)], [q[1][0]+(v ? 0 : d), q[1][1]+(v ? d : 0)]]; };
+    if(!beside) for(var k=0;k<4;k++) if(free(S[order[k]][1]) && !rides(S[order[k]])) return S[order[k]];
+    if(rails) for(var k3=0;k3<4;k3++) for(var f=-1;f<=1;f+=2){ var q3=alt(order[k3], f); if(q3 && free(q3[1]) && !rides(q3)) return q3; }
+    for(var k2=0;k2<4;k2++) if(free(S[order[k2]][1])) return S[order[k2]];
     return S[order[0]]; }
+  /* a cross-reference never rides along a branch's own line (Board 2026-11-28: 16 to 24 of civ-pro's lay on a connector and read as part
+     of it): a run of it within 6 px of a connector's run, side by side for 12 px or more, moves sideways to the nearest place 6 px clear of
+     every connector and card, its neighbours growing or shrinking to meet it. Its two ends, at the cards, stay. Where a gutter is full
+     (three levels of a branch pass there) it stays as routed. rails: the connectors' runs [x0,y0,x1,y1] (lanes.py placeKids) */
+  function offRails(pts, boxes, rails){ if(window._altoLanesOffRails) window._altoLanesOffRails(pts, boxes, rails, PAD); }
   function draw(){
     var svg=document.getElementById('lanes-svg'), old=svg && svg.querySelector('g.ln-xrefs'); if(old) old.remove();
     if(!svg || !on()) return;
@@ -1436,9 +1449,10 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
     var seen={}, list=CONNECTIONS.filter(function(c){ if(!c || c[2]==='spine' || !rects[c[0]] || !rects[c[1]] || c[0]===c[1]) return false; var k=c[0]<c[1] ? c[0]+'|'+c[1] : c[1]+'|'+c[0]; if(seen[k]) return false; return (seen[k]=1); });
     if(!list.length) return;
     var g=document.createElementNS(NS,'g'); g.setAttribute('class','ln-xrefs'); svg.appendChild(g);
+    var rails=[]; [].forEach.call(svg.querySelectorAll('.ln-kids path.ln-kidline'), function(p){ (p._seg||[]).forEach(function(q){ rails.push(q); }); });
     list.forEach(function(c){
       var A=rects[c[0]], B=rects[c[1]], X0=Math.min(A[0], B[0])-240, X1=Math.max(A[2], B[2])+240, Y0=Math.min(A[1], B[1])-320, Y1=Math.max(A[3], B[3])+320;
-      var near=boxes.concat(tabs).filter(function(r){ return r!==A && r!==B && r[2]>X0 && r[0]<X1 && r[3]>Y0 && r[1]<Y1; }), pa=port(A, B, near), pb=port(B, A, near);
+      var near=boxes.concat(tabs).filter(function(r){ return r!==A && r!==B && r[2]>X0 && r[0]<X1 && r[3]>Y0 && r[1]<Y1; }), pa=port(A, B, near, rails), pb=port(B, A, near, rails);
       var R=route;
       /* two cards facing each other with nothing between: a short straight line from edge to edge, no detour */
       var clear=function(q){ return !near.some(function(r){ return Math.max(q[0][0], q[1][0])>r[0]-PAD && Math.min(q[0][0], q[1][0])<r[2]+PAD && Math.max(q[0][1], q[1][1])>r[1]-PAD && Math.min(q[0][1], q[1][1])<r[3]+PAD; }); }, direct=null;
@@ -1446,12 +1460,23 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
       if(oxe-ox>16){ var xm=(ox+oxe)/2, up=A[1]<B[1] ? A : B, dn=up===A ? B : A; if(dn[1]>up[3]) direct=[[xm, up[3]], [xm, dn[1]]]; }
       else if(oye-oy>16){ var ym=(oy+oye)/2, lf=A[0]<B[0] ? A : B, rt=lf===A ? B : A; if(rt[0]>lf[2]) direct=[[lf[2], ym], [rt[0], ym]]; }
       if(direct && !clear(direct)) direct=null;
+      /* (two cards one over the other are often parent and child: their branch line already runs down the middle. The straight line steps
+         to one side of it, inside the edge the cards share; with no room there it is routed) */
+      if(direct){ var dv=Math.abs(direct[0][0]-direct[1][0])<.01 ? 0 : 1, ride=function(q){ var lo=Math.min(q[0][1-dv], q[1][1-dv]), hi=Math.max(q[0][1-dv], q[1][1-dv]);
+          return rails.some(function(t){ return Math.abs(t[dv]-t[dv+2])<.01 && Math.abs(t[dv]-q[0][dv])<5.5 && Math.min(hi, Math.max(t[1-dv], t[3-dv]))-Math.max(lo, Math.min(t[1-dv], t[3-dv]))>=3; }); };
+        if(ride(direct)){ var m0=dv ? oy : ox, m1=dv ? oye : oxe, base=direct[0][dv], got=null;
+          [14, -14, 28, -28, 42, -42].some(function(d){ var x=base+d; if(x<m0+10 || x>m1-10) return false; var q=dv ? [[direct[0][0], x], [direct[1][0], x]] : [[x, direct[0][1]], [x, direct[1][1]]];
+            if(ride(q) || !clear(q)) return false; got=q; return true; });
+          direct=got; } }
       var pts=direct ? null : R(pa[1], pb[1], near.concat([A, B]), X0, Y0, X1-X0, Y1-Y0);      /* (its own two cards are in the way too: it leaves and enters by their ports) */
       if(!pts && !direct){ var Yt=Math.min.apply(null, boxes.map(function(r){ return r[1]; }))-60, Yb=Math.max.apply(null, boxes.map(function(r){ return r[3]; }))+60;
         pts=R(pa[1], pb[1], near.concat(boxes.filter(function(r){ return near.indexOf(r)<0 && r!==A && r!==B; }), tabs.filter(function(r){ return near.indexOf(r)<0; }), [A, B]), X0, Yt, X1-X0, Yb-Yt); }
+      if(!pts && !direct){ pa=port(A, B, near, rails, 1); pb=port(B, A, near, rails, 1); pts=R(pa[1], pb[1], near.concat([A, B]), X0, Y0, X1-X0, Y1-Y0); }      /* (no way from a free side: from beside its branch line) */
+      if(!pts && !direct){ pa=port(A, B, near); pb=port(B, A, near); pts=R(pa[1], pb[1], near.concat([A, B]), X0, Y0, X1-X0, Y1-Y0); }      /* (no way from the sides its branch lines leave free: from the facing side, as before) */
       if(direct) pts=direct;
       else { if(!pts) return;      /* (no clear way round: better no line than one through a card) */
         pts=[pa[0]].concat(pts, [pb[0]]); }
+      if(!direct) offRails(pts, near.concat([A, B]), rails);
       var d='M'+pts.map(function(p){ return p[0].toFixed(1)+' '+p[1].toFixed(1); }).join(' L');
       var col=(typeof COLOR_MAP!=='undefined' && COLOR_MAP[c[2]]) ? COLOR_MAP[c[2]] : 'var(--accent)';
       var w=document.createElementNS(NS,'g'); w.setAttribute('class','ln-xref'); w.setAttribute('data-a', c[0]); w.setAttribute('data-b', c[1]); g.appendChild(w);
