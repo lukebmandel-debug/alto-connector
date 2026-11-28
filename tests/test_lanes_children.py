@@ -783,3 +783,35 @@ def test_an_enlarged_card_is_solid_in_classic_so_no_card_reads_through_it(browse
         pg.keyboard.press("Escape")
         pg.wait_for_timeout(700)
     assert not errs
+
+
+_THROUGH = """() => { const cards = [...document.querySelectorAll('#world .node .node-card')].filter(c => { const r = c.getBoundingClientRect(), s = getComputedStyle(c.closest('.node'));
+      return r.width > 2 && s.display !== 'none' && s.visibility !== 'hidden'; }).map(c => c.getBoundingClientRect());
+  const ps = [...document.querySelectorAll('#lanes-svg .ln-kids .ln-kidline')]; let through = 0, off = 0;
+  const pt = (p, L) => { const m = p.getScreenCTM(), q = p.getPointAtLength(L); return {x: m.a*q.x + m.c*q.y + m.e, y: m.b*q.x + m.d*q.y + m.f}; };
+  const ed = (q, r) => Math.hypot(Math.max(r.left - q.x, 0, q.x - r.right), Math.max(r.top - q.y, 0, q.y - r.bottom));
+  ps.forEach(p => { const L = p.getTotalLength(); if (!L) return; const a = pt(p, 0), b = pt(p, L);
+    if (Math.min(...cards.map(r => ed(a, r))) > 4 || Math.min(...cards.map(r => ed(b, r))) > 4) off++;
+    for (let k = 1; k < 20; k++) { const q = pt(p, L * k / 20); if (cards.some(r => q.x > r.left + 3 && q.x < r.right - 3 && q.y > r.top + 3 && q.y < r.bottom - 3)) { through++; break; } } });
+  return {lines: ps.length, through, off}; }"""
+
+
+def test_no_branch_connector_runs_through_a_card_in_any_view(browser, tmp_path):
+    """Board 2026-11-27 (civ-pro, Outline all: 111 connectors through cards): where an outline stacks a parent's children in one column, each one
+    below a sibling is joined from that sibling's foot, as a list is; every connector still runs from its parent to its card. Compact draws none;
+    Expanded and Outline all draw one per child, none through a card."""
+    d = _civ()
+    for n in [n for n in d["nodes"] if n.get("nest") and n["nest"].endswith("-s0")]:
+        d["nodes"].append(dict(n, id=n["id"] + "x", title=n["title"] + " (more)"))
+    pg, errs = _open(browser, d, tmp_path)
+    assert pg.evaluate(_THROUGH)["lines"] == 0                                           # Compact: tucked, no connectors
+    pg.evaluate("() => window._altoLanesKids.view('expanded')")
+    pg.wait_for_timeout(1200)
+    kids = pg.evaluate("() => Object.keys(window._altoLanesGeo.kids || {}).length")
+    e = pg.evaluate(_THROUGH)
+    assert e["lines"] == kids and e["through"] == 0 and e["off"] == 0, ("expanded", kids, e)
+    pg.evaluate("() => window._altoLanesKids.outlineAll(true)")
+    pg.wait_for_timeout(1400)
+    o = pg.evaluate(_THROUGH)
+    assert o["lines"] == kids and o["through"] == 0 and o["off"] == 0, ("outline", kids, o)
+    assert not errs
