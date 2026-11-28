@@ -1383,7 +1383,7 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
    card or its words; quiet at rest, drawn full while one of its cards is hovered or enlarged; the other end's title and the material's note
    as its tooltip. Compact and phones are as they were (a tucked card has no line). */
 (function(){
-  var de=document.documentElement, NS='http://www.w3.org/2000/svg', CELL=8, PAD=4, T=0, HOT='';
+  var de=document.documentElement, NS='http://www.w3.org/2000/svg', CELL=8, PAD=6, T=0, HOT='';      /* (PAD: a line keeps 6 px off every card and tab, so it never reads as a frame: Board 2026-11-27) */
   function on(){ var K=window._altoLanesKids; return !!(K && K.view && K.view()==='expanded') && !de.classList.contains('mobile') && !de.classList.contains('phone-whole')
     && !de.classList.contains('printing') && typeof CONNECTIONS!=='undefined'; }
   function shown(n){ if(!n || n.classList.contains('ln-kid-shut') || n.classList.contains('ln-hid')) return null; var c=n.querySelector('.node-card'); if(!c) return null;
@@ -1430,24 +1430,25 @@ window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0
     function loc(r){ var p=svg.createSVGPoint(), q; p.x=r.left; p.y=r.top; q=p.matrixTransform(inv); var x0=q.x, y0=q.y; p.x=r.right; p.y=r.bottom; q=p.matrixTransform(inv); return [x0, y0, q.x, q.y]; }
     var rects={}, boxes=[];
     document.querySelectorAll('#world .node[id^="node-"]').forEach(function(n){ var r=shown(n); if(!r) return; var b=loc(r); rects[n.id.slice(5)]=b; boxes.push(b); });
+    /* a card's tabs (its outline / list switch, its "inside" chip) stand on its edge: in the way too (Board 2026-11-27: a lit line ran through
+       "⑂ outline") */
+    var tabs=[]; document.querySelectorAll('#world .ln-otag, #world .ln-chip').forEach(function(t){ var r=t.getBoundingClientRect(); if(r.width>2 && getComputedStyle(t).visibility!=='hidden') tabs.push(loc(r)); });
     var seen={}, list=CONNECTIONS.filter(function(c){ if(!c || c[2]==='spine' || !rects[c[0]] || !rects[c[1]] || c[0]===c[1]) return false; var k=c[0]<c[1] ? c[0]+'|'+c[1] : c[1]+'|'+c[0]; if(seen[k]) return false; return (seen[k]=1); });
     if(!list.length) return;
     var g=document.createElementNS(NS,'g'); g.setAttribute('class','ln-xrefs'); svg.appendChild(g);
     list.forEach(function(c){
       var A=rects[c[0]], B=rects[c[1]], X0=Math.min(A[0], B[0])-240, X1=Math.max(A[2], B[2])+240, Y0=Math.min(A[1], B[1])-320, Y1=Math.max(A[3], B[3])+320;
-      var near=boxes.filter(function(r){ return r!==A && r!==B && r[2]>X0 && r[0]<X1 && r[3]>Y0 && r[1]<Y1; }), pa=port(A, B, near), pb=port(B, A, near);
+      var near=boxes.concat(tabs).filter(function(r){ return r!==A && r!==B && r[2]>X0 && r[0]<X1 && r[3]>Y0 && r[1]<Y1; }), pa=port(A, B, near), pb=port(B, A, near);
       var R=route;
       /* two cards facing each other with nothing between: a short straight line from edge to edge, no detour */
-      var clear=function(q){ return !near.some(function(r){ return Math.max(q[0][0], q[1][0])>r[0]-1 && Math.min(q[0][0], q[1][0])<r[2]+1 && Math.max(q[0][1], q[1][1])>r[1]-1 && Math.min(q[0][1], q[1][1])<r[3]+1; }); }, direct=null;
+      var clear=function(q){ return !near.some(function(r){ return Math.max(q[0][0], q[1][0])>r[0]-PAD && Math.min(q[0][0], q[1][0])<r[2]+PAD && Math.max(q[0][1], q[1][1])>r[1]-PAD && Math.min(q[0][1], q[1][1])<r[3]+PAD; }); }, direct=null;
       var ox=Math.max(A[0], B[0]), oxe=Math.min(A[2], B[2]), oy=Math.max(A[1], B[1]), oye=Math.min(A[3], B[3]);
       if(oxe-ox>16){ var xm=(ox+oxe)/2, up=A[1]<B[1] ? A : B, dn=up===A ? B : A; if(dn[1]>up[3]) direct=[[xm, up[3]], [xm, dn[1]]]; }
       else if(oye-oy>16){ var ym=(oy+oye)/2, lf=A[0]<B[0] ? A : B, rt=lf===A ? B : A; if(rt[0]>lf[2]) direct=[[lf[2], ym], [rt[0], ym]]; }
       if(direct && !clear(direct)) direct=null;
       var pts=direct ? null : R(pa[1], pb[1], near.concat([A, B]), X0, Y0, X1-X0, Y1-Y0);      /* (its own two cards are in the way too: it leaves and enters by their ports) */
       if(!pts && !direct){ var Yt=Math.min.apply(null, boxes.map(function(r){ return r[1]; }))-60, Yb=Math.max.apply(null, boxes.map(function(r){ return r[3]; }))+60;
-        pts=R(pa[1], pb[1], near.concat(boxes.filter(function(r){ return near.indexOf(r)<0 && r!==A && r!==B; }), [A, B]), X0, Yt, X1-X0, Yb-Yt); }
-      if(!pts && !direct){ var tight=near.concat([A, B]).map(function(r){ return [r[0]+3, r[1]+3, r[2]-3, r[3]-3]; });      /* (a tight spot: a closer pass, still clear of every card) */
-        pts=R(pa[1], pb[1], tight, X0, Y0, X1-X0, Y1-Y0); }
+        pts=R(pa[1], pb[1], near.concat(boxes.filter(function(r){ return near.indexOf(r)<0 && r!==A && r!==B; }), tabs.filter(function(r){ return near.indexOf(r)<0; }), [A, B]), X0, Yt, X1-X0, Yb-Yt); }
       if(direct) pts=direct;
       else { if(!pts) return;      /* (no clear way round: better no line than one through a card) */
         pts=[pa[0]].concat(pts, [pb[0]]); }

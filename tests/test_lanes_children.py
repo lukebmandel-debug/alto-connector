@@ -833,13 +833,18 @@ _XR = """() => { const svg = document.getElementById('lanes-svg'), gs = [...svg.
   const owed = (CONNECTIONS || []).filter(c => c[2] !== 'spine' && cards.some(x => x[0] === c[0]) && cards.some(x => x[0] === c[1])).length;
   const pt = (p, L) => { const m = p.getScreenCTM(), q = p.getPointAtLength(L); return {x: m.a*q.x + m.c*q.y + m.e, y: m.b*q.x + m.d*q.y + m.f}; };
   const ed = (q, r) => Math.hypot(Math.max(r.left - q.x, 0, q.x - r.right), Math.max(r.top - q.y, 0, q.y - r.bottom));
-  let off = 0, through = 0, loud = 0;
+  let off = 0, through = 0, loud = 0, hug = 0;
+  const tabs = [...document.querySelectorAll('#world .ln-otag, #world .ln-chip')].map(t => t.getBoundingClientRect()).filter(r => r.width > 2);
+  const k1 = (() => { const m = svg.getScreenCTM(); return m ? Math.hypot(m.a, m.b) : 1; })();      // screen px a board px takes
   gs.forEach(g => { const p = g.querySelector('.ln-xline'), L = p.getTotalLength(), a = g.getAttribute('data-a'), b = g.getAttribute('data-b');
     const ra = cards.find(x => x[0] === a)[1], rb = cards.find(x => x[0] === b)[1], s0 = pt(p, 0), s1 = pt(p, L);
     if (Math.min(ed(s0, ra), ed(s0, rb)) > 2 || Math.min(ed(s1, ra), ed(s1, rb)) > 2) off++;
     for (let k = 1; k < 40; k++) { const q = pt(p, L * k / 40); if (cards.some(([id, r]) => q.x > r.left + 2 && q.x < r.right - 2 && q.y > r.top + 2 && q.y < r.bottom - 2)) { through++; break; } }
-    if (+getComputedStyle(p).strokeOpacity > 0.4) loud++; });
-  return {owed, drawn: gs.length, off, through, loud}; }"""
+    if (+getComputedStyle(p).strokeOpacity > 0.4) loud++;
+    for (let k = 1; k < 80; k++) { const q = pt(p, L * k / 80), endD = Math.min(Math.hypot(q.x - s0.x, q.y - s0.y), Math.hypot(q.x - s1.x, q.y - s1.y));
+      const near = cards.filter(([id, r]) => !((id === a || id === b) && endD < 24)).map(x => x[1]).concat(tabs).some(r => ed(q, r) < 5.5 * k1);
+      if (near) { hug++; break; } } });
+  return {owed, drawn: gs.length, off, through, loud, hug}; }"""
 
 
 def test_cross_references_join_their_cards_in_the_open_views_quietly_and_light_with_their_card(browser, tmp_path):
@@ -856,6 +861,7 @@ def test_cross_references_join_their_cards_in_the_open_views_quietly_and_light_w
             pg.wait_for_timeout(1500)
         x = pg.evaluate(_XR)
         assert x["owed"] >= 6 and x["drawn"] == x["owed"] and x["off"] == 0 and x["through"] == 0 and x["loud"] == 0, (state, x)
+        assert x["hug"] == 0, (state, x)                                                  # 6 px off every card and tab: never reads as a frame
     a = pg.evaluate("() => document.querySelector('#lanes-svg g.ln-xref').getAttribute('data-a')")
     pg.hover(f"#node-{a} .node-card")
     pg.wait_for_timeout(400)
