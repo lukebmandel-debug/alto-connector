@@ -920,3 +920,114 @@ def test_cross_references_join_their_cards_in_the_open_views_quietly_and_light_w
     assert pg.evaluate("() => +getComputedStyle(document.querySelector('#lanes-svg g.ln-xref.ln-xon .ln-xline')).strokeOpacity") > 0.8
     assert pg.evaluate("() => !!document.querySelector('#lanes-svg g.ln-xref title')")    # the other end and the note as its tooltip
     assert not errs
+
+
+# ── following a connecting line ──────────────────────────────────────────────
+
+# a clear spot on line i (of every connector and cross-reference drawn), `frac` of the way along it: on the empty board, in the window, and
+# nearer this line than any other; with the two cards it joins and the one farther from the spot
+_SPOT = """([i, frac]) => { const ps = [...document.querySelectorAll('#lanes-svg .ln-kids path.ln-kidline[data-k], #lanes-svg g.ln-xref .ln-xline')], p = ps[i];
+  if (!p) return null; const w = p.parentNode, a = p.getAttribute('data-p') || w.getAttribute('data-a'), b = p.getAttribute('data-k') || w.getAttribute('data-b');
+  const M = p.getScreenCTM(), L = p.getTotalLength(), ctr = id => { const r = document.querySelector('#node-' + id + ' .node-card').getBoundingClientRect(); return [r.left + r.width/2, r.top + r.height/2]; };
+  for (const f of [0, .04, -.04, .08, -.08, .12, -.12, .2, -.2]) { const t = frac + f; if (t < .02 || t > .98) continue; const q = p.getPointAtLength(L * t), x = M.a*q.x + M.c*q.y + M.e, y = M.b*q.x + M.d*q.y + M.f;
+    if (x < 30 || y < 140 || x > innerWidth - 90 || y > innerHeight - 120) continue;
+    const e = document.elementFromPoint(x, y); if (!e || !e.closest('#canvas') || e.closest('.node,button,a,.ln-otag,.ln-chip,.lanes-tag')) continue;
+    const at = window._altoLanesLineAt(x, y); if (!at || at[0] !== a || at[1] !== b) continue;
+    const da = Math.hypot(ctr(a)[0] - x, ctr(a)[1] - y), db = Math.hypot(ctr(b)[0] - x, ctr(b)[1] - y); if (Math.abs(da - db) < 30) continue;
+    return {x, y, a, b, far: da > db ? a : b, xref: !p.hasAttribute('data-k'), n: ps.length}; }
+  return {n: ps.length, a, b}; }"""
+_SEEN = """(id) => { const n = document.getElementById('node-' + id), r = n.querySelector('.node-card').getBoundingClientRect();
+  return {focused: window._focusedNodeId || '', big: n.classList.contains('focused'), inView: r.left < innerWidth && r.right > 0 && r.top < innerHeight && r.bottom > 0
+    && r.left + r.width/2 > 0 && r.left + r.width/2 < innerWidth && r.top + r.height/2 > 0 && r.top + r.height/2 < innerHeight}; }"""
+
+
+def test_a_click_on_a_connecting_line_takes_you_to_the_card_at_its_far_end(browser, tmp_path):
+    """Luke 2026-11-28: "connecting lines in horizontal timeline extended outline mode still aren't working right, clicking on them does not
+    take you over to the next connection". As in the vertical timeline, a click on a line enlarges the card at its far end (the end farther
+    from the click), from either side: an event's line to a branch card, a branch card's to the card under it (list and outline), and a
+    cross-reference. The line in reach of the pointer is drawn full under a hand. A click on a card is still the card's, however near a line
+    it is; Compact follows no line."""
+    d = _xref_brief()
+    d["brief"]["extend"] = True                                                           # his board: full spacing, taller than the window
+    pg, errs = _open(browser, d, tmp_path, viewport=(1440, 900))
+    assert pg.evaluate("() => window._altoLanesLineAt(700, 450)") is None                 # Compact: as it was
+    pg.evaluate("() => window._altoLanesKids.view('expanded')")
+    pg.wait_for_timeout(1500)
+
+    see = """(id) => { let r = id; while (window._altoLanesKids.nest(r)) r = window._altoLanesKids.nest(r); window._altoLanesStep(r); }"""
+    lift = """(id) => { const r = document.querySelector('#node-' + id + ' .node-card').getBoundingClientRect(), c = document.getElementById('canvas'),
+      k = (c.offsetHeight && c.getBoundingClientRect().height / c.offsetHeight) || 1; window._altoLanesVy((r.top + r.height/2 - innerHeight/2) / k); }"""
+
+    def rest():
+        last = None
+        for _ in range(30):
+            pg.wait_for_timeout(200)
+            now = pg.evaluate("""() => { const c = document.getElementById('canvas'), r = document.querySelector('#world .node .node-card').getBoundingClientRect();
+              return [c.scrollLeft, c.scrollTop, r.left, r.top, r.width]; }""")
+            if now == last:
+                return
+            last = now
+
+    def show(id):
+        pg.evaluate(see, id)
+        rest()
+        pg.evaluate(lift, id)
+        rest()
+
+    def follow(state):
+        n = pg.evaluate(_SPOT, [0, .5])["n"]
+        done = {"kid": 0, "sub": 0, "xref": 0, "up": 0, "down": 0}
+        roots = set(pg.evaluate("() => Object.keys(window._altoLanesGeo.fams || {})"))
+        for i in range(n):
+            if min(done["kid"], done["sub"], done["up"], done["down"]) >= 2 and done["xref"] >= 2:
+                break
+            probe = pg.evaluate(_SPOT, [i, .5])
+            kind = "xref" if i >= n - pg.evaluate("() => document.querySelectorAll('#lanes-svg g.ln-xref').length") else ("kid" if probe["a"] in roots else "sub")
+            if done[kind] >= 3:
+                continue
+            show(probe["b"])
+            for frac in (.2, .8):
+                s = pg.evaluate(_SPOT, [i, frac])
+                if not s or "x" not in s:
+                    continue
+                pg.mouse.move(s["x"] + 40, s["y"] + 40)
+                pg.mouse.move(s["x"], s["y"], steps=4)
+                pg.wait_for_timeout(250)
+                lit = pg.evaluate("""() => ({hot: document.querySelectorAll('#lanes-svg .ln-khot, #lanes-svg g.ln-xhov').length, hand: getComputedStyle(document.getElementById('canvas')).cursor})""")
+                assert lit == {"hot": 1, "hand": "pointer"}, (state, s, lit)             # the line in reach: drawn full, under a hand
+                assert pg.evaluate("([x, y]) => window._altoLanesLineAt(x, y)", [s["x"], s["y"]]) == [s["a"], s["b"]], (state, s)
+                pg.mouse.click(s["x"], s["y"])
+                pg.wait_for_timeout(400)
+                rest()
+                seen = pg.evaluate(_SEEN, s["far"])
+                assert seen == {"focused": s["far"], "big": True, "inView": True}, (state, json.dumps(s), seen, done)
+                done[kind] += 1
+                done["up" if s["far"] == s["a"] else "down"] += 1
+                pg.evaluate("() => window.exitFocus && window.exitFocus()")
+                pg.wait_for_timeout(500)
+                show(s["b"])
+        assert done["kid"] >= 2 and done["sub"] >= 2 and done["xref"] >= 1 and done["up"] >= 2 and done["down"] >= 2, (state, done)
+
+    follow("expanded")
+    pg.evaluate("() => window._altoLanesKids.outlineAll(true)")
+    pg.wait_for_timeout(1600)
+    follow("outline")
+    # a card keeps its own click: 5 px inside a branch card, right where its connector arrives, enlarges THAT card
+    k = pg.evaluate("() => document.querySelector('#lanes-svg .ln-kids path.ln-kidline[data-k]').getAttribute('data-k')")
+    show(k)
+    e = pg.evaluate("""(k) => { const p = document.querySelector('#lanes-svg .ln-kids path.ln-kidline[data-k="' + k + '"]'), M = p.getScreenCTM(), q = p.getPointAtLength(p.getTotalLength());
+      const x = M.a*q.x + M.c*q.y + M.e, y = M.b*q.x + M.d*q.y + M.f, r = document.querySelector('#node-' + k + ' .node-card').getBoundingClientRect();
+      return {x: Math.min(Math.max(x, r.left + 5), r.right - 5), y: Math.min(Math.max(y, r.top + 5), r.bottom - 5)}; }""", k)
+    pg.mouse.click(e["x"], e["y"])
+    pg.wait_for_timeout(1000)
+    assert pg.evaluate("() => window._focusedNodeId") == k
+    assert pg.evaluate("() => window._altoLanesLineAt(700, 450)") is None                 # nothing to follow while a card is enlarged
+    assert not errs
+
+
+def test_a_phone_follows_no_line(browser, tmp_path):
+    """Phones are as they were: no branch lines there, and no line to follow."""
+    pg, errs = _open(browser, _xref_brief(), tmp_path, phone=True)
+    assert pg.evaluate("() => window._altoLanesLineAt ? window._altoLanesLineAt(195, 420) : null") is None
+    assert pg.evaluate("() => document.querySelectorAll('#lanes-svg .ln-kids path.ln-kidline').length") == 0
+    assert not errs
