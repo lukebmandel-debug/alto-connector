@@ -7,6 +7,8 @@ background, go with both". Each is original geometry drawn here as flat vector S
 artwork, in Retro's black and gold:
   Setback  black lacquer and gold leaf: one symmetrical stepped tower on the axis, fluted, a fine-ruled sunburst behind it, low mirrored
            setbacks at the sides, and a double gilt rule round the window with stepped corners and a quarter fan in each.
+  Portal   ink, gold and silver: a nested stepped doorway on the axis, a floor in perspective running to its foot, a narrow sunburst from
+           its keystone, and columns of chevrons (pilasters) down each side inside the gilt rule.
 
 How it rides, like holo_backgrounds.py: the hosted Retro script (retro.py) adds the entries to the picker's catalog while Retro is on
 (kind 'h', group 'Retro': drawn as a CSS ground, painted through Retro's own background layer) and takes them away when Retro goes off
@@ -129,9 +131,47 @@ def setback(W, H, s, gilt):
     return _svg(W, H, b, "#060607", "#0d0c0a")
 
 
+# ── Portal ─────────────────────────────────────────────────────────────
+C_IN, C_SIL, C_EDGE = "#4a3a1b", "#252b38", "#a8843a"     # dim gold, dim silver (inside the band), gilt (frame and margins only)
+
+
+def portal(W, H, s, gilt):
+    cx, vy = W / 2, H * (.72 if H > W else .66)
+    b = []
+    # the floor: rays to the doorway's foot and lines that close up toward it
+    b.append(_rays(cx, vy, 0, max(W, H) * 1.4, 40, 180, 360, C_SIL, .9))
+    k, y, d = 1, vy + 8 * s, []
+    while y < H:
+        d.append(f"M0 {_f(y)}H{W}"); k *= 1.32; y += 8 * s * k
+    b.append(f'<path d="{"".join(d)}" stroke="{C_SIL}" stroke-width=".9"/>')
+    b.append(f'<path d="M0 {_f(vy)}H{W}" stroke="{C_IN}" stroke-width="2"/>')
+    # the doorway: six nested stepped arches, gold and silver in turn, and a narrow sunburst rising from its keystone
+    for i in range(6):
+        hw, hh, st = (40 + i * 34) * s, (120 + i * 44) * s, 12 * s
+        x0, x1, yt = cx - hw, cx + hw, vy - hh
+        dd = (f"M{_f(x0)} {_f(vy)}V{_f(yt + 2 * st)}H{_f(x0 + st)}V{_f(yt + st)}H{_f(x0 + 2 * st)}V{_f(yt)}"
+              f"H{_f(x1 - 2 * st)}V{_f(yt + st)}H{_f(x1 - st)}V{_f(yt + 2 * st)}H{_f(x1)}V{_f(vy)}")
+        b.append(f'<path d="{dd}" fill="none" stroke="{C_IN if i % 2 == 0 else C_SIL}" stroke-width="{1.2 if i == 0 else .9}"/>')
+    b.append(_rays(cx, vy - (120 + 5 * 44) * s, 14 * s, max(W, H), 28, 62, 118, C_SIL, .8))
+    b.append(_fan(cx, vy - 120 * s, 40 * s, 10, 0, 180, C_IN, 1, rings=(1, .55)))
+    # the pilasters: a column of nested chevrons inside the frame on each side, mirrored (gilt in the margins of a wide window)
+    cw = 40 if gilt else 16
+    for side in (0, 1):
+        x = FRAME_M + 12 if side == 0 else W - FRAME_M - 12 - cw
+        d, yy = [], FRAME_M + 30
+        while yy < H - FRAME_M - 30:
+            for t in range(3):
+                d.append(f"M{_f(x)} {_f(yy + t * 5)}L{_f(x + cw / 2)} {_f(yy + t * 5 + cw * .35)}L{_f(x + cw)} {_f(yy + t * 5)}")
+            yy += cw * .9
+        b.append(f'<path d="{"".join(d)}" fill="none" stroke="{C_EDGE if gilt else C_SIL}" stroke-width=".9"/>')
+    b += _frame(W, H, FRAME_M, C_EDGE if gilt else C_IN, 5, 1.1, 18 if gilt else 12)
+    return _svg(W, H, b, "#05070f", "#0a0f1d")
+
+
 # id: picker name, the sheet's custom property, the drawing, its ground (top, bottom)
 SCENES = {
     "r-deco-setback": {"n": "Setback", "var": "--rt-ds", "fn": setback, "c": ("#060607", "#0d0c0a")},
+    "r-deco-portal": {"n": "Portal", "var": "--rt-dp", "fn": portal, "c": ("#05070f", "#0a0f1d")},
 }
 OLD_IDS = ("r-green-light",)                         # retired grounds: a page that chose one gets the first scene
 
