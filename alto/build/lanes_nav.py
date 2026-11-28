@@ -151,6 +151,13 @@ NAV_CSS = """
   html.mobile #ln-mm, html.phone-whole #ln-mm, html.detail-open #ln-mm, html.printing #ln-mm, html.alto-editing #ln-mm{ display:none !important; }
   @media print{ #ln-mm{ display:none !important; } }
   @media (prefers-reduced-motion:reduce){ #ln-mm{ transition:none; } }
+  /* the material's cross-references on an open board (NAV_JS): quiet at rest, full while one of their cards is hovered or enlarged */
+  #lanes-svg g.ln-xrefs .ln-xline{ fill:none; stroke-width:1.5; stroke-opacity:.22; stroke-dasharray:6 5; stroke-linejoin:round; transition:stroke-opacity .2s, stroke-width .2s; }
+  #lanes-svg g.ln-xrefs .ln-xdot{ opacity:.3; transition:opacity .2s; }
+  #lanes-svg g.ln-xrefs .ln-xhit{ fill:none; stroke:transparent; stroke-width:10; pointer-events:stroke; }
+  #lanes-svg g.ln-xrefs g.ln-xon .ln-xline{ stroke-opacity:.95; stroke-width:2.5; stroke-dasharray:none; }
+  #lanes-svg g.ln-xrefs g.ln-xon .ln-xdot{ opacity:1; }
+  @media print{ #lanes-svg g.ln-xrefs{ display:none; } }
   /* the enlarged card held to the room on a phone (NAV_JS): it scrolls inside, and its touch moves its text, not the board */
   /* while a card is enlarged and fitted on a phone the units' labels step away (Board 2026-11-27: "I BEFORE SUIT" showed under the ring on one path) */
   html.phone-whole.ln-fitting #lanes-ulabels .lu-chip{ visibility:hidden !important; }
@@ -1368,6 +1375,101 @@ if(_lay) window._altoLanes=function(h){
   return r;
 };
 window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0); });
+})();
+
+/* The material's cross-references (CONNECTIONS beyond the line's own spine) on a board whose branches are open (Expanded, or Outline all): each
+   one drawn card edge to card edge where both its cards show (Luke 2026-11-27: "make sure the connecting lines are functional as usual in
+   horizontal timeline with nested branches expanded and in outline format"). Routed on a grid around every card, so a line never crosses a
+   card or its words; quiet at rest, drawn full while one of its cards is hovered or enlarged; the other end's title and the material's note
+   as its tooltip. Compact and phones are as they were (a tucked card has no line). */
+(function(){
+  var de=document.documentElement, NS='http://www.w3.org/2000/svg', CELL=8, PAD=4, T=0, HOT='';
+  function on(){ var K=window._altoLanesKids; return !!(K && K.view && K.view()==='expanded') && !de.classList.contains('mobile') && !de.classList.contains('phone-whole')
+    && !de.classList.contains('printing') && typeof CONNECTIONS!=='undefined'; }
+  function shown(n){ if(!n || n.classList.contains('ln-kid-shut') || n.classList.contains('ln-hid')) return null; var c=n.querySelector('.node-card'); if(!c) return null;
+    var s=getComputedStyle(n); if(s.display==='none' || s.visibility==='hidden') return null; var r=c.getBoundingClientRect(); return (r.width>2 && r.height>2) ? r : null; }
+  function title(id){ var t=document.querySelector('#node-'+id+' .node-title'); return t ? t.textContent.trim() : id; }
+  /* A* on a grid in the board's own px, 4 ways, a turn costs extra (clean right angles) */
+  function route(a, b, boxes, X0, Y0, W, H){
+    var CS=Math.max(CELL, Math.ceil(Math.sqrt(W*H/300000))), cw=Math.ceil(W/CS), ch=Math.ceil(H/CS), N=cw*ch; if(cw<2 || ch<2) return null;      /* (a finer grid where the stretch is short) */
+    var blk=new Uint8Array(N);
+    boxes.forEach(function(r){ var x0=Math.max(0, Math.floor((r[0]-PAD-X0)/CS)), x1=Math.min(cw-1, Math.floor((r[2]+PAD-X0)/CS)),
+      y0=Math.max(0, Math.floor((r[1]-PAD-Y0)/CS)), y1=Math.min(ch-1, Math.floor((r[3]+PAD-Y0)/CS));
+      for(var y=y0;y<=y1;y++) for(var x=x0;x<=x1;x++) blk[y*cw+x]=1; });
+    function cell(p){ return [Math.max(0, Math.min(cw-1, Math.round((p[0]-X0)/CS))), Math.max(0, Math.min(ch-1, Math.round((p[1]-Y0)/CS)))]; }
+    var s=cell(a), e=cell(b), si=s[1]*cw+s[0], ei=e[1]*cw+e[0]; blk[si]=0; blk[ei]=0;
+    var g=new Float32Array(N*4).fill(1e9), from=new Int32Array(N*4).fill(-1), heap=[], DX=[1,-1,0,0], DY=[0,0,1,-1];
+    function h(i){ var x=i%cw, y=(i/cw)|0; return Math.abs(x-e[0])+Math.abs(y-e[1]); }
+    function push(k, f){ heap.push([f,k]); var i=heap.length-1; while(i>0){ var q=(i-1)>>1; if(heap[q][0]<=heap[i][0]) break; var t=heap[q]; heap[q]=heap[i]; heap[i]=t; i=q; } }
+    function pop(){ var top=heap[0], last=heap.pop(); if(heap.length){ heap[0]=last; var i=0; for(;;){ var l=2*i+1, r=l+1, m=i; if(l<heap.length && heap[l][0]<heap[m][0]) m=l; if(r<heap.length && heap[r][0]<heap[m][0]) m=r; if(m===i) break; var t=heap[m]; heap[m]=heap[i]; heap[i]=t; i=m; } } return top; }
+    for(var d=0;d<4;d++){ g[si*4+d]=0; push(si*4+d, h(si)); }
+    var end=-1, steps=0;
+    while(heap.length && steps++<300000){ var it=pop(), k=it[1], i=k>>2, dd=k&3; if(it[0]-h(i)>g[k]+1e-6) continue; if(i===ei){ end=k; break; }
+      var x=i%cw, y=(i/cw)|0;
+      for(var nd=0;nd<4;nd++){ var nx=x+DX[nd], ny=y+DY[nd]; if(nx<0||ny<0||nx>=cw||ny>=ch) continue; var j=ny*cw+nx; if(blk[j]) continue;
+        var c=g[k]+1+(nd!==dd ? 4 : 0), kk=j*4+nd; if(c<g[kk]){ g[kk]=c; from[kk]=k; push(kk, c+h(j)); } } }
+    if(end<0) return null;
+    var pts=[]; for(var k2=end;k2>=0;k2=from[k2]){ var i2=k2>>2; pts.push([X0+(i2%cw)*CS, Y0+((i2/cw)|0)*CS]); }
+    pts.reverse(); var q0=pts[0], qN=pts[pts.length-1]; pts.unshift([a[0], q0[1]]); pts.unshift(a.slice()); pts.push([b[0], qN[1]]); pts.push(b.slice());      /* (the ends joined square to the grid: a slanted end could clip a card's corner) */
+    var out=[pts[0]]; for(var q=1;q<pts.length-1;q++){ var p0=out[out.length-1], p1=pts[q], p2=pts[q+1]; if((p0[0]===p1[0] && p1[0]===p2[0]) || (p0[1]===p1[1] && p1[1]===p2[1])) continue; out.push(p1); }
+    out.push(pts[pts.length-1]); return out;
+  }
+  /* where a line leaves a card: the middle of the side facing the other card, just outside it */
+  /* where a line leaves a card: the middle of a side, just outside it, the side facing the other card first, else the next clear one
+     (a card in a stacked column has only a few px of gap above and below it) */
+  function port(r, o, others){ var cx=(r[0]+r[2])/2, cy=(r[1]+r[3])/2, ox=(o[0]+o[2])/2, oy=(o[1]+o[3])/2, dx=ox-cx, dy=oy-cy, D=PAD+CELL+2;
+    var S={r:[[r[2], cy],[r[2]+D, cy]], l:[[r[0], cy],[r[0]-D, cy]], b:[[cx, r[3]],[cx, r[3]+D]], t:[[cx, r[1]],[cx, r[1]-D]]};
+    var h=dx>0 ? ['r','l'] : ['l','r'], v=dy>0 ? ['b','t'] : ['t','b'], order=Math.abs(dx)*(r[3]-r[1])>Math.abs(dy)*(r[2]-r[0]) ? [h[0], v[0], v[1], h[1]] : [v[0], h[0], h[1], v[1]];
+    function free(q){ return !others.some(function(b){ return q[0]>b[0]-PAD-1 && q[0]<b[2]+PAD+1 && q[1]>b[1]-PAD-1 && q[1]<b[3]+PAD+1; }); }
+    for(var k=0;k<4;k++) if(free(S[order[k]][1])) return S[order[k]];
+    return S[order[0]]; }
+  function draw(){
+    var svg=document.getElementById('lanes-svg'), old=svg && svg.querySelector('g.ln-xrefs'); if(old) old.remove();
+    if(!svg || !on()) return;
+    var M=svg.getScreenCTM(); if(!M) return; var inv=M.inverse();
+    function loc(r){ var p=svg.createSVGPoint(), q; p.x=r.left; p.y=r.top; q=p.matrixTransform(inv); var x0=q.x, y0=q.y; p.x=r.right; p.y=r.bottom; q=p.matrixTransform(inv); return [x0, y0, q.x, q.y]; }
+    var rects={}, boxes=[];
+    document.querySelectorAll('#world .node[id^="node-"]').forEach(function(n){ var r=shown(n); if(!r) return; var b=loc(r); rects[n.id.slice(5)]=b; boxes.push(b); });
+    var seen={}, list=CONNECTIONS.filter(function(c){ if(!c || c[2]==='spine' || !rects[c[0]] || !rects[c[1]] || c[0]===c[1]) return false; var k=c[0]<c[1] ? c[0]+'|'+c[1] : c[1]+'|'+c[0]; if(seen[k]) return false; return (seen[k]=1); });
+    if(!list.length) return;
+    var g=document.createElementNS(NS,'g'); g.setAttribute('class','ln-xrefs'); svg.appendChild(g);
+    list.forEach(function(c){
+      var A=rects[c[0]], B=rects[c[1]], X0=Math.min(A[0], B[0])-240, X1=Math.max(A[2], B[2])+240, Y0=Math.min(A[1], B[1])-320, Y1=Math.max(A[3], B[3])+320;
+      var near=boxes.filter(function(r){ return r!==A && r!==B && r[2]>X0 && r[0]<X1 && r[3]>Y0 && r[1]<Y1; }), pa=port(A, B, near), pb=port(B, A, near);
+      var R=route;
+      /* two cards facing each other with nothing between: a short straight line from edge to edge, no detour */
+      var clear=function(q){ return !near.some(function(r){ return Math.max(q[0][0], q[1][0])>r[0]-1 && Math.min(q[0][0], q[1][0])<r[2]+1 && Math.max(q[0][1], q[1][1])>r[1]-1 && Math.min(q[0][1], q[1][1])<r[3]+1; }); }, direct=null;
+      var ox=Math.max(A[0], B[0]), oxe=Math.min(A[2], B[2]), oy=Math.max(A[1], B[1]), oye=Math.min(A[3], B[3]);
+      if(oxe-ox>16){ var xm=(ox+oxe)/2, up=A[1]<B[1] ? A : B, dn=up===A ? B : A; if(dn[1]>up[3]) direct=[[xm, up[3]], [xm, dn[1]]]; }
+      else if(oye-oy>16){ var ym=(oy+oye)/2, lf=A[0]<B[0] ? A : B, rt=lf===A ? B : A; if(rt[0]>lf[2]) direct=[[lf[2], ym], [rt[0], ym]]; }
+      if(direct && !clear(direct)) direct=null;
+      var pts=direct ? null : R(pa[1], pb[1], near.concat([A, B]), X0, Y0, X1-X0, Y1-Y0);      /* (its own two cards are in the way too: it leaves and enters by their ports) */
+      if(!pts && !direct){ var Yt=Math.min.apply(null, boxes.map(function(r){ return r[1]; }))-60, Yb=Math.max.apply(null, boxes.map(function(r){ return r[3]; }))+60;
+        pts=R(pa[1], pb[1], near.concat(boxes.filter(function(r){ return near.indexOf(r)<0 && r!==A && r!==B; }), [A, B]), X0, Yt, X1-X0, Yb-Yt); }
+      if(!pts && !direct){ var tight=near.concat([A, B]).map(function(r){ return [r[0]+3, r[1]+3, r[2]-3, r[3]-3]; });      /* (a tight spot: a closer pass, still clear of every card) */
+        pts=R(pa[1], pb[1], tight, X0, Y0, X1-X0, Y1-Y0); }
+      if(direct) pts=direct;
+      else { if(!pts) return;      /* (no clear way round: better no line than one through a card) */
+        pts=[pa[0]].concat(pts, [pb[0]]); }
+      var d='M'+pts.map(function(p){ return p[0].toFixed(1)+' '+p[1].toFixed(1); }).join(' L');
+      var col=(typeof COLOR_MAP!=='undefined' && COLOR_MAP[c[2]]) ? COLOR_MAP[c[2]] : 'var(--accent)';
+      var w=document.createElementNS(NS,'g'); w.setAttribute('class','ln-xref'); w.setAttribute('data-a', c[0]); w.setAttribute('data-b', c[1]); g.appendChild(w);
+      var hit=document.createElementNS(NS,'path'); hit.setAttribute('class','ln-xhit'); hit.setAttribute('d', d); w.appendChild(hit);
+      var pa2=document.createElementNS(NS,'path'); pa2.setAttribute('class','ln-xline'); pa2.setAttribute('d', d); pa2.setAttribute('stroke', col); w.appendChild(pa2);
+      [pts[0], pts[pts.length-1]].forEach(function(p){ var e=document.createElementNS(NS,'circle'); e.setAttribute('class','ln-xdot'); e.setAttribute('cx', p[0]); e.setAttribute('cy', p[1]); e.setAttribute('r', 3); e.setAttribute('fill', col); w.appendChild(e); });
+      var tt=document.createElementNS(NS,'title'); tt.textContent=title(c[0])+' ↔ '+title(c[1])+(c[3] ? ' — '+c[3] : ''); w.appendChild(tt);
+    });
+    hot(HOT);
+  }
+  function hot(id){ HOT=id||''; var f=window._focusedNodeId||'';
+    document.querySelectorAll('#lanes-svg g.ln-xref').forEach(function(w){ var a=w.getAttribute('data-a'), b=w.getAttribute('data-b');
+      w.classList.toggle('ln-xon', !!((HOT && (a===HOT || b===HOT)) || (f && (a===f || b===f)))); }); }
+  function soon(){ clearTimeout(T); T=setTimeout(draw, 60); }
+  var lay=window._altoLanes; if(lay) window._altoLanes=function(){ var r=lay.apply(this, arguments); soon(); return r; };
+  document.addEventListener('mouseover', function(e){ var n=e.target.closest && e.target.closest('#world .node[id^="node-"]'); var id=n ? n.id.slice(5) : ''; if(id!==HOT) hot(id); }, true);
+  function hookF(){ ['enterFocus','exitFocus'].forEach(function(k){ var f=window[k]; if(typeof f==='function' && !f._lnX){ var nf=function(){ var r=f.apply(this, arguments); setTimeout(function(){ hot(HOT); }, 0); return r; }; for(var q in f) nf[q]=f[q]; nf._lnX=1; window[k]=nf; } }); }
+  hookF(); window.addEventListener('load', function(){ hookF(); soon(); }); window.addEventListener('resize', soon);
+  window._altoLanesXrefs=draw;
 })();
 /* An enlarged card on a phone fits the room between the top chrome and the step bar, 20 px clear of each (Board 2026-11-27, l844: its last
    line ran under the step bar's "2 / 275"): slid into that room, and where it is taller than the room, held to it and scrolled inside.
