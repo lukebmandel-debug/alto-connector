@@ -10,6 +10,7 @@ authenticated uid into a contextvar (see auth/); dev mode uses ALTO_DEV_UID.
 """
 from __future__ import annotations
 
+import copy
 import contextvars
 import datetime
 import functools
@@ -1445,6 +1446,55 @@ def _tagged(o: dict) -> dict:
     o = {**o, "labels": tags_of(o.get("label"), o.get("labels"))}
     o.pop("label", None)
     return o
+
+
+@mcp.tool(title="Set chip labels", annotations=RW)
+@accounted
+def set_chip_labels(timeline_id: str, labels: dict) -> dict:
+    """Set ONLY the labels of existing chips: {chip id: [tags]} — an entity's id
+    or an axis value's id (a case, a statute, a doctrine…). Up to 2 tags each,
+    every tag one or two letters/digits or ★ (a ★ is kept first); [] clears a
+    chip's labels. Nothing else on the chip changes (name, sections, cites stay
+    exactly as they are), so this is the safe way to label a big axis without
+    resending its records. An unknown id, or a bad tag, is an error and nothing
+    is written. What each tag means is set_chip_legend's job."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    from .build.brief import tags_of
+    brief = copy.deepcopy(doc["brief"])
+    chips = {}
+    for e in brief.get("entities") or []:
+        chips[e.get("id")] = e
+    for ax in brief.get("axes") or []:
+        for v in ax.get("values") or []:
+            chips[v.get("id")] = v
+    if not isinstance(labels, dict):
+        return {"error": "invalid_labels", "message": "labels is {chip id: [tags]}"}
+    unknown = [k for k in labels if k not in chips]
+    if unknown:
+        return {"error": "unknown_chip", "message": f"no chip with id {unknown[:10]}: nothing written", "unknown": unknown}
+    clean = {}
+    for k, tags in labels.items():
+        raw = [tags] if isinstance(tags, str) else list(tags or [])
+        if len(raw) > 2 or any(clean_label(x) != x or not x for x in raw):
+            return {"error": "invalid_labels", "message": f"{k}: at most two tags, each one or two letters/digits or ★ — nothing written"}
+        clean[k] = tags_of("", raw)
+    for k, t in clean.items():
+        chips[k].pop("label", None)
+        if t:
+            chips[k]["labels"] = t
+        else:
+            chips[k].pop("labels", None)
+    try:
+        b, _, _ = load_brief({"brief": _checked(doc, brief)})
+        from .build.brief import validate_brief
+        warnings = validate_brief(b)
+    except BriefError as e:
+        return {"error": "invalid_labels", "message": str(e)}
+    doc["brief"] = brief
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"labelled": sum(1 for t in clean.values() if t), "cleared": sum(1 for t in clean.values() if not t), "warnings": warnings}
 
 
 @mcp.tool(title="Set chip legend", annotations=RW)
