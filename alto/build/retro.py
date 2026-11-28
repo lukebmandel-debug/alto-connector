@@ -203,7 +203,7 @@ BOARD_CSS = r"""
   X #page-bg::before,X #page-bg::after{display:none !important;}
   /* one of the style's own backgrounds chosen (retro_backgrounds.py): the background layer paints it again, the board lets it through; the rest of the sheet is unchanged */
   X.alto-bg-h #page-bg:not(#_):not(#__){background:var(--alto-top) !important;}
-  X.alto-bg-h #page-bg:not(#_):not(#__)::before{display:block !important;left:0 !important;right:0 !important;bottom:0 !important;top:0 !important;}   /* (the window exactly, not the 40 px overhang a blurred photograph needs: the Deco frame is drawn 20 px in from the window's edge) */
+  X.alto-bg-h #page-bg:not(#_):not(#__)::before{display:block !important;position:fixed !important;left:0 !important;right:0 !important;bottom:0 !important;top:0 !important;}   /* (the window exactly, like holo_anim's: not the 40 px overhang a blurred photograph needs, nor the phone layer's taller box, which scaled the art up half again: the Deco frame is drawn 20 px in from the window's edge) */
   X.alto-bg-h :is(body,#app,#canvas):not(#_):not(#__){background:transparent !important;}
   X.alto-bg-h #bldg-root:not(#_):not(#__){background:transparent !important;}   /* (the Museum's plan sits on the scene: its black floor would hide it) */
   X #glass-slab{background:none !important;box-shadow:none !important;border-color:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
