@@ -121,3 +121,12 @@ def test_the_focus_shadow_is_sized_at_the_enlarged_zoom(html):
     assert "card.style.zoom=String(FOCUS_K);" in body
     assert body.index("card.style.zoom=String(FOCUS_K);") < body.index("card.offsetHeight")
     assert body.index("card.offsetHeight") < body.index("card.style.zoom=z0;")
+
+
+def test_the_page_name_and_the_filter_row_are_solid_over_the_board(html):
+    """Board 2026-11-27 (contracts d1440): the page's name pill and the filter chips' row were 50-86% glass, so a dimmed card's words read
+    through them while a card was enlarged. Classic gives both the page's own surface, Holographic its row its own ground; no frost."""
+    flat = html.replace("\n", " ")
+    assert ":is(#title-bar #title-text, #ct-chips, #nav .nav-btn, #nav .nav-group-label):not(#_):not(#__){ background:var(--surface, #fff) !important;" in flat
+    assert ":is(#ct-chips, #nav .nav-btn, #nav .nav-group-label):not(#_):not(#__):not(#___):not(#____):not(#_____):not(#______){ background-color:rgba(var(--ho-bgrgb),1) !important;" in flat
+    assert "#nav{" not in flat.split("Each one solid on its own", 1)[1][:2000]                   # each chip on its own, never the row as one band
