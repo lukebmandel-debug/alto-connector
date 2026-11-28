@@ -1472,6 +1472,33 @@ function layoutLanes(h){
    The Expanded view (and a family opened in the Compact view): outline-style from the parent on the far side of the line,
    one row each, KIDLY apart, each depth KIDIND further in, joined by an elbow off a rail down the parent's left. The Compact view
    tucks them: hidden, a chip on the parent. Called after every layout, and on its own when a family opens or shuts. */
+/* a path from a to b round boxes ([x0,y0,x1,y1], 8 px clear) on a 12 px grid, A*, four ways, a turn costing extra: the board's own px;
+   null where there is no way within the box given (lanes.py outline connectors, lanes_nav.py cross-references) */
+window._altoLanesRoute=function(a, b, boxes, X0, Y0, W, H){
+  var C=12, P8=8, cw=Math.ceil(W/C), ch=Math.ceil(H/C), N=cw*ch; if(N>400000 || cw<2 || ch<2) return null;
+  var blk=new Uint8Array(N);
+  boxes.forEach(function(r){ var x0=Math.max(0, Math.floor((r[0]-P8-X0)/C)), x1=Math.min(cw-1, Math.floor((r[2]+P8-X0)/C)), y0=Math.max(0, Math.floor((r[1]-P8-Y0)/C)), y1=Math.min(ch-1, Math.floor((r[3]+P8-Y0)/C));
+    for(var y=y0;y<=y1;y++) for(var x=x0;x<=x1;x++) blk[y*cw+x]=1; });
+  function cell(p){ return [Math.max(0, Math.min(cw-1, Math.round((p[0]-X0)/C))), Math.max(0, Math.min(ch-1, Math.round((p[1]-Y0)/C)))]; }
+  var s=cell(a), e=cell(b), si=s[1]*cw+s[0], ei=e[1]*cw+e[0]; blk[si]=0; blk[ei]=0;
+  var g=new Float32Array(N*4).fill(1e9), from=new Int32Array(N*4).fill(-1), hp=[], DX=[1,-1,0,0], DY=[0,0,1,-1];
+  function h(i){ return Math.abs(i%cw-e[0])+Math.abs(((i/cw)|0)-e[1]); }
+  function push(k, f){ hp.push([f,k]); var i=hp.length-1; while(i>0){ var q=(i-1)>>1; if(hp[q][0]<=hp[i][0]) break; var t=hp[q]; hp[q]=hp[i]; hp[i]=t; i=q; } }
+  function pop(){ var top=hp[0], last=hp.pop(); if(hp.length){ hp[0]=last; var i=0; for(;;){ var l=2*i+1, r=l+1, m=i; if(l<hp.length && hp[l][0]<hp[m][0]) m=l; if(r<hp.length && hp[r][0]<hp[m][0]) m=r; if(m===i) break; var t=hp[m]; hp[m]=hp[i]; hp[i]=t; i=m; } } return top; }
+  for(var d=0;d<4;d++){ g[si*4+d]=0; push(si*4+d, h(si)); }
+  var end=-1, n=0;
+  while(hp.length && n++<400000){ var it=pop(), k=it[1], i=k>>2, dd=k&3; if(it[0]-h(i)>g[k]+1e-6) continue; if(i===ei){ end=k; break; }
+    var x=i%cw, y=(i/cw)|0;
+    for(var nd=0;nd<4;nd++){ var nx=x+DX[nd], ny=y+DY[nd]; if(nx<0||ny<0||nx>=cw||ny>=ch) continue; var j=ny*cw+nx; if(blk[j]) continue;
+      var c=g[k]+1+(nd!==dd ? 4 : 0), kk=j*4+nd; if(c<g[kk]){ g[kk]=c; from[kk]=k; push(kk, c+h(j)); } } }
+  if(end<0) return null;
+  var pts=[]; for(var k2=end;k2>=0;k2=from[k2]){ var i2=k2>>2; pts.push([X0+(i2%cw)*C, Y0+((i2/cw)|0)*C]); }
+  pts.reverse();
+  /* the ends exactly where asked, joined square to the grid (a short jog where they sit between its lines) */
+  var p0=pts[0], pN=pts[pts.length-1]; pts.unshift([a[0], p0[1]]); pts.unshift(a.slice()); pts.push([b[0], pN[1]]); pts.push(b.slice());
+  var out=[pts[0]]; for(var q=1;q<pts.length-1;q++){ var u=out[out.length-1], v=pts[q], w2=pts[q+1]; if((u[0]===v[0] && v[0]===w2[0]) || (u[1]===v[1] && v[1]===w2[1])) continue; out.push(v); }
+  out.push(pts[pts.length-1]); return out;
+};
 function placeKids(){
   var world=document.getElementById('world'), G=KG; if(!world) return;
   var svg=document.getElementById('lanes-svg'), old=svg && svg.querySelector('.ln-kids'); if(old) old.remove();
@@ -1479,7 +1506,7 @@ function placeKids(){
   world.querySelectorAll('.node.ln-kid,.node.ln-has-kids').forEach(function(n){ n.classList.remove('ln-kid','ln-kid-shut','ln-has-kids','ln-open','ln-sd-1','ln-sd1'); });
   var geoK={}, fams={};
   if(G && kidsOn()){
-    var g=svg ? el('g',{'class':'ln-kids'}, svg) : null, P=G.P, ex=expandedNow();
+    var g=svg ? el('g',{'class':'ln-kids'}, svg) : null, P=G.P, ex=expandedNow(), later=[], FR=null;
     G.order.forEach(function(root){
       var fam=famOf(G.kids, root, 1, []); if(!fam.length) return;
       var rn=document.getElementById('node-'+root), rc=rn && rn.querySelector('.node-card'); if(!rn || !rc) return;
@@ -1514,16 +1541,42 @@ function placeKids(){
           el('circle',{'class':'ln-kiddot', cx:kl, cy:kcy, r:3}, g); }
       });
       /* an outline's connectors: a card under its parent hangs from a bus halfway down the gap (a card on the parent's own row, a flank, from its side) */
-      if(ol && g) Object.keys(tops).forEach(function(pid){
-        var L0=tops[pid], pg=pid===root ? null : geoK[pid], pw=pg ? pg.w : G.w[root], below=L0.filter(function(t){ return sd*(t.ct-t.pb)>=0; }),
+      var kh=function(m){ var e=document.querySelector('#node-'+m+' .node-card'); return (e && e.offsetHeight) || KIDH; };
+      /* every card on the board where it really stands, in the svg's own px, once every family is placed (measured: the plan's heights and
+         frames are not the cards', and a neighbour family's outline can reach under this one) */
+      var famR=function(){ if(FR) return FR; FR={}; var Mx=svg.getScreenCTM(); if(!Mx) return FR; var inv=Mx.inverse(), pt=svg.createSVGPoint();
+        [].forEach.call(document.querySelectorAll('#world .node[id^="node-"]:not(.ln-kid-shut)'), function(n){ var m=n.id.slice(5), e=n.querySelector('.node-card'); if(!e) return; var r=e.getBoundingClientRect(); if(!r.width) return;
+          pt.x=r.left; pt.y=r.top; var a2=pt.matrixTransform(inv); pt.x=r.right; pt.y=r.bottom; var b2=pt.matrixTransform(inv); FR[m]=[a2.x, a2.y, b2.x, b2.y]; }); return FR; };
+      /* does a run of points cross any card but the two it joins (2 px inside the card's edge) */
+      var crosses=function(pts, skip){ var R=famR(); for(var k=1;k<pts.length;k++){ var a=pts[k-1], b=pts[k], x0=Math.min(a[0], b[0]), x1=Math.max(a[0], b[0]), y0=Math.min(a[1], b[1]), y1=Math.max(a[1], b[1]);
+        for(var m in R){ if(skip.indexOf(m)>=0) continue; var r=R[m]; if(x1>r[0]+2 && x0<r[2]-2 && y1>r[1]+2 && y0<r[3]-2) return true; } } return false; };
+      var gridRoute=function(a, b, skip){ var R=famR(), rs=[]; for(var m in R) if(skip.indexOf(m)<0) rs.push(R[m]);
+        var X0=Math.min(a[0], b[0])-300, X1=Math.max(a[0], b[0])+300, Y0=Math.min(a[1], b[1])-300, Y1=Math.max(a[1], b[1])+300;
+        return window._altoLanesRoute ? window._altoLanesRoute(a, b, rs.filter(function(r){ return r[2]>X0 && r[0]<X1 && r[3]>Y0 && r[1]<Y1; }), X0, Y0, X1-X0, Y1-Y0) : null; };
+      /* a vertical run at x from y1 to y2 meets a card of this family (not skip; half: the width the run itself takes) */
+      var blocked=function(x, y1, y2, skip, half){ var lo=Math.min(y1, y2)+1, hi=Math.max(y1, y2)-1, R=famR(); return Object.keys(R).some(function(m){ if(m===skip) return false;
+        var r=R[m]; return x>r[0]-half-2 && x<r[2]+half+2 && r[3]>lo && r[1]<hi; }); };
+      if(ol && g) later.push(function(){ Object.keys(tops).forEach(function(pid){
+        var L0=tops[pid], pg=pid===root ? null : geoK[pid], pw=pg ? pg.w : G.w[root], ph=pg ? kh(pid) : (G.h[root]||120), below=L0.filter(function(t){ return sd*(t.ct-t.pb)>=0; }),
             mid=below.length ? Math.min.apply(null, below.map(function(t){ return sd*(t.ct-t.pb); })) : 0, by=L0[0].pb+sd*mid/2;
         L0.forEach(function(t){
           if(sd*(t.ct-t.pb)<0){ var fx=t.x<t.px ? t.px-pw/2 : t.px+pw/2, tx=t.x<t.px ? t.x+(geoK[t.id].w/2) : t.x-(geoK[t.id].w/2);
-            el('path',{'class':'ln-kidline', d:'M'+fx+' '+(t.pb-sd*KIDH/2)+' H'+tx}, g); return; }
-          el('path',{'class':'ln-kidline', d:'M'+t.px+' '+t.pb+' V'+by+' H'+t.x+' V'+t.ct}, g);
-          el('circle',{'class':'ln-kiddot', cx:t.x, cy:t.ct, r:3}, g); });
-      });
+            el('path',{'class':'ln-kidline', 'data-k':t.id, 'data-p':pid, d:'M'+fx+' '+(t.pb-sd*KIDH/2)+' H'+tx}, g); return; }
+          /* the connector: down from the parent to a bus halfway, along it, down to the card. Where another card stands in the column the
+             run goes down the column's gutter and comes in from the card's side, as a list's does; where the parent's own drop meets a card
+             it leaves from the parent's side; and where any of it would still cross a card (a neighbour family's outline can reach under
+             this one) it is routed round every card on a grid (Board 2026-11-27, civ-pro Outline all: 111 connectors through cards) */
+          var tw=geoK[t.id].w, S=[[t.px, t.pb], [t.px, by]], pts, dot;
+          if(blocked(t.px, t.pb, by, '', 0)){ var pcy=t.pb-sd*ph/2, sides=t.x<t.px ? [-1, 1] : [1, -1];
+            for(var si=0; si<2; si++){ var sx=t.px+sides[si]*(pw/2+9); if(!blocked(sx, pcy, by, '', 0)){ S=[[t.px+sides[si]*pw/2, pcy], [sx, pcy], [sx, by]]; break; } } }
+          if(blocked(t.x, by, t.ct, t.id, tw/2)){ var gx=t.x-tw/2-9; pts=S.concat([[gx, by], [gx, t.cy], [t.x-tw/2, t.cy]]); dot=[t.x-tw/2, t.cy]; }
+          else { pts=S.concat([[t.x, by], [t.x, t.ct]]); dot=[t.x, t.ct]; }
+          if(crosses(pts, [t.id, pid===root ? root : pid])){ var rr=gridRoute([t.px, t.pb], [t.x, t.ct], [t.id, pid===root ? root : pid]); if(rr){ pts=rr; dot=[t.x, t.ct]; } }
+          el('path',{'class':'ln-kidline', 'data-k':t.id, 'data-p':pid, d:'M'+pts.map(function(q){ return q[0]+' '+q[1]; }).join(' L')}, g);
+          el('circle',{'class':'ln-kiddot', cx:dot[0], cy:dot[1], r:3}, g); });
+      }); });
     });
+    later.forEach(function(f){ f(); });
   }
   if(G){ G.geoK=geoK; G.fams=fams; }
   if(window._altoLanesGeo){ window._altoLanesGeo.kids=geoK; window._altoLanesGeo.fams=fams; }
