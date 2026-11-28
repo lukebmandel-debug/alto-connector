@@ -668,7 +668,7 @@ setInterval(put,250); addEventListener('resize',put); addEventListener('load',pu
 
 JS = r"""(function(){
 if(window._altoRetro) return;
-var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, BGS=__BGS__, st=null;
+var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, BGS=__BGS__, OLD=__OLDBG__, st=null;
 function desk(){ return !r.classList.contains('mobile'); }
 function plain(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
 // the frame and the wordmark are the Star chart's (#sk-frame, #sk-mark): drawn on a desktop page
@@ -692,6 +692,7 @@ function sec(){ var U=(window._altoBg||{}).ui; if(!U||!U.body) return null; retu
 function bgs(on){
   var B=window._altoBg; if(!B||!B.C) return; on=on && !sys() && !B.auto && !r.classList.contains('alto-home'); var cur=B.read();
   Object.keys(BGS).forEach(function(id){ if(on) B.C[id]=BGS[id]; else delete B.C[id]; });
+  if(on && OLD.indexOf(cur)>=0 && B.choose){ cur=Object.keys(BGS)[0]; B.choose(cur); }   // (a retired ground, Green Light: its page gets the first of the new ones)
   if(cur in BGS) B.apply(cur);
   var U=B.ui, s=sec();
   if(!on){ if(s) s.parentNode.removeChild(s); return; }
@@ -758,7 +759,7 @@ def css() -> str:
             "@media print{#sk-frame,#sk-mark{display:none !important;}}\n" + _rb.css_vars())
 
 
-ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("ROWPLATE", ROWPLATE_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)).replace("__BGS__", _json.dumps(_rb.client_entries(), separators=(",", ":"))))
+ASSET = _slim(JS.replace("HOMEB", HOME_B_JS).replace("ROWPLATE", ROWPLATE_JS).replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)).replace("__BGS__", _json.dumps(_rb.client_entries(), separators=(",", ":"))).replace("__OLDBG__", _json.dumps(list(_rb.OLD_IDS))))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-retro-{V}.js"
 GUARD = "_altoRetro"

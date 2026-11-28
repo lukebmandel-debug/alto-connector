@@ -1,5 +1,6 @@
-"""Retro's own background, "Green Light" (alto/build/retro_backgrounds.py): offered only in Retro and never on a System, kept per
-timeline, hosted (the page grows by nothing), and every part of it low enough that Retro's gold and cream text keep WCAG AA (4.5:1)."""
+"""Retro's own backgrounds, the Art Deco scenes (alto/build/retro_backgrounds.py; Luke 2026-11-27 replaced "Green Light"): offered only in
+Retro and never on a System, kept per timeline, hosted (the page grows by nothing), and every part of them low enough inside the content band
+that Retro's gold and cream text keep WCAG AA (4.5:1), with the gilt frame 20 px off the window's edge."""
 import json
 import http.server
 import socketserver
@@ -30,29 +31,38 @@ def outline():
     return build_timeline(brief, nodes, conns)[0]
 
 
-def test_one_entry_group_retro_kind_h_light_and_dark_alike():
+IDS = list(rb.SCENES)
+FIRST = IDS[0]
+NAMES = {"r-deco-setback": "Setback", "r-deco-portal": "Portal"}
+
+
+def test_the_deco_scenes_group_retro_kind_h_light_and_dark_alike_and_green_light_is_gone():
     e = rb.client_entries()
-    assert list(e) == ["r-green-light"]
-    v = e["r-green-light"]
-    assert v["g"] == "Retro" and v["k"] == "h" and v["n"] == "Green Light" and v["l"] == v["d"]
-    assert "var(--rt-gl)" in v["l"]["b"]
+    assert FIRST == "r-deco-setback" and set(IDS) <= set(NAMES) and "r-" + "green-light" not in e
+    for k, v in e.items():
+        assert v["g"] == "Retro" and v["k"] == "h" and v["n"] == NAMES[k] and v["l"] == v["d"]
+        assert f"var({rb.SCENES[k]['var']})" in v["l"]["b"] and "linear-gradient" in v["l"]["b"]
 
 
 def test_the_art_is_small_flat_and_original_vector():
     import gzip
-    for svg in (rb.svg_landscape(), rb.svg_portrait()):
-        assert len(gzip.compress(svg.encode(), 9)) < 15 * 1024
-        assert "<image" not in svg and "http://" not in svg.replace("http://www.w3.org/2000/svg", "")
+    for k in IDS:
+        for fr in rb.FRAMINGS:
+            svg = rb.svg(k, fr)
+            assert len(gzip.compress(svg.encode(), 9)) < 15 * 1024
+            assert "<image" not in svg and "http://" not in svg.replace("http://www.w3.org/2000/svg", "")
 
 
-def test_the_scene_rides_in_the_hosted_script_not_the_page(outline):
-    assert "r-green-light" in retro.ASSET and "--rt-gl" in retro.ASSET
-    assert "r-green-light" not in outline and "Green Light" not in outline and "--rt-gl" not in outline
+def test_the_scenes_ride_in_the_hosted_script_not_the_page(outline):
+    for k, v in rb.SCENES.items():
+        assert k in retro.ASSET and v["var"] in retro.ASSET
+        assert k not in outline and v["var"] not in outline
+    assert "--rt-gl" not in retro.ASSET
 
 
 def test_the_sheet_paints_the_chosen_ground_through_retros_layer():
     css = retro.css()
-    assert "alto-bg-h #page-bg" in css and "--rt-gl" in css
+    assert "alto-bg-h #page-bg" in css and all(v["var"] in css for v in rb.SCENES.values())
 
 
 @pytest.fixture(scope="module")
@@ -120,25 +130,32 @@ def _ratio(hexcol, lum):
     return (max(l, lum) + .05) / (min(l, lum) + .05)
 
 
-@pytest.mark.parametrize("land", [True, False])
-def test_the_art_keeps_gold_and_cream_text_at_aa_across_the_content_band(browser, land):
-    W, H = (1440, 900) if land else (390, 844)
-    svg = rb.svg_landscape() if land else rb.svg_portrait()
-    band = (140, 150, 1300, 800) if land else (16, 90, 374, 844)
-    lx = round(W * .93) if land else 300
-    ly = round(H * (.62 if land else .80)) - (16 if land else 10)
+BANDS = {"land": (140, 150, 1300, 800), "port": (16, 90, 374, 844), "short": (16, 40, 828, 390)}   # where cards and text pass
+
+
+@pytest.mark.parametrize("bg", IDS)
+@pytest.mark.parametrize("fr", list(BANDS))
+def test_the_art_keeps_gold_and_cream_text_at_aa_across_the_content_band(browser, fr, bg):
+    (W, H), _, _ = rb.FRAMINGS[fr]
     pg = browser.new_page()
-    worst, at = pg.evaluate(_MEASURE, [svg, *band, W, H, lx, ly, 18 if land else 9])
+    worst, at = pg.evaluate(_MEASURE, [rb.svg(bg, fr), *BANDS[fr], W, H, -999, -999, 0])
     pg.close()
     assert _ratio(GOLD, worst) >= 4.5 and _ratio(CREAM, worst) >= 4.5, (worst, at)
 
 
-def test_on_the_phone_the_light_sits_well_clear_of_the_card_edge():
-    # the card's right edge is 374 of 390; the light's halo (r 34) must end 20 px or more short of it
-    assert 300 + 34 <= 374 - 20
+@pytest.mark.parametrize("bg", IDS)
+@pytest.mark.parametrize("fr", ["land", "port", "short"])
+def test_the_gilt_frame_keeps_20px_off_the_window_edge(fr, bg):
+    import re
+    (W, H), _, _ = rb.FRAMINGS[fr]
+    frame = [d for d in re.findall(r'<path d="([^"]+)" fill="none"', rb.svg(bg, fr)) if d.count("V") > 6 and d.endswith("Z")]
+    assert len(frame) == 2
+    xs = [float(n) for n in re.findall(r"[MHL](-?[\d.]+)", frame[0])]
+    ys = [float(n) for n in re.findall(r"V(-?[\d.]+)", frame[0])]
+    assert min(xs + ys) >= 20 and max(xs) <= W - 20 and max(ys) <= H - 20
 
 
-def test_green_light_is_offered_only_in_retro_kept_per_timeline_and_never_on_a_system(browser, site):
+def test_the_deco_scenes_are_offered_only_in_retro_kept_per_timeline_and_never_on_a_system(browser, site):
     ctx = browser.new_context(viewport={"width": 1400, "height": 900})
     pg = ctx.new_page()
     errors = []
@@ -156,15 +173,15 @@ def test_green_light_is_offered_only_in_retro_kept_per_timeline_and_never_on_a_s
     assert pg.evaluate(heads).count("Retro") == 1                         # Retro: its own section
     shown = "[...document.querySelectorAll('#bg-panel .bg-tile')].filter(t => t.offsetParent).map(t => t.dataset.bg)"
     assert not {"Colors", "Patterns"} & set(pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].filter(h => h.offsetParent).map(h => h.textContent)"))
-    assert pg.evaluate(shown) == ["r-green-light", "r:off"]               # Luke 2026-11-26: nothing of the normal picker is drawn (2026-11-27: but Plain is)
-    pg.click('.bg-tile[data-bg="r-green-light"]')
+    assert pg.evaluate(shown) == IDS + ["r:off"]               # Luke 2026-11-26: nothing of the normal picker is drawn (2026-11-27: but Plain is)
+    pg.click(f'.bg-tile[data-bg="{FIRST}"]')
     pg.wait_for_timeout(400)
     assert pg.evaluate(cls + ".contains('alto-bg-h')")
     assert "data:image/svg+xml" in pg.evaluate("getComputedStyle(document.getElementById('page-bg'), '::before').backgroundImage")
     assert pg.evaluate("getComputedStyle(document.getElementById('page-bg'), '::before').display") != "none"
     pg.reload()                                                           # kept per timeline: the choice survives a reload
     pg.wait_for_timeout(1200)
-    assert pg.evaluate(cls + ".contains('alto-bg-h')") and pg.evaluate("window._altoBgId") == "r-green-light"
+    assert pg.evaluate(cls + ".contains('alto-bg-h')") and pg.evaluate("window._altoBgId") == FIRST
     pg.evaluate("window._altoStyle.set('classic')")                      # back in Classic: no background, no section; the choice is kept
     pg.wait_for_timeout(400)
     assert not pg.evaluate(cls + ".contains('alto-bg')") and "Retro" not in pg.evaluate(heads)
@@ -203,9 +220,9 @@ def test_retro_has_a_plain_choice_that_turns_its_ground_off_and_gives_classic_it
     pg.click("#bg-toggle")
     pg.wait_for_timeout(400)
     assert pg.evaluate(act) == ["r:off"] and not pg.evaluate(cls + ".contains('alto-bg-h')")   # Retro draws it as Plain
-    pg.click('.bg-tile[data-bg="r-green-light"]')
+    pg.click(f'.bg-tile[data-bg="{FIRST}"]')
     pg.wait_for_timeout(400)
-    assert pg.evaluate(cls + ".contains('alto-bg-h')") and pg.evaluate(act) == ["r-green-light"]
+    assert pg.evaluate(cls + ".contains('alto-bg-h')") and pg.evaluate(act) == [FIRST]
     pg.click('.bg-tile[data-bg="r:off"]')                                  # the way back
     pg.wait_for_timeout(400)
     assert not pg.evaluate(cls + ".contains('alto-bg-h')") and not pg.evaluate(cls + ".contains('alto-bg')")
@@ -218,9 +235,24 @@ def test_retro_has_a_plain_choice_that_turns_its_ground_off_and_gives_classic_it
     assert pg.evaluate("window._altoBgId") == col                          # Classic's own choice is back
     pg.evaluate("window._altoStyle.set('retro')")
     pg.wait_for_timeout(400)
-    pg.evaluate("window._altoBg.choose('r-green-light')")
+    pg.evaluate("(id) => window._altoBg.choose(id)", FIRST)
     pg.evaluate("window._altoStyle.set('classic')")                       # a Retro ground chosen: Classic still draws its own
     pg.wait_for_timeout(400)
     assert pg.evaluate("window._altoBgId") == col
     assert not errors, errors
+    ctx.close()
+
+
+def test_a_page_that_chose_green_light_gets_the_first_deco_scene(browser, site):
+    """Green Light is retired (Luke 2026-11-27); a timeline that had it chosen opens in Retro on the first Deco scene, not on nothing."""
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(site + "/t.html")
+    pg.wait_for_timeout(400)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("window._altoBg.choose('r-' + 'green-light')")
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(600)
+    assert pg.evaluate("window._altoBgId") == FIRST
+    assert pg.evaluate("document.documentElement.classList.contains('alto-bg-h')")
     ctx.close()
