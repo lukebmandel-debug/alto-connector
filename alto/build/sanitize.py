@@ -646,6 +646,7 @@ def sanitize_brief(b, nodes=None) -> list:
     for e in b.entities:
         e.labels, e.label = tags_of(e.label, e.labels), ""
         e.name, e.role = plain_text(e.name), plain_text(e.role)
+        e.summary = " ".join(plain_text(e.summary or "").split())
         e.symbol_svg = clean_svg(e.symbol_svg)
         sections(e.sections, f"entity {e.id}")
         e.aliases = [plain_text(x) for x in e.aliases if (x or "").strip()]
@@ -657,6 +658,7 @@ def sanitize_brief(b, nodes=None) -> list:
         for v in ax.values:
             v.labels, v.label = tags_of(v.label, v.labels), ""
             v.name, v.role = plain_text(v.name), plain_text(v.role)
+            v.summary = " ".join(plain_text(v.summary or "").split())
             v.group = plain_text(v.group)
             v.symbol_svg = clean_svg(v.symbol_svg)
             sections(v.sections, f"{ax.label} value {v.id}")

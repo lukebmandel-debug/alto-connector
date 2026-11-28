@@ -1497,6 +1497,56 @@ def set_chip_labels(timeline_id: str, labels: dict) -> dict:
     return {"labelled": sum(1 for t in clean.values() if t), "cleared": sum(1 for t in clean.values() if not t), "warnings": warnings}
 
 
+@mcp.tool(title="Set chip summaries", annotations=RW)
+@accounted
+def set_chip_summaries(timeline_id: str, summaries: dict) -> dict:
+    """Set ONLY the one-line summaries of existing chips: {chip id: text} — an
+    entity's id or an axis value's id (a case…). Each summary is one line of at
+    most 240 characters (aim for ~200) that jogs the memory of the case: facts,
+    holding, reasoning. In ink-saver print of the outline and the horizontal
+    timeline, each card lists a line "★ Case name — summary" for every ★ chip
+    (see set_chip_labels) it carries that has one; the screen is unchanged.
+    "" clears a chip's summary. Nothing else on the chip changes. An unknown id
+    or an over-long summary is an error and nothing is written."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    brief = copy.deepcopy(doc["brief"])
+    chips = {}
+    for e in brief.get("entities") or []:
+        chips[e.get("id")] = e
+    for ax in brief.get("axes") or []:
+        for v in ax.get("values") or []:
+            chips[v.get("id")] = v
+    if not isinstance(summaries, dict):
+        return {"error": "invalid_summaries", "message": "summaries is {chip id: text}"}
+    unknown = [k for k in summaries if k not in chips]
+    if unknown:
+        return {"error": "unknown_chip", "message": f"no chip with id {unknown[:10]}: nothing written", "unknown": unknown}
+    clean = {}
+    for k, t in summaries.items():
+        if not isinstance(t, str):
+            return {"error": "invalid_summaries", "message": f"{k}: a summary is text — nothing written"}
+        t = " ".join(t.split())
+        if len(t) > 240:
+            return {"error": "invalid_summaries", "message": f"{k}: {len(t)} characters, at most 240 — nothing written"}
+        clean[k] = t
+    for k, t in clean.items():
+        if t:
+            chips[k]["summary"] = t
+        else:
+            chips[k].pop("summary", None)
+    try:
+        b, _, _ = load_brief({"brief": _checked(doc, brief)})
+        from .build.brief import validate_brief
+        warnings = validate_brief(b)
+    except BriefError as e:
+        return {"error": "invalid_summaries", "message": str(e)}
+    doc["brief"] = brief
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"summarised": sum(1 for t in clean.values() if t), "cleared": sum(1 for t in clean.values() if not t), "warnings": warnings}
+
+
 @mcp.tool(title="Set chip legend", annotations=RW)
 @accounted
 def set_chip_legend(timeline_id: str, legend: list[dict]) -> dict:

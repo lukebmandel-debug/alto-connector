@@ -147,6 +147,7 @@ class Entity:
     sources: list[str] = field(default_factory=list)   # Brief.source_docs ids
     label: str = ""            # shorthand for one tag; folded into `labels` at build
     labels: list[str] = field(default_factory=list)   # up to 2 badges on the chip ("O", "★"); meanings in Brief.chip_legend
+    summary: str = ""          # one line that jogs memory of a (starred) case; printed under the card in ink-saver (chip_summaries.py)
 
 
 @dataclass
@@ -156,6 +157,7 @@ class AxisValue:
     symbol_svg: str = ""
     label: str = ""            # shorthand for one tag; folded into `labels` at build
     labels: list[str] = field(default_factory=list)   # up to 2 badges on the chip ("O", "★"); meanings in Brief.chip_legend
+    summary: str = ""          # one line that jogs memory of a (starred) case; printed under the card in ink-saver (chip_summaries.py)
     color: str = ""
     role: str = ""
     sections: list[Section] = field(default_factory=list)
@@ -810,6 +812,8 @@ def tags_of(label, labels) -> list[str]:
 
 def _check_chip_labels(b) -> None:
     def one(owner, o):
+        if not isinstance(o.summary, str) or len(o.summary) > 240:
+            raise BriefError(f"{owner} summary: text of at most 240 characters")
         raw = ([o.label] if o.label else []) + list(o.labels or [])
         if len(raw) > 2 or any(clean_label(x) != x or not x for x in raw):
             raise BriefError(f"{owner} labels {raw!r}: at most two tags, each one or two letters or digits (or {STAR})")
