@@ -39,6 +39,7 @@ NEW_UNIT = re.compile(r"^unit-[a-z0-9]{4,12}$")
 CHIP_ATTR = {"chars": "entity_ids", "envs": "axis1_values", "themes": "axis2_values"}
 NEW_TREE = re.compile(r"^(n|c|a0|a1)-(.+)-(new-[a-z0-9]+)$")
 FILE_ID = re.compile(r"^file-[a-z0-9]{6,12}$")
+from .build.brief import clean_label, tags_of  # noqa: E402
 from .drive_common import GD_KEY, _ID as DRIVE_ID, clean_name as _drive_name  # noqa: E402  (neutral: no alto.bass)
 PROV_KEYS = ("quoted", "notes", "summary")
 # A solar outline (layout 'solar') is drawn sun > planets > moons > satellites:
@@ -436,6 +437,8 @@ def _target(key, brief, by_id, conns):
         return (by_id[p[1]], None, "delnode") if p[1] in by_id else None
     if key == "fl|list":
         return brief, "flags", "flags"
+    if key == "cl|legend":
+        return brief, "chip_legend", "legend"
     if key == "fx|off":
         return brief, "filters_off", "list"
     if kind == "fn" and len(p) == 2:
@@ -470,8 +473,8 @@ def _target(key, brief, by_id, conns):
             return None
         return None, None, "newtree" if len(p) == 3 and p[2] == "tree" else "newtreef"
     if kind in ("n", "c", "env", "theme") and len(p) == 3:
-        ok = {"n": ("title", "tag", "desc", "when", "line", "flash"), "c": ("name", "role"),
-              "env": ("name", "role"), "theme": ("name", "role")}[kind]
+        ok = {"n": ("title", "tag", "desc", "when", "line", "flash"), "c": ("name", "role", "label"),
+              "env": ("name", "role", "label"), "theme": ("name", "role", "label")}[kind]
         o = _owner(kind, p[1], brief, by_id)
         if o is None:
             return None
@@ -598,6 +601,17 @@ def _tree_from_list(v, old):
 
 
 # ── fold ────────────────────────────────────────────────────────────────────
+
+def _tag_str(holder) -> str:
+    """A chip's tags as the page writes them in one field: "O ★"."""
+    return " ".join(tags_of(holder.get("label"), holder.get("labels")))
+
+
+def _legend_list(v) -> list:
+    """A chip legend as the page keeps it: [{label, meaning}]."""
+    return [{"label": clean_label(r.get("label")), "meaning": str(r.get("meaning") or "").strip()}
+            for r in v or [] if isinstance(r, dict) and clean_label(r.get("label"))]
+
 
 def _flag_list(v) -> list:
     """A filters' list as the page keeps it: [{id, name, color?}]."""
@@ -1205,14 +1219,27 @@ def fold(store, uid, tid) -> "dict | None":
         holder, f, kind = t
         v, b = o.get("v"), o.get("b")
         if kind in ("plain", "para"):
-            cur = plain_text(holder.get(f) or "")
+            cur = _tag_str(holder) if f == "label" and k.split("|")[0] in ("c", "env", "theme") else plain_text(holder.get(f) or "")
             if cur == (v or ""):
                 already.append(k)
                 continue
             if cur != (b or ""):
                 conflicts.append(k)
                 continue
-            holder[f] = v or ""
+            if f == "label" and k.split("|")[0] in ("c", "env", "theme"):                 # the page's "O ★" is the chip's tags
+                holder["labels"] = tags_of("", str(v or "").split())
+                holder.pop("label", None)
+            else:
+                holder[f] = v or ""
+        elif kind == "legend":
+            cur = _legend_list(holder.get(f))
+            if cur == _legend_list(v):
+                already.append(k)
+                continue
+            if cur != _legend_list(b):
+                conflicts.append(k)
+                continue
+            holder[f] = _legend_list(v)
         elif kind in ("flags", "list"):
             norm = _flag_list if kind == "flags" else (lambda x: [str(y) for y in (x or [])])
             cur = norm(holder.get(f))
@@ -2015,7 +2042,7 @@ def published(store, uid, tid) -> int:
         if len(p) > 2 and p[2] == "s":
             pass                 # by its ORIGINAL place: a reorder moves it, so trust the fold
         elif t is not None and t[2] in ("plain", "para"):
-            carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
+            carried = (_tag_str(t[0]) if t[1] == "label" and p[0] in ("c", "env", "theme") else plain_text(t[0].get(t[1]) or "")) == (o.get("v") or "")
         elif t is not None and t[2] in ("shift", "slide"):
             carried = _same((t[0].get(t[1]) or {}).get(t[2]), o.get("v"))
         elif t is not None and t[2] in ("lot", "fno", "out", "shape"):
@@ -2035,6 +2062,8 @@ def published(store, uid, tid) -> int:
         elif t is not None and t[2] == "kidorder":
             have = kids_in_order(nodes, doc.get("brief") or {}, p[1])
             carried = in_order(have, o.get("v") or []) == have
+        elif t is not None and t[2] == "legend":
+            carried = _legend_list(t[0].get(t[1])) == _legend_list(o.get("v"))
         elif t is not None and t[2] == "flags":
             carried = _flag_list(t[0].get(t[1])) == _flag_list(o.get("v"))
         elif t is not None and t[2] == "list":
