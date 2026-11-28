@@ -8,7 +8,7 @@ from pathlib import Path
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, migrate_brief, building_view, world_view
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
-from . import backgrounds, clear_top, unit_numbers, focus_branch, format_symbols, hover_lines, select_guard, title_tab
+from . import backgrounds, chip_labels, clear_top, unit_numbers, focus_branch, format_symbols, hover_lines, select_guard, title_tab
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
@@ -372,6 +372,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {}) + photos_block(*(photos or ({}, {}))) + figures_block(figures or {}, css=".dl-box{" not in html)
             + study_plan_block(brief, nodes)
+            + chip_labels.block(brief)
             + manual_edit(brief, nodes) + print_views() + study_sheet(brief)
             + backgrounds.ui_block("This " + _bg_noun(brief), rail=True) + unit_numbers.panel_block() + hover_lines.block()
             + (focus_branch.block() if brief.mode == "outline" and not solar_style(brief) else "")   # focus on a branch: the normal outline only (Luke L-1114-focus: not the timeline, the horizontal timeline or any other format)

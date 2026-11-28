@@ -720,6 +720,18 @@ themselves. Each photograph is public domain, CC0 or CC BY, credited in the
 picker. Never offer to set one for the user, and never describe it as part of
 building a page: it is theirs to pick.
 
+### B1c. Chip labels (`label`, `set_chip_legend`)
+Any chip — a case, a doctrine, a character, an environment — can wear a
+one- or two-letter **label**, a small badge after its name (`label` on an entity
+in `set_entities`, or on an axis value in `set_axis_values`). The page's
+**legend** says what each letter means (`set_chip_legend`, at most 12 rows,
+e.g. H = history, R = explains the modern rule, O = overruled). The meaning shows
+on hover, on a long press on a phone and at the top of the Filter panel. The
+letters and their meanings are the user's own: never invent a scheme, and
+leave a chip unlabelled when its status is not clear from their materials.
+The owner can add or change a label, and the legend, in manual edit mode on the
+chip's page.
+
 ### B2. The Filter toggle (`chip_filters`, `line_filter`)
 Every page has one **Filter** toggle — a tab on the right edge on desktop
 (under Notes), a tile at the bottom-left on a phone — and every filter lives in

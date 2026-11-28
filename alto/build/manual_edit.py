@@ -152,6 +152,7 @@ def edit_keys(b, nodes=()) -> str:
 def manual_edit(b, nodes=()) -> str:
     from .study_edit import STUDY_EDIT_CSS, STUDY_EDIT_FIELD, STUDY_EDIT_DECORATE, STUDY_EDIT_JS
     from .photos import EDIT_FIELD, EDIT_REFRESH
+    from . import chip_labels as _chip_labels
     from .figures_edit import FIG_EDIT_FIELD, FIG_EDIT_REFRESH, FIG_EDIT_DECORATE, FIG_EDIT_JS, FIG_EDIT_CSS
     js = (MANUAL_JS.replace("/*__STUDY_FIELD__*/", STUDY_EDIT_FIELD)
           .replace("/*__PICS_FIELD__*/", EDIT_FIELD).replace("/*__PICS_REFRESH__*/", EDIT_REFRESH)
@@ -170,9 +171,9 @@ def manual_edit(b, nodes=()) -> str:
     if bass_ui.enabled():                    # Bass (bass_ui.py): its button in the Edit pill and the loader of its hosted bundle; off, the markers vanish and nothing changes
         js = js.replace("/*__BASS_FN__*/", bass_ui.PILL_FN).replace("/*__BASS_USE__*/", bass_ui.PILL_USE).replace("/*__BASS_WIRE__*/", bass_ui.PILL_WIRE)
         css = css.replace("</style>", bass_ui.PILL_CSS + "</style>")
-        return edit_keys(b, nodes) + pre + css + "\n" + js + "\n" + bass_ui.pill_script()
+        return edit_keys(b, nodes) + pre + css + "\n" + _chip_labels.patch_manual(js, b) + "\n" + bass_ui.pill_script()
     js = js.replace("/*__BASS_FN__*/", "").replace("/*__BASS_USE__*/", "").replace("/*__BASS_WIRE__*/", "")
-    return edit_keys(b, nodes) + pre + css + "\n" + js + "\n"
+    return edit_keys(b, nodes) + pre + css + "\n" + _chip_labels.patch_manual(js, b) + "\n"
 
 
 # How a linked file is shown (MANUAL_JS openFile). A Claude preview may not
